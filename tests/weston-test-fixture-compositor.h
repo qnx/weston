@@ -54,6 +54,8 @@ enum shell_type {
 	SHELL_FULLSCREEN,
 	/** The kiosk shell */
 	SHELL_KIOSK,
+	/** The lua shell */
+	SHELL_LUA,
 };
 
 /** Weston compositor configuration

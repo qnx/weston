@@ -109,6 +109,7 @@ directory are:
 .BR fullscreen (deprecated)
 .BR ivi
 .BR kiosk
+.BR lua
 .fi
 .RE
 .TP 7
@@ -483,6 +484,9 @@ sets the cursor theme (string).
 .TP 7
 .BI "cursor-size=" 24
 sets the cursor size (unsigned integer).
+.TP 7
+.BI "lua-script=" script
+sets the script for the lua shell.
 .\"---------------------------------------------------------------------
 .SH "LAUNCHER SECTION"
 There can be multiple launcher sections, one for each launcher.

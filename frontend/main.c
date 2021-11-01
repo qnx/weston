@@ -825,6 +825,12 @@ usage(int error_code)
 		"  --no-input\t\tDont create input devices\n\n");
 #endif
 
+#if defined(BUILD_LUA_SHELL)
+	fprintf(out,
+		"Options for lua-shell:\n\n"
+		"  --lua-script=script\t\tLua script\n\n");
+#endif
+
 	exit(error_code);
 }
 

@@ -14,6 +14,7 @@ panel-color=0x90ff0000
 locking=true
 animation=zoom
 startup-animation=fade
+lua-script=@libexecdir@/shell.lua
 #binding-modifier=ctrl
 #num-workspaces=6
 #cursor-theme=whiteglass

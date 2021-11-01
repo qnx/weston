@@ -90,6 +90,12 @@ The IVI shell is a special-purpose shell which exposes an API compatible
 with the GENIVI Layer Manager to user-provided HMI controller modules.
 It is intended for use in automotive environments.
 .
+.TP
+.I lua
+The lua shell is a meta-shell that is user-scriptable and configurable.
+A supplied Lua script will be interpreted and executed by Weston,
+allowing full control over window management in response to events.
+.
 .\" ***************************************************************
 .SH XWAYLAND
 Weston can support X11 clients running within a Weston session via an
@@ -318,6 +324,12 @@ Give all outputs a refresh rate of
 .IR N " mHz (60,000 mHz by default)."
 Supported values range from 0 mHz to 1,000,000 mHz. 0 is a special value
 that repaints as soon as possible on capture requests only, not on damages.
+.
+.SS lua shell options:
+.TP
+\fB\-\-lua\-script\fR=\fIscript\fR
+Override weston.ini lua\-script= with
+.IR script "."
 .
 .
 .\" ***************************************************************

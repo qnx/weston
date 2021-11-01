@@ -136,6 +136,12 @@ option(
 	value: true,
 	description: 'Weston shell UI: kiosk (desktop apps)'
 )
+option(
+	'shell-lua',
+	type: 'boolean',
+	value: true,
+	description: 'Weston shell UI: Lua (programmable)'
+)
 
 option(
 	'desktop-shell-client-default',

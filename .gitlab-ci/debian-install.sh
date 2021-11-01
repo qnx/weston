@@ -69,6 +69,7 @@ apt-get -y --no-install-recommends install \
 	libjack-jackd2-dev \
 	libjpeg-dev \
 	libjpeg-dev \
+	liblua5.4-dev \
 	libmtdev-dev \
 	libpam0g-dev \
 	libpango1.0-dev \
