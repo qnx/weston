@@ -37,6 +37,7 @@
 
 #include <libweston/desktop.h>
 #include "internal.h"
+#include "libweston-internal.h"
 #include "shared/helpers.h"
 
 /************************************************************************************
@@ -141,11 +142,40 @@ struct weston_desktop_xdg_popup {
 	    sizeof(struct weston_desktop_xdg_popup))
 #define weston_desktop_surface_configure_biggest_size weston_desktop_surface_role_biggest_size
 
+static bool
+intersect_rectangles(struct weston_geometry *dst,
+		     const struct weston_geometry *src1,
+		     const struct weston_geometry *src2)
+{
+	int dst_x, dst_y;
+	int dst_w, dst_h;
+
+	dst_x = MAX(src1->x, src2->x);
+	dst_y = MAX(src1->y, src2->y);
+	dst_w = MIN(src1->x + src1->width, src2->x + src2->width) - dst_x;
+	dst_h = MIN(src1->y + src1->height, src2->y + src2->height) - dst_y;
+
+	if (dst_w > 0 && dst_h > 0) {
+		*dst = (struct weston_geometry) {
+			.x = dst_x,
+			.y = dst_y,
+			.width = dst_w,
+			.height = dst_h,
+		};
+		return true;
+	} else {
+		*dst = (struct weston_geometry) {
+			.x = 0,
+			.y = 0,
+			.width = 0,
+			.height = 0,
+		};
+		return false;
+	}
+}
 
 static struct weston_geometry
-weston_desktop_xdg_positioner_get_geometry(struct weston_desktop_xdg_positioner *positioner,
-					   struct weston_desktop_surface *dsurface,
-					   struct weston_desktop_surface *parent)
+process_positioner(struct weston_desktop_xdg_positioner *positioner)
 {
 	struct weston_geometry geometry = {
 		.x = positioner->offset.x,
@@ -214,10 +244,328 @@ weston_desktop_xdg_positioner_get_geometry(struct weston_desktop_xdg_positioner 
 		geometry.x -= geometry.width / 2;
 	}
 
-	if (positioner->constraint_adjustment == XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_NONE)
+	return geometry;
+}
+
+static void
+positioner_flip_vertically(struct weston_desktop_xdg_positioner *positioner)
+{
+	switch (positioner->anchor) {
+	case XDG_POSITIONER_ANCHOR_TOP:
+		positioner->anchor = XDG_POSITIONER_ANCHOR_BOTTOM;
+		break;
+	case XDG_POSITIONER_ANCHOR_BOTTOM:
+		positioner->anchor = XDG_POSITIONER_ANCHOR_TOP;
+		break;
+	case XDG_POSITIONER_ANCHOR_TOP_LEFT:
+		positioner->anchor = XDG_POSITIONER_ANCHOR_BOTTOM_LEFT;
+		break;
+	case XDG_POSITIONER_ANCHOR_BOTTOM_LEFT:
+		positioner->anchor = XDG_POSITIONER_ANCHOR_TOP_LEFT;
+		break;
+	case XDG_POSITIONER_ANCHOR_TOP_RIGHT:
+		positioner->anchor = XDG_POSITIONER_ANCHOR_BOTTOM_RIGHT;
+		break;
+	case XDG_POSITIONER_ANCHOR_BOTTOM_RIGHT:
+		positioner->anchor = XDG_POSITIONER_ANCHOR_TOP_RIGHT;
+		break;
+	case XDG_POSITIONER_ANCHOR_NONE:
+	case XDG_POSITIONER_ANCHOR_LEFT:
+	case XDG_POSITIONER_ANCHOR_RIGHT:
+		break;
+	}
+
+	switch (positioner->gravity) {
+	case XDG_POSITIONER_GRAVITY_TOP:
+		positioner->gravity = XDG_POSITIONER_GRAVITY_BOTTOM;
+		break;
+	case XDG_POSITIONER_GRAVITY_BOTTOM:
+		positioner->gravity = XDG_POSITIONER_GRAVITY_TOP;
+		break;
+	case XDG_POSITIONER_GRAVITY_TOP_LEFT:
+		positioner->gravity = XDG_POSITIONER_GRAVITY_BOTTOM_LEFT;
+		break;
+	case XDG_POSITIONER_GRAVITY_BOTTOM_LEFT:
+		positioner->gravity = XDG_POSITIONER_GRAVITY_TOP_LEFT;
+		break;
+	case XDG_POSITIONER_GRAVITY_TOP_RIGHT:
+		positioner->gravity = XDG_POSITIONER_GRAVITY_BOTTOM_RIGHT;
+		break;
+	case XDG_POSITIONER_GRAVITY_BOTTOM_RIGHT:
+		positioner->gravity = XDG_POSITIONER_GRAVITY_TOP_RIGHT;
+		break;
+	case XDG_POSITIONER_GRAVITY_NONE:
+	case XDG_POSITIONER_GRAVITY_LEFT:
+	case XDG_POSITIONER_GRAVITY_RIGHT:
+		break;
+	}
+}
+
+static void
+positioner_flip_horizontally(struct weston_desktop_xdg_positioner *positioner)
+{
+	switch (positioner->anchor) {
+	case XDG_POSITIONER_ANCHOR_NONE:
+	case XDG_POSITIONER_ANCHOR_TOP:
+	case XDG_POSITIONER_ANCHOR_BOTTOM:
+		break;
+	case XDG_POSITIONER_ANCHOR_TOP_LEFT:
+		positioner->anchor = XDG_POSITIONER_ANCHOR_TOP_RIGHT;
+		break;
+	case XDG_POSITIONER_ANCHOR_BOTTOM_LEFT:
+		positioner->anchor = XDG_POSITIONER_ANCHOR_BOTTOM_RIGHT;
+		break;
+	case XDG_POSITIONER_ANCHOR_TOP_RIGHT:
+		positioner->anchor = XDG_POSITIONER_ANCHOR_TOP_LEFT;
+		break;
+	case XDG_POSITIONER_ANCHOR_BOTTOM_RIGHT:
+		positioner->anchor = XDG_POSITIONER_ANCHOR_BOTTOM_LEFT;
+		break;
+	case XDG_POSITIONER_ANCHOR_LEFT:
+		positioner->anchor = XDG_POSITIONER_ANCHOR_RIGHT;
+		break;
+	case XDG_POSITIONER_ANCHOR_RIGHT:
+		positioner->anchor = XDG_POSITIONER_ANCHOR_LEFT;
+		break;
+	}
+
+	switch (positioner->gravity) {
+	case XDG_POSITIONER_GRAVITY_NONE:
+	case XDG_POSITIONER_GRAVITY_TOP:
+	case XDG_POSITIONER_GRAVITY_BOTTOM:
+		break;
+	case XDG_POSITIONER_GRAVITY_TOP_LEFT:
+		positioner->gravity = XDG_POSITIONER_GRAVITY_TOP_RIGHT;
+		break;
+	case XDG_POSITIONER_GRAVITY_BOTTOM_LEFT:
+		positioner->gravity = XDG_POSITIONER_GRAVITY_BOTTOM_RIGHT;
+		break;
+	case XDG_POSITIONER_GRAVITY_TOP_RIGHT:
+		positioner->gravity = XDG_POSITIONER_GRAVITY_TOP_LEFT;
+		break;
+	case XDG_POSITIONER_GRAVITY_BOTTOM_RIGHT:
+		positioner->gravity = XDG_POSITIONER_GRAVITY_BOTTOM_LEFT;
+		break;
+	case XDG_POSITIONER_GRAVITY_LEFT:
+		positioner->gravity = XDG_POSITIONER_GRAVITY_RIGHT;
+		break;
+	case XDG_POSITIONER_GRAVITY_RIGHT:
+		positioner->gravity = XDG_POSITIONER_GRAVITY_LEFT;
+		break;
+	}
+}
+
+static bool
+is_constraint_satisfied(struct weston_geometry *surface_geometry,
+			struct weston_geometry *output_geometry,
+			struct weston_geometry *intersection)
+{
+	intersect_rectangles(intersection, surface_geometry, output_geometry);
+	return (intersection->width == surface_geometry->width &&
+		intersection->height == surface_geometry->height);
+}
+
+static void
+local_geometry_to_global(struct weston_geometry *geometry,
+			 struct weston_view *parent_view,
+			 struct weston_geometry *global_geometry)
+{
+	pixman_box32_t geometry_rect;
+	pixman_box32_t global_rect;
+
+	geometry_rect = (pixman_box32_t) {
+		.x1 = geometry->x,
+		.y1 = geometry->y,
+		.x2 = geometry->x + geometry->width,
+		.y2 = geometry->y + geometry->height,
+	};
+	global_rect = weston_matrix_transform_rect(&parent_view->transform.matrix,
+						   geometry_rect);
+	global_geometry->x = global_rect.x1;
+	global_geometry->y = global_rect.y1;
+	global_geometry->width = global_rect.x2 - global_rect.x1;
+	global_geometry->height = global_rect.y2 - global_rect.y1;
+}
+
+static bool
+is_geometry_satisfied(struct weston_view *parent_view,
+		      struct weston_geometry *geometry,
+		      struct weston_output *output,
+		      struct weston_geometry *intersection)
+{
+	struct weston_geometry global_geometry;
+	struct weston_geometry output_geometry;
+	struct weston_geometry global_intersection;
+	struct weston_coord_surface surface_coord;
+	struct weston_coord_global tmp_g;
+	bool is_satisfied;
+
+	local_geometry_to_global(geometry, parent_view, &global_geometry);
+
+	output_geometry = (struct weston_geometry) {
+		.x = output->pos.c.x,
+		.y = output->pos.c.y,
+		.width = output->width,
+		.height = output->height,
+	};
+
+	is_satisfied = is_constraint_satisfied(&global_geometry,
+					       &output_geometry,
+					       &global_intersection);
+
+	tmp_g.c = weston_coord(global_intersection.x,
+			       global_intersection.y);
+	surface_coord = weston_coord_global_to_surface(parent_view, tmp_g);
+	intersection->x = round(surface_coord.c.x);
+	intersection->y = round(surface_coord.c.y);
+
+	tmp_g.c = weston_coord(global_intersection.x +
+			       global_intersection.width,
+			       global_intersection.y +
+			       global_intersection.height);
+	surface_coord = weston_coord_global_to_surface(parent_view, tmp_g);
+
+	intersection->width = round(surface_coord.c.x) - intersection->x;
+	intersection->height = round(surface_coord.c.y) - intersection->y;
+
+	return is_satisfied;
+}
+
+static void
+try_flip_position(struct weston_desktop_surface *surface,
+		  struct weston_view *parent_view,
+		  struct weston_output *output,
+		  struct weston_geometry *geometry,
+		  struct weston_desktop_xdg_positioner *positioner,
+		  enum xdg_positioner_constraint_adjustment constraint_adjustment)
+{
+	struct weston_desktop_xdg_positioner flipped_positioner = *positioner;
+	struct weston_geometry flipped_geometry;
+	struct weston_geometry flipped_intersection;
+
+	switch (constraint_adjustment) {
+	case XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_X:
+		positioner_flip_horizontally(&flipped_positioner);
+		break;
+	case XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_Y:
+		positioner_flip_vertically(&flipped_positioner);
+		break;
+	default:
+		assert(!"Invalid constraint adjustment");
+	}
+
+	flipped_geometry = process_positioner(&flipped_positioner);
+	is_geometry_satisfied(parent_view, &flipped_geometry, output,
+			      &flipped_intersection);
+
+	if (constraint_adjustment ==
+	    XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_X) {
+		*positioner = flipped_positioner;
+		geometry->x = flipped_geometry.x;
+	} else if (constraint_adjustment ==
+		   XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_Y) {
+		*positioner = flipped_positioner;
+		geometry->y = flipped_geometry.y;
+	}
+}
+
+static void
+constrain_to_output(struct weston_desktop_surface *surface,
+		    struct weston_view *parent_view,
+		    struct weston_output *output,
+		    struct weston_geometry *geometry,
+		    struct weston_desktop_xdg_positioner *positioner)
+{
+	struct weston_geometry global_geometry;
+	int output_x2;
+	int output_y2;
+	struct weston_geometry intersection;
+
+	local_geometry_to_global(geometry, parent_view, &global_geometry);
+	output_x2 = output->pos.c.x + output->width;
+	output_y2 = output->pos.c.y + output->height;
+
+	if (is_geometry_satisfied(parent_view, geometry, output, &intersection))
+		return;
+
+	if (geometry->width != intersection.width &&
+	    (positioner->constraint_adjustment &
+	     XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_X)) {
+		try_flip_position(surface,
+				  parent_view,
+				  output,
+				  geometry,
+				  positioner,
+				  XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_X);
+	}
+	if (geometry->height != intersection.height &&
+	    (positioner->constraint_adjustment &
+	     XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_Y)) {
+		try_flip_position(surface,
+				  parent_view,
+				  output,
+				  geometry,
+				  positioner,
+				  XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_Y);
+	}
+
+	if (is_geometry_satisfied(parent_view, geometry, output, &intersection))
+		return;
+
+	if (positioner->constraint_adjustment &
+	    XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_SLIDE_X &&
+	    global_geometry.x + global_geometry.width > output_x2) {
+		if (geometry->x < intersection.x)
+			geometry->x = intersection.x;
+		else
+			geometry->x -= geometry->width - intersection.width;
+	}
+	if (positioner->constraint_adjustment &
+	    XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_SLIDE_Y &&
+	    global_geometry.y + global_geometry.height > output_y2) {
+		if (geometry->y < intersection.y)
+			geometry->y = intersection.y;
+		else
+			geometry->y -= geometry->height - intersection.height;
+	}
+
+	if (is_geometry_satisfied(parent_view, geometry, output, &intersection))
+		return;
+
+	if (positioner->constraint_adjustment &
+	    XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_RESIZE_X) {
+		geometry->x = intersection.x;
+		geometry->width = intersection.width;
+	}
+	if (positioner->constraint_adjustment &
+	    XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_RESIZE_Y) {
+		geometry->y = intersection.y;
+		geometry->height = intersection.height;
+	}
+}
+
+static struct weston_geometry
+weston_desktop_xdg_positioner_get_geometry(struct weston_desktop_xdg_positioner *positioner,
+					   struct weston_desktop_surface *dsurface,
+					   struct weston_desktop_surface *parent)
+{
+	struct weston_geometry geometry;
+	struct weston_surface *surface;
+	struct weston_view *parent_view;
+
+	geometry = process_positioner(positioner);
+
+	if (positioner->constraint_adjustment ==
+	    XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_NONE)
 		return geometry;
 
-	/* TODO: add compositor policy configuration and the code here */
+	surface = weston_desktop_surface_get_surface(parent);
+	wl_list_for_each(parent_view, &surface->views, surface_link) {
+		struct weston_output *output = parent_view->output;
+
+		constrain_to_output(dsurface, parent_view,
+				    output, &geometry, positioner);
+	}
 
 	return geometry;
 }
