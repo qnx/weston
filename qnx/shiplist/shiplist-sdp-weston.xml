@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<shiplist>
+    <id>com.qnx.${baselineId}.osr.weston</id>
+    <version>11.0.0</version>
+    <name>Weston</name>
+    <category>Wayland</category>
+    <property key="product">Prebuilt Open Source Packages</property>
+    <packageType>component</packageType>
+    <description>Weston compositor and client examples</description>
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-calibrator" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-clickdot" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-cliptest" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-confine" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-debug" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-dnd" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-eventdemo" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-flower" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-fullscreen" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-image" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-multi-resource" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-presentation-shm" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-resizor" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-scaler" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-simple-egl" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-simple-shm" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-simple-touch" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-smoke" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-stacking" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-subsurfaces" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-terminal" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-touch-calibrator" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-transformed" />
+    <file name="${targetfolder}/[ARCH]/usr/lib/libweston/gl-renderer.so" />
+    <file name="${targetfolder}/[ARCH]/usr/lib/libweston/qnx-screen-backend.so" />
+    <file name="${targetfolder}/[ARCH]/usr/lib/libweston/wayland-backend.so" />
+    <file name="${targetfolder}/[ARCH]/usr/lib/libweston-desktop.so" />
+    <file name="${targetfolder}/[ARCH]/usr/lib/libweston-desktop.so.1" />
+    <file name="${targetfolder}/[ARCH]/usr/lib/libweston.so" />
+    <file name="${targetfolder}/[ARCH]/usr/lib/libweston.so.1" />
+    <file name="${targetfolder}/[ARCH]/usr/lib/weston/desktop-shell.so" />
+    <file name="${targetfolder}/[ARCH]/usr/lib/weston/fullscreen-shell.so" />
+    <file name="${targetfolder}/[ARCH]/usr/lib/weston/hmi-controller.so" />
+    <file name="${targetfolder}/[ARCH]/usr/lib/weston/ivi-shell.so" />
+    <file name="${targetfolder}/[ARCH]/usr/libexec/weston-desktop-shell" />
+    <file name="${targetfolder}/[ARCH]/usr/libexec/weston-ivi-shell-user-interface" />
+    <file name="${targetfolder}/[ARCH]/usr/libexec/weston-keyboard" />
+    <file name="${targetfolder}/[ARCH]/usr/libexec/weston-screenshooter" />
+    <file name="${targetfolder}/[ARCH]/usr/libexec/weston-simple-im" />
+    <file name="${targetfolder}/[ARCH]/usr/sbin/weston" />
+    <file name="${targetfolder}/etc/xdg/weston/weston.ini" />
+    <file name="${targetfolder}/etc/xdg/weston/weston-ivi.ini" />
+    <file name="${targetfolder}/etc/xdg/weston/weston-xdg.ini" />
+    <file name="${targetfolder}/usr/share/weston/background.png" />
+    <file name="${targetfolder}/usr/share/weston/border.png" />
+    <file name="${targetfolder}/usr/share/weston/fullscreen.png" />
+    <file name="${targetfolder}/usr/share/weston/home.png" />
+    <file name="${targetfolder}/usr/share/weston/icon_editor.png" />
+    <file name="${targetfolder}/usr/share/weston/icon_flower.png" />
+    <file name="${targetfolder}/usr/share/weston/icon_ivi_clickdot.png" />
+    <file name="${targetfolder}/usr/share/weston/icon_ivi_flower.png" />
+    <file name="${targetfolder}/usr/share/weston/icon_ivi_simple-egl.png" />
+    <file name="${targetfolder}/usr/share/weston/icon_ivi_simple-shm.png" />
+    <file name="${targetfolder}/usr/share/weston/icon_ivi_smoke.png" />
+    <file name="${targetfolder}/usr/share/weston/icon_terminal.png" />
+    <file name="${targetfolder}/usr/share/weston/icon_window.png" />
+    <file name="${targetfolder}/usr/share/weston/panel.png" />
+    <file name="${targetfolder}/usr/share/weston/pattern.png" />
+    <file name="${targetfolder}/usr/share/weston/random.png" />
+    <file name="${targetfolder}/usr/share/weston/sidebyside.png" />
+    <file name="${targetfolder}/usr/share/weston/sign_close.png" />
+    <file name="${targetfolder}/usr/share/weston/sign_maximize.png" />
+    <file name="${targetfolder}/usr/share/weston/sign_minimize.png" />
+    <file name="${targetfolder}/usr/share/weston/terminal.png" />
+    <file name="${targetfolder}/usr/share/weston/tiling.png" />
+    <file name="${targetfolder}/usr/share/weston/wayland.png" />
+    <file name="${targetfolder}/usr/share/weston/wayland.svg" />
+</shiplist>
