@@ -56,6 +56,7 @@
 
 #include "shared/fd-util.h"
 #include "shared/helpers.h"
+#include "shared/os-compatibility.h"
 #include "shared/platform.h"
 #include "shared/string-helpers.h"
 #include "shared/timespec-util.h"
@@ -394,8 +395,10 @@ timeline_submit_render_sync(struct gl_renderer *gr,
 	wl_list_insert(&go->timeline_render_point_list, &trp->link);
 }
 
+#if !defined(min)
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 #define min(a, b) (((a) > (b)) ? (b) : (a))
+#endif
 
 /*
  * Compute the boundary vertices of the intersection of the global coordinate
@@ -1801,6 +1804,13 @@ gl_renderer_flush_damage(struct weston_surface *surface,
 	uint8_t *data;
 	int i, j, n;
 
+#if defined(__QNXNTO__)
+	struct gl_renderer *gr = get_renderer(surface->compositor);
+	// Make sure there's a context for the texture operations.
+	if (eglGetCurrentContext() == EGL_NO_CONTEXT)
+	       eglMakeCurrent(gr->egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, gr->egl_context);
+#endif
+
 	assert(buffer && gb);
 
 	pixman_region32_union(&gb->texture_damage,
@@ -2846,6 +2856,13 @@ populate_supported_formats(struct weston_compositor *ec,
 		ret = weston_drm_format_add_modifier(fmt, DRM_FORMAT_MOD_INVALID);
 		if (ret < 0)
 			goto out;
+
+#if defined(__QNXNTO__)
+	struct gl_renderer *gr = get_renderer(ec);
+	// Make sure there's a context for the texture operations.
+	if (eglGetCurrentContext() == EGL_NO_CONTEXT)
+	       eglMakeCurrent(gr->egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, gr->egl_context);
+#endif
 
 		gl_renderer_query_dmabuf_modifiers(ec, formats[i],
 						   &modifiers, &num_modifiers);

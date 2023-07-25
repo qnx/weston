@@ -36,6 +36,10 @@ extern "C" {
 #include <unistd.h>
 #include <string.h>
 
+#if defined(__QNXNTO__)
+#include "shared/os-compatibility.h"
+#endif
+
 static inline void *
 abort_oom_if_null(void *p)
 {

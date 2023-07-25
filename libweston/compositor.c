@@ -8161,9 +8161,17 @@ debug_scene_view_print(FILE *fp, struct weston_view *view, int view_idx)
 	    view->surface->get_label(view->surface, desc, sizeof(desc)) < 0) {
 		strcpy(desc, "[no description available]");
 	}
+#if defined(__QNXNTO__)
+	fprintf(fp, "\tView %d (role %s, PID %d, surface ID %u, %s, %p):\n",
+		view_idx,
+		view->surface->role_name ? view->surface->role_name : "<none>",
+		pid, surface_id,
+		desc, view);
+#else
 	fprintf(fp, "\tView %d (role %s, PID %d, surface ID %u, %s, %p):\n",
 		view_idx, view->surface->role_name, pid, surface_id,
 		desc, view);
+#endif
 
 	if (!weston_view_is_mapped(view))
 		fprintf(fp, "\t[view is not mapped!]\n");
@@ -8616,9 +8624,14 @@ weston_compositor_set_presentation_clock_software(
 {
 	/* In order of preference */
 	static const clockid_t clocks[] = {
+#if defined(__QNXNTO__)
+		CLOCK_MONOTONIC,	/* no jumps, may crawl */
+		CLOCK_REALTIME		/* may jump and crawl */
+#else
 		CLOCK_MONOTONIC_RAW,	/* no jumps, no crawling */
 		CLOCK_MONOTONIC_COARSE,	/* no jumps, may crawl, fast & coarse */
 		CLOCK_MONOTONIC,	/* no jumps, may crawl */
+#endif
 	};
 	unsigned i;
 
@@ -8794,10 +8807,14 @@ weston_load_module(const char *name, const char *entrypoint)
 	if (len >= sizeof path)
 		return NULL;
 
+#if defined(__QNXNTO__)
+	{
+#else
 	module = dlopen(path, RTLD_NOW | RTLD_NOLOAD);
 	if (module) {
 		weston_log("Module '%s' already loaded\n", path);
 	} else {
+#endif
 		weston_log("Loading module '%s'\n", path);
 		module = dlopen(path, RTLD_NOW);
 		if (!module) {
@@ -8933,6 +8950,7 @@ static const char * const backend_map[] = {
 	[WESTON_BACKEND_RDP] =		"rdp-backend.so",
 	[WESTON_BACKEND_WAYLAND] =	"wayland-backend.so",
 	[WESTON_BACKEND_X11] =		"x11-backend.so",
+	[WESTON_BACKEND_QNX_SCREEN] =	"qnx-screen-backend.so",
 };
 
 /** Load a backend into a weston_compositor

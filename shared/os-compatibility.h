@@ -28,6 +28,7 @@
 
 #include "config.h"
 
+#include <stdio.h>
 #include <sys/types.h>
 
 int
@@ -48,6 +49,17 @@ os_create_anonymous_file(off_t size);
 #ifndef HAVE_STRCHRNUL
 char *
 strchrnul(const char *s, int c);
+#endif
+
+#if defined(__QNXNTO__)
+
+extern char *__progname;
+#define program_invocation_short_name __progname
+
+int pipe2(int pipefd[2], int flags);
+
+#include <sys/memstream.h>
+
 #endif
 
 struct ro_anonymous_file;

@@ -39,6 +39,10 @@
 #include "color.h"
 #include "libweston-internal.h"
 
+#if defined(__QNXNTO__)
+#include "shared/os-compatibility.h"
+#endif
+
 /**
  * Increase reference count of the color profile object
  *

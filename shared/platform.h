@@ -75,7 +75,6 @@ static inline void *
 weston_platform_get_egl_proc_address(const char *address)
 {
 	const char *extensions = eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
-
 	if (extensions &&
 	    (weston_check_egl_extension(extensions, "EGL_EXT_platform_wayland") ||
 	     weston_check_egl_extension(extensions, "EGL_KHR_platform_wayland"))) {
@@ -101,7 +100,11 @@ weston_platform_get_egl_display(EGLenum platform, void *native_display,
 		return get_platform_display(platform,
 					    native_display, attrib_list);
 
+#if defined(__QNXNTO__)
+	return EGL_NO_DISPLAY;
+#else
 	return eglGetDisplay((EGLNativeDisplayType) native_display);
+#endif
 }
 
 static inline EGLSurface

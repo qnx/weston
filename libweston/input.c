@@ -34,7 +34,11 @@
 #include <sys/mman.h>
 #include <assert.h>
 #include <unistd.h>
+#if defined(__QNXNTO__)
+#include <float.h>
+#else
 #include <values.h>
+#endif
 #include <fcntl.h>
 #include <limits.h>
 #include <errno.h>
@@ -2273,6 +2277,10 @@ destroy_device_saved_kbd_focus(struct wl_listener *listener, void *data)
 
 	wl_list_remove(&ws->saved_kbd_focus_listener.link);
 	ws->saved_kbd_focus_listener.notify = NULL;
+
+#if defined(__QNXNTO__)
+	wl_list_init(&ws->saved_kbd_focus_listener.link);
+#endif
 }
 
 WL_EXPORT void
@@ -3117,8 +3125,13 @@ weston_compositor_set_xkb_rule_names(struct weston_compositor *ec,
 
 	if (names)
 		ec->xkb_names = *names;
+#if defined(__QNXNTO__)
+	if (!ec->xkb_names.rules)
+		ec->xkb_names.rules = strdup("hidut");
+#else
 	if (!ec->xkb_names.rules)
 		ec->xkb_names.rules = strdup("evdev");
+#endif
 	if (!ec->xkb_names.model)
 		ec->xkb_names.model = strdup("pc105");
 	if (!ec->xkb_names.layout)

@@ -45,6 +45,10 @@
 #include "shared/helpers.h"
 #include "shared/timespec-util.h"
 
+#if defined(__QNXNTO__)
+#include "shared/os-compatibility.h"
+#endif
+
 /* static const char vertex_shader[]; vertex.glsl */
 #include "vertex-shader.h"
 

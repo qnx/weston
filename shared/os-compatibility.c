@@ -249,6 +249,82 @@ strchrnul(const char *s, int c)
 }
 #endif
 
+#if defined(__QNXNTO__)
+static void
+secret_close_with_retry(int fd)
+{
+	int old_errno = errno;
+	do {} while (close(fd) < 0 && errno == EINTR);
+	errno = old_errno;
+}
+
+static int
+os_fd_set_nonblock(int fd)
+{
+	long flags;
+
+	if (fd == -1)
+		return -1;
+
+	flags = fcntl(fd, F_GETFL);
+	if (flags == -1)
+		return -1;
+
+	if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1)
+		return -1;
+
+	return 0;
+}
+
+static int
+set_nonblock_or_close(int fd)
+{
+	if (os_fd_set_nonblock(fd) != 0) {
+		secret_close_with_retry(fd);
+		return -1;
+	}
+	return fd;
+}
+
+
+int pipe2(int pipefd[2], int flags)
+{
+	if (flags & ~(O_CLOEXEC | O_NONBLOCK)) {
+		errno = EINVAL;
+		return -1;
+	}
+	int result = pipe(pipefd);
+	if (result < 0)
+		return result;
+	if (flags & O_CLOEXEC) {
+		result = set_cloexec_or_close(pipefd[0]);
+		if (result < 0) {
+			secret_close_with_retry(pipefd[1]);
+			return result;
+		}
+		result = set_cloexec_or_close(pipefd[1]);
+		if (result < 0) {
+			secret_close_with_retry(pipefd[0]);
+			return result;
+		}
+	}
+	if (flags & O_NONBLOCK) {
+		result = set_nonblock_or_close(pipefd[0]);
+		if (result < 0) {
+			secret_close_with_retry(pipefd[1]);
+			return result;
+		}
+		result = set_nonblock_or_close(pipefd[1]);
+		if (result < 0) {
+			secret_close_with_retry(pipefd[0]);
+			return result;
+		}
+	}
+	return result;
+}
+
+#endif
+
 struct ro_anonymous_file {
 	int fd;
 	size_t size;

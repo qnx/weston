@@ -36,6 +36,9 @@
 #include <libweston/libweston.h>
 #include "libweston-internal.h"
 #include "shared/helpers.h"
+#if defined(__QNXNTO__)
+#include "shared/os-compatibility.h"
+#endif
 
 struct clipboard_source {
 	struct weston_data_source base;

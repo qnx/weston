@@ -513,4 +513,3 @@ cfgln(const char *fmt, ...)
 
 	return str;
 }
-

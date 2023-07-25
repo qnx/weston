@@ -3,8 +3,13 @@
 #ifndef WESTON_LINUX_SYNC_FILE_UAPI_H
 #define WESTON_LINUX_SYNC_FILE_UAPI_H
 
+#if defined(__QNXNTO__)
+#include <sys/ioctl.h>
+#include <libdrm/drm.h>
+#else
 #include <linux/ioctl.h>
 #include <linux/types.h>
+#endif
 
 struct sync_fence_info {
 	char obj_name[32];

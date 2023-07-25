@@ -26,7 +26,9 @@
 
 #include "config.h"
 
+#if !defined(__QNXNTO__)
 #include <endian.h>
+#endif
 #include <inttypes.h>
 #include <stdbool.h>
 #include <unistd.h>
@@ -721,6 +723,16 @@ pixel_format_height_for_plane(const struct pixel_format_info *info,
 	return height / pixel_format_vsub(info, plane);
 }
 
+#if defined(__QNXNTO__)
+WL_EXPORT char *
+pixel_format_get_modifier(uint64_t modifier)
+{
+	char *mod_str;
+	str_printf(&mod_str, "0x%llx", (unsigned long long) modifier);
+	return mod_str;
+}
+#else
+
 WL_EXPORT char *
 pixel_format_get_modifier(uint64_t modifier)
 {
@@ -760,3 +772,5 @@ pixel_format_get_modifier(uint64_t modifier)
 
 	return mod_str;
 }
+
+#endif

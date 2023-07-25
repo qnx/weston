@@ -308,7 +308,11 @@ launcher_button(uint32_t surfaceId, struct wl_list *launcher_list)
 	struct hmi_homescreen_launcher *launcher = NULL;
 
 	wl_list_for_each(launcher, launcher_list, link) {
+#if defined(__QNXNTO__)
+		char *argv[] = { launcher->path, NULL };
+#else
 		char *argv[] = { NULL };
+#endif
 
 		if (surfaceId != launcher->icon_surface_id)
 			continue;

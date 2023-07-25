@@ -31,6 +31,9 @@
 #include <math.h>
 #include <assert.h>
 #include <signal.h>
+#if defined(__QNXNTO__)
+#include <sys/time.h>
+#endif
 
 #include <linux/input.h>
 

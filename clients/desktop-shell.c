@@ -45,6 +45,7 @@
 #include <libweston/config-parser.h>
 #include <libweston/zalloc.h>
 #include "shared/helpers.h"
+#include "shared/os-compatibility.h"
 #include "shared/xalloc.h"
 #include "shared/cairo-util.h"
 #include "shared/file-util.h"

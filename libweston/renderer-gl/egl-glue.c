@@ -31,6 +31,9 @@
 
 #include "shared/helpers.h"
 #include "shared/platform.h"
+#if defined(__QNXNTO__)
+#include "shared/os-compatibility.h"
+#endif
 #include "shared/string-helpers.h"
 
 #include "gl-renderer.h"
@@ -509,12 +512,25 @@ gl_renderer_setup_egl_display(struct gl_renderer *gr,
 							   native_display,
 							   NULL);
 
+#if defined(__QNXNTO__)
+	else if (gr->platform == 0) {
+		// On 64-bit QNX systems, the display type for the default platform (32-bit
+		// int) is not compatible with the display type for non-default platforms
+		// (void *).  As a consequence, falling back to eglGetDisplay just because
+		// get_platform_display has failed is not an option.  The only time that
+		// eglGetDisplay can be used is when the default platform is explicitly
+		// requested.  For any other platform, the platform capable function is
+		// required.
+		gr->egl_display = eglGetDisplay((EGLNativeDisplayType)(intptr_t)native_display);
+	}
+#else
 	if (!gr->egl_display) {
 		weston_log("warning: either no EGL_EXT_platform_base "
 			   "support or specific platform support; "
 			   "falling back to eglGetDisplay.\n");
 		gr->egl_display = eglGetDisplay(native_display);
 	}
+#endif
 
 	if (!gr->egl_display) {
 		weston_log("failed to create display\n");
@@ -551,6 +567,9 @@ platform_to_extension(EGLenum platform)
 	default:
 		assert(0 && "bad EGL platform enum");
 	}
+#if defined(__QNXNTO__)
+	return "none";
+#endif
 }
 
 /** Checks for EGL client extensions (i.e. independent of EGL display),
@@ -577,6 +596,13 @@ gl_renderer_setup_egl_client_extensions(struct gl_renderer *gr)
 	}
 
 	gl_renderer_log_extensions(gr, "EGL client extensions", extensions);
+
+#if defined(__QNXNTO__)
+	if (gr->platform == 0) {
+		// Explicitly requesting use of default platform functions.
+		return 0;
+	}
+#endif
 
 	if (weston_check_egl_extension(extensions, "EGL_EXT_device_query")) {
 		gr->query_display_attrib =
@@ -703,6 +729,7 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 	if (weston_check_egl_extension(extensions, "EGL_KHR_surfaceless_context"))
 		gr->has_surfaceless_context = true;
 
+#if !defined(__QNXNTO__)
 	if (weston_check_egl_extension(extensions, "EGL_EXT_image_dma_buf_import"))
 		gr->has_dmabuf_import = true;
 
@@ -743,6 +770,7 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 		weston_log("warning: Disabling explicit synchronization due"
 			   "to missing EGL_KHR_wait_sync extension\n");
 	}
+#endif
 
 	weston_log("EGL features:\n");
 	weston_log_continue(STAMP_SPACE "EGL Wayland extension: %s\n",

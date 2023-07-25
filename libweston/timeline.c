@@ -36,6 +36,9 @@
 #include <libweston/weston-log.h>
 #include "timeline.h"
 #include "weston-log-internal.h"
+#if defined(__QNXNTO__)
+#include "shared/os-compatibility.h"  // fmemopen
+#endif
 
 /**
  * Timeline itself is not a subscriber but a scope (a producer of data), and it

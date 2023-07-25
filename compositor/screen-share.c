@@ -944,6 +944,13 @@ shared_output_create(struct weston_output *output, int parent_fd)
 	if (so == NULL)
 		goto err_close;
 
+#if defined(__QNXNTO__)
+	// With the later set, ss_seat_create will fault.  Suspect it's
+	// only a problem when the screen sharing weston isn't using the
+	// RDP backend.
+	so->output = output;
+#endif
+
 	wl_list_init(&so->seat_list);
 
 	so->parent.display = wl_display_connect_to_fd(parent_fd);
