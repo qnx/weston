@@ -30,7 +30,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <cairo.h>
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 #include <sys/time.h>
 #endif
 

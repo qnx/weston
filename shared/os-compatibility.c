@@ -249,7 +249,7 @@ strchrnul(const char *s, int c)
 }
 #endif
 
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 static void
 secret_close_with_retry(int fd)
 {

@@ -42,7 +42,9 @@
 #include <libweston/zalloc.h>
 #include <libweston/config-parser.h>
 #include "helpers.h"
+#if defined(__QNX__)
 #include "os-compatibility.h"
+#endif
 #include "string-helpers.h"
 
 struct weston_config_entry {

@@ -56,7 +56,9 @@
 
 #include "shared/fd-util.h"
 #include "shared/helpers.h"
+#if defined(__QNX__)
 #include "shared/os-compatibility.h"
+#endif
 #include "shared/platform.h"
 #include "shared/string-helpers.h"
 #include "shared/timespec-util.h"
@@ -1804,7 +1806,7 @@ gl_renderer_flush_damage(struct weston_surface *surface,
 	uint8_t *data;
 	int i, j, n;
 
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 	struct gl_renderer *gr = get_renderer(surface->compositor);
 	// Make sure there's a context for the texture operations.
 	if (eglGetCurrentContext() == EGL_NO_CONTEXT)
@@ -2857,7 +2859,7 @@ populate_supported_formats(struct weston_compositor *ec,
 		if (ret < 0)
 			goto out;
 
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 	struct gl_renderer *gr = get_renderer(ec);
 	// Make sure there's a context for the texture operations.
 	if (eglGetCurrentContext() == EGL_NO_CONTEXT)

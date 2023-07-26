@@ -3836,7 +3836,9 @@ offer_io_func(struct task *task, uint32_t events)
 		    (display->data_device_manager_version >=
 		     WL_DATA_OFFER_FINISH_SINCE_VERSION))
 			wl_data_offer_finish(offer->offer);
+#if defined(__QNX__)
 		display_unwatch_fd(offer->input->display, offer->fd);
+#endif
 		close(offer->fd);
 		data_offer_destroy(offer);
 	}
@@ -6334,7 +6336,7 @@ toytimer_fire(struct task *tsk, uint32_t events)
 
 	tt = container_of(tsk, struct toytimer, tsk);
 
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 	if (events != EPOLLRDNORM)
 		fprintf(stderr, "unexpected timerfd events %x\n", events);
 #else

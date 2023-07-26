@@ -45,7 +45,9 @@
 #include <libweston/config-parser.h>
 #include <libweston/zalloc.h>
 #include "shared/helpers.h"
+#if defined(__QNX__)
 #include "shared/os-compatibility.h"
+#endif
 #include "shared/xalloc.h"
 #include "shared/cairo-util.h"
 #include "shared/file-util.h"

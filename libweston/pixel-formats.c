@@ -26,7 +26,7 @@
 
 #include "config.h"
 
-#if !defined(__QNXNTO__)
+#if !defined(__QNX__)
 #include <endian.h>
 #endif
 #include <inttypes.h>
@@ -723,7 +723,7 @@ pixel_format_height_for_plane(const struct pixel_format_info *info,
 	return height / pixel_format_vsub(info, plane);
 }
 
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 WL_EXPORT char *
 pixel_format_get_modifier(uint64_t modifier)
 {

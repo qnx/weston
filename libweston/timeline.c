@@ -36,7 +36,7 @@
 #include <libweston/weston-log.h>
 #include "timeline.h"
 #include "weston-log-internal.h"
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 #include "shared/os-compatibility.h"  // fmemopen
 #endif
 

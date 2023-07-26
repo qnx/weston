@@ -8161,7 +8161,7 @@ debug_scene_view_print(FILE *fp, struct weston_view *view, int view_idx)
 	    view->surface->get_label(view->surface, desc, sizeof(desc)) < 0) {
 		strcpy(desc, "[no description available]");
 	}
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 	fprintf(fp, "\tView %d (role %s, PID %d, surface ID %u, %s, %p):\n",
 		view_idx,
 		view->surface->role_name ? view->surface->role_name : "<none>",
@@ -8624,7 +8624,7 @@ weston_compositor_set_presentation_clock_software(
 {
 	/* In order of preference */
 	static const clockid_t clocks[] = {
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 		CLOCK_MONOTONIC,	/* no jumps, may crawl */
 		CLOCK_REALTIME		/* may jump and crawl */
 #else
@@ -8807,7 +8807,7 @@ weston_load_module(const char *name, const char *entrypoint)
 	if (len >= sizeof path)
 		return NULL;
 
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 	{
 #else
 	module = dlopen(path, RTLD_NOW | RTLD_NOLOAD);
@@ -8950,7 +8950,9 @@ static const char * const backend_map[] = {
 	[WESTON_BACKEND_RDP] =		"rdp-backend.so",
 	[WESTON_BACKEND_WAYLAND] =	"wayland-backend.so",
 	[WESTON_BACKEND_X11] =		"x11-backend.so",
+#if defined(__QNX__)
 	[WESTON_BACKEND_QNX_SCREEN] =	"qnx-screen-backend.so",
+#endif
 };
 
 /** Load a backend into a weston_compositor

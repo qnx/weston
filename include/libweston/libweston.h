@@ -2044,7 +2044,9 @@ enum weston_compositor_backend {
 	WESTON_BACKEND_RDP,
 	WESTON_BACKEND_WAYLAND,
 	WESTON_BACKEND_X11,
+#if defined(__QNX__)
 	WESTON_BACKEND_QNX_SCREEN,
+#endif
 };
 
 int

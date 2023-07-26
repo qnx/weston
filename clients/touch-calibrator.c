@@ -41,7 +41,9 @@
 #include "clients/window.h"
 #include "shared/helpers.h"
 #include <libweston/matrix.h>
+#if defined(__QNX__)
 #include "shared/os-compatibility.h"
+#endif
 
 #include "weston-touch-calibration-client-protocol.h"
 

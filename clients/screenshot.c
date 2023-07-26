@@ -40,7 +40,9 @@
 #include "shared/os-compatibility.h"
 #include "shared/xalloc.h"
 #include "shared/file-util.h"
+#if defined(__QNX__)
 #include "shared/helpers.h"
+#endif
 
 /* The screenshooter is a good example of a custom object exposed by
  * the compositor and serves as a test bed for implementing client

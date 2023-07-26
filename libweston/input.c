@@ -34,7 +34,7 @@
 #include <sys/mman.h>
 #include <assert.h>
 #include <unistd.h>
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 #include <float.h>
 #else
 #include <values.h>
@@ -2278,7 +2278,7 @@ destroy_device_saved_kbd_focus(struct wl_listener *listener, void *data)
 	wl_list_remove(&ws->saved_kbd_focus_listener.link);
 	ws->saved_kbd_focus_listener.notify = NULL;
 
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 	wl_list_init(&ws->saved_kbd_focus_listener.link);
 #endif
 }
@@ -3125,7 +3125,7 @@ weston_compositor_set_xkb_rule_names(struct weston_compositor *ec,
 
 	if (names)
 		ec->xkb_names = *names;
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 	if (!ec->xkb_names.rules)
 		ec->xkb_names.rules = strdup("hidut");
 #else

@@ -36,7 +36,7 @@
 #include <libweston/libweston.h>
 #include "libweston-internal.h"
 #include "shared/helpers.h"
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 #include "shared/os-compatibility.h"
 #endif
 

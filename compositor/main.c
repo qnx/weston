@@ -41,13 +41,13 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/socket.h>
-#if !defined(__QNXNTO__)
+#if !defined(__QNX__)
 #include <libinput.h>
 #include <libevdev/libevdev.h>
 #endif
 #include <linux/input.h>
 #include <sys/time.h>
-#if !defined(__QNXNTO__)
+#if !defined(__QNX__)
 #include <linux/limits.h>
 #endif
 
@@ -67,7 +67,9 @@
 #include <libweston/backend-rdp.h>
 #include <libweston/backend-x11.h>
 #include <libweston/backend-wayland.h>
+#if defined(__QNX__)
 #include <libweston/backend-qnx-screen.h>
+#endif
 #include <libweston/windowed-output-api.h>
 #include <libweston/weston-log.h>
 #include <libweston/remoting-plugin.h>
@@ -85,11 +87,13 @@ struct wet_output_config {
 	uint32_t transform;
 };
 
+#if defined(__QNX__)
 struct wet_qnx_screen_output_config {
 	int x;
 	int y;
 	int display;
 };
+#endif
 
 struct wet_compositor;
 struct wet_layoutput;
@@ -131,7 +135,9 @@ struct wet_compositor {
 	struct weston_compositor *compositor;
 	struct weston_config *config;
 	struct wet_output_config *parsed_options;
+#if defined(__QNX__)
 	struct wet_qnx_screen_output_config *qnx_screen_parsed_options;
+#endif
 	bool drm_use_current_mode;
 	struct wl_listener heads_changed_listener;
 	int (*simple_output_configure)(struct weston_output *output);
@@ -483,7 +489,7 @@ weston_client_launch(struct weston_compositor *compositor,
 			   strerror(errno));
 		break;
 	}
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 	wl_client_set_credentials(client, pid, getuid(), getgid());
 #endif
 
@@ -595,6 +601,7 @@ wet_init_parsed_options(struct weston_compositor *ec)
 	return config;
 }
 
+#if defined(__QNX__)
 static struct wet_qnx_screen_output_config *
 wet_init_qnx_screen_parsed_options(struct weston_compositor *ec)
 {
@@ -616,6 +623,7 @@ wet_init_qnx_screen_parsed_options(struct weston_compositor *ec)
 
 	return config;
 }
+#endif
 
 WL_EXPORT struct weston_config *
 wet_get_config(struct weston_compositor *ec)
@@ -820,7 +828,7 @@ clock_name(clockid_t clk_id)
 	static const char *names[] = {
 		[CLOCK_REALTIME] =		"CLOCK_REALTIME",
 		[CLOCK_MONOTONIC] =		"CLOCK_MONOTONIC",
-#if !defined(__QNXNTO__)
+#if !defined(__QNX__)
 		[CLOCK_MONOTONIC_RAW] =		"CLOCK_MONOTONIC_RAW",
 		[CLOCK_REALTIME_COARSE] =	"CLOCK_REALTIME_COARSE",
 		[CLOCK_MONOTONIC_COARSE] =	"CLOCK_MONOTONIC_COARSE",
@@ -967,7 +975,7 @@ wet_load_module_entrypoint(const char *name, const char *entrypoint)
 	if (len >= sizeof path)
 		return NULL;
 
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 	{
 #else
 	module = dlopen(path, RTLD_NOW | RTLD_NOLOAD);
@@ -1216,7 +1224,7 @@ weston_choose_default_backend(void)
 {
 	char *backend = NULL;
 
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 	if (getenv("WAYLAND_DISPLAY") || getenv("WAYLAND_SOCKET"))
 		backend = strdup("wayland-backend.so");
 	else if (access("/dev/screen/.config", R_OK) == 0)
@@ -1914,7 +1922,7 @@ wet_set_simple_head_configurator(struct weston_compositor *compositor,
 						&wet->heads_changed_listener);
 }
 
-#if !defined(__QNXNTO__)
+#if !defined(__QNX__)
 static void
 configure_input_device_accel(struct weston_config_section *s,
 		struct libinput_device *device)
@@ -2028,7 +2036,7 @@ static void
 configure_input_device(struct weston_compositor *compositor,
 		       struct libinput_device *device)
 {
-#if !defined(__QNXNTO__)
+#if !defined(__QNX__)
 	struct weston_config_section *s;
 	struct weston_config *config = wet_get_config(compositor);
 	bool has_enable_tap = false;
@@ -3449,6 +3457,7 @@ load_wayland_backend(struct weston_compositor *c,
 	return 0;
 }
 
+#if defined(__QNX__)
 static int
 qnx_screen_backend_output_configure(struct weston_output *output)
 {
@@ -3631,6 +3640,7 @@ load_qnx_screen_backend(struct weston_compositor *c,
 
 	return 0;
 }
+#endif
 
 
 static int
@@ -3647,8 +3657,10 @@ load_backend(struct weston_compositor *compositor, const char *backend,
 		return load_x11_backend(compositor, argc, argv, config);
 	else if (strstr(backend, "wayland-backend.so"))
 		return load_wayland_backend(compositor, argc, argv, config);
+#if defined(__QNX__)
 	else if (strstr(backend, "qnx-screen-backend.so"))
 		return load_qnx_screen_backend(compositor, argc, argv, config);
+#endif
 
 	weston_log("Error: unknown backend \"%s\"\n", backend);
 	return -1;
@@ -3766,7 +3778,7 @@ weston_log_subscribe_to_scopes(struct weston_log_context *log_ctx,
 static void
 sigint_helper(int sig)
 {
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 	/* SIGUSR2 has been masked process-wide, signalfd() unblocks it for
 	 * it's own thread, but the raise() here will not make it out of this
 	 * thread. Need to send process-wide signal.
@@ -3818,7 +3830,7 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 	bool wait_for_debugger = false;
 	struct wl_protocol_logger *protologger = NULL;
 
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 	// Before any other threads get created, block the signals that
 	// Weston will be handling.  The signalfd thread that handles
 	// the raw signals will unblock those signals for itself when
@@ -3949,7 +3961,7 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 	if (!signals[0] || !signals[1] || !signals[2])
 		goto out_signals;
 
-#if !defined(__QNXNTO__)
+#if !defined(__QNX__)
 	/* Xwayland uses SIGUSR1 for communicating with weston. Since some
 	   weston plugins may create additional threads, set up any necessary
 	   signal blocking early so that these threads can inherit the settings
@@ -3982,7 +3994,7 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 						 NULL);
 		if (!backend)
 			backend = weston_choose_default_backend();
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 		if (!backend)
 			goto out_signals;
 #endif
@@ -4166,7 +4178,7 @@ out_display:
 	free(log_scopes);
 	free(modules);
 
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 	memstream_server_info_release();
 
 out_memstream:

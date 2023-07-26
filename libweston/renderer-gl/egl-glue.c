@@ -31,7 +31,7 @@
 
 #include "shared/helpers.h"
 #include "shared/platform.h"
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 #include "shared/os-compatibility.h"
 #endif
 #include "shared/string-helpers.h"
@@ -512,7 +512,7 @@ gl_renderer_setup_egl_display(struct gl_renderer *gr,
 							   native_display,
 							   NULL);
 
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 	else if (gr->platform == 0) {
 		// On 64-bit QNX systems, the display type for the default platform (32-bit
 		// int) is not compatible with the display type for non-default platforms
@@ -567,7 +567,7 @@ platform_to_extension(EGLenum platform)
 	default:
 		assert(0 && "bad EGL platform enum");
 	}
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 	return "none";
 #endif
 }
@@ -597,7 +597,7 @@ gl_renderer_setup_egl_client_extensions(struct gl_renderer *gr)
 
 	gl_renderer_log_extensions(gr, "EGL client extensions", extensions);
 
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 	if (gr->platform == 0) {
 		// Explicitly requesting use of default platform functions.
 		return 0;
@@ -729,7 +729,7 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 	if (weston_check_egl_extension(extensions, "EGL_KHR_surfaceless_context"))
 		gr->has_surfaceless_context = true;
 
-#if !defined(__QNXNTO__)
+#if !defined(__QNX__)
 	if (weston_check_egl_extension(extensions, "EGL_EXT_image_dma_buf_import"))
 		gr->has_dmabuf_import = true;
 

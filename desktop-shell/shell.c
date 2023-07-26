@@ -588,7 +588,7 @@ focus_state_surface_destroy(struct wl_listener *listener, void *data)
 	struct weston_view *next;
 	struct weston_view *view;
 
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 	// Prevent removal of the saved_kbd_focus_listener element.
 	// wl_list_for_each_safe only makes removal of the current element safe;
 	// i.e., state->surface_destroy_listener.
@@ -642,7 +642,7 @@ focus_state_surface_destroy(struct wl_listener *listener, void *data)
 		focus_state_destroy(state);
 	}
 
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 	if (saved_kbd_focus)
 		state->seat->saved_kbd_focus = saved_kbd_focus;
 #endif

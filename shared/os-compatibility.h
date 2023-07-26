@@ -28,7 +28,9 @@
 
 #include "config.h"
 
+#if defined(__QNX__)
 #include <stdio.h>
+#endif
 #include <sys/types.h>
 
 int
@@ -51,7 +53,7 @@ char *
 strchrnul(const char *s, int c);
 #endif
 
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 
 extern char *__progname;
 #define program_invocation_short_name __progname

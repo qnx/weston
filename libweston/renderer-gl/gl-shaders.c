@@ -45,7 +45,7 @@
 #include "shared/helpers.h"
 #include "shared/timespec-util.h"
 
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 #include "shared/os-compatibility.h"
 #endif
 

@@ -3,7 +3,7 @@
 #ifndef WESTON_LINUX_SYNC_FILE_UAPI_H
 #define WESTON_LINUX_SYNC_FILE_UAPI_H
 
-#if defined(__QNXNTO__)
+#if defined(__QNX__)
 #include <sys/ioctl.h>
 #include <libdrm/drm.h>
 #else
