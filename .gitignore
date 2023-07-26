@@ -11,3 +11,4 @@ TAGS
 00*.patch
 
 build/
+!qnx/build
