@@ -3459,11 +3459,7 @@ surface_opacity_binding(struct weston_pointer *pointer,
 		return;
 
 	shsurf->view->alpha -= event->value * step;
-
-	if (shsurf->view->alpha > 1.0)
-		shsurf->view->alpha = 1.0;
-	if (shsurf->view->alpha < step)
-		shsurf->view->alpha = step;
+	shsurf->view->alpha = CLIP(shsurf->view->alpha, step, 1.0);
 
 	weston_view_geometry_dirty(shsurf->view);
 	weston_surface_damage(surface);
