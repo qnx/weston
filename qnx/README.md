@@ -10,6 +10,7 @@ The following packages include development packages, which should be installed o
 - com.qnx.${baselineId}.osr.libffi
 - com.qnx.${baselineId}.osr.pixman
 - com.qnx.${baselineId}.osr.cairo
+- com.qnx.${baselineId}.osr.cairo.dev
 - com.qnx.${baselineId}.osr.libffi
 - com.qnx.${baselineId}.target.screen.wayland
 - com.qnx.${baselineId}.target.screen.fonts.noto
