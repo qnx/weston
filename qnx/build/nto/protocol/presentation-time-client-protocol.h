@@ -494,7 +494,3 @@ wp_presentation_feedback_destroy(struct wp_presentation_feedback *wp_presentatio
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

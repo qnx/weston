@@ -203,7 +203,3 @@ zwp_relative_pointer_v1_send_relative_motion(struct wl_resource *resource_, uint
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

@@ -83,7 +83,3 @@ text_cursor_position_notify(struct text_cursor_position *text_cursor_position, s
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

@@ -1080,7 +1080,3 @@ zwp_linux_dmabuf_feedback_v1_destroy(struct zwp_linux_dmabuf_feedback_v1 *zwp_li
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

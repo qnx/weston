@@ -110,7 +110,3 @@ weston_screenshooter_take_shot(struct weston_screenshooter *weston_screenshooter
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

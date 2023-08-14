@@ -76,7 +76,3 @@ WL_PRIVATE const struct wl_interface weston_protected_surface_interface = {
 	1, weston_protected_surface_events,
 };
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

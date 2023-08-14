@@ -78,7 +78,3 @@ WL_PRIVATE const struct wl_interface weston_debug_stream_v1_interface = {
 	2, weston_debug_stream_v1_events,
 };
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

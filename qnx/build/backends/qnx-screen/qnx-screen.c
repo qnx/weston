@@ -1406,8 +1406,3 @@ weston_backend_init(struct weston_compositor *compositor,
 
 	return 0;
 }
-
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL: http://f27svn.qnx.com/svn/repos/osr/trunk/weston/build/backends/qnx-screen/qnx-screen.c $ $Rev: 3675 $")
-#endif

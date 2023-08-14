@@ -103,7 +103,3 @@ WL_PRIVATE const struct wl_interface weston_touch_coordinate_interface = {
 	1, weston_touch_coordinate_events,
 };
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

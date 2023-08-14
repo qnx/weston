@@ -234,8 +234,3 @@
 #define BTN_MIDDLE 0x112
 
 #endif // !defined(__LINUX_INPUT_H__)
-
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL: http://f27svn.qnx.com/svn/repos/osr/trunk/weston/build/nto/linux/input.h $ $Rev: 1440 $")
-#endif

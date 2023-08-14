@@ -406,7 +406,3 @@ weston_protected_surface_send_status(struct wl_resource *resource_, uint32_t typ
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

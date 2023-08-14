@@ -430,7 +430,3 @@ zwp_fullscreen_shell_mode_feedback_v1_send_present_cancelled(struct wl_resource 
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

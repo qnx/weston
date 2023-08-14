@@ -22,7 +22,3 @@ qnx_screen_event_monitor_arm(struct qnx_screen_event_monitor *m);
 
 #endif // !defined(_QNX_SCREEN_EVENT_MONITOR_H_)
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL: http://f27svn.qnx.com/svn/repos/osr/trunk/weston/build/backends/qnx-screen/qnx-screen-event-monitor.h $ $Rev: 1443 $")
-#endif

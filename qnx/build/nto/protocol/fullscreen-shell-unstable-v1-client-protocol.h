@@ -524,7 +524,3 @@ zwp_fullscreen_shell_mode_feedback_v1_destroy(struct zwp_fullscreen_shell_mode_f
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

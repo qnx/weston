@@ -81,7 +81,3 @@ WL_PRIVATE const struct wl_interface wp_presentation_feedback_interface = {
 	3, wp_presentation_feedback_events,
 };
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

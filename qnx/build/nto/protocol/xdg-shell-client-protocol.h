@@ -2223,7 +2223,3 @@ xdg_popup_reposition(struct xdg_popup *xdg_popup, struct xdg_positioner *positio
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

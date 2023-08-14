@@ -36,7 +36,3 @@ WL_PRIVATE const struct wl_interface weston_screenshooter_interface = {
 	1, weston_screenshooter_events,
 };
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

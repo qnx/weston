@@ -254,7 +254,3 @@ ivi_application_surface_create(struct ivi_application *ivi_application, uint32_t
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

@@ -500,7 +500,3 @@ weston_protected_surface_relax(struct weston_protected_surface *weston_protected
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

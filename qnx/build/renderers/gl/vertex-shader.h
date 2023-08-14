@@ -70,7 +70,3 @@ static const char vertex_shader[] = {
 0
 };
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL: http://f27svn.qnx.com/svn/repos/osr/trunk/weston/build/renderers/gl/vertex-shader.h $ $Rev: 3684 $")
-#endif

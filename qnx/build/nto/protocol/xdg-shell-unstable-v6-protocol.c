@@ -170,7 +170,3 @@ WL_PRIVATE const struct wl_interface zxdg_popup_v6_interface = {
 	2, zxdg_popup_v6_events,
 };
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

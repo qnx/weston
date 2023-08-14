@@ -98,7 +98,3 @@ struct weston_qnx_screen_backend_config {
 
 #endif /* WESTON_COMPOSITOR_QNX_SCREEN_H_ */
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL: http://f27svn.qnx.com/svn/repos/osr/trunk/weston/build/nto/libweston/backend-qnx-screen.h $ $Rev: 2348 $")
-#endif

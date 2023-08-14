@@ -397,7 +397,3 @@ wp_viewport_set_destination(struct wp_viewport *wp_viewport, int32_t width, int3
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

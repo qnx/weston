@@ -846,7 +846,3 @@ zwp_text_input_manager_v1_create_text_input(struct zwp_text_input_manager_v1 *zw
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

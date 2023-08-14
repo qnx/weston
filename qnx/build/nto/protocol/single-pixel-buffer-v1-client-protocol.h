@@ -152,7 +152,3 @@ wp_single_pixel_buffer_manager_v1_create_u32_rgba_buffer(struct wp_single_pixel_
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

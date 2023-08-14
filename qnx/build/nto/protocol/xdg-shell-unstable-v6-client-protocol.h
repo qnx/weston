@@ -1862,7 +1862,3 @@ zxdg_popup_v6_grab(struct zxdg_popup_v6 *zxdg_popup_v6, struct wl_seat *seat, ui
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

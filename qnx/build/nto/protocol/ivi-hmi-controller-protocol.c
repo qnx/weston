@@ -63,7 +63,3 @@ WL_PRIVATE const struct wl_interface ivi_hmi_controller_interface = {
 	1, ivi_hmi_controller_events,
 };
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

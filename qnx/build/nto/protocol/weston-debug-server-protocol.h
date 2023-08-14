@@ -260,7 +260,3 @@ weston_debug_stream_v1_send_failure(struct wl_resource *resource_, const char *m
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

@@ -240,7 +240,3 @@ zwp_input_timestamps_v1_send_timestamp(struct wl_resource *resource_, uint32_t t
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

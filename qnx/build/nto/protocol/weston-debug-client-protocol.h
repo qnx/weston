@@ -335,7 +335,3 @@ weston_debug_stream_v1_destroy(struct weston_debug_stream_v1 *weston_debug_strea
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

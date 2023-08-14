@@ -362,7 +362,3 @@ weston_screensaver_set_surface(struct weston_screensaver *weston_screensaver, st
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

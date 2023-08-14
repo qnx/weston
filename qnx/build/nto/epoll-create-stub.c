@@ -44,7 +44,3 @@ epoll_create1(int flags)
 	return -1;
 }
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL: http://f27svn.qnx.com/svn/repos/osr/trunk/weston/build/nto/epoll-create-stub.c $ $Rev: 2316 $")
-#endif

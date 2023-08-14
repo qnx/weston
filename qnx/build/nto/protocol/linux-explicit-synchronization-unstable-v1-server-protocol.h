@@ -446,7 +446,3 @@ zwp_linux_buffer_release_v1_send_immediate_release(struct wl_resource *resource_
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

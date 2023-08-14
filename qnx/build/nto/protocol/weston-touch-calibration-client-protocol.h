@@ -722,7 +722,3 @@ weston_touch_coordinate_destroy(struct weston_touch_coordinate *weston_touch_coo
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

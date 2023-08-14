@@ -761,7 +761,3 @@ zwp_input_panel_surface_v1_set_overlay_panel(struct zwp_input_panel_surface_v1 *
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

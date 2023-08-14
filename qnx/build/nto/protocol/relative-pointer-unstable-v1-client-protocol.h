@@ -296,7 +296,3 @@ zwp_relative_pointer_v1_destroy(struct zwp_relative_pointer_v1 *zwp_relative_poi
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

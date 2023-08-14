@@ -230,7 +230,3 @@ ivi_hmi_controller_home(struct ivi_hmi_controller *ivi_hmi_controller, uint32_t 
 
 #endif
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL$ $Rev$")
-#endif

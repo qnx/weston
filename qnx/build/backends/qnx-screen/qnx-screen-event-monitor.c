@@ -125,7 +125,3 @@ qnx_screen_event_monitor_arm(struct qnx_screen_event_monitor *m)
 	MsgSendPulse(m->coid, SIGEV_PULSE_PRIO_INHERIT, c_armCode, 0);
 }
 
-#if defined(__QNXNTO__) && defined(__USESRCVERSION)
-#include <sys/srcversion.h>
-__SRCVERSION("$URL: http://f27svn.qnx.com/svn/repos/osr/trunk/weston/build/backends/qnx-screen/qnx-screen-event-monitor.c $ $Rev: 2345 $")
-#endif
