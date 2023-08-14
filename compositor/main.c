@@ -3842,6 +3842,16 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 	sigaddset(&mask, SIGUSR2);
 	pthread_sigmask(SIG_BLOCK, &mask, NULL);
 
+	// Due to the use of pipes in the QNX backend, and the in-process
+	// resource manager implementations of some Linux functionality on
+	// QNX, process receives a SIGPIPE when a child process, which was
+	// communicating with Weston (i.e. weston client), exits.
+	// This signal can be safely ignored.
+	action.sa_handler = SIG_IGN;
+	sigemptyset(&action.sa_mask);
+	action.sa_flags = 0;
+	sigaction(SIGPIPE, &action, NULL);
+
 	// memstreams are transient.  Pin the in-process memstream server so
 	// that it doesn't spin up/down for each memstream.  This could be
 	// done in a more targeted manner but it's not worth the extra code
