@@ -642,7 +642,7 @@ qnx_screen_output_enable(struct weston_output *base)
 
 	screen_create_window(&output->window, b->context);
 	screen_set_window_property_pv(output->window, SCREEN_PROPERTY_DISPLAY, (void**)(&output->display));
-	int screen_usage[] = { SCREEN_USAGE_OPENGL_ES1 | SCREEN_USAGE_OPENGL_ES2 };
+	int screen_usage[] = { SCREEN_USAGE_OPENGL_ES2 };
 	if (b->use_pixman)
 		screen_usage[0] = SCREEN_USAGE_NATIVE | SCREEN_USAGE_READ | SCREEN_USAGE_WRITE;
 	screen_set_window_property_iv(output->window, SCREEN_PROPERTY_USAGE, screen_usage);
