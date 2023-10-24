@@ -112,3 +112,53 @@ Run weston client application examples:
 weston-clickdot &
 weston-smoke &
 ```
+
+# QNX Screen backend options
+
+The following subset of command-line and configuration options for Weston are specific to the QNX Screen backend.
+
+## Command-line
+```
+QNX Screen backend options:
+    --fullscreen
+
+    --no-input
+            Do not provide any input devices. Used for testing input-less Weston.
+
+    --output-count=N
+            Create N QNX screen windows to emulate the same number of outputs.
+
+    --width=W, --height=H
+            Make the default size of each QNX screen window WxH pixels.
+
+    --position-x=X, --position-y=Y
+            Make the default position of each QNX screen window X,Y
+
+    --scale=N
+            Give all outputs a scale factor of N.
+
+    --display=N
+            Make the default display for each QNX screen window N.
+
+    --egl-display=N
+            Make the default EGL display (GPU) for each QNX screen window N.
+
+    --use-pixman
+            Use  the  pixman  renderer.   By default weston will try to use EGL and GLES2 for rendering.  Passing this option will make weston use the pixman library for
+            software compositing.
+```
+## Configuration (weston.ini)
+```
+name=name
+    QS1       QNX Screen backend, QNX Screen window no.1
+
+mode=mode
+    On the QNX screen backend, it just sets the WIDTHxHEIGHT of the weston window.
+
+display=display
+    The display on which this QNX Screen output window should be placed.
+
+position=X,Y
+    The position where this QNX Screen output window should be placed on the display.
+
+```
