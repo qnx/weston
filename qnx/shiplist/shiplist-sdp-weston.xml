@@ -39,6 +39,7 @@
     <file name="${targetfolder}/[ARCH]/usr/lib/libweston.so.1" />
     <file name="${targetfolder}/[ARCH]/usr/lib/libweston-exec.so" />
     <file name="${targetfolder}/[ARCH]/usr/lib/libweston-exec.so.1" />
+    <file name="${targetfolder}/[ARCH]/usr/lib/weston/screen-share.so" />
     <file name="${targetfolder}/[ARCH]/usr/lib/weston/desktop-shell.so" />
     <file name="${targetfolder}/[ARCH]/usr/lib/weston/fullscreen-shell.so" />
     <file name="${targetfolder}/[ARCH]/usr/lib/weston/hmi-controller.so" />
