@@ -36,7 +36,9 @@
 #include "libweston-internal.h"
 #include "backend.h"
 #include "color.h"
-
+#if defined(__QNX__)
+#include "shared/os-compatibility.h"
+#endif
 struct config_testcase {
 	bool has_characteristics_key;
 	const char *output_characteristics_name;

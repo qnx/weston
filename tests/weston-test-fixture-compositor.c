@@ -27,7 +27,9 @@
 
 #include <string.h>
 #include <assert.h>
+#if !defined(__QNX__)
 #include <libudev.h>
+#endif
 #include <unistd.h>
 #include <sys/file.h>
 #include <sys/types.h>

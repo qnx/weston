@@ -44,6 +44,32 @@ struct fixture_data {
 	struct weston_config *config;
 };
 
+#if defined(__QNX__)
+// Workaround since qnx memtream doe not support reading
+static struct weston_config *
+load_config(const char *text)
+{
+	struct weston_config *config = NULL;
+	int write_len;
+	FILE *file;
+
+	file =  tmpfile();
+	ZUC_ASSERTG_NOT_NULL(file, out);
+
+	write_len = fwrite(text, 1, strlen(text), file);
+	ZUC_ASSERTG_EQ((int)strlen(text), write_len, out_close);
+
+	ZUC_ASSERTG_EQ(fflush(file), 0, out_close);
+	fseek(file, 0L, SEEK_SET);
+
+	config = weston_config_parse_fp(file);
+
+out_close:
+	fclose(file);
+out:
+	return config;
+}
+#else
 static struct weston_config *
 load_config(const char *text)
 {
@@ -70,6 +96,7 @@ out_close:
 out:
 	return config;
 }
+#endif
 
 static void *
 setup_test_config(void *data)

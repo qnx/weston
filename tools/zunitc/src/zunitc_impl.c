@@ -36,6 +36,9 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#if defined(__QNX__)
+#include <libgen.h>
+#endif
 
 #include "zunitc/zunitc_impl.h"
 #include "zunitc/zunitc.h"
