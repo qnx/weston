@@ -16,6 +16,7 @@ EXTRA_INCVPATH += $(addsuffix /pixman-1,$(USE_ROOT_INCLUDE))
 EXTRA_INCVPATH += $(addsuffix /libdrm,$(USE_ROOT_INCLUDE))
 
 EXTRA_SRCVPATH += $(DIST_ROOT)/libweston
+EXTRA_SRCVPATH += $(DIST_ROOT)/libweston/desktop
 EXTRA_SRCVPATH += $(PROJECT_ROOT)/../../$(OS)
 EXTRA_SRCVPATH += $(PROJECT_ROOT)/../../$(OS)/protocol
 
@@ -73,7 +74,16 @@ SRCS += \
 	weston-touch-calibration-protocol.c \
 	weston-debug-protocol.c \
 	xdg-output-unstable-v1-protocol.c \
-	single-pixel-buffer-v1-protocol.c
+	single-pixel-buffer-v1-protocol.c \
+	libweston-desktop.c \
+	client.c \
+	seat.c \
+	surface.c \
+	xwayland.c \
+	xdg-shell.c \
+	xdg-shell-v6.c \
+	xdg-shell-unstable-v6-protocol.c \
+	xdg-shell-protocol.c
 
 LIBS += sharedS xkbcommon wayland-server pixman-1 memstream m
 

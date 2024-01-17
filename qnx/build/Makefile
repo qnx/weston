@@ -10,6 +10,7 @@ EARLY_DIRS = \
 	renderers \
 	backends \
 	weston \
-	clients
+	clients \
+	tests
 
 include $(QRDIR)$(QRECURSE)
