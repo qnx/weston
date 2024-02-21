@@ -1,4 +1,6 @@
-if get_option('shell-fullscreen')
+if get_option('deprecated-shell-fullscreen')
+        warning('deprecated-shell-fullscreen enabled. This will go away, see https://gitlab.freedesktop.org/wayland/weston/-/issues/848')
+
 	srcs_shell_fullscreen = [
 		'fullscreen-shell.c',
 		fullscreen_shell_unstable_v1_server_protocol_h,

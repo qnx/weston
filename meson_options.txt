@@ -33,10 +33,10 @@ option(
 	description: 'Weston backend: RDP remote screensharing'
 )
 option(
-	'screenshare',
+	'deprecated-screenshare',
 	type: 'boolean',
-	value: true,
-	description: 'Compositor: RDP screen-sharing support'
+	value: false,
+	description: 'DEPRECATED: Compositor: RDP screen-sharing support. Requires fullscreen-shell support'
 )
 option(
 	'backend-vnc',
@@ -119,10 +119,10 @@ option(
 	description: 'Weston shell UI: traditional desktop'
 )
 option(
-	'shell-fullscreen',
+	'deprecated-shell-fullscreen',
 	type: 'boolean',
-	value: true,
-	description: 'Weston shell UI: fullscreen/kiosk'
+	value: false,
+	description: 'DEPRECATED: Weston shell UI: fullscreen/kiosk. For a more modern alternative, use kiosk-shell instead'
 )
 option(
 	'shell-ivi',

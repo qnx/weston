@@ -80,7 +80,7 @@ The section headers are:
 .BR "keyboard       " "Keyboard layouts"
 .BR "terminal       " "Terminal application options"
 .BR "xwayland       " "XWayland options"
-.BR "screen-share   " "Screen sharing options"
+.BR "screen-share   " "Screen sharing options (deprecated)"
 .BR "autolaunch     " "Autolaunch options"
 .fi
 .RE
@@ -106,7 +106,7 @@ directory are:
 .RS 10
 .nf
 .BR desktop
-.BR fullscreen
+.BR fullscreen (deprecated)
 .BR ivi
 .BR kiosk
 .fi
@@ -123,7 +123,7 @@ directory are:
 .PP
 .RS 10
 .nf
-.BR screen-share.so
+.BR screen-share.so (deprecated)
 .fi
 .RE
 .TP 7
@@ -756,6 +756,11 @@ The terminal shell (string). Sets the $TERM variable.
 sets the path to the xserver to run (string).
 .\"---------------------------------------------------------------------
 .SH "SCREEN-SHARE SECTION"
+.TP 7
+.SH "DEPRECATED: screen-share module is not built by default and has been deprecated, pending removal."
+Use deprecated-screenshare=true option to build it. Note that mirroring
+functionality has been added to replace this deprecated screen-share
+module.  See mirror-of key entry in the output section for how to configure it.
 .TP 7
 .BI "command=" "@weston_bindir@/weston --backend=rdp \
 --shell=fullscreen --no-clients-resize --no-config"
