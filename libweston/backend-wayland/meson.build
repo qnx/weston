@@ -6,8 +6,6 @@ config_h.set('BUILD_WAYLAND_COMPOSITOR', '1')
 
 srcs_wlwl = [
 	'wayland.c',
-	fullscreen_shell_unstable_v1_client_protocol_h,
-	fullscreen_shell_unstable_v1_protocol_c,
 	presentation_time_protocol_c,
 	presentation_time_server_protocol_h,
 	xdg_shell_client_protocol_h,

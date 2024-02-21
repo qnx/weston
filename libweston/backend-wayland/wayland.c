@@ -59,7 +59,6 @@
 #include "shared/cairo-util.h"
 #include "shared/timespec-util.h"
 #include "shared/xalloc.h"
-#include "fullscreen-shell-unstable-v1-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
 #include "presentation-time-server-protocol.h"
 #include "linux-dmabuf.h"
@@ -87,7 +86,6 @@ struct wayland_backend {
 		struct wl_registry *registry;
 		struct wl_compositor *compositor;
 		struct xdg_wm_base *xdg_wm_base;
-		struct zwp_fullscreen_shell_v1 *fshell;
 		struct wl_shm *shm;
 
 		struct wl_list output_list;
@@ -453,30 +451,6 @@ frame_done(void *data, struct wl_callback *callback, uint32_t time)
 static const struct wl_callback_listener frame_listener = {
 	frame_done
 };
-
-static void
-draw_initial_frame(struct wayland_output *output)
-{
-	struct wayland_backend *b = output->backend;
-	struct wayland_shm_buffer *sb;
-
-	assert(b->compositor);
-	assert(b->compositor->renderer);
-
-	sb = wayland_output_get_shm_buffer(output);
-
-	/* If we are rendering with GL, then orphan it so that it gets
-	 * destroyed immediately */
-	if (output->gl.egl_window)
-		sb->output = NULL;
-
-	if (b->compositor->renderer->type == WESTON_RENDERER_VULKAN)
-		sb->output = NULL;
-
-	wl_surface_attach(output->parent.surface, sb->buffer, 0, 0);
-	wl_surface_damage(output->parent.surface, 0, 0,
-			  sb->width, sb->height);
-}
 
 #if defined(ENABLE_EGL) || defined(ENABLE_VULKAN)
 static void
@@ -1023,104 +997,6 @@ wayland_output_set_fullscreen(struct wayland_output *output,
 	}
 }
 
-static struct weston_mode *
-wayland_output_choose_mode(struct wayland_output *output,
-			   struct weston_mode *ref_mode)
-{
-	struct weston_mode *mode;
-
-	/* First look for an exact match */
-	wl_list_for_each(mode, &output->base.mode_list, link)
-		if (mode->width == ref_mode->width &&
-		    mode->height == ref_mode->height &&
-		    mode->refresh == ref_mode->refresh)
-			return mode;
-
-	/* If we can't find an exact match, ignore refresh and try again */
-	wl_list_for_each(mode, &output->base.mode_list, link)
-		if (mode->width == ref_mode->width &&
-		    mode->height == ref_mode->height)
-			return mode;
-
-	/* Yeah, we failed */
-	return NULL;
-}
-
-enum mode_status {
-	MODE_STATUS_UNKNOWN,
-	MODE_STATUS_SUCCESS,
-	MODE_STATUS_FAIL,
-	MODE_STATUS_CANCEL,
-};
-
-static void
-mode_feedback_successful(void *data,
-			 struct zwp_fullscreen_shell_mode_feedback_v1 *fb)
-{
-	enum mode_status *value = data;
-
-	printf("Mode switch successful\n");
-
-	*value = MODE_STATUS_SUCCESS;
-}
-
-static void
-mode_feedback_failed(void *data, struct zwp_fullscreen_shell_mode_feedback_v1 *fb)
-{
-	enum mode_status *value = data;
-
-	printf("Mode switch failed\n");
-
-	*value = MODE_STATUS_FAIL;
-}
-
-static void
-mode_feedback_cancelled(void *data, struct zwp_fullscreen_shell_mode_feedback_v1 *fb)
-{
-	enum mode_status *value = data;
-
-	printf("Mode switch cancelled\n");
-
-	*value = MODE_STATUS_CANCEL;
-}
-
-struct zwp_fullscreen_shell_mode_feedback_v1_listener mode_feedback_listener = {
-	mode_feedback_successful,
-	mode_feedback_failed,
-	mode_feedback_cancelled,
-};
-
-static enum mode_status
-wayland_output_fullscreen_shell_mode_feedback(struct wayland_output *output,
-					      struct weston_mode *mode)
-{
-	struct wayland_backend *b = output->backend;
-	struct zwp_fullscreen_shell_mode_feedback_v1 *mode_feedback;
-	enum mode_status mode_status;
-	int ret = 0;
-
-	mode_feedback =
-		zwp_fullscreen_shell_v1_present_surface_for_mode(b->parent.fshell,
-								 output->parent.surface,
-								 output->parent.output,
-								 mode->refresh);
-
-	zwp_fullscreen_shell_mode_feedback_v1_add_listener(mode_feedback,
-							   &mode_feedback_listener,
-							   &mode_status);
-
-	draw_initial_frame(output);
-	wl_surface_commit(output->parent.surface);
-
-	mode_status = MODE_STATUS_UNKNOWN;
-	while (mode_status == MODE_STATUS_UNKNOWN && ret >= 0)
-		ret = wl_display_dispatch(b->parent.wl_display);
-
-	zwp_fullscreen_shell_mode_feedback_v1_destroy(mode_feedback);
-
-	return mode_status;
-}
-
 static int
 wayland_output_switch_mode_finish(struct wayland_output *output)
 {
@@ -1154,56 +1030,6 @@ wayland_output_switch_mode_finish(struct wayland_output *output)
 	weston_output_schedule_repaint(&output->base);
 
 	return 0;
-}
-
-static int
-wayland_output_switch_mode_fshell(struct wayland_output *output,
-				  struct weston_mode *mode)
-{
-	struct wayland_backend *b;
-	struct wl_surface *old_surface;
-	struct weston_mode *old_mode;
-	enum mode_status mode_status;
-
-	b = output->backend;
-
-	mode = wayland_output_choose_mode(output, mode);
-	if (mode == NULL)
-		return -1;
-
-	if (output->base.current_mode == mode)
-		return 0;
-
-	old_mode = output->base.current_mode;
-	old_surface = output->parent.surface;
-	output->base.current_mode = mode;
-	output->parent.surface =
-		wl_compositor_create_surface(b->parent.compositor);
-	wl_surface_set_user_data(output->parent.surface, output);
-
-	/* Blow the old buffers because we changed size/surfaces */
-	wayland_output_resize_surface(output);
-
-	mode_status = wayland_output_fullscreen_shell_mode_feedback(output, mode);
-
-	/* This should kick-start things again */
-	wayland_output_start_repaint_loop(&output->base);
-
-	if (mode_status == MODE_STATUS_FAIL) {
-		output->base.current_mode = old_mode;
-		wl_surface_destroy(output->parent.surface);
-		output->parent.surface = old_surface;
-		wayland_output_resize_surface(output);
-
-		return -1;
-	}
-
-	old_mode->flags &= ~WL_OUTPUT_MODE_CURRENT;
-	output->base.current_mode->flags |= WL_OUTPUT_MODE_CURRENT;
-
-	wl_surface_destroy(old_surface);
-
-	return wayland_output_switch_mode_finish(output);
 }
 
 static int
@@ -1249,8 +1075,6 @@ wayland_output_switch_mode(struct weston_output *output_base,
 
 	if (output->parent.xdg_surface)
 		return wayland_output_switch_mode_xdg(output, mode);
-	if (output->backend->parent.fshell)
-		return wayland_output_switch_mode_fshell(output, mode);
 
 	return -1;
 }
@@ -1370,7 +1194,6 @@ wayland_output_enable(struct weston_output *base)
 	const struct weston_renderer *renderer = base->compositor->renderer;
 	struct wayland_output *output = to_wayland_output(base);
 	struct wayland_backend *b;
-	enum mode_status mode_status;
 	int ret = 0;
 
 	assert(output);
@@ -1425,20 +1248,7 @@ wayland_output_enable(struct weston_output *base)
 	output->base.set_dpms = NULL;
 	output->base.switch_mode = wayland_output_switch_mode;
 
-	if (b->sprawl_across_outputs) {
-		if (b->parent.fshell) {
-			wayland_output_resize_surface(output);
-
-			mode_status = wayland_output_fullscreen_shell_mode_feedback(output, &output->mode);
-
-			if (mode_status == MODE_STATUS_FAIL)
-				zwp_fullscreen_shell_v1_present_surface(b->parent.fshell,
-									output->parent.surface,
-									ZWP_FULLSCREEN_SHELL_V1_PRESENT_METHOD_CENTER,
-									output->parent.output);
-
-		}
-	} else if (b->fullscreen) {
+	if (b->fullscreen) {
 		wayland_output_set_fullscreen(output, 0, NULL);
 	} else {
 		wayland_output_set_windowed(output);
@@ -2811,10 +2621,6 @@ registry_handle_global(void *data, struct wl_registry *registry, uint32_t name,
 					 &xdg_wm_base_interface, 1);
 		xdg_wm_base_add_listener(b->parent.xdg_wm_base,
 					 &wm_base_listener, b);
-	} else if (strcmp(interface, "zwp_fullscreen_shell_v1") == 0) {
-		b->parent.fshell =
-			wl_registry_bind(registry, name,
-					 &zwp_fullscreen_shell_v1_interface, 1);
 	} else if (strcmp(interface, "wl_seat") == 0) {
 		display_start_add_seat(b, name, version);
 	} else if (strcmp(interface, "wl_output") == 0) {
@@ -2911,9 +2717,6 @@ wayland_destroy(struct weston_backend *backend)
 
 	if (b->parent.xdg_wm_base)
 		xdg_wm_base_destroy(b->parent.xdg_wm_base);
-
-	if (b->parent.fshell)
-		zwp_fullscreen_shell_v1_release(b->parent.fshell);
 
 	if (b->parent.compositor)
 		wl_compositor_destroy(b->parent.compositor);
@@ -3176,7 +2979,7 @@ weston_backend_init(struct weston_compositor *compositor,
 	if (!b)
 		return -1;
 
-	if (new_config.sprawl || b->parent.fshell) {
+	if (new_config.sprawl) {
 		b->sprawl_across_outputs = true;
 		wl_display_roundtrip(b->parent.wl_display);
 
