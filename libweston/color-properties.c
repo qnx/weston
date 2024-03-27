@@ -398,6 +398,18 @@ weston_color_primaries_info_from(struct weston_compositor *compositor,
 	weston_assert_not_reached(compositor, "unknown primaries");
 }
 
+WL_EXPORT const struct weston_color_primaries_info *
+weston_color_primaries_info_from_protocol(uint32_t protocol_primaries)
+{
+        unsigned int i;
+
+        for (i = 0; i < ARRAY_LENGTH(color_primaries_info_table); i++)
+                if (color_primaries_info_table[i].protocol_primaries == protocol_primaries)
+                        return &color_primaries_info_table[i];
+
+	return NULL;
+}
+
 WL_EXPORT const struct weston_color_tf_info *
 weston_color_tf_info_from(struct weston_compositor *compositor,
 			  enum weston_transfer_function tf)
@@ -409,4 +421,26 @@ weston_color_tf_info_from(struct weston_compositor *compositor,
 			return &color_tf_info_table[i];
 
 	weston_assert_not_reached(compositor, "unknown tf");
+}
+
+WL_EXPORT const struct weston_color_tf_info *
+weston_color_tf_info_from_protocol(uint32_t protocol_tf)
+{
+        unsigned int i;
+
+        for (i = 0; i < ARRAY_LENGTH(color_tf_info_table); i++) {
+		/**
+		 * Skip TF's that do not have a corresponding protocol code.
+		 * Zero is an invalid TF code according to the protocol, so we
+		 * init protocol_tf of TF's without a corresponding protocol
+		 * code with zero.
+		 */
+                if (color_tf_info_table[i].protocol_tf == 0)
+                        continue;
+
+                if (color_tf_info_table[i].protocol_tf == protocol_tf)
+                        return &color_tf_info_table[i];
+        }
+
+        return NULL;
 }
