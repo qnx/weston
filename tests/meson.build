@@ -311,6 +311,13 @@ if get_option('color-management-lcms')
 			],
 			'dep_objs': [ dep_lcms_util ]
 		},
+		{	'name': 'color-management-parametric',
+			'sources': [
+				'color-management-parametric-test.c',
+				color_management_v1_client_protocol_h,
+				color_management_v1_protocol_c,
+			],
+		},
 		{	'name': 'color-metadata-parsing' },
 		{
 			'name': 'lcms-util',
