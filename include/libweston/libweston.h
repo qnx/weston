@@ -921,6 +921,18 @@ struct weston_tablet {
 	const char *path;
 };
 
+struct weston_color_representation {
+	enum weston_alpha_mode alpha_mode;
+	enum weston_color_matrix_coef matrix_coefficients;
+	enum weston_color_quant_range quant_range;
+	enum weston_ycbcr_chroma_location chroma_location;
+};
+
+struct weston_color_representation_matrix {
+	struct weston_mat3f matrix;
+	struct weston_vec3f offset;
+};
+
 struct weston_coord_global
 weston_pointer_motion_to_abs(struct weston_pointer *pointer,
 			     struct weston_pointer_motion_event *event);
@@ -1278,6 +1290,9 @@ enum weston_capability {
 
 	/* renderer supports color management operations */
 	WESTON_CAP_COLOR_OPS			= 0x0040,
+
+	/* renderer supports color representation operations */
+	WESTON_CAP_COLOR_REP			= 0x0080,
 };
 
 /* Configuration struct for a backend.
@@ -1826,6 +1841,11 @@ struct weston_surface_state {
 	struct weston_color_profile *color_profile;
 	const struct weston_render_intent_info *render_intent;
 
+	/* wp_color_representation_surface_v1.set_alpha_mode */
+	/* wp_color_representation_surface_v1.set_coefficients_and_range */
+	/* wp_color_representation_surface_v1.set_chroma_location */
+	struct weston_color_representation color_representation;
+
 	/* wp_fifo_v1 */
 	bool fifo_barrier;
 	bool fifo_wait;
@@ -1989,6 +2009,9 @@ struct weston_surface {
 	 * this list. */
         struct wl_list cm_surface_feedback_resource_list;
         struct wl_resource *cm_surface;
+
+	struct wl_resource *color_representation_resource;
+	struct weston_color_representation color_representation;
 
 	uint64_t damage_track_id;
 	uint64_t flow_id;

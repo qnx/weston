@@ -84,6 +84,7 @@
 #include "libweston-internal.h"
 #include "color.h"
 #include "color-management.h"
+#include "color-representation.h"
 #include "id-number-allocator.h"
 #include "output-capture.h"
 #include "pixman-renderer.h"
@@ -1013,6 +1014,8 @@ weston_surface_create(struct weston_compositor *compositor)
 
 	/* Also part of the CM&HDR protocol extension implementation. */
 	weston_surface_update_preferred_color_profile(surface);
+
+	weston_reset_color_representation(&surface->color_representation);
 
 	wl_list_init(&surface->fifo_barrier_link);
 
@@ -2754,6 +2757,11 @@ destroy_surface(struct wl_resource *resource)
 
 	if (surface->synchronization_resource) {
 		wl_resource_set_user_data(surface->synchronization_resource,
+					  NULL);
+	}
+
+	if (surface->color_representation_resource) {
+		wl_resource_set_user_data(surface->color_representation_resource,
 					  NULL);
 	}
 
@@ -5062,6 +5070,9 @@ surface_commit(struct wl_client *client, struct wl_resource *resource)
 			wl_resource_get_id(resource));
 		return;
 	}
+
+	if (!weston_surface_check_pending_color_representation_valid(surface))
+		return;
 
 	weston_surface_commit(surface);
 }
@@ -10135,6 +10146,9 @@ weston_compositor_backends_loaded(struct weston_compositor *compositor)
 		 */
 		return -1;
 	}
+
+	if (weston_compositor_enable_color_representation_protocol(compositor) < 0)
+		return -1;
 
 	return 0;
 }

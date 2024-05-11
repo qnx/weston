@@ -34,6 +34,7 @@
 #include "libweston-internal.h"
 
 #include "backend.h"
+#include "color-representation.h"
 #include "pixel-formats.h"
 #include "shared/fd-util.h"
 #include "shared/timespec-util.h"
@@ -155,6 +156,8 @@ weston_surface_state_init(struct weston_surface *surface,
 
 	state->color_profile = NULL;
 	state->render_intent = NULL;
+
+	weston_reset_color_representation(&state->color_representation);
 
 	state->fifo_barrier = false;
 	state->fifo_wait = false;
@@ -375,6 +378,11 @@ weston_surface_apply_state(struct weston_surface *surface,
 
 	/* wp_presentation.feedback */
 	weston_presentation_feedback_discard_list(&surface->feedback_list);
+
+	/* wp_color_representation_v1.set_alpha_mode */
+	/* wp_color_representation_v1.set_coefficients_and_range */
+	/* wp_color_representation_v1.set_chroma_location */
+	surface->color_representation = state->color_representation;
 
 	/* wl_surface.attach */
 	if (status & WESTON_SURFACE_DIRTY_BUFFER) {
@@ -649,6 +657,8 @@ weston_surface_state_merge_from(struct weston_surface_state *dst,
 
 	dst->buffer_viewport.buffer = src->buffer_viewport.buffer;
 	dst->buffer_viewport.surface = src->buffer_viewport.surface;
+
+	dst->color_representation = src->color_representation;
 
 	weston_buffer_reference(&src->buffer_ref,
 				NULL, BUFFER_WILL_NOT_BE_ACCESSED);
