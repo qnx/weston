@@ -1655,6 +1655,14 @@ struct weston_compositor {
 		struct wl_global *weston_capture_v1;
 		struct wl_signal ask_auth;
 	} output_capture;
+
+	struct {
+		/** interval which we divide the amount of frames */
+		unsigned int frame_counter_interval;
+
+		/** fires with frame_counter_interval rate */
+		struct wl_event_source *frame_counter_timer;
+	} perf_surface_stats;
 };
 
 struct weston_solid_buffer_values {
@@ -2103,6 +2111,14 @@ struct weston_surface {
 
 	uint64_t damage_track_id;
 	uint64_t flow_id;
+
+
+	/** increments for each wl_surface::commit,
+	 * reset after each frame counter interval */
+	unsigned int frame_commit_counter;
+
+	/** computed after each frame_counter_interval */
+	float frame_commit_fps_counter;
 };
 
 struct weston_subsurface {
