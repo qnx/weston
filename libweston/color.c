@@ -464,9 +464,9 @@ out_close:
 	return cprof;
 }
 
-/** Get a string naming the EOTF mode
+/** Get a string naming the EOTF mode for logs
  *
- * \internal
+ * \return Static string. "???" for unknown mode.
  */
 WL_EXPORT const char *
 weston_eotf_mode_to_str(enum weston_eotf_mode e)
@@ -536,9 +536,9 @@ weston_colorimetry_mode_info_get_by_wdrm(enum wdrm_colorspace cs)
 	return NULL;
 }
 
-/** Get a string naming the colorimetry mode
+/** Get a string naming the colorimetry mode for logs
  *
- * \internal
+ * \return Static string. "???" for unknown mode.
  */
 WL_EXPORT const char *
 weston_colorimetry_mode_to_str(enum weston_colorimetry_mode c)

@@ -631,9 +631,6 @@ weston_color_manager_noop_create(struct weston_compositor *compositor);
 struct weston_color_manager *
 weston_color_manager_create(struct weston_compositor *compositor);
 
-const char *
-weston_eotf_mode_to_str(enum weston_eotf_mode e);
-
 char *
 weston_eotf_mask_to_str(uint32_t eotf_mask);
 
@@ -653,9 +650,6 @@ weston_colorimetry_mode_info_get(enum weston_colorimetry_mode c);
 
 const struct weston_colorimetry_mode_info *
 weston_colorimetry_mode_info_get_by_wdrm(enum wdrm_colorspace cs);
-
-const char *
-weston_colorimetry_mode_to_str(enum weston_colorimetry_mode c);
 
 char *
 weston_colorimetry_mask_to_str(uint32_t colorimetry_mask);

@@ -278,6 +278,9 @@ enum weston_colorimetry_mode {
 		    WESTON_COLORIMETRY_MODE_P3DCI | \
 		    WESTON_COLORIMETRY_MODE_ICTCP))
 
+const char *
+weston_colorimetry_mode_to_str(enum weston_colorimetry_mode c);
+
 /** EOTF mode for outputs and heads
  *
  * A list of EOTF modes for driving displays, defined by CTA-861-G for
@@ -311,6 +314,9 @@ enum weston_eotf_mode {
 #define WESTON_EOTF_MODE_ALL_MASK \
 	((uint32_t)(WESTON_EOTF_MODE_SDR | WESTON_EOTF_MODE_TRADITIONAL_HDR | \
 		    WESTON_EOTF_MODE_ST2084 | WESTON_EOTF_MODE_HLG))
+
+const char *
+weston_eotf_mode_to_str(enum weston_eotf_mode e);
 
 /** CIE 1931 xy chromaticity coordinates */
 struct weston_CIExy {
