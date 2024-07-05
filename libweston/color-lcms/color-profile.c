@@ -413,12 +413,24 @@ cmlcms_find_color_profile_by_params(const struct weston_color_manager_lcms *cm,
 char *
 cmlcms_color_profile_print(const struct cmlcms_color_profile *cprof)
 {
-	char *str;
+	struct weston_compositor *compositor = cprof->base.cm->compositor;
+	char *str, *params_str;
 
-	/* TODO: also print cprof->params for parametric profiles. */
-
-	str_printf(&str, "  description: %s\n", cprof->base.description);
-	abort_oom_if_null(str);
+	switch(cprof->type) {
+	case CMLCMS_PROFILE_TYPE_ICC:
+		/* For ICC profiles, the description is enough. */
+		str_printf(&str, "  description: %s\n", cprof->base.description);
+		abort_oom_if_null(str);
+		break;
+	case CMLCMS_PROFILE_TYPE_PARAMS:
+		params_str = weston_color_profile_params_to_str(cprof->params, "  ");
+		str_printf(&str, "  description: %s\n%s", cprof->base.description, params_str);
+		abort_oom_if_null(str);
+		free(params_str);
+		break;
+	default:
+		weston_assert_not_reached(compositor, "unknown profile type");
+	}
 
 	return str;
 }

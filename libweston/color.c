@@ -37,6 +37,7 @@
 #include <string.h>
 
 #include "color.h"
+#include "color-properties.h"
 #include "id-number-allocator.h"
 #include "libweston-internal.h"
 #include <libweston/weston-log.h>
@@ -116,6 +117,75 @@ weston_color_profile_init(struct weston_color_profile *cprof,
 	cprof->cm = cm;
 	cprof->ref_count = 1;
 	cprof->id = weston_idalloc_get_id(cm->compositor->color_profile_id_generator);
+}
+
+/**
+ * Print color profile parameters to string.
+ *
+ * \param params The parameters of the color profile.
+ * \param ident Indentation to add before each line of the return'ed string.
+ * \returns The color profile parameters as string. Callers must free() it.
+ */
+WL_EXPORT char *
+weston_color_profile_params_to_str(struct weston_color_profile_params *params,
+				   const char *ident)
+{
+	FILE *fp;
+	char *str;
+	size_t size;
+	unsigned int i;
+
+	fp = open_memstream(&str, &size);
+	abort_oom_if_null(fp);
+
+	fprintf(fp, "%sprimaries (CIE xy):\n", ident);
+	fprintf(fp, "%s    R  = (%.5f, %.5f)\n", ident, params->primaries.primary[0].x,
+							params->primaries.primary[0].y);
+	fprintf(fp, "%s    G  = (%.5f, %.5f)\n", ident, params->primaries.primary[1].x,
+							params->primaries.primary[1].y);
+	fprintf(fp, "%s    B  = (%.5f, %.5f)\n", ident, params->primaries.primary[2].x,
+							params->primaries.primary[2].y);
+	fprintf(fp, "%s    WP = (%.5f, %.5f)\n", ident, params->primaries.white_point.x,
+							params->primaries.white_point.y);
+
+	if (params->primaries_info)
+		fprintf(fp, "%sprimaries named: %s\n", ident, params->primaries_info->desc);
+
+	fprintf(fp, "%stransfer function: %s\n", ident, params->tf_info->desc);
+
+	if (params->tf_info->count_parameters > 0) {
+		fprintf(fp, "%s    params:", ident);
+		for (i = 0; i < params->tf_info->count_parameters; i++)
+			fprintf(fp, " %.4f", params->tf_params[i]);
+		fprintf(fp, "\n");
+	}
+
+	fprintf(fp, "%sluminance: [%.3f, %.2f], ref white %.2f (cd/m²)\n", ident, params->min_luminance,
+										  params->max_luminance,
+										  params->reference_white_luminance);
+
+	fprintf(fp, "%starget primaries (CIE xy):\n", ident);
+	fprintf(fp, "%s    R  = (%.5f, %.5f)\n", ident, params->target_primaries.primary[0].x,
+							params->target_primaries.primary[0].y);
+	fprintf(fp, "%s    G  = (%.5f, %.5f)\n", ident, params->target_primaries.primary[1].x,
+							params->target_primaries.primary[1].y);
+	fprintf(fp, "%s    B  = (%.5f, %.5f)\n", ident, params->target_primaries.primary[2].x,
+							params->target_primaries.primary[2].y);
+	fprintf(fp, "%s    WP = (%.5f, %.5f)\n", ident, params->target_primaries.white_point.x,
+							params->target_primaries.white_point.y);
+
+	if (params->target_min_luminance >= 0.0f && params->target_max_luminance >= 0.0f)
+		fprintf(fp, "%starget luminance: [%.3f, %.2f] (cd/m²)\n", ident, params->target_min_luminance,
+										 params->target_max_luminance);
+
+	if (params->maxCLL >= 0.0f)
+		fprintf(fp, "%smax cll: %.2f (cd/m²)\n", ident, params->maxCLL);
+
+	if (params->maxFALL >= 0.0f)
+		fprintf(fp, "%smax fall: %.2f (cd/m²)\n", ident, params->maxFALL);
+
+	fclose(fp);
+	return str;
 }
 
 /**

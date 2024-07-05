@@ -580,6 +580,10 @@ void
 weston_color_profile_init(struct weston_color_profile *cprof,
 			  struct weston_color_manager *cm);
 
+char *
+weston_color_profile_params_to_str(struct weston_color_profile_params *params,
+				   const char *ident);
+
 struct weston_color_transform *
 weston_color_transform_ref(struct weston_color_transform *xform);
 
