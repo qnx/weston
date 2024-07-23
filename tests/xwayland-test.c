@@ -57,6 +57,7 @@ fixture_setup(struct weston_test_harness *harness)
 
 	compositor_setup_defaults(&setup);
 	setup.shell = SHELL_TEST_DESKTOP;
+	setup.refresh = HIGHEST_OUTPUT_REFRESH;
 	setup.xwayland = true;
 	setup.logging_scopes = "log,xwm-wm-x11";
 
