@@ -628,12 +628,17 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 		if (ps) {
 			/* Check if this ps is underlay plane, if so, the view
 			 * needs through hole on primary plane. */
-			if (drm_mixed_mode_check_underlay(mode, scanout_state, ps->zpos))
-				pnode->need_hole = true;
+			pnode->need_hole =
+				drm_mixed_mode_check_underlay(mode,
+							      scanout_state,
+							      ps->zpos);
 
 			drm_debug(b, "\t\t\t\t[view] view %p has been placed to "
-				     "%s plane with computed zpos %"PRIu64"\n",
-				     ev, p_name, zpos);
+				     "%s plane as an %s with computed zpos "
+				     "%"PRIu64"\n",
+				     ev, p_name,
+				     pnode->need_hole ? "underlay" : "overlay",
+				     zpos);
 			break;
 		}
 
@@ -846,6 +851,17 @@ drm_output_propose_state(struct weston_output *output_base,
 			}
 		}
 		pixman_region32_fini(&surface_overlap);
+
+		/* If need_underlay, but view contains alpha, then it needs to
+		 * be rendered. Only fully-opaque views can go on an underlay.
+		 */
+		if (need_underlay &&
+		    !weston_view_is_opaque(ev, &ev->transform.boundingbox)) {
+			force_renderer = true;
+			drm_debug(b, "\t\t\t\t[view] not assigning view %p to "
+				     "a plane (alpha view occluded by renderer "
+				     "views)", ev);
+		}
 
 		/* In case of enforced mode of content-protection do not
 		 * assign planes for a protected surface on an unsecured output.
