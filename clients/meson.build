@@ -270,6 +270,15 @@ demo_clients = [
 		'dep_objs': [ dep_vertex_clipping, dep_matrix_c ]
 	},
 	{
+		'basename': 'color',
+		'add_sources': [
+			color_management_v1_client_protocol_h,
+			color_management_v1_protocol_c,
+			single_pixel_buffer_v1_client_protocol_h,
+			single_pixel_buffer_v1_protocol_c,
+		],
+	},
+	{
 		'basename': 'constraints',
 		'add_sources': [
 			xdg_shell_client_protocol_h,
