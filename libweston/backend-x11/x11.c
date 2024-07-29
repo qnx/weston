@@ -830,7 +830,8 @@ x11_output_init_shm(struct x11_backend *b, struct x11_output *output,
 		renderer->pixman->create_image_from_ptr(&output->base,
 							pfmt, width, height,
 							output->buf,
-							width * (bitsperpixel / 8));
+							width * (bitsperpixel / 8),
+							NULL, NULL);
 
 	output->gc = xcb_generate_id(b->conn);
 	xcb_create_gc(b->conn, output->gc, output->window, 0, NULL);

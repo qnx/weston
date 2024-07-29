@@ -50,6 +50,21 @@
  */
 typedef void *weston_renderbuffer_t;
 
+/** Callback emitted when a renderbuffer is discarded
+ *
+ * \param renderbuffer The renderbuffer being discarded.
+ * \param user_data User data.
+ * \return true on success, false otherwise.
+ *
+ * A renderbuffer can be discarded by the renderer on various occasions, such as
+ * when the output is resized. Before signal emission, the renderer releases
+ * most allocated resources and marks it as stale. It is kept in the renderer's
+ * renderbuffer list until destruction with destroy_renderbuffer(), which can
+ * safely be called from the \c discarded callback.
+ */
+typedef bool (*weston_renderbuffer_discarded_func)(weston_renderbuffer_t renderbuffer,
+						   void *user_data);
+
 struct weston_renderer_options {
 };
 
@@ -104,6 +119,8 @@ struct weston_renderer {
 	 *
 	 * \param output The output to add the DMABUF renderbuffer for.
 	 * \param dmabuf The description object of the DMABUF to import.
+	 * \param discarded_cb Optional callback emitted on a discarded event.
+	 * \param user_data Optional user data passed to \c discarded_cb.
 	 * \return A renderbuffer on success, NULL on failure.
 	 *
 	 * This function imports the DMABUF memory as renderbuffer and adds it
@@ -113,10 +130,15 @@ struct weston_renderer {
 	 * The ownership of the linux_dmabuf_memory is transferred to the
 	 * returned renderbuffer. The linux_dmabuf_memory will be destroyed
 	 * automatically when the renderbuffer is destroyed.
+	 *
+	 * Backends should provide a \c discarded_cb callback in order to
+	 * properly handle renderbuffer lifetime.
 	 */
 	weston_renderbuffer_t
 			(*create_renderbuffer_dmabuf)(struct weston_output *output,
-						      struct linux_dmabuf_memory *dmabuf);
+						      struct linux_dmabuf_memory *dmabuf,
+						      weston_renderbuffer_discarded_func discarded_cb,
+						      void *user_data);
 
 	/** Destroy a renderbuffer
 	 *
@@ -156,7 +178,7 @@ struct weston_tearing_control {
 	bool may_tear;
 };
 
-void
+bool
 weston_renderer_resize_output(struct weston_output *output,
 			      const struct weston_size *fb_size,
 			      const struct weston_geometry *area);

@@ -699,7 +699,8 @@ vnc_update_buffer(struct nvnc_display *display, struct pixman_region32 *damage)
 							      output->base.width,
 							      output->base.height,
 							      nvnc_fb_get_addr(fb),
-							      output->base.width * 4);
+							      output->base.width * 4,
+							      NULL, NULL);
 			break;
 		}
 		case WESTON_RENDERER_GL: {
@@ -707,7 +708,8 @@ vnc_update_buffer(struct nvnc_display *display, struct pixman_region32 *damage)
 				ec->renderer->gl->create_fbo(&output->base, pfmt,
 							     output->base.width,
 							     output->base.height,
-							     nvnc_fb_get_addr(fb));
+							     nvnc_fb_get_addr(fb),
+							     NULL, NULL);
 			break;
 		}
 		default:

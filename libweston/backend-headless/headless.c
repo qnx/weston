@@ -303,7 +303,8 @@ headless_output_enable_gl(struct headless_output *output)
 	output->renderbuffer =
 		renderer->gl->create_fbo(&output->base, b->formats[0],
 					 options.fb_size.width,
-					 options.fb_size.height, NULL);
+					 options.fb_size.height,
+					 NULL, NULL, NULL);
 	if (!output->renderbuffer)
 		goto err_renderbuffer;
 
@@ -336,7 +337,8 @@ headless_output_enable_pixman(struct headless_output *output)
 	output->renderbuffer =
 		pixman->create_image(&output->base, options.format,
 				     output->base.current_mode->width,
-				     output->base.current_mode->height);
+				     output->base.current_mode->height,
+				     NULL, NULL);
 	if (!output->renderbuffer)
 		goto err_renderer;
 

@@ -117,6 +117,8 @@ struct gl_renderbuffer {
 	GLuint fbo;
 	GLuint rb;
 	uint32_t *pixels;
+	weston_renderbuffer_discarded_func discarded_cb;
+	void *user_data;
 	struct wl_list link;
 	int age;
 };
@@ -731,21 +733,28 @@ gl_renderer_destroy_renderbuffer(weston_renderbuffer_t weston_renderbuffer)
 	}
 }
 
-static void
+static bool
 gl_renderer_discard_renderbuffers(struct gl_output_state *go,
 				  bool destroy)
 {
 	struct gl_renderbuffer *rb, *tmp;
+	bool success = true;
 
 	/* A renderbuffer goes stale after being discarded. Most resources are
 	 * released. It's kept in the output states' renderbuffer list waiting
 	 * for the backend to destroy it. */
 	wl_list_for_each_safe(rb, tmp, &go->renderbuffer_list, link) {
-		if ((rb->type == RENDERBUFFER_DUMMY) || destroy)
+		if ((rb->type == RENDERBUFFER_DUMMY) || destroy) {
 			gl_renderer_destroy_renderbuffer((weston_renderbuffer_t) rb);
-		else if (!rb->stale)
+		} else if (!rb->stale) {
 			gl_renderbuffer_fini(rb);
+			if (success && rb->discarded_cb)
+				success = rb->discarded_cb((weston_renderbuffer_t) rb,
+							   rb->user_data);
+		}
 	}
+
+	return success;
 }
 
 static struct gl_renderbuffer *
@@ -770,7 +779,9 @@ gl_renderer_create_dummy_renderbuffer(struct weston_output *output)
 static weston_renderbuffer_t
 gl_renderer_create_fbo(struct weston_output *output,
 		       const struct pixel_format_info *format,
-		       int width, int height, uint32_t *pixels)
+		       int width, int height, uint32_t *pixels,
+		       weston_renderbuffer_discarded_func discarded_cb,
+		       void *user_data)
 {
 	struct gl_renderer *gr = get_renderer(output->compositor);
 	struct gl_output_state *go = get_output_state(output);
@@ -818,6 +829,8 @@ gl_renderer_create_fbo(struct weston_output *output,
 	}
 
 	renderbuffer->pixels = pixels;
+	renderbuffer->discarded_cb = discarded_cb;
+	renderbuffer->user_data = user_data;
 	renderbuffer->type = RENDERBUFFER_FBO;
 
 	pixman_region32_init(&renderbuffer->damage);
@@ -4070,8 +4083,6 @@ gl_renderer_resize_output(struct weston_output *output,
 
 	check_compositing_area(fb_size, area);
 
-	gl_renderer_discard_renderbuffers(go, false);
-
 	go->fb_size = *fb_size;
 	go->area = *area;
 	gr->wireframe_dirty = true;
@@ -4085,6 +4096,11 @@ gl_renderer_resize_output(struct weston_output *output,
 					  WESTON_OUTPUT_CAPTURE_SOURCE_FULL_FRAMEBUFFER,
 					  fb_size->width, fb_size->height,
 					  output->compositor->read_format);
+
+	/* Discard renderbuffers as a last step in order to emit discarded
+	 * callbacks once the renderer has correctly been updated. */
+	if (!gl_renderer_discard_renderbuffers(go, false))
+		return false;
 
 	if (!shfmt)
 		return true;
@@ -4223,7 +4239,9 @@ gl_renderer_output_fbo_create(struct weston_output *output,
 
 static weston_renderbuffer_t
 gl_renderer_create_renderbuffer_dmabuf(struct weston_output *output,
-				       struct linux_dmabuf_memory *dmabuf)
+				       struct linux_dmabuf_memory *dmabuf,
+				       weston_renderbuffer_discarded_func discarded_cb,
+				       void *user_data)
 {
 	struct gl_renderer *gr = get_renderer(output->compositor);
 	struct gl_output_state *go = get_output_state(output);
@@ -4275,6 +4293,8 @@ gl_renderer_create_renderbuffer_dmabuf(struct weston_output *output,
 	rb->gr = gr;
 	rb->dmabuf = dmabuf;
 
+	renderbuffer->discarded_cb = discarded_cb;
+	renderbuffer->user_data = user_data;
 	renderbuffer->type = RENDERBUFFER_DMABUF;
 	pixman_region32_init(&renderbuffer->damage);
 	pixman_region32_copy(&renderbuffer->damage, &output->region);

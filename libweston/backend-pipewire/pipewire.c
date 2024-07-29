@@ -615,7 +615,7 @@ pipewire_output_stream_add_buffer_pixman(struct pipewire_output *output,
 
 	return renderer->pixman->create_image_from_ptr(&output->base,
 						       format, width, height,
-						       ptr, stride);
+						       ptr, stride, NULL, NULL);
 }
 
 static weston_renderbuffer_t
@@ -635,15 +635,16 @@ pipewire_output_stream_add_buffer_gl(struct pipewire_output *output,
 
 	if (dmabuf)
 		return renderer->create_renderbuffer_dmabuf(&output->base,
-							    dmabuf->linux_dmabuf_memory);
+							    dmabuf->linux_dmabuf_memory,
+							    NULL, NULL);
 
 	format = output->pixel_format;
 	width = output->base.width;
 	height = output->base.height;
 	ptr = d[0].data;
 
-	return renderer->gl->create_fbo(&output->base,
-					format, width, height, ptr);
+	return renderer->gl->create_fbo(&output->base, format, width, height,
+					ptr, NULL, NULL);
 }
 
 struct pipewire_memfd {

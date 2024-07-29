@@ -405,7 +405,7 @@ wayland_output_get_shm_buffer(struct wayland_output *output)
 			pixman->create_image_from_ptr(&output->base, pfmt,
 						      area.width, area.height,
 						      (uint32_t *)(data + area.y * stride) + area.x,
-						      stride);
+						      stride, NULL, NULL);
 
 	return sb;
 }

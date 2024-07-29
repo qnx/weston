@@ -1627,7 +1627,8 @@ drm_output_init_pixman(struct drm_output *output, struct drm_backend *b)
 			pixman->create_image_from_ptr(&output->base,
 						      options.format, w, h,
 						      output->dumb[i]->map,
-						      output->dumb[i]->strides[0]);
+						      output->dumb[i]->strides[0],
+						      NULL, NULL);
 		if (!output->renderbuffer[i])
 			goto err;
 	}

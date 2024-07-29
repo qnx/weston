@@ -10421,8 +10421,9 @@ weston_output_disable_planes_decr(struct weston_output *output)
  * \param area The composited area inside the framebuffer, excluding
  * decorations. This can also be NULL, which means the whole fb_size is
  * the composited area.
+ * \return true on success, false otherwise.
  */
-WL_EXPORT void
+WL_EXPORT bool
 weston_renderer_resize_output(struct weston_output *output,
 			      const struct weston_size *fb_size,
 			      const struct weston_geometry *area)
@@ -10438,7 +10439,10 @@ weston_renderer_resize_output(struct weston_output *output,
 	if (!r->resize_output(output, fb_size, area ?: &def)) {
 		weston_log("Error: Resizing output '%s' failed.\n",
 			   output->name);
+		return false;
 	}
+
+	return true;
 }
 
 /** Queue a frame timer callback
