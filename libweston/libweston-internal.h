@@ -47,7 +47,6 @@
 /* compositor <-> renderer interface */
 
 struct weston_renderbuffer {
-	pixman_region32_t damage;
 	int refcount;
 
 	void (*destroy)(struct weston_renderbuffer *renderbuffer);

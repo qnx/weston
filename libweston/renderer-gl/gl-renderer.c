@@ -104,6 +104,7 @@ struct gl_fbo_texture {
 
 struct gl_renderbuffer {
 	struct weston_renderbuffer base;
+	pixman_region32_t damage;
 	enum gl_border_status border_damage;
 	/* The fbo value zero represents the default surface framebuffer. */
 	GLuint fbo;
@@ -695,7 +696,7 @@ gl_renderer_renderbuffer_destroy(struct weston_renderbuffer *renderbuffer)
 
 	glDeleteFramebuffers(1, &rb->fbo);
 	glDeleteRenderbuffers(1, &rb->rb);
-	pixman_region32_fini(&rb->base.damage);
+	pixman_region32_fini(&rb->damage);
 	free(rb);
 }
 
@@ -709,8 +710,8 @@ gl_renderer_create_dummy_renderbuffer(struct weston_output *output)
 
 	renderbuffer->fbo = 0;
 
-	pixman_region32_init(&renderbuffer->base.damage);
-	pixman_region32_copy(&renderbuffer->base.damage, &output->region);
+	pixman_region32_init(&renderbuffer->damage);
+	pixman_region32_copy(&renderbuffer->damage, &output->region);
 	renderbuffer->border_damage = BORDER_ALL_DIRTY;
 	/*
 	 * A single reference is kept on the renderbuffer_list,
@@ -775,7 +776,8 @@ gl_renderer_create_fbo(struct weston_output *output,
 
 	renderbuffer->pixels = pixels;
 
-	pixman_region32_init(&renderbuffer->base.damage);
+	pixman_region32_init(&renderbuffer->damage);
+	pixman_region32_copy(&renderbuffer->damage, &output->region);
 	/*
 	 * One reference is kept on the renderbuffer_list,
 	 * the other is returned to the calling backend.
@@ -2153,7 +2155,7 @@ output_get_dummy_renderbuffer(struct weston_output *output)
 		      BUFFER_DAMAGE_COUNT : 1;
 	if ((buffer_age == 0 || buffer_age - 1 > BUFFER_DAMAGE_COUNT) &&
 	    count >= max_buffers) {
-		pixman_region32_copy(&oldest_rb->base.damage, &output->region);
+		pixman_region32_copy(&oldest_rb->damage, &output->region);
 		oldest_rb->border_damage = BORDER_ALL_DIRTY;
 		oldest_rb->age = 0;
 		return oldest_rb;
@@ -2355,9 +2357,7 @@ gl_renderer_repaint_output(struct weston_output *output,
 
 	/* Accumulate damage in all renderbuffers */
 	wl_list_for_each(rb, &go->renderbuffer_list, link) {
-		pixman_region32_union(&rb->base.damage,
-				      &rb->base.damage,
-				      output_damage);
+		pixman_region32_union(&rb->damage, &rb->damage, output_damage);
 		rb->border_damage |= go->border_status;
 	}
 
@@ -2410,7 +2410,7 @@ gl_renderer_repaint_output(struct weston_output *output,
 	if (gr->debug_clear) {
 		pixman_region32_t undamaged;
 		pixman_region32_t *damaged =
-			shadow_exists(go) ? output_damage : &rb->base.damage;
+			shadow_exists(go) ? output_damage : &rb->damage;
 		int debug_mode = gr->debug_mode;
 
 		pixman_region32_init(&undamaged);
@@ -2429,7 +2429,7 @@ gl_renderer_repaint_output(struct weston_output *output,
 
 		/* For partial_update, we need to pass the region which has
 		 * changed since we last rendered into this specific buffer. */
-		pixman_region_to_egl(output, &rb->base.damage,
+		pixman_region_to_egl(output, &rb->damage,
 				     &egl_rects, &n_egl_rects);
 		gr->set_damage_region(gr->egl_display, go->egl_surface,
 				      egl_rects, n_egl_rects);
@@ -2447,9 +2447,9 @@ gl_renderer_repaint_output(struct weston_output *output,
 		glViewport(go->area.x, area_y,
 			   go->area.width, go->area.height);
 		blit_shadow_to_output(output, gr->debug_clear ?
-				      &output->region : &rb->base.damage);
+				      &output->region : &rb->damage);
 	} else {
-		repaint_views(output, &rb->base.damage);
+		repaint_views(output, &rb->damage);
 	}
 
 	draw_output_borders(output, rb->border_damage);
@@ -2518,7 +2518,7 @@ gl_renderer_repaint_output(struct weston_output *output,
 		};
 
 		extents = weston_matrix_transform_rect(&output->matrix,
-						       rb->base.damage.extents);
+						       rb->damage.extents);
 
 		if (gr->debug_clear) {
 			rect.y = go->area.y;
@@ -2543,7 +2543,7 @@ gl_renderer_repaint_output(struct weston_output *output,
 			glPixelStorei(GL_PACK_ROW_LENGTH, 0);
 	}
 
-	pixman_region32_clear(&rb->base.damage);
+	pixman_region32_clear(&rb->damage);
 
 	gl_renderer_garbage_collect_programs(gr);
 }
@@ -4208,7 +4208,7 @@ gl_renderer_dmabuf_renderbuffer_destroy(struct weston_renderbuffer *renderbuffer
 
 	glDeleteFramebuffers(1, &gl_renderbuffer->fbo);
 	glDeleteRenderbuffers(1, &gl_renderbuffer->rb);
-	pixman_region32_fini(&gl_renderbuffer->base.damage);
+	pixman_region32_fini(&gl_renderbuffer->damage);
 
 	gr->destroy_image(gr->egl_display, dmabuf_renderbuffer->image);
 
@@ -4272,7 +4272,8 @@ gl_renderer_create_renderbuffer_dmabuf(struct weston_output *output,
 	rb->gr = gr;
 	rb->dmabuf = dmabuf;
 
-	pixman_region32_init(&rb->base.base.damage);
+	pixman_region32_init(&renderbuffer->damage);
+	pixman_region32_copy(&renderbuffer->damage, &output->region);
 	/*
 	 * One reference is kept on the renderbuffer_list,
 	 * the other is returned to the calling backend.

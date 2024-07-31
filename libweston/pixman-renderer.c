@@ -66,6 +66,7 @@ struct pixman_surface_state {
 struct pixman_renderbuffer {
 	struct weston_renderbuffer base;
 
+	pixman_region32_t damage;
 	pixman_image_t *image;
 	struct wl_list link;
 };
@@ -651,6 +652,11 @@ pixman_renderer_repaint_output(struct weston_output *output,
 
 	assert(renderbuffer);
 
+	/* Accumulate damage in all renderbuffers */
+	wl_list_for_each(rb, &po->renderbuffer_list, link) {
+		pixman_region32_union(&rb->damage, &rb->damage, output_damage);
+	}
+
 	rb = to_pixman_renderbuffer(renderbuffer);
 
 	pixman_renderer_output_set_buffer(output, rb->image);
@@ -661,26 +667,19 @@ pixman_renderer_repaint_output(struct weston_output *output,
 	if (!po->hw_buffer)
  		return;
 
-	/* Accumulate damage in all renderbuffers */
-	wl_list_for_each(rb, &po->renderbuffer_list, link) {
-		pixman_region32_union(&rb->base.damage,
-				      &rb->base.damage,
-				      output_damage);
-	}
-
 	if (po->shadow_image) {
 		repaint_surfaces(output, output_damage);
 		pixman_renderer_do_capture_tasks(output,
 						 WESTON_OUTPUT_CAPTURE_SOURCE_BLENDING,
 						 po->shadow_image, po->shadow_format);
-		copy_to_hw_buffer(output, &renderbuffer->damage);
+		copy_to_hw_buffer(output, &rb->damage);
 	} else {
-		repaint_surfaces(output, &renderbuffer->damage);
+		repaint_surfaces(output, &rb->damage);
 	}
 	pixman_renderer_do_capture_tasks(output,
 					 WESTON_OUTPUT_CAPTURE_SOURCE_FRAMEBUFFER,
 					 po->hw_buffer, po->hw_format);
-	pixman_region32_clear(&renderbuffer->damage);
+	pixman_region32_clear(&rb->damage);
 
 	wl_signal_emit(&output->frame_signal, output_damage);
 
@@ -1177,7 +1176,8 @@ pixman_renderer_create_image_from_ptr(struct weston_output *output,
 		return NULL;
 	}
 
-	pixman_region32_init(&renderbuffer->base.damage);
+	pixman_region32_init(&renderbuffer->damage);
+	pixman_region32_copy(&renderbuffer->damage, &output->region);
 	renderbuffer->base.refcount = 2;
 	renderbuffer->base.destroy = pixman_renderer_renderbuffer_destroy;
 	wl_list_insert(&po->renderbuffer_list, &renderbuffer->link);
@@ -1205,7 +1205,8 @@ pixman_renderer_create_image(struct weston_output *output,
 		return NULL;
 	}
 
-	pixman_region32_init(&renderbuffer->base.damage);
+	pixman_region32_init(&renderbuffer->damage);
+	pixman_region32_copy(&renderbuffer->damage, &output->region);
 	renderbuffer->base.refcount = 2;
 	renderbuffer->base.destroy = pixman_renderer_renderbuffer_destroy;
 	wl_list_insert(&po->renderbuffer_list, &renderbuffer->link);
@@ -1219,7 +1220,7 @@ pixman_renderer_renderbuffer_destroy(struct weston_renderbuffer *renderbuffer)
 	struct pixman_renderbuffer *rb = to_pixman_renderbuffer(renderbuffer);
 
 	pixman_image_unref(rb->image);
-	pixman_region32_fini(&rb->base.damage);
+	pixman_region32_fini(&rb->damage);
 	free(rb);
 }
 

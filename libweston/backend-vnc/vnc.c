@@ -653,8 +653,7 @@ vnc_log_scope_print_region(struct weston_log_scope *log, pixman_region32_t *regi
 }
 
 static void
-vnc_log_damage(struct vnc_backend *backend, pixman_region32_t *buffer_damage,
-	       pixman_region32_t *update_damage)
+vnc_log_damage(struct vnc_backend *backend, pixman_region32_t *damage)
 {
 	char timestr[128];
 
@@ -663,12 +662,8 @@ vnc_log_damage(struct vnc_backend *backend, pixman_region32_t *buffer_damage,
 
 	weston_log_scope_timestamp(backend->debug, timestr, sizeof timestr);
 
-	weston_log_scope_printf(backend->debug, "%s buffer damage:", timestr);
-	vnc_log_scope_print_region(backend->debug, buffer_damage);
-	weston_log_scope_printf(backend->debug, "\n");
-
-	weston_log_scope_printf(backend->debug, "%s update damage:", timestr);
-	vnc_log_scope_print_region(backend->debug, update_damage);
+	weston_log_scope_printf(backend->debug, "%s damage:", timestr);
+	vnc_log_scope_print_region(backend->debug, damage);
 	weston_log_scope_printf(backend->debug, "\n\n");
 }
 
@@ -719,15 +714,11 @@ vnc_update_buffer(struct nvnc_display *display, struct pixman_region32 *damage)
 			unreachable("cannot have auto renderer at runtime");
 		}
 
-		/* This is a new buffer, so the whole surface is damaged. */
-		pixman_region32_copy(&renderbuffer->damage,
-				     &output->base.region);
-
 		nvnc_set_userdata(fb, renderbuffer,
 				  (nvnc_cleanup_fn)weston_renderbuffer_unref);
 	}
 
-	vnc_log_damage(backend, &renderbuffer->damage, damage);
+	vnc_log_damage(backend, damage);
 
 	ec->renderer->repaint_output(&output->base, damage, renderbuffer);
 

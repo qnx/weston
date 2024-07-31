@@ -384,9 +384,6 @@ rdp_output_set_mode(struct weston_output *base, struct weston_mode *mode)
 		default:
 			unreachable("cannot have auto renderer at runtime");
 		}
-		pixman_image_composite32(PIXMAN_OP_SRC, rdpOutput->shadow_surface,
-					 0, new_image, 0, 0, 0, 0, 0, 0,
-					 mode->width, mode->height);
 		weston_renderbuffer_unref(rdpOutput->renderbuffer);
 		rdpOutput->renderbuffer = new_renderbuffer;
 		pixman_image_unref(rdpOutput->shadow_surface);

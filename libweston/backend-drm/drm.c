@@ -1630,12 +1630,6 @@ drm_output_init_pixman(struct drm_output *output, struct drm_backend *b)
 						      output->dumb[i]->strides[0]);
 		if (!output->renderbuffer[i])
 			goto err;
-
-		pixman_region32_init_rect(&output->renderbuffer[i]->damage,
-					  output->base.pos.c.x,
-					  output->base.pos.c.y,
-					  output->base.width,
-					  output->base.height);
 	}
 
 	weston_log("DRM: output %s %s shadow framebuffer.\n", output->base.name,

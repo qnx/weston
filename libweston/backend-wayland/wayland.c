@@ -395,15 +395,12 @@ wayland_output_get_shm_buffer(struct wayland_output *output)
 	pixman = renderer->pixman;
 
 	/* Address only the interior, excluding output decorations */
-	if (renderer->type == WESTON_RENDERER_PIXMAN) {
+	if (renderer->type == WESTON_RENDERER_PIXMAN)
 		sb->renderbuffer =
 			pixman->create_image_from_ptr(&output->base, pfmt,
 						      area.width, area.height,
 						      (uint32_t *)(data + area.y * stride) + area.x,
 						      stride);
-		pixman_region32_copy(&sb->renderbuffer->damage,
-				     &output->base.region);
-	}
 
 	return sb;
 }
