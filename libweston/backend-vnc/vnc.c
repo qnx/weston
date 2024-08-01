@@ -108,8 +108,17 @@ struct vnc_head {
 	struct weston_head base;
 };
 
+struct vnc_buffer {
+	weston_renderbuffer_t rb;
+	struct nvnc_fb *fb;
+	struct vnc_output *output;
+};
+
 static void
 vnc_output_destroy(struct weston_output *base);
+
+static void
+vnc_buffer_destroy(struct vnc_buffer *buffer);
 
 static inline struct vnc_output *
 to_vnc_output(struct weston_output *base)
@@ -667,6 +676,67 @@ vnc_log_damage(struct vnc_backend *backend, pixman_region32_t *damage)
 	weston_log_scope_printf(backend->debug, "\n\n");
 }
 
+static bool
+vnc_rb_discarded_cb(weston_renderbuffer_t rb, void *data)
+{
+	struct vnc_buffer *buffer = (struct vnc_buffer *) data;
+
+	assert(nvnc_get_userdata(buffer->fb) == buffer);
+
+	nvnc_set_userdata(buffer->fb, NULL, NULL);
+	vnc_buffer_destroy(buffer);
+
+	return true;
+}
+
+static struct vnc_buffer *
+vnc_buffer_create(struct nvnc_fb* fb, struct vnc_output *output)
+{
+	const struct pixel_format_info *pfmt =
+		pixel_format_get_info(DRM_FORMAT_XRGB8888);
+	struct weston_renderer *rdr = output->base.compositor->renderer;
+	struct vnc_buffer *buffer = xmalloc(sizeof *buffer);
+
+	switch (rdr->type) {
+	case WESTON_RENDERER_PIXMAN: {
+		buffer->rb =
+			rdr->pixman->create_image_from_ptr(&output->base, pfmt,
+							   output->base.width,
+							   output->base.height,
+							   nvnc_fb_get_addr(fb),
+							   output->base.width * 4,
+							   vnc_rb_discarded_cb,
+							   buffer);
+		break;
+	}
+	case WESTON_RENDERER_GL: {
+		buffer->rb =
+			rdr->gl->create_fbo(&output->base, pfmt,
+					    output->base.width,
+					    output->base.height,
+					    nvnc_fb_get_addr(fb),
+					    vnc_rb_discarded_cb, buffer);
+		break;
+	}
+	default:
+		unreachable("cannot have auto renderer at runtime");
+	}
+
+	buffer->fb = fb;
+	buffer->output = output;
+
+	return buffer;
+}
+
+static void
+vnc_buffer_destroy(struct vnc_buffer *buffer)
+{
+	struct weston_renderer *rdr = buffer->output->base.compositor->renderer;
+
+	rdr->destroy_renderbuffer(buffer->rb);
+	free(buffer);
+}
+
 static void
 vnc_update_buffer(struct nvnc_display *display, struct pixman_region32 *damage)
 {
@@ -674,7 +744,7 @@ vnc_update_buffer(struct nvnc_display *display, struct pixman_region32 *damage)
 	struct vnc_backend *backend = nvnc_get_userdata(server);
 	struct vnc_output *output = backend->output;
 	struct weston_compositor *ec = output->base.compositor;
-	weston_renderbuffer_t renderbuffer;
+	struct vnc_buffer *buffer;
 	pixman_region32_t local_damage;
 	pixman_region16_t nvnc_damage;
 	struct nvnc_fb *fb;
@@ -682,47 +752,16 @@ vnc_update_buffer(struct nvnc_display *display, struct pixman_region32 *damage)
 	fb = nvnc_fb_pool_acquire(output->fb_pool);
 	assert(fb);
 
-	renderbuffer = nvnc_get_userdata(fb);
-	if (!renderbuffer) {
-		const struct pixel_format_info *pfmt;
-
-		pfmt = pixel_format_get_info(DRM_FORMAT_XRGB8888);
-
-		switch (ec->renderer->type) {
-		case WESTON_RENDERER_PIXMAN: {
-			const struct pixman_renderer_interface *pixman;
-
-			pixman = ec->renderer->pixman;
-
-			renderbuffer =
-				pixman->create_image_from_ptr(&output->base, pfmt,
-							      output->base.width,
-							      output->base.height,
-							      nvnc_fb_get_addr(fb),
-							      output->base.width * 4,
-							      NULL, NULL);
-			break;
-		}
-		case WESTON_RENDERER_GL: {
-			renderbuffer =
-				ec->renderer->gl->create_fbo(&output->base, pfmt,
-							     output->base.width,
-							     output->base.height,
-							     nvnc_fb_get_addr(fb),
-							     NULL, NULL);
-			break;
-		}
-		default:
-			unreachable("cannot have auto renderer at runtime");
-		}
-
-		nvnc_set_userdata(fb, renderbuffer,
-				  (nvnc_cleanup_fn)ec->renderer->destroy_renderbuffer);
+	buffer = nvnc_get_userdata(fb);
+	if (!buffer) {
+		buffer = vnc_buffer_create(fb, output);
+		nvnc_set_userdata(fb, buffer,
+				  (nvnc_cleanup_fn) vnc_buffer_destroy);
 	}
 
 	vnc_log_damage(backend, damage);
 
-	ec->renderer->repaint_output(&output->base, damage, renderbuffer);
+	ec->renderer->repaint_output(&output->base, damage, buffer->rb);
 
 	/* Convert to local coordinates */
 	pixman_region32_init(&local_damage);
@@ -1066,7 +1105,14 @@ vnc_switch_mode(struct weston_output *base, struct weston_mode *target_mode)
 	fb_size.width = target_mode->width;
 	fb_size.height = target_mode->height;
 
-	weston_renderer_resize_output(base, &fb_size, NULL);
+	/* vnc_buffers are stored as user data pointers into the renderbuffers
+	 * for the discarded callback. weston_renderer_resize_output(), which
+	 * triggers the renderbuffer's discarded callbacks, must be called
+	 * before nvnc_fb_pool_resize(), which destroys all the nvnc_fbs and
+	 * their associated vnc_buffers, so that the vnc_buffers are valid at
+	 * callback. */
+	if (!weston_renderer_resize_output(base, &fb_size, NULL))
+		return -1;
 
 	nvnc_fb_pool_resize(output->fb_pool, target_mode->width,
 			    target_mode->height, DRM_FORMAT_XRGB8888,
