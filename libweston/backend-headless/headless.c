@@ -81,7 +81,7 @@ struct headless_output {
 
 	struct weston_mode mode;
 	struct wl_event_source *finish_frame_timer;
-	struct weston_renderbuffer *renderbuffer;
+	weston_renderbuffer_t renderbuffer;
 
 	struct frame *frame;
 	struct {
@@ -192,7 +192,7 @@ headless_output_disable_gl(struct headless_output *output)
 
 	weston_gl_borders_fini(&output->gl.borders, &output->base);
 
-	weston_renderbuffer_unref(output->renderbuffer);
+	renderer->destroy_renderbuffer(output->renderbuffer);
 	output->renderbuffer = NULL;
 	renderer->gl->output_destroy(&output->base);
 
@@ -207,7 +207,7 @@ headless_output_disable_pixman(struct headless_output *output)
 {
 	struct weston_renderer *renderer = output->base.compositor->renderer;
 
-	weston_renderbuffer_unref(output->renderbuffer);
+	renderer->destroy_renderbuffer(output->renderbuffer);
 	output->renderbuffer = NULL;
 	renderer->pixman->output_destroy(&output->base);
 }

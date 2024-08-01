@@ -192,7 +192,7 @@ struct wayland_shm_buffer {
 	int height;
 	int frame_damaged;
 
-	struct weston_renderbuffer *renderbuffer;
+	weston_renderbuffer_t renderbuffer;
 	cairo_surface_t *c_surface;
 };
 
@@ -266,9 +266,14 @@ to_wayland_backend(struct weston_backend *base)
 static void
 wayland_shm_buffer_destroy(struct wayland_shm_buffer *buffer)
 {
+	struct wayland_output *output = buffer->output;
+	const struct weston_renderer *renderer;
+
 	cairo_surface_destroy(buffer->c_surface);
-	if (buffer->output)
-		weston_renderbuffer_unref(buffer->renderbuffer);
+	if (output) {
+		renderer = output->base.compositor->renderer;
+		renderer->destroy_renderbuffer(buffer->renderbuffer);
+	}
 
 	wl_buffer_destroy(buffer->buffer);
 	munmap(buffer->data, buffer->size);
@@ -657,15 +662,16 @@ wayland_backend_destroy_output_surface(struct wayland_output *output)
 static void
 wayland_output_destroy_shm_buffers(struct wayland_output *output)
 {
+	const struct weston_renderer *renderer =
+		output->base.compositor->renderer;
 	struct wayland_shm_buffer *buffer, *next;
 
 	/* Throw away any remaining SHM buffers */
 	wl_list_for_each_safe(buffer, next, &output->shm.free_buffers, free_link)
 		wayland_shm_buffer_destroy(buffer);
-	/* These will get thrown away when they get released */
 	wl_list_for_each(buffer, &output->shm.buffers, link) {
 		if (buffer->renderbuffer) {
-			weston_renderbuffer_unref(buffer->renderbuffer);
+			renderer->destroy_renderbuffer(buffer->renderbuffer);
 			buffer->renderbuffer = NULL;
 		}
 		buffer->output = NULL;

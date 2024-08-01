@@ -101,7 +101,7 @@ struct pipewire_head {
 };
 
 struct pipewire_frame_data {
-	struct weston_renderbuffer *renderbuffer;
+	weston_renderbuffer_t renderbuffer;
 	struct pipewire_memfd *memfd;
 	struct pipewire_dmabuf *dmabuf;
 };
@@ -593,7 +593,7 @@ pipewire_output_stream_param_changed(void *data, uint32_t id,
 	pw_stream_update_params(output->stream, params, 2);
 }
 
-static struct weston_renderbuffer *
+static weston_renderbuffer_t
 pipewire_output_stream_add_buffer_pixman(struct pipewire_output *output,
 					 struct pw_buffer *buffer)
 {
@@ -618,7 +618,7 @@ pipewire_output_stream_add_buffer_pixman(struct pipewire_output *output,
 						       ptr, stride);
 }
 
-static struct weston_renderbuffer *
+static weston_renderbuffer_t
 pipewire_output_stream_add_buffer_gl(struct pipewire_output *output,
 				     struct pw_buffer *buffer)
 {
@@ -800,21 +800,20 @@ pipewire_output_stream_remove_buffer(void *data, struct pw_buffer *buffer)
 
 	pipewire_output_debug(output, "remove buffer: %p", buffer);
 
-	if (frame_data->dmabuf) {
-		struct weston_compositor *ec = output->base.compositor;
-		const struct weston_renderer *renderer = ec->renderer;
-
-		renderer->remove_renderbuffer_dmabuf(&output->base,
-						     frame_data->renderbuffer);
+	if (frame_data->dmabuf)
 		pipewire_destroy_dmabuf(output, frame_data->dmabuf);
-	}
+
 	if (frame_data->memfd) {
 		munmap(d[0].data, d[0].maxsize);
 		pipewire_destroy_memfd(output, frame_data->memfd);
 	}
 
-	if (frame_data->renderbuffer)
-		weston_renderbuffer_unref(frame_data->renderbuffer);
+	if (frame_data->renderbuffer) {
+		struct weston_compositor *ec = output->base.compositor;
+		const struct weston_renderer *renderer = ec->renderer;
+
+		renderer->destroy_renderbuffer(frame_data->renderbuffer);
+	}
 	wl_list_for_each(fence_data, &output->fence_list, link) {
 		if (fence_data->buffer == buffer)
 			fence_data->buffer = NULL;

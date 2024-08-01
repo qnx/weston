@@ -230,8 +230,8 @@ struct gl_renderer_interface {
 	 * glReadPixels to download pixel data into the provided buffer after
 	 * repaint.
 	 */
-	struct weston_renderbuffer *(*create_fbo)(struct weston_output *output,
-						  const struct pixel_format_info *format,
-						  int width, int height,
-						  uint32_t *pixels);
+	weston_renderbuffer_t (*create_fbo)(struct weston_output *output,
+					    const struct pixel_format_info *format,
+					    int width, int height,
+					    uint32_t *pixels);
 };

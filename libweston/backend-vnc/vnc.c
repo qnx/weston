@@ -674,7 +674,7 @@ vnc_update_buffer(struct nvnc_display *display, struct pixman_region32 *damage)
 	struct vnc_backend *backend = nvnc_get_userdata(server);
 	struct vnc_output *output = backend->output;
 	struct weston_compositor *ec = output->base.compositor;
-	struct weston_renderbuffer *renderbuffer;
+	weston_renderbuffer_t renderbuffer;
 	pixman_region32_t local_damage;
 	pixman_region16_t nvnc_damage;
 	struct nvnc_fb *fb;
@@ -715,7 +715,7 @@ vnc_update_buffer(struct nvnc_display *display, struct pixman_region32 *damage)
 		}
 
 		nvnc_set_userdata(fb, renderbuffer,
-				  (nvnc_cleanup_fn)weston_renderbuffer_unref);
+				  (nvnc_cleanup_fn)ec->renderer->destroy_renderbuffer);
 	}
 
 	vnc_log_damage(backend, damage);

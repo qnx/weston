@@ -55,6 +55,7 @@
 #include <winpr/string.h>
 
 #include "backend.h"
+#include "libweston-internal.h"
 
 #include "shared/helpers.h"
 #include "shared/string-helpers.h"
@@ -149,7 +150,7 @@ struct rdp_output {
 	struct weston_output base;
 	struct rdp_backend *backend;
 	struct wl_event_source *finish_frame_timer;
-	struct weston_renderbuffer *renderbuffer;
+	weston_renderbuffer_t renderbuffer;
 	pixman_image_t *shadow_surface;
 };
 

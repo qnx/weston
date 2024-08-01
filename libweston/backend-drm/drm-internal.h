@@ -580,7 +580,7 @@ struct drm_output {
 	struct drm_writeback_state *wb_state;
 
 	struct drm_fb *dumb[2];
-	struct weston_renderbuffer *renderbuffer[2];
+	weston_renderbuffer_t renderbuffer[2];
 	int current_image;
 
 	struct vaapi_recorder *recorder;

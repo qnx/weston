@@ -140,7 +140,7 @@ struct x11_output {
 
 	xcb_gc_t		gc;
 	xcb_shm_seg_t		segment;
-	struct weston_renderbuffer *renderbuffer;
+	weston_renderbuffer_t	renderbuffer;
 	int			shm_id;
 	void		       *buf;
 	uint8_t			depth;
@@ -568,7 +568,7 @@ x11_output_deinit_shm(struct x11_backend *b, struct x11_output *output)
 	xcb_generic_error_t *err;
 	xcb_free_gc(b->conn, output->gc);
 
-	weston_renderbuffer_unref(output->renderbuffer);
+	b->compositor->renderer->destroy_renderbuffer(output->renderbuffer);
 	output->renderbuffer = NULL;
 	cookie = xcb_shm_detach_checked(b->conn, output->segment);
 	err = xcb_request_check(b->conn, cookie);

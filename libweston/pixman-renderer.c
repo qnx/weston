@@ -64,10 +64,9 @@ struct pixman_surface_state {
 };
 
 struct pixman_renderbuffer {
-	struct weston_renderbuffer base;
-
 	pixman_region32_t damage;
 	pixman_image_t *image;
+	bool stale;
 	struct wl_list link;
 };
 
@@ -81,16 +80,11 @@ struct pixman_renderer {
 	struct wl_signal destroy_signal;
 };
 
-static inline struct pixman_renderbuffer *
-to_pixman_renderbuffer(struct weston_renderbuffer *renderbuffer)
-{
-	return container_of(renderbuffer, struct pixman_renderbuffer, base);
-}
-
 static pixman_image_t *
-pixman_renderer_renderbuffer_get_image(struct weston_renderbuffer *renderbuffer)
+pixman_renderer_renderbuffer_get_image(weston_renderbuffer_t renderbuffer)
 {
-	struct pixman_renderbuffer *rb = to_pixman_renderbuffer(renderbuffer);
+	struct pixman_renderbuffer *rb =
+		(struct pixman_renderbuffer *) renderbuffer;
 
 	return rb->image;
 }
@@ -645,7 +639,7 @@ pixman_renderer_output_set_buffer(struct weston_output *output,
 static void
 pixman_renderer_repaint_output(struct weston_output *output,
 			       pixman_region32_t *output_damage,
-			       struct weston_renderbuffer *renderbuffer)
+			       weston_renderbuffer_t renderbuffer)
 {
 	struct pixman_output_state *po = get_output_state(output);
 	struct pixman_renderbuffer *rb;
@@ -657,7 +651,7 @@ pixman_renderer_repaint_output(struct weston_output *output,
 		pixman_region32_union(&rb->damage, &rb->damage, output_damage);
 	}
 
-	rb = to_pixman_renderbuffer(renderbuffer);
+	rb = (struct pixman_renderbuffer *) renderbuffer;
 
 	pixman_renderer_output_set_buffer(output, rb->image);
 
@@ -921,13 +915,54 @@ pixman_renderer_surface_copy_content(struct weston_surface *surface,
 	return 0;
 }
 
+static void
+pixman_renderbuffer_fini(struct pixman_renderbuffer *renderbuffer)
+{
+	assert(!renderbuffer->stale);
+
+	pixman_region32_fini(&renderbuffer->damage);
+	pixman_image_unref(renderbuffer->image);
+
+	renderbuffer->stale = true;
+}
+
+static void
+pixman_renderer_destroy_renderbuffer(weston_renderbuffer_t renderbuffer)
+{
+	struct pixman_renderbuffer *rb =
+		(struct pixman_renderbuffer *) renderbuffer;
+
+	wl_list_remove(&rb->link);
+
+	if (!rb->stale)
+		pixman_renderbuffer_fini(rb);
+
+	free(rb);
+}
+
+static void
+pixman_renderer_discard_renderbuffers(struct pixman_output_state *po,
+				      bool destroy)
+{
+	struct pixman_renderbuffer *rb, *tmp;
+
+	/* A renderbuffer goes stale after being discarded. Most resources are
+	 * released. It's kept in the output state's renderbuffer list while
+	 * waiting for the backend to destroy it. */
+	wl_list_for_each_safe(rb, tmp, &po->renderbuffer_list, link) {
+		if (destroy)
+			pixman_renderer_destroy_renderbuffer((weston_renderbuffer_t) rb);
+		else if (!rb->stale)
+			pixman_renderbuffer_fini(rb);
+	}
+}
+
 static bool
 pixman_renderer_resize_output(struct weston_output *output,
 			      const struct weston_size *fb_size,
 			      const struct weston_geometry *area)
 {
 	struct pixman_output_state *po = get_output_state(output);
-	struct pixman_renderbuffer *renderbuffer, *tmp;
 
 	check_compositing_area(fb_size, area);
 
@@ -942,10 +977,7 @@ pixman_renderer_resize_output(struct weston_output *output,
 
 	pixman_renderer_output_set_buffer(output, NULL);
 
-	wl_list_for_each_safe(renderbuffer, tmp, &po->renderbuffer_list, link) {
-		wl_list_remove(&renderbuffer->link);
-		weston_renderbuffer_unref(&renderbuffer->base);
-	}
+	pixman_renderer_discard_renderbuffers(po, false);
 
 	po->fb_size = *fb_size;
 
@@ -1025,6 +1057,8 @@ pixman_renderer_init(struct weston_compositor *ec)
 	renderer->base.destroy = pixman_renderer_destroy;
 	renderer->base.surface_copy_content =
 		pixman_renderer_surface_copy_content;
+	renderer->base.destroy_renderbuffer =
+		pixman_renderer_destroy_renderbuffer;
 	renderer->base.type = WESTON_RENDERER_PIXMAN;
 	renderer->base.pixman = &pixman_renderer_interface;
 	ec->renderer = &renderer->base;
@@ -1133,7 +1167,6 @@ static void
 pixman_renderer_output_destroy(struct weston_output *output)
 {
 	struct pixman_output_state *po = get_output_state(output);
-	struct pixman_renderbuffer *renderbuffer, *tmp;
 
 	if (po->shadow_image)
 		pixman_image_unref(po->shadow_image);
@@ -1144,18 +1177,12 @@ pixman_renderer_output_destroy(struct weston_output *output)
 	po->shadow_image = NULL;
 	po->hw_buffer = NULL;
 
-	wl_list_for_each_safe(renderbuffer, tmp, &po->renderbuffer_list, link) {
-		wl_list_remove(&renderbuffer->link);
-		weston_renderbuffer_unref(&renderbuffer->base);
-	}
+	pixman_renderer_discard_renderbuffers(po, true);
 
 	free(po);
 }
 
-static void
-pixman_renderer_renderbuffer_destroy(struct weston_renderbuffer *renderbuffer);
-
-static struct weston_renderbuffer *
+static weston_renderbuffer_t
 pixman_renderer_create_image_from_ptr(struct weston_output *output,
 				      const struct pixel_format_info *format,
 				      int width, int height, uint32_t *ptr,
@@ -1178,14 +1205,12 @@ pixman_renderer_create_image_from_ptr(struct weston_output *output,
 
 	pixman_region32_init(&renderbuffer->damage);
 	pixman_region32_copy(&renderbuffer->damage, &output->region);
-	renderbuffer->base.refcount = 2;
-	renderbuffer->base.destroy = pixman_renderer_renderbuffer_destroy;
 	wl_list_insert(&po->renderbuffer_list, &renderbuffer->link);
 
-	return &renderbuffer->base;
+	return (weston_renderbuffer_t) renderbuffer;
 }
 
-static struct weston_renderbuffer *
+static weston_renderbuffer_t
 pixman_renderer_create_image(struct weston_output *output,
 			     const struct pixel_format_info *format, int width,
 			     int height)
@@ -1207,21 +1232,9 @@ pixman_renderer_create_image(struct weston_output *output,
 
 	pixman_region32_init(&renderbuffer->damage);
 	pixman_region32_copy(&renderbuffer->damage, &output->region);
-	renderbuffer->base.refcount = 2;
-	renderbuffer->base.destroy = pixman_renderer_renderbuffer_destroy;
 	wl_list_insert(&po->renderbuffer_list, &renderbuffer->link);
 
-	return &renderbuffer->base;
-}
-
-static void
-pixman_renderer_renderbuffer_destroy(struct weston_renderbuffer *renderbuffer)
-{
-	struct pixman_renderbuffer *rb = to_pixman_renderbuffer(renderbuffer);
-
-	pixman_image_unref(rb->image);
-	pixman_region32_fini(&rb->damage);
-	free(rb);
+	return (weston_renderbuffer_t) renderbuffer;
 }
 
 static struct pixman_renderer_interface pixman_renderer_interface = {

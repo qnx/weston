@@ -47,14 +47,14 @@ struct pixman_renderer_interface {
 			     const struct pixman_renderer_output_options *options);
 	void (*output_destroy)(struct weston_output *output);
 
-	struct weston_renderbuffer *(*create_image_from_ptr)(struct weston_output *output,
-							     const struct pixel_format_info *format,
-							     int width,
-							     int height,
-							     uint32_t *ptr,
-							     int stride);
-	struct weston_renderbuffer *(*create_image)(struct weston_output *output,
-						    const struct pixel_format_info *format,
-						    int width, int height);
-	pixman_image_t *(*renderbuffer_get_image)(struct weston_renderbuffer *renderbuffer);
+	weston_renderbuffer_t (*create_image_from_ptr)(struct weston_output *output,
+						       const struct pixel_format_info *format,
+						       int width,
+						       int height,
+						       uint32_t *ptr,
+						       int stride);
+	weston_renderbuffer_t (*create_image)(struct weston_output *output,
+					      const struct pixel_format_info *format,
+					      int width, int height);
+	pixman_image_t *(*renderbuffer_get_image)(weston_renderbuffer_t renderbuffer);
 };

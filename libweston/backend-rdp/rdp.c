@@ -346,7 +346,7 @@ rdp_output_set_mode(struct weston_output *base, struct weston_mode *mode)
 	struct weston_output *output = base;
 	struct rdp_peers_item *rdpPeer;
 	rdpSettings *settings;
-	struct weston_renderbuffer *new_renderbuffer;
+	weston_renderbuffer_t new_renderbuffer;
 
 	mode->refresh = b->rdp_monitor_refresh_rate;
 	weston_output_set_single_mode(base, mode);
@@ -384,7 +384,7 @@ rdp_output_set_mode(struct weston_output *base, struct weston_mode *mode)
 		default:
 			unreachable("cannot have auto renderer at runtime");
 		}
-		weston_renderbuffer_unref(rdpOutput->renderbuffer);
+		renderer->destroy_renderbuffer(rdpOutput->renderbuffer);
 		rdpOutput->renderbuffer = new_renderbuffer;
 		pixman_image_unref(rdpOutput->shadow_surface);
 		rdpOutput->shadow_surface = new_image;
@@ -531,7 +531,7 @@ rdp_output_disable(struct weston_output *base)
 	if (!output->base.enabled)
 		return 0;
 
-	weston_renderbuffer_unref(output->renderbuffer);
+	renderer->destroy_renderbuffer(output->renderbuffer);
 	output->renderbuffer = NULL;
 	switch (renderer->type) {
 	case WESTON_RENDERER_PIXMAN:
