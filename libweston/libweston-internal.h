@@ -177,7 +177,7 @@ struct weston_renderer {
 	 */
 	void (*destroy_renderbuffer)(weston_renderbuffer_t renderbuffer);
 
-	/* Allocate a DMABUF that can be imported as renderbuffer
+	/** Allocate a DMABUF that can be imported as renderbuffer
 	 *
 	 * \param renderer The renderer that allocated the DMABUF
 	 * \param width The width of the allocated DMABUF
