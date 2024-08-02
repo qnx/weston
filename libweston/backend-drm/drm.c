@@ -1083,16 +1083,10 @@ drm_output_apply_mode(struct drm_output *output)
 	fb_size.width = output->base.current_mode->width;
 	fb_size.height = output->base.current_mode->height;
 
-	weston_renderer_resize_output(&output->base, &fb_size, NULL);
+	if (!weston_renderer_resize_output(&output->base, &fb_size, NULL))
+		return -1;
 
-	if (b->compositor->renderer->type == WESTON_RENDERER_PIXMAN) {
-		drm_output_fini_pixman(output);
-		if (drm_output_init_pixman(output, b) < 0) {
-			weston_log("failed to init output pixman state with "
-				   "new mode\n");
-			return -1;
-		}
-	} else {
+	if (b->compositor->renderer->type == WESTON_RENDERER_GL) {
 		drm_output_fini_egl(output);
 		if (drm_output_init_egl(output, b) < 0) {
 			weston_log("failed to init output egl state with "
@@ -1590,6 +1584,52 @@ make_connector_name(const drmModeConnector *con)
 	return name;
 }
 
+static bool
+drm_rb_discarded_cb(weston_renderbuffer_t rb, void *data)
+{
+	struct drm_output *output = (struct drm_output *) data;
+	struct weston_renderer *renderer = output->base.compositor->renderer;
+	const struct pixman_renderer_interface *pixman = renderer->pixman;
+	const struct pixel_format_info *pfmt = output->format;
+	int w = output->base.current_mode->width;
+	int h = output->base.current_mode->height;
+	struct drm_fb *dumb;
+	size_t i;
+
+	assert(renderer->type == WESTON_RENDERER_PIXMAN);
+
+	for (i = 0; i < ARRAY_LENGTH(output->renderbuffer); i++) {
+		if (rb == output->renderbuffer[i]) {
+			drm_fb_unref(output->dumb[i]);
+			renderer->destroy_renderbuffer(rb);
+
+			dumb = drm_fb_create_dumb(output->device, w, h,
+						  pfmt->format);
+			if (!dumb)
+				break;
+			rb = pixman->create_image_from_ptr(&output->base,
+							   pfmt, w, h,
+							   dumb->map,
+							   dumb->strides[0],
+							   drm_rb_discarded_cb,
+							   output);
+			if (!rb) {
+				drm_fb_unref(dumb);
+				break;
+			}
+
+			output->dumb[i] = dumb;
+			output->renderbuffer[i] = rb;
+			return true;
+		}
+	}
+
+	assert(i != ARRAY_LENGTH(output->renderbuffer));
+
+	weston_log("failed to reload pixman dumb and render buffers");
+	return false;
+}
+
 static int
 drm_output_init_pixman(struct drm_output *output, struct drm_backend *b)
 {
@@ -1628,7 +1668,8 @@ drm_output_init_pixman(struct drm_output *output, struct drm_backend *b)
 						      options.format, w, h,
 						      output->dumb[i]->map,
 						      output->dumb[i]->strides[0],
-						      NULL, NULL);
+						      drm_rb_discarded_cb,
+						      output);
 		if (!output->renderbuffer[i])
 			goto err;
 	}
