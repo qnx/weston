@@ -168,6 +168,11 @@ to_x11_head(struct weston_head *base)
 static void
 x11_output_destroy(struct weston_output *base);
 
+static int
+x11_output_init_shm(struct x11_backend *b, struct x11_output *output,
+		    const struct pixel_format_info *pfmt, int width,
+		    int height);
+
 static inline struct x11_output *
 to_x11_output(struct weston_output *base)
 {
@@ -793,6 +798,28 @@ x11_output_get_shm_pixel_format(struct x11_output *output)
 	}
 }
 
+static bool
+x11_rb_discarded_cb(weston_renderbuffer_t rb, void *data)
+{
+	struct x11_output *output = (struct x11_output *) data;
+	const struct pixel_format_info *pfmt;
+
+	if (output->base.compositor->renderer->type == WESTON_RENDERER_PIXMAN) {
+		x11_output_deinit_shm(output->backend, output);
+		pfmt = x11_output_get_shm_pixel_format(output);
+		if (!pfmt)
+			return false;
+		if (x11_output_init_shm(output->backend, output, pfmt,
+					output->base.current_mode->width,
+					output->base.current_mode->height) < 0) {
+			weston_log("Failed to initialize SHM for the X11 output\n");
+			return false;
+		}
+	}
+
+	return true;
+}
+
 static int
 x11_output_init_shm(struct x11_backend *b, struct x11_output *output,
 		    const struct pixel_format_info *pfmt, int width, int height)
@@ -831,7 +858,8 @@ x11_output_init_shm(struct x11_backend *b, struct x11_output *output,
 							pfmt, width, height,
 							output->buf,
 							width * (bitsperpixel / 8),
-							NULL, NULL);
+							x11_rb_discarded_cb,
+							output);
 
 	output->gc = xcb_generate_id(b->conn);
 	xcb_create_gc(b->conn, output->gc, output->window, 0, NULL);
@@ -876,20 +904,8 @@ x11_output_switch_mode(struct weston_output *base, struct weston_mode *mode)
 	fb_size.width = output->mode.width = mode->width;
 	fb_size.height = output->mode.height = mode->height;
 
-	weston_renderer_resize_output(&output->base, &fb_size, NULL);
-
-	if (base->compositor->renderer->type == WESTON_RENDERER_PIXMAN) {
-		const struct pixel_format_info *pfmt;
-		x11_output_deinit_shm(b, output);
-		pfmt = x11_output_get_shm_pixel_format(output);
-		if (!pfmt)
-			return -1;
-		if (x11_output_init_shm(b, output, pfmt,
-					fb_size.width, fb_size.height) < 0) {
-			weston_log("Failed to initialize SHM for the X11 output\n");
-			return -1;
-		}
-	}
+	if (!weston_renderer_resize_output(&output->base, &fb_size, NULL))
+		return -1;
 
 	output->resize_pending = false;
 	output->window_resized = false;
