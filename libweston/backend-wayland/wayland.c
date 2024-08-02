@@ -295,6 +295,22 @@ buffer_release(void *data, struct wl_buffer *buffer)
 	}
 }
 
+static bool
+wayland_rb_discarded_cb(weston_renderbuffer_t renderbuffer, void *data)
+{
+	struct wayland_shm_buffer *sb = data;
+	const struct weston_renderer *renderer;
+
+	if (sb->renderbuffer) {
+		renderer = sb->output->backend->compositor->renderer;
+		renderer->destroy_renderbuffer(sb->renderbuffer);
+		sb->renderbuffer = NULL;
+	}
+	sb->output = NULL;
+
+	return true;
+}
+
 static const struct wl_buffer_listener buffer_listener = {
 	buffer_release
 };
@@ -405,7 +421,9 @@ wayland_output_get_shm_buffer(struct wayland_output *output)
 			pixman->create_image_from_ptr(&output->base, pfmt,
 						      area.width, area.height,
 						      (uint32_t *)(data + area.y * stride) + area.x,
-						      stride, NULL, NULL);
+						      stride,
+						      wayland_rb_discarded_cb,
+						      sb);
 
 	return sb;
 }
@@ -662,20 +680,11 @@ wayland_backend_destroy_output_surface(struct wayland_output *output)
 static void
 wayland_output_destroy_shm_buffers(struct wayland_output *output)
 {
-	const struct weston_renderer *renderer =
-		output->base.compositor->renderer;
 	struct wayland_shm_buffer *buffer, *next;
 
 	/* Throw away any remaining SHM buffers */
 	wl_list_for_each_safe(buffer, next, &output->shm.free_buffers, free_link)
 		wayland_shm_buffer_destroy(buffer);
-	wl_list_for_each(buffer, &output->shm.buffers, link) {
-		if (buffer->renderbuffer) {
-			renderer->destroy_renderbuffer(buffer->renderbuffer);
-			buffer->renderbuffer = NULL;
-		}
-		buffer->output = NULL;
-	}
 }
 
 static int
