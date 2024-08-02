@@ -146,12 +146,17 @@ struct rdp_head {
 	rdpMonitor config;
 };
 
+struct rdp_buffer {
+	struct rdp_output *output;
+	pixman_image_t *shadow_surface;
+	weston_renderbuffer_t rb;
+};
+
 struct rdp_output {
 	struct weston_output base;
 	struct rdp_backend *backend;
 	struct wl_event_source *finish_frame_timer;
-	weston_renderbuffer_t renderbuffer;
-	pixman_image_t *shadow_surface;
+	struct rdp_buffer *buffer;
 };
 
 struct rdp_peer_context {
