@@ -2408,8 +2408,11 @@ gl_renderer_repaint_output(struct weston_output *output,
 
 	/* Accumulate damage in all renderbuffers */
 	wl_list_for_each(rb, &go->renderbuffer_list, link) {
-		pixman_region32_union(&rb->damage, &rb->damage, output_damage);
-		rb->border_damage |= go->border_status;
+		if (!rb->stale) {
+			pixman_region32_union(&rb->damage, &rb->damage,
+					      output_damage);
+			rb->border_damage |= go->border_status;
+		}
 	}
 
 	if (renderbuffer)
