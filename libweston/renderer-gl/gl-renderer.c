@@ -2183,15 +2183,17 @@ output_get_dummy_renderbuffer(struct weston_output *output)
 	int max_buffers;
 
 	wl_list_for_each(rb, &go->renderbuffer_list, link) {
-		/* Count dummy renderbuffers, age them, */
-		count++;
-		rb->age++;
-		/* find the one with buffer_age to return, */
-		if (rb->age == buffer_age)
-			ret = rb;
-		/* and the oldest one in case we decide to reuse it. */
-		if (!oldest_rb || rb->age > oldest_rb->age)
-			oldest_rb = rb;
+		if (rb->type == RENDERBUFFER_DUMMY) {
+			/* Count dummy renderbuffers, age them, */
+			count++;
+			rb->age++;
+			/* find the one with buffer_age to return, */
+			if (rb->age == buffer_age)
+				ret = rb;
+			/* and the oldest one in case we decide to reuse it. */
+			if (!oldest_rb || rb->age > oldest_rb->age)
+				oldest_rb = rb;
+		}
 	}
 
 	/* If a renderbuffer of correct age was found, return it, */
