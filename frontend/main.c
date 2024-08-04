@@ -1623,7 +1623,7 @@ parse_color_characteristics(struct weston_color_characteristics *cc_out,
 					 &section_name, "<unnamed>");
 	if (strchr(section_name, ':') != NULL) {
 		ret = -1;
-		weston_log("%s name=%s: reserved name. Do not use ':' character in the name.\n",
+		weston_log("%s name=%s is a reserved name. Do not use ':' character in the name.\n",
 			   msgpfx, section_name);
 	}
 

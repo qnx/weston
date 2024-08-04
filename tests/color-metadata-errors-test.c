@@ -70,7 +70,7 @@ static const struct config_testcase config_cases[] = {
 	},
 	{
 		true, "fr:ed", "fr:ed", "red_x=0.9", "green_y=0.8", "white_y=0.323", "min_L=1e-4", -1,
-		"Config error in weston.ini [color_characteristics] name=fr:ed: reserved name. Do not use ':' character in the name.\n"
+		"Config error in weston.ini [color_characteristics] name=fr:ed is a reserved name. Do not use ':' character in the name.\n"
 	},
 	{
 		true, "fred", "fred", "red_x=-5", "green_y=1.01", "white_y=0.323", "min_L=1e-4", -1,
