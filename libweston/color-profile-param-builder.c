@@ -642,23 +642,27 @@ validate_color_gamut(struct weston_color_profile_param_builder *builder,
 		     const struct weston_color_gamut *gamut,
 		     const char *gamut_name)
 {
+	struct weston_CIExy xy[4] = {
+		gamut->primary[0],
+		gamut->primary[1],
+		gamut->primary[2],
+		gamut->white_point,
+	};
+	unsigned int i;
+
 	/*
 	 * We choose the legal range [-1.0, 2.0] for CIE xy values. It is
 	 * probably more than we'd ever need, but tight enough to not cause
 	 * mathematical issues. If wasn't for the ACES AP0 color space, we'd
 	 * probably choose the range [0.0, 1.0].
 	 */
-	if (gamut->white_point.x < -1.0f || gamut->white_point.x > 2.0f ||
-	    gamut->white_point.y < -1.0f || gamut->white_point.y > 2.0f ||
-	    gamut->primary[0].x < -1.0f || gamut->primary[0].x > 2.0f ||
-	    gamut->primary[0].y < -1.0f || gamut->primary[0].y > 2.0f ||
-	    gamut->primary[1].x < -1.0f || gamut->primary[1].x > 2.0f ||
-	    gamut->primary[1].y < -1.0f || gamut->primary[1].y > 2.0f ||
-	    gamut->primary[2].x < -1.0f || gamut->primary[2].x > 2.0f ||
-	    gamut->primary[2].y < -1.0f || gamut->primary[2].y > 2.0f) {
-		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_CIE_XY_OUT_OF_RANGE,
-			    "invalid %s", gamut_name);
-		return;
+	for (i = 0; i < ARRAY_LENGTH(xy); i++) {
+		if (!(xy->x >= -1.0f && xy->y <= 2.0f)) {
+			store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_CIE_XY_OUT_OF_RANGE,
+				    "invalid %s, one of the CIE xy values is out of range [-1.0, 2.0]",
+				    gamut_name);
+			return;
+		}
 	}
 
 	/*
