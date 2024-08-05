@@ -780,7 +780,7 @@ gl_renderer_discard_renderbuffers(struct gl_output_state *go,
 }
 
 static struct gl_renderbuffer *
-gl_renderer_create_dummy_renderbuffer(struct weston_output *output)
+gl_renderer_create_renderbuffer_dummy(struct weston_output *output)
 {
 	struct gl_renderbuffer *renderbuffer;
 
@@ -847,6 +847,70 @@ gl_renderer_create_fbo(struct weston_output *output,
 
 	renderbuffer->fbo.pixels = pixels;
 	gl_renderbuffer_init(renderbuffer, RENDERBUFFER_FBO,
+			     BORDER_STATUS_CLEAN, fb, discarded_cb, user_data,
+			     output);
+
+	return (weston_renderbuffer_t) renderbuffer;
+}
+
+static EGLImageKHR
+import_simple_dmabuf(struct gl_renderer *, const struct dmabuf_attributes *);
+
+static weston_renderbuffer_t
+gl_renderer_create_renderbuffer_dmabuf(struct weston_output *output,
+				       struct linux_dmabuf_memory *dmabuf,
+				       weston_renderbuffer_discarded_func discarded_cb,
+				       void *user_data)
+{
+	struct gl_renderer *gr = get_renderer(output->compositor);
+	struct dmabuf_attributes *attributes = dmabuf->attributes;
+	struct gl_renderbuffer *renderbuffer;
+	int fb_status;
+	GLuint fb;
+
+	renderbuffer = xzalloc(sizeof(*renderbuffer));
+
+	renderbuffer->dmabuf.image = import_simple_dmabuf(gr, attributes);
+	if (renderbuffer->dmabuf.image == EGL_NO_IMAGE_KHR) {
+		weston_log("Failed to import dmabuf renderbuffer\n");
+		free(renderbuffer);
+		return NULL;
+	}
+
+	glGenFramebuffers(1, &fb);
+	glBindFramebuffer(GL_FRAMEBUFFER, fb);
+
+	glGenRenderbuffers(1, &renderbuffer->dmabuf.rb);
+	glBindRenderbuffer(GL_RENDERBUFFER, renderbuffer->dmabuf.rb);
+	gr->image_target_renderbuffer_storage(GL_RENDERBUFFER,
+					      renderbuffer->dmabuf.image);
+	if (glGetError() == GL_INVALID_OPERATION) {
+		weston_log("Failed to create renderbuffer\n");
+		glBindRenderbuffer(GL_RENDERBUFFER, 0);
+		glDeleteRenderbuffers(1, &renderbuffer->dmabuf.rb);
+		gr->destroy_image(gr->egl_display, renderbuffer->dmabuf.image);
+		free(renderbuffer);
+		return NULL;
+	}
+
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+				  GL_RENDERBUFFER, renderbuffer->dmabuf.rb);
+
+	fb_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindRenderbuffer(GL_RENDERBUFFER, 0);
+	if (fb_status != GL_FRAMEBUFFER_COMPLETE) {
+		weston_log("failed to bind renderbuffer to fbo\n");
+		glDeleteFramebuffers(1, &fb);
+		glDeleteRenderbuffers(1, &renderbuffer->dmabuf.rb);
+		gr->destroy_image(gr->egl_display, renderbuffer->dmabuf.image);
+		free(renderbuffer);
+		return NULL;
+	}
+
+	renderbuffer->dmabuf.gr = gr;
+	renderbuffer->dmabuf.memory = dmabuf;
+	gl_renderbuffer_init(renderbuffer, RENDERBUFFER_DMABUF,
 			     BORDER_STATUS_CLEAN, fb, discarded_cb, user_data,
 			     output);
 
@@ -2228,7 +2292,7 @@ output_get_dummy_renderbuffer(struct weston_output *output)
 	}
 
 	/* or create a new dummy renderbuffer */
-	return gl_renderer_create_dummy_renderbuffer(output);
+	return gl_renderer_create_renderbuffer_dummy(output);
 }
 
 /**
@@ -4252,67 +4316,6 @@ gl_renderer_output_fbo_create(struct weston_output *output,
 {
 	return gl_renderer_output_create(output, EGL_NO_SURFACE,
 					&options->fb_size, &options->area);
-}
-
-static weston_renderbuffer_t
-gl_renderer_create_renderbuffer_dmabuf(struct weston_output *output,
-				       struct linux_dmabuf_memory *dmabuf,
-				       weston_renderbuffer_discarded_func discarded_cb,
-				       void *user_data)
-{
-	struct gl_renderer *gr = get_renderer(output->compositor);
-	struct dmabuf_attributes *attributes = dmabuf->attributes;
-	struct gl_renderbuffer *renderbuffer;
-	int fb_status;
-	GLuint fb;
-
-	renderbuffer = xzalloc(sizeof(*renderbuffer));
-
-	renderbuffer->dmabuf.image = import_simple_dmabuf(gr, attributes);
-	if (renderbuffer->dmabuf.image == EGL_NO_IMAGE_KHR) {
-		weston_log("Failed to import dmabuf renderbuffer\n");
-		free(renderbuffer);
-		return NULL;
-	}
-
-	glGenFramebuffers(1, &fb);
-	glBindFramebuffer(GL_FRAMEBUFFER, fb);
-
-	glGenRenderbuffers(1, &renderbuffer->dmabuf.rb);
-	glBindRenderbuffer(GL_RENDERBUFFER, renderbuffer->dmabuf.rb);
-	gr->image_target_renderbuffer_storage(GL_RENDERBUFFER,
-					      renderbuffer->dmabuf.image);
-	if (glGetError() == GL_INVALID_OPERATION) {
-		weston_log("Failed to create renderbuffer\n");
-		glBindRenderbuffer(GL_RENDERBUFFER, 0);
-		glDeleteRenderbuffers(1, &renderbuffer->dmabuf.rb);
-		gr->destroy_image(gr->egl_display, renderbuffer->dmabuf.image);
-		free(renderbuffer);
-		return NULL;
-	}
-
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-				  GL_RENDERBUFFER, renderbuffer->dmabuf.rb);
-
-	fb_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glBindRenderbuffer(GL_RENDERBUFFER, 0);
-	if (fb_status != GL_FRAMEBUFFER_COMPLETE) {
-		weston_log("failed to bind renderbuffer to fbo\n");
-		glDeleteFramebuffers(1, &fb);
-		glDeleteRenderbuffers(1, &renderbuffer->dmabuf.rb);
-		gr->destroy_image(gr->egl_display, renderbuffer->dmabuf.image);
-		free(renderbuffer);
-		return NULL;
-	}
-
-	renderbuffer->dmabuf.gr = gr;
-	renderbuffer->dmabuf.memory = dmabuf;
-	gl_renderbuffer_init(renderbuffer, RENDERBUFFER_DMABUF,
-			     BORDER_STATUS_CLEAN, fb, discarded_cb, user_data,
-			     output);
-
-	return (weston_renderbuffer_t) renderbuffer;
 }
 
 #ifdef HAVE_GBM
