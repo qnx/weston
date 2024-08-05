@@ -3904,7 +3904,7 @@ gl_renderer_surface_copy_content(struct weston_surface *surface,
 	struct weston_buffer *buffer;
 	int cw, ch;
 	GLuint fbo;
-	GLuint tex;
+	GLuint rb;
 	GLenum status;
 	int ret = -1;
 
@@ -3930,16 +3930,14 @@ gl_renderer_surface_copy_content(struct weston_surface *surface,
 
 	gl_shader_config_set_input_textures(&sconf, gs);
 
-	glGenTextures(1, &tex);
-	glBindTexture(GL_TEXTURE_2D, tex);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, cw, ch,
-		     0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-	glBindTexture(GL_TEXTURE_2D, 0);
-
 	glGenFramebuffers(1, &fbo);
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-			       GL_TEXTURE_2D, tex, 0);
+	glGenRenderbuffers(1, &rb);
+	glBindRenderbuffer(GL_RENDERBUFFER, rb);
+
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA, cw, ch);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+				  GL_RENDERBUFFER, rb);
 
 	status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if (status != GL_FRAMEBUFFER_COMPLETE) {
@@ -3975,7 +3973,7 @@ gl_renderer_surface_copy_content(struct weston_surface *surface,
 
 out:
 	glDeleteFramebuffers(1, &fbo);
-	glDeleteTextures(1, &tex);
+	glDeleteRenderbuffers(1, &rb);
 
 	return ret;
 }
