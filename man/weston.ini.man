@@ -1,6 +1,6 @@
 .\" shorthand for double quote that works everywhere.
 .ds q \N'34'
-.TH weston.ini 5 "2024-08-07" "Weston @version@"
+.TH weston.ini 5 "2025-07-29" "Weston @version@"
 .\"---------------------------------------------------------------------
 .SH NAME
 weston.ini \- configuration file for
@@ -602,7 +602,11 @@ wayland, and x11 backends, and for remoting and pipewire outputs. If
 is also set, that is used instead.
 
 This key creates a parametric profile to be used as the output color profile.
-This key can use one of the special profile names that
+The profile can be created from parameters recorded in a
+.B color-profile
+section by referring to it by its
+.B name
+value. Alternatively this key can use one of the special profile names that
 contain a colon (:).
 
 The default, once implemented, will be
@@ -652,8 +656,15 @@ Examples:
 .B color-profile=auto:
 .B color-profile=auto:edid-tf edid-dr
 .B color-profile=auto: edid-primaries
+.B color-profile=my-awesome-display
 .EE
 .RE
+
+.IP
+The last example causes Weston to read the
+.B color-profile
+section that has
+.BR name=my-awesome-display .
 
 .IP
 Notably, setting
@@ -965,6 +976,229 @@ a floating point value in the range 0.0\(en100000.0.
 Display's desired maximum frame-average light level
 .IR L \~cd/m²,
 a floating point value in the range 0.0\(en100000.0.
+.\"---------------------------------------------------------------------
+.SH "COLOR-PROFILE SECTION"
+Each
+.B color-profile
+section records one set of basic display color characterisation parameters.
+Some parameters are collected into groups. Each group must be given either fully
+or not at all. A usable section must contain at least the signaling primaries
+.RB ( "Signaling primaries group" " or " prim_named )
+and the transfer function
+.RB ( tf_named " or " tf_power ).
+.PP
+Each section must be named with
+.B name
+key by which it can be referenced from other sections. A
+.B color-profile
+section is just a collection of parameter values and does nothing on its own.
+It has an effect only when referenced from elsewhere.
+.PP
+See
+.BR output " section key " color-profile .
+.TP 7
+.BI "name=" name
+An arbitrary name for this section. You can choose any name you want as long as
+it does not contain the colon
+.RB ( : )
+character. Names with at least one colon are reserved.
+.TP 7
+.BI "prim_named=" name
+A standardised set of primaries and white point for signaling.
+The following names are recognized:
+.RS 11
+.TP
+.B srgb
+sRGB (IEC 61966-2-1) and ITU-R BT.709
+.TP
+.B pal_m
+PAL-M (ITU-R BT.470-6)
+.TP
+.B pal
+PAL (ITU-R BT.470-6), ITU-R BT.601-7 625-line
+.TP
+.B ntsc
+NTSC (SMPTE 170M-2004), ITU-R BT.601-7 525-line
+.TP
+.B generic_film
+generic film with color filters using Illuminant C (ITU-T H.273)
+.TP
+.B bt2020
+ITU-R BT.2020 and BT.2100
+.TP
+.B cie1931_xyz
+CIE 1931 XYZ (ITU-T H.273)
+.TP
+.B dci_p3
+DCI P3 (SMPTE RP 431-2)
+.TP
+.B display_p3
+Apple Display P3, SMPTE EG 432-1
+.TP
+.B adobe_rgb
+Adobe RGB (ISO 12640)
+.RE
+.IP
+Mutually exclusive with the
+.B Signaling primaries group
+with which one can define custom primaries and white point.
+.TP 7
+.BI "target_named=" name
+A standardised set of primaries and white point for the targeted color volume.
+The same set of names are recognized as for
+.BR prim_named .
+.IP
+Mutually exclusive with the
+.B Target primaries group
+with which one can define custom primaries and white point.
+.TP 7
+.BI "tf_named=" name
+A standard transfer function or characteristic. The following names are
+recognized:
+.PP
+.RS 11
+.TP
+.B bt1886
+Rec. ITU-R BT.1886 display transfer characteristic.
+Defaults to min_lum=0.01. ref_lum=100, max_lum=100.
+.TP
+.B gamma22
+Assumed display gamma 2.2 transfer function.
+An sRGB display (IEC 61966-2-1) uses this transfer function.
+.TP
+.B gamma28
+Assumed display gamma 2.8 transfer function.
+.TP
+.B st240
+SMPTE ST 240 (1999)
+.TP
+.B st428
+SMPTE ST 428-1 (2019)
+.TP
+.B st2084
+SMPTE ST 2084 Perceptual Quantizer (PQ) transfer characteristic.
+Defaults to min_lum=0.005, ref_lum=203.
+.TP
+.B linear
+Linear transfer function defined over all real numbers.
+Normalised electrical values are equal the normalised optical values.
+.TP
+.B log100
+Logarithmic transfer characteristic (100:1 range).
+.TP
+.B log316
+Logarithmic transfer characteristic (100 * Sqrt(10) : 1 range).
+.TP
+.B xvycc
+IEC 61966-2-4
+.TP
+.B hlg
+Rec. ITU-R BT.2100 HLG transfer characteristic.
+Defaults to min_lum=0.005, ref_lum=203, max_lum=1000.
+.RE
+.IP
+Unless otherwise stated above, the default signaling luminance values are
+min_lum=0.2, ref_lum=80, max_lum=80. See
+.BR "Signaling luminances group" .
+.IP
+Mutually exclusive with
+.B tf_power.
+.TP 7
+.BI "tf_power=" E
+Mutually exclusive with
+.B tf_named.
+Set the transfer function as the power-law curve with the given exponent
+.IR E ,
+a real number in the range [1.0, 10.0].
+Defaults to min_lum=0.2, ref_lum=80, max_lum=80.
+.TP 7
+.BI "max_fall=" L
+Display's desired maximum frame-average light level
+.IR L " cd/m²."
+Undefined when not set.
+.TP 7
+.BI "max_cll=" L
+Display's maximum content light level
+.IR L " cd/m²."
+Undefined when not set.
+.SS Signaling primaries group
+.TP 7
+.BI "prim_red=" "x y"
+.TQ
+.BI "prim_green=" "x y"
+.TQ
+.BI "prim_blue=" "x y"
+.TQ
+.BI "prim_white=" "x y"
+The signaling primaries group defines the primaries and the white point used
+for encoding tristimulus into RGB values, also known as the primary color
+volume.
+.RI "The " x " and " y
+are the CIE 1931 2-degree observer chromaticity coordinates. The values must be
+in the range [-1.0, 2.0].
+
+For an easier way to define standard primaries, see
+.B prim_named
+which is mutually exclusive with the signaling primaries group.
+.SS Signaling luminances group
+.TP 7
+.BI "min_lum=" Lmin
+.TQ
+.BI "ref_lum=" Lref
+.TQ
+.BI "max_lum=" Lmax
+.IR Lmin \(en Lmax
+is the dynamic range of the display corresponding to 0%\(en100% signal levels.
+For the
+.B tf_named=st2084
+setting the
+.I Lmax
+value is overwritten with 10'000 +
+.IR Lmin .
+.I Lref
+is the reference luminance level to which all application contents are matched,
+also referred to as graphics white luminance or standard dynamic range peak
+luminance. All values are positive real numbers in cd/m².
+.IR Lmin " can also be zero."
+.IR Lmin " must be less than " Lref " and " Lmax .
+
+When not set, the default values depend on the chosen transfer function or
+characteristic.
+.SS Target primaries group
+.TP 7
+.BI "target_red=" "x y"
+.TQ
+.BI "target_green=" "x y"
+.TQ
+.BI "target_blue=" "x y"
+.TQ
+.BI "target_white=" "x y"
+The target color volume is similar to the Mastering Display Color Volume
+(MDCV) in that any encoded stimulus outside of it has an undefined presentation.
+This is particularly useful with a display that uses a wide gamut signal
+encoding (e.g. BT.2020) but can only produce a subset of that color gamut.
+.RI "The " x " and " y
+are the CIE 1931 2-degree observer chromaticity coordinates. The values must be
+in the range [-1.0, 2.0].
+
+When not set, defaults to the primary color volume.
+
+For an easier way to define standard targets, see
+.B target_named
+which is mutually exclusive with the target primaries group.
+.SS Target luminances group
+.TP 7
+.BI "target_min_lum=" Lmin
+.TQ
+.BI "target_max_lum=" Lmax
+Luminance range of the target color volume.
+.IR Lmin " and " Lmax
+are positive real numbers in cd/m².
+.I Lmin
+may also be zero, and it must be less than
+.IR Lmax .
+
+When not set, defaults to the signaling luminance range.
 .\"---------------------------------------------------------------------
 .SH "SEE ALSO"
 .BR weston (1),

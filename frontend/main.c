@@ -55,6 +55,7 @@
 #include "shared/process-util.h"
 #include "shared/string-helpers.h"
 #include "shared/xalloc.h"
+#include "shared/weston-assert.h"
 #include "git-version.h"
 #include <libweston/version.h>
 #include "weston.h"
@@ -1354,6 +1355,357 @@ weston_log_indent_multiline(int indent, const char *multiline)
 	}
 }
 
+static bool
+parse_float_array(float *values, size_t len_values, const char *str, char **errmsg)
+{
+	struct weston_string_array elems;
+	size_t i;
+
+	elems = weston_parse_space_separated_list(str);
+	if (elems.len != len_values) {
+		if (len_values == 1) {
+			str_printf(errmsg, "Needed only one number, got %zu numbers.",
+				   elems.len);
+		} else {
+			str_printf(errmsg,
+				   "Needed exactly %zu numbers separated by whitespace, got %zu.",
+				   len_values, elems.len);
+		}
+		weston_string_array_fini(&elems);
+		return false;
+	}
+
+	for (i = 0; i < len_values; i++) {
+		if (!safe_strtofloat(elems.array[i], &values[i])) {
+			str_printf(errmsg, "'%s' is not a number.", elems.array[i]);
+			weston_string_array_fini(&elems);
+			return false;
+		}
+	}
+
+	weston_string_array_fini(&elems);
+	return true;
+}
+
+static bool
+parse_CIExy(struct weston_CIExy *chrom, const char *str, char **errmsg)
+{
+	float val[2];
+
+	if (!parse_float_array(val, ARRAY_LENGTH(val), str, errmsg))
+		return false;
+
+	chrom->x = val[0];
+	chrom->y = val[1];
+
+	return true;
+}
+
+static const struct weston_enum_map config_primaries_map[] = {
+	{ "srgb",         WESTON_PRIMARIES_CICP_SRGB },
+	{ "pal_m",        WESTON_PRIMARIES_CICP_PAL_M },
+	{ "pal",          WESTON_PRIMARIES_CICP_PAL },
+	{ "ntsc",         WESTON_PRIMARIES_CICP_NTSC },
+	{ "generic_film", WESTON_PRIMARIES_CICP_GENERIC_FILM },
+	{ "bt2020",       WESTON_PRIMARIES_CICP_BT2020 },
+	{ "cie1931_xyz",  WESTON_PRIMARIES_CICP_CIE1931_XYZ },
+	{ "dci_p3",       WESTON_PRIMARIES_CICP_DCI_P3 },
+	{ "display_p3",   WESTON_PRIMARIES_CICP_DISPLAY_P3 },
+	{ "adobe_rgb",    WESTON_PRIMARIES_ADOBE_RGB },
+};
+
+static const struct weston_enum_map config_tf_map[] = {
+	{ "bt1886",  WESTON_TF_BT1886 },
+	{ "gamma22", WESTON_TF_GAMMA22 },
+	{ "gamma28", WESTON_TF_GAMMA28 },
+	{ "st240",   WESTON_TF_ST240 },
+	{ "st428",   WESTON_TF_ST428 },
+	{ "st2084",  WESTON_TF_ST2084_PQ },
+	{ "linear",  WESTON_TF_EXT_LINEAR },
+	{ "log100",  WESTON_TF_LOG_100 },
+	{ "log316",  WESTON_TF_LOG_316 },
+	{ "xvycc",   WESTON_TF_XVYCC },
+	{ "hlg",     WESTON_TF_HLG },
+};
+
+enum profile_parameter_group {
+	PARAMS_GROUP_PRIMARIES              = 1 << 0,
+	PARAMS_GROUP_PRIMARIES_NAMED        = 1 << 1,
+	PARAMS_GROUP_TF_NAMED               = 1 << 2,
+	PARAMS_GROUP_TF_POWER               = 1 << 3,
+	PARAMS_GROUP_LUMINANCE              = 1 << 4,
+	PARAMS_GROUP_TARGET_PRIMARIES       = 1 << 5,
+	PARAMS_GROUP_TARGET_PRIMARIES_NAMED = 1 << 6,
+	PARAMS_GROUP_TARGET_LUMINANCE       = 1 << 7,
+	PARAMS_GROUP_MAX_FALL               = 1 << 8,
+	PARAMS_GROUP_MAX_CLL                = 1 << 9,
+};
+
+static const struct weston_enum_map profile_parameter_group_names[] = {
+	{ "signaling primaries", PARAMS_GROUP_PRIMARIES },
+	{ "signaling luminances", PARAMS_GROUP_LUMINANCE },
+	{ "target primaries", PARAMS_GROUP_TARGET_PRIMARIES },
+	{ "target luminances", PARAMS_GROUP_TARGET_LUMINANCE },
+};
+
+struct config_color_params_type {
+	enum {
+		TYPE_FLOAT,
+		TYPE_CIEXY,
+		TYPE_ENUM,
+	} data_type;
+	const struct weston_enum_map *map;
+	size_t map_len;
+};
+
+/* A scalar floating-point value (float) */
+static const struct config_color_params_type type_float = {
+	TYPE_FLOAT, NULL, 0,
+};
+
+/* A CIE 1931 xy floating-point value pair (struct weston_CIExy) */
+static const struct config_color_params_type type_ciexy = {
+	TYPE_CIEXY, NULL, 0,
+};
+
+/* Enumerated primaries and white point (uint32_t) */
+static const struct config_color_params_type type_prims = {
+	TYPE_ENUM, config_primaries_map, ARRAY_LENGTH(config_primaries_map),
+};
+
+/* Enumerated transfer functions (uint32_t) */
+static const struct config_color_params_type type_tfs = {
+	TYPE_ENUM, config_tf_map, ARRAY_LENGTH(config_tf_map),
+};
+
+struct config_color_params {
+	uint32_t group_mask;
+
+	struct weston_color_gamut prim;
+	uint32_t prim_named;
+	uint32_t tf_named;
+	float tf_power;
+	float prim_lum[2];
+	float ref_lum;
+	struct weston_color_gamut target_prim;
+	uint32_t target_named;
+	float target_lum[2];
+	float max_cll, max_fall;
+};
+
+static bool
+config_color_params_parse(struct config_color_params *dst,
+			  struct weston_config_section *section,
+			  const char *section_name,
+			  const char *msgpfx,
+			  struct weston_compositor *compositor)
+{
+	const struct {
+		const char *name;
+		const struct config_color_params_type *type;
+		void *data;
+		enum profile_parameter_group group;
+	} keys[] = {
+		{ "prim_red",       &type_ciexy, &dst->prim.primary[0],         PARAMS_GROUP_PRIMARIES },
+		{ "prim_green",     &type_ciexy, &dst->prim.primary[1],         PARAMS_GROUP_PRIMARIES },
+		{ "prim_blue",      &type_ciexy, &dst->prim.primary[2],         PARAMS_GROUP_PRIMARIES },
+		{ "prim_white",     &type_ciexy, &dst->prim.white_point,        PARAMS_GROUP_PRIMARIES },
+		{ "prim_named",     &type_prims, &dst->prim_named,              PARAMS_GROUP_PRIMARIES_NAMED },
+		{ "tf_named",       &type_tfs,   &dst->tf_named,                PARAMS_GROUP_TF_NAMED },
+		{ "tf_power",       &type_float, &dst->tf_power,                PARAMS_GROUP_TF_POWER },
+		{ "min_lum",        &type_float, &dst->prim_lum[0],             PARAMS_GROUP_LUMINANCE },
+		{ "max_lum",        &type_float, &dst->prim_lum[1],             PARAMS_GROUP_LUMINANCE },
+		{ "ref_lum",        &type_float, &dst->ref_lum,                 PARAMS_GROUP_LUMINANCE },
+		{ "target_red",     &type_ciexy, &dst->target_prim.primary[0],  PARAMS_GROUP_TARGET_PRIMARIES },
+		{ "target_green",   &type_ciexy, &dst->target_prim.primary[1],  PARAMS_GROUP_TARGET_PRIMARIES },
+		{ "target_blue",    &type_ciexy, &dst->target_prim.primary[2],  PARAMS_GROUP_TARGET_PRIMARIES },
+		{ "target_white",   &type_ciexy, &dst->target_prim.white_point, PARAMS_GROUP_TARGET_PRIMARIES },
+		{ "target_named",   &type_prims, &dst->target_named,            PARAMS_GROUP_TARGET_PRIMARIES_NAMED },
+		{ "target_min_lum", &type_float, &dst->target_lum[0],           PARAMS_GROUP_TARGET_LUMINANCE },
+		{ "target_max_lum", &type_float, &dst->target_lum[1],           PARAMS_GROUP_TARGET_LUMINANCE },
+		{ "max_cll",        &type_float, &dst->max_cll,                 PARAMS_GROUP_MAX_CLL },
+		{ "max_fall",       &type_float, &dst->max_fall,                PARAMS_GROUP_MAX_FALL },
+	};
+
+	bool success = true;
+	bool found[ARRAY_LENGTH(keys)] = { 0 };
+	uint32_t missing_group_mask = 0;
+	enum profile_parameter_group last_error_group;
+	unsigned i;
+
+	/* Let's parse the keys and get the values given by users. */
+	for (i = 0; i < ARRAY_LENGTH(keys); i++) {
+		const struct config_color_params_type *mytype = keys[i].type;
+		char *val_str = NULL;
+		uint32_t *data_enum;
+		float *data_float;
+		struct weston_CIExy *data_ciexy;
+		const struct weston_enum_map *entry;
+		char *err_msg;
+		int ret;
+
+		ret = weston_config_section_get_string(section, keys[i].name,
+						       &val_str, NULL);
+		if (ret < 0) {
+			/* Key not present on the ini file, not an error. */
+			missing_group_mask |= keys[i].group;
+			continue;
+		}
+
+		dst->group_mask |= keys[i].group;
+		found[i] = true;
+
+		switch (mytype->data_type) {
+		case TYPE_FLOAT:
+			data_float = keys[i].data;
+			if (!parse_float_array(data_float, 1, val_str, &err_msg)) {
+				weston_log("%s name=%s, parsing %s: %s\n",
+					   msgpfx, section_name, keys[i].name, err_msg);
+				free(err_msg);
+				success = false;
+			}
+			break;
+		case TYPE_CIEXY:
+			data_ciexy = keys[i].data;
+			if (!parse_CIExy(data_ciexy, val_str, &err_msg)) {
+				weston_log("%s name=%s, parsing %s: %s\n",
+					   msgpfx, section_name, keys[i].name, err_msg);
+				free(err_msg);
+				success = false;
+			}
+			break;
+		case TYPE_ENUM:
+			data_enum = keys[i].data;
+			entry = weston_enum_map_find_name_(mytype->map, mytype->map_len, val_str);
+			if (entry) {
+				*data_enum = entry->value;
+			} else {
+				weston_log("%s name=%s, %s has unknown value '%s'.\n",
+					   msgpfx, section_name, keys[i].name, val_str);
+				success = false;
+			}
+			break;
+		}
+
+		free(val_str);
+	}
+
+	if (!success)
+		return false;
+
+	last_error_group = 0;
+	/* Ensure groups are given fully or not at all. */
+	for (i = 0; i < ARRAY_LENGTH(keys); i++) {
+		uint32_t group = keys[i].group;
+
+		if ((dst->group_mask & group) && (missing_group_mask & group)) {
+			success = false;
+			if (last_error_group == 0)
+				weston_log("%s name=%s:\n", msgpfx, section_name);
+			if (group != last_error_group) {
+				const struct weston_enum_map *e;
+
+				e = weston_enum_map_find_value(profile_parameter_group_names, group);
+				weston_assert_ptr_not_null(compositor, e);
+				weston_log_continue("    group: %s\n", e->name);
+			}
+			last_error_group = group;
+			weston_log_continue("        %s is %s.\n", keys[i].name,
+					    found[i] ? "set" : "missing");
+		}
+	}
+	if (last_error_group != 0)
+		weston_log_continue("You must set either none or all keys of a group.\n");
+
+	return success;
+}
+
+static void
+config_color_params_to_builder(struct weston_color_profile_param_builder *builder,
+			       const struct config_color_params *params)
+{
+	if (params->group_mask & PARAMS_GROUP_PRIMARIES) {
+		weston_color_profile_param_builder_set_primaries(builder,
+								 &params->prim);
+	}
+
+	if (params->group_mask & PARAMS_GROUP_PRIMARIES_NAMED) {
+		weston_color_profile_param_builder_set_primaries_named(builder,
+								       params->prim_named);
+	}
+
+	if (params->group_mask & PARAMS_GROUP_TF_POWER) {
+		weston_color_profile_param_builder_set_tf_power_exponent(builder,
+									 params->tf_power);
+	}
+
+	if (params->group_mask & PARAMS_GROUP_TF_NAMED) {
+		weston_color_profile_param_builder_set_tf_named(builder,
+								params->tf_named);
+	}
+
+	if (params->group_mask & PARAMS_GROUP_LUMINANCE) {
+		weston_color_profile_param_builder_set_primary_luminance(builder,
+									 params->ref_lum,
+									 params->prim_lum[0],
+									 params->prim_lum[1]);
+	}
+
+	if (params->group_mask & PARAMS_GROUP_TARGET_PRIMARIES) {
+		weston_color_profile_param_builder_set_target_primaries(builder,
+									&params->target_prim);
+	}
+
+	if (params->group_mask & PARAMS_GROUP_TARGET_LUMINANCE) {
+		weston_color_profile_param_builder_set_target_luminance(builder,
+									params->target_lum[0],
+									params->target_lum[1]);
+	}
+
+	if (params->group_mask & PARAMS_GROUP_TARGET_PRIMARIES_NAMED) {
+		weston_color_profile_param_builder_set_target_primaries_named(builder,
+									      params->target_named);
+	}
+
+	if (params->group_mask & PARAMS_GROUP_MAX_CLL)
+		weston_color_profile_param_builder_set_maxCLL(builder, params->max_cll);
+
+	if (params->group_mask & PARAMS_GROUP_MAX_FALL)
+		weston_color_profile_param_builder_set_maxFALL(builder, params->max_fall);
+}
+
+static struct weston_color_profile *
+wet_create_config_color_profile(struct weston_output *output,
+				struct weston_config_section *section,
+				const char *section_name,
+				const char *msgpfx)
+{
+	struct config_color_params params = {};
+	struct weston_color_profile_param_builder *builder;
+	struct weston_color_profile *cprof = NULL;
+	enum weston_color_profile_param_builder_error error;
+	char *err_msg;
+
+	if (!config_color_params_parse(&params, section, section_name,
+				       msgpfx, output->compositor)) {
+		return NULL;
+	}
+
+	builder = weston_color_profile_param_builder_create(output->compositor);
+	config_color_params_to_builder(builder, &params);
+
+	cprof = weston_color_profile_param_builder_create_color_profile(builder,
+									"frontend custom from ini",
+									&error, &err_msg);
+	if (!cprof) {
+		weston_log("%s name=%s, invalid parameter set:\n", msgpfx, section_name);
+		weston_log_indent_multiline(0, err_msg);
+		free(err_msg);
+	}
+
+	return cprof;
+}
+
 static struct weston_color_profile *
 wet_create_sRGB_profile(struct weston_compositor *compositor)
 {
@@ -1597,16 +1949,34 @@ wet_create_output_color_profile(struct weston_output *output,
 				struct weston_config *wc,
 				const char *prof_name)
 {
+	struct weston_config_section *prof_section;
+	static const char *msgpfx = "Config error in weston.ini [" COLOR_PROF_NAME "]";
+
 	if (strcmp(prof_name, "srgb:") == 0)
 		return wet_create_sRGB_profile(output->compositor);
 
 	if (strncmp(prof_name, "auto:", 5) == 0)
 		return wet_parse_auto_profile(output, prof_name + 5);
 
-	weston_log("Config error in weston.ini, output %s, key "
-		   COLOR_PROF_NAME ": invalid value (%s)\n.",
-		   output->name, prof_name);
-	return NULL;
+	if (strchr(prof_name, ':') != NULL) {
+		weston_log("Config error in weston.ini, output %s, "
+			   COLOR_PROF_NAME "=%s is illegal. "
+			   "The ':' character is legal only for 'srgb:' and 'auto:'.\n",
+			   output->name, prof_name);
+		return NULL;
+	}
+
+	prof_section = weston_config_get_section(wc, COLOR_PROF_NAME,
+						 "name", prof_name);
+	if (!prof_section) {
+		weston_log("Config error in weston.ini, output %s: "
+			   "no [" COLOR_PROF_NAME "] section with 'name=%s' found.\n",
+			   output->name, prof_name);
+		return NULL;
+	}
+
+	return wet_create_config_color_profile(output, prof_section,
+					       prof_name, msgpfx);
 }
 
 static int
