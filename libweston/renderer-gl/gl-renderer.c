@@ -103,11 +103,6 @@ struct gl_border_image {
 	void *data;
 };
 
-struct gl_fbo_texture {
-	GLuint fbo;
-	GLuint tex;
-};
-
 struct gl_renderbuffer_dummy {
 	int age;
 };
@@ -161,7 +156,8 @@ struct gl_output_state {
 	struct wl_list timeline_render_point_list;
 
 	const struct pixel_format_info *shadow_format;
-	struct gl_fbo_texture shadow;
+	GLuint shadow_tex;
+	GLuint shadow_fb;
 
 	/* struct gl_renderbuffer::link */
 	struct wl_list renderbuffer_list;
@@ -340,7 +336,7 @@ get_surface_state(struct weston_surface *surface)
 static bool
 shadow_exists(const struct gl_output_state *go)
 {
-	return go->shadow.fbo != 0;
+	return go->shadow_fb != 0;
 }
 
 static bool
@@ -724,64 +720,59 @@ gl_fbo_image_init(struct gl_renderer *gr,
 	return false;
 }
 
-/** Create a texture and a framebuffer object
- *
- * \param fbotex To be initialized.
- * \param width Texture width in pixels.
- * \param height Texture heigh in pixels.
- * \param internal_format See glTexImage2D.
- * \param format See glTexImage2D.
- * \param type See glTexImage2D.
- * \return True on success, false otherwise.
+/* Initialise a pair of framebuffer and texture objects to render into a
+ * texture. Use gl_fbo_texture_fini() to finalise.
  */
 static bool
-gl_fbo_texture_init(struct gl_fbo_texture *fbotex,
-			 int32_t width,
-			 int32_t height,
-			 GLint internal_format,
-			 GLenum format,
-			 GLenum type)
+gl_fbo_texture_init(GLenum internal_format,
+		    int width,
+		    int height,
+		    GLenum format,
+		    GLenum type,
+		    GLuint *fb_out,
+		    GLuint *tex_out)
 {
-	int fb_status;
-	GLuint shadow_fbo;
-	GLuint shadow_tex;
+	GLenum status;
+	GLuint fb, tex;
 
-	glGenTextures(1, &shadow_tex);
-	glBindTexture(GL_TEXTURE_2D, shadow_tex);
+	glGenTextures(1, &tex);
+	glBindTexture(GL_TEXTURE_2D, tex);
 	glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0,
 		     format, type, NULL);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glBindTexture(GL_TEXTURE_2D, 0);
-
-	glGenFramebuffers(1, &shadow_fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, shadow_fbo);
+	glGenFramebuffers(1, &fb);
+	glBindFramebuffer(GL_FRAMEBUFFER, fb);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-			       GL_TEXTURE_2D, shadow_tex, 0);
-
-	fb_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-
+			       GL_TEXTURE_2D, tex, 0);
+	status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-	if (fb_status != GL_FRAMEBUFFER_COMPLETE) {
-		glDeleteFramebuffers(1, &shadow_fbo);
-		glDeleteTextures(1, &shadow_tex);
-		return false;
+	if (status != GL_FRAMEBUFFER_COMPLETE) {
+		weston_log("Error: FBO incomplete.\n");
+		goto error;
 	}
 
-	fbotex->fbo = shadow_fbo;
-	fbotex->tex = shadow_tex;
-
+	*fb_out = fb;
+	*tex_out = tex;
 	return true;
+
+ error:
+	glDeleteFramebuffers(1, &fb);
+	glDeleteTextures(1, &tex);
+	return false;
 }
 
+/* Finalise a pair of framebuffer and texture objects.
+ */
 static void
-gl_fbo_texture_fini(struct gl_fbo_texture *fbotex)
+gl_fbo_texture_fini(GLuint *fb,
+		    GLuint *tex)
 {
-	glDeleteFramebuffers(1, &fbotex->fbo);
-	fbotex->fbo = 0;
-	glDeleteTextures(1, &fbotex->tex);
-	fbotex->tex = 0;
+	glDeleteFramebuffers(1, fb);
+	glDeleteTextures(1, tex);
+	*fb = 0;
+	*tex = 0;
 }
 
 static void
@@ -2423,7 +2414,7 @@ blit_shadow_to_output(struct weston_output *output,
 		},
 		.view_alpha = 1.0f,
 		.input_tex_filter = GL_NEAREST,
-		.input_tex[0] = go->shadow.tex,
+		.input_tex[0] = go->shadow_tex,
 	};
 	struct gl_renderer *gr = get_renderer(output->compositor);
 	double width = go->area.width;
@@ -2566,7 +2557,7 @@ gl_renderer_repaint_output(struct weston_output *output,
 
 	/* If using shadow, redirect all drawing to it first. */
 	if (shadow_exists(go)) {
-		glBindFramebuffer(GL_FRAMEBUFFER, go->shadow.fbo);
+		glBindFramebuffer(GL_FRAMEBUFFER, go->shadow_fb);
 		glViewport(0, 0, go->area.width, go->area.height);
 	} else {
 		glBindFramebuffer(GL_FRAMEBUFFER, rb->fb);
@@ -4218,10 +4209,11 @@ gl_renderer_resize_output(struct weston_output *output,
 		return true;
 
 	if (shadow_exists(go))
-		gl_fbo_texture_fini(&go->shadow);
+		gl_fbo_texture_fini(&go->shadow_fb, &go->shadow_tex);
 
-	ret = gl_fbo_texture_init(&go->shadow, area->width, area->height,
-				  shfmt->gl_format, GL_RGBA, shfmt->gl_type);
+	ret = gl_fbo_texture_init(shfmt->gl_format, area->width, area->height,
+				  GL_RGBA, shfmt->gl_type, &go->shadow_fb,
+				  &go->shadow_tex);
 
 	return ret;
 }
@@ -4438,7 +4430,7 @@ gl_renderer_output_destroy(struct weston_output *output)
 	struct timeline_render_point *trp, *tmp;
 
 	if (shadow_exists(go))
-		gl_fbo_texture_fini(&go->shadow);
+		gl_fbo_texture_fini(&go->shadow_fb, &go->shadow_tex);
 
 	eglMakeCurrent(gr->egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE,
 		       gr->egl_context);
