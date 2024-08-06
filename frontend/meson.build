@@ -16,6 +16,7 @@ deps_weston = [
 	dep_libevdev,
 	dep_libdl,
 	dep_threads,
+	dep_libdisplay_info,
 ]
 
 if get_option('xwayland')

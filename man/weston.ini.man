@@ -586,6 +586,89 @@ is true, load the given ICC file as the output color profile. This works only
 on DRM, headless, wayland, and x11 backends, and for remoting and pipewire
 outputs.
 .TP 7
+.BI "color-profile=" name
+
+.B NOTE:
+This feature is not fully implemented yet, and therefore it is not expected to
+work.
+
+Color profiles describe how the display is assumed to behave. Knowing the
+display color behavior, Weston can adapt window contents to produce the
+presumed appearance. The option
+.B color-management
+must be set to true for this to work. This works only on DRM, headless,
+wayland, and x11 backends, and for remoting and pipewire outputs. If
+.B icc_profile
+is also set, that is used instead.
+
+This key creates a parametric profile to be used as the output color profile.
+This key can use one of the special profile names that
+contain a colon (:).
+
+The default, once implemented, will be
+.BR "color-profile=auto:" .
+
+The following special names are accepted:
+.RS 11
+.TP
+.B "srgb:"
+Creates a parametric sRGB color profile (gamma 2.2).
+.TP
+.BI  "auto:" "[flags...]"
+Creates an automatic parametric color profile.
+.RE
+
+.IP
+Automatic parametric color profiles are created based on the
+.BR eotf-mode " and " colorimetry-mode
+configuration keys of the respective
+.B output
+section, and optionally using the monitor reported EDID (DRM-backend only).
+Multiple flags must be separated by whitespace. The available flags are:
+.RS 11
+.TP
+.B edid-primaries
+Get primaries and white point from EDID if
+.BR colorimetry-mode " is " default .
+Ignored if EDID does not provide all of them.
+
+.TP
+.B edid-tf
+Get transfer function from EDID if
+.BR eoft-mode " is " sdr " or " hdr-gamma .
+The transfer function is the power-law curve with the EDID indicated exponent.
+
+.TP
+.B edid-dr
+Get dynamic range information from EDID if
+.BR eotf-mode " is " st2084 .
+.RE
+
+.IP
+Examples:
+.RS 11
+.EX
+.B color-profile=srgb:
+.B color-profile=auto:
+.B color-profile=auto:edid-tf edid-dr
+.B color-profile=auto: edid-primaries
+.EE
+.RE
+
+.IP
+Notably, setting
+
+.RS 11
+.EX
+.B eotf-mode=sdr
+.B colorimetry-mode=default
+.B color-profile=auto:
+.EE
+.RE
+.IP
+produces the same color profile as
+.BR color-profile=srgb: .
+.TP 7
 .BI "color-effect=" name
 Use the given color effect for the output. For now we only provide color effects
 for color vision deficiencies (CVD). Only works when option
