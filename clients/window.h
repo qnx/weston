@@ -531,6 +531,12 @@ window_set_locked_pointer_motion_handler(
 	struct window *window, window_locked_pointer_motion_handler_t handler);
 
 void
+window_set_shadow(struct window *window);
+
+void
+window_unset_shadow(struct window *window);
+
+void
 window_set_title(struct window *window, const char *title);
 
 void

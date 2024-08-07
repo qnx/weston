@@ -4938,6 +4938,20 @@ window_set_locked_pointer_motion_handler(struct window *window,
 }
 
 void
+window_set_shadow(struct window *window)
+{
+	if (window->frame)
+		frame_unset_flag(window->frame->frame, FRAME_FLAG_NO_SHADOW);
+}
+
+void
+window_unset_shadow(struct window *window)
+{
+	if (window->frame)
+		frame_set_flag(window->frame->frame, FRAME_FLAG_NO_SHADOW);
+}
+
+void
 window_set_title(struct window *window, const char *title)
 {
 	free(window->title);

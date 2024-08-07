@@ -76,7 +76,8 @@ theme_destroy(struct theme *t);
 enum {
 	THEME_FRAME_ACTIVE = 1,
 	THEME_FRAME_MAXIMIZED = 2,
-	THEME_FRAME_NO_TITLE = 4
+	THEME_FRAME_NO_TITLE = 4,
+	THEME_FRAME_NO_SHADOW = 8
 };
 
 void
@@ -122,7 +123,8 @@ enum frame_status {
 
 enum frame_flag {
 	FRAME_FLAG_ACTIVE = 0x1,
-	FRAME_FLAG_MAXIMIZED = 0x2
+	FRAME_FLAG_MAXIMIZED = 0x2,
+	FRAME_FLAG_NO_SHADOW = 0x4
 };
 
 enum {

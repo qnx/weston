@@ -1067,6 +1067,9 @@ frame_repaint(struct frame *frame, cairo_t *cr)
 	if (frame->flags & FRAME_FLAG_ACTIVE)
 		flags |= THEME_FRAME_ACTIVE;
 
+	if (frame->flags & FRAME_FLAG_NO_SHADOW)
+		flags |= THEME_FRAME_NO_SHADOW;
+
 	cairo_save(cr);
 	theme_render_frame(frame->theme, cr, frame->width, frame->height,
 			   frame->title, &frame->title_rect,
