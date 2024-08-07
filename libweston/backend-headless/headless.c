@@ -301,10 +301,10 @@ headless_output_enable_gl(struct headless_output *output)
 	}
 
 	output->renderbuffer =
-		renderer->gl->create_fbo(&output->base, b->formats[0],
-					 options.fb_size.width,
-					 options.fb_size.height,
-					 NULL, NULL, NULL);
+		renderer->create_renderbuffer(&output->base, b->formats[0],
+					      options.fb_size.width,
+					      options.fb_size.height,
+					      NULL, 0, NULL, NULL);
 	if (!output->renderbuffer)
 		goto err_renderbuffer;
 
@@ -319,7 +319,7 @@ err_renderbuffer:
 static int
 headless_output_enable_pixman(struct headless_output *output)
 {
-	const struct pixman_renderer_interface *pixman;
+	struct weston_renderer *renderer = output->base.compositor->renderer;
 	const struct pixman_renderer_output_options options = {
 		.use_shadow = true,
 		.fb_size = {
@@ -329,23 +329,21 @@ headless_output_enable_pixman(struct headless_output *output)
 		.format = pixel_format_get_info(headless_formats[0])
 	};
 
-	pixman = output->base.compositor->renderer->pixman;
-
-	if (pixman->output_create(&output->base, &options) < 0)
+	if (renderer->pixman->output_create(&output->base, &options) < 0)
 		return -1;
 
 	output->renderbuffer =
-		pixman->create_image(&output->base, options.format,
-				     output->base.current_mode->width,
-				     output->base.current_mode->height,
-				     NULL, NULL);
+		renderer->create_renderbuffer(&output->base, options.format,
+					      output->base.current_mode->width,
+					      output->base.current_mode->height,
+					      NULL, 0, NULL, NULL);
 	if (!output->renderbuffer)
 		goto err_renderer;
 
 	return 0;
 
 err_renderer:
-	pixman->output_destroy(&output->base);
+	renderer->pixman->output_destroy(&output->base);
 
 	return -1;
 }

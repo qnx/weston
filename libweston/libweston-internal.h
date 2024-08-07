@@ -114,31 +114,62 @@ struct weston_renderer {
 	void (*buffer_init)(struct weston_compositor *ec,
 			    struct weston_buffer *buffer);
 
-	/**
-	 * Add DMABUF as renderbuffer to the output
+	/** Create a renderbuffer
 	 *
-	 * \param output The output to add the DMABUF renderbuffer for.
-	 * \param dmabuf The description object of the DMABUF to import.
-	 * \param discarded_cb Optional callback emitted on a discarded event.
-	 * \param user_data Optional user data passed to \c discarded_cb.
-	 * \return A renderbuffer on success, NULL on failure.
+	 * \param output The output to render.
+	 * \param format The renderbuffer pixel format.
+	 * \param width The renderbuffer width.
+	 * \param height The renderbuffer height.
+	 * \param buffer The destination buffer, or \c NULL.
+	 * \param stride The destination \c buffer stride in bytes, or 0.
+	 * \param discarded_cb The callback emitted on a discarded event, or
+	 * NULL.
+	 * \param user_data User data passed to \c discarded_cb.
+	 * \return An opaque renderbuffer pointer, or \c NULL on failure.
 	 *
-	 * This function imports the DMABUF memory as renderbuffer and adds it
-	 * to the output. The returned renderbuffer can be passed to
-	 * repaint_output() to render into the DMABUF.
-	 *
-	 * The ownership of the linux_dmabuf_memory is transferred to the
-	 * returned renderbuffer. The linux_dmabuf_memory will be destroyed
-	 * automatically when the renderbuffer is destroyed.
+	 * This function creates a renderbuffer of the requested format. The
+	 * renderer can then use it to repaint the \c output into the specified
+	 * destination \c buffer, or into an internal buffer if \c NULL.
 	 *
 	 * Backends should provide a \c discarded_cb callback in order to
 	 * properly handle renderbuffer lifetime.
+	 *
+	 * See repaint_output().
 	 */
 	weston_renderbuffer_t
-			(*create_renderbuffer_dmabuf)(struct weston_output *output,
-						      struct linux_dmabuf_memory *dmabuf,
-						      weston_renderbuffer_discarded_func discarded_cb,
-						      void *user_data);
+	(*create_renderbuffer)(struct weston_output *output,
+			       const struct pixel_format_info *format,
+			       int width,
+			       int height,
+			       void *buffer,
+			       int stride,
+			       weston_renderbuffer_discarded_func discarded_cb,
+			       void *user_data);
+
+	/** Create a renderbuffer from a DMABUF
+	 *
+	 * \param output The output to render.
+	 * \param dmabuf The destination DMABUF, ownership is transferred to the
+	 * renderbuffer.
+	 * \param discarded_cb The callback emitted on a discarded event, or
+	 * NULL.
+	 * \param user_data User data passed to \c discarded_cb.
+	 * \return An opaque renderbuffer pointer, or \c NULL on failure.
+	 *
+	 * This function creates a renderbuffer from a DMABUF. The renderer can
+	 * then use it to repaint the output into the specified destination \c
+	 * dmabuf.
+	 *
+	 * Backends should provide a \c discarded_cb callback in order to
+	 * properly handle renderbuffer lifetime.
+	 *
+	 * See repaint_output().
+	 */
+	weston_renderbuffer_t
+	(*create_renderbuffer_dmabuf)(struct weston_output *output,
+				      struct linux_dmabuf_memory *dmabuf,
+				      weston_renderbuffer_discarded_func discarded_cb,
+				      void *user_data);
 
 	/** Destroy a renderbuffer
 	 *

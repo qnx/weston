@@ -697,31 +697,12 @@ vnc_buffer_create(struct nvnc_fb* fb, struct vnc_output *output)
 	struct weston_renderer *rdr = output->base.compositor->renderer;
 	struct vnc_buffer *buffer = xmalloc(sizeof *buffer);
 
-	switch (rdr->type) {
-	case WESTON_RENDERER_PIXMAN: {
-		buffer->rb =
-			rdr->pixman->create_image_from_ptr(&output->base, pfmt,
-							   output->base.width,
-							   output->base.height,
-							   nvnc_fb_get_addr(fb),
-							   output->base.width * 4,
-							   vnc_rb_discarded_cb,
-							   buffer);
-		break;
-	}
-	case WESTON_RENDERER_GL: {
-		buffer->rb =
-			rdr->gl->create_fbo(&output->base, pfmt,
-					    output->base.width,
-					    output->base.height,
-					    nvnc_fb_get_addr(fb),
-					    vnc_rb_discarded_cb, buffer);
-		break;
-	}
-	default:
-		unreachable("cannot have auto renderer at runtime");
-	}
-
+	buffer->rb = rdr->create_renderbuffer(&output->base, pfmt,
+					      output->base.width,
+					      output->base.height,
+					      nvnc_fb_get_addr(fb),
+					      output->base.width * 4,
+					      vnc_rb_discarded_cb, buffer);
 	buffer->fb = fb;
 	buffer->output = output;
 

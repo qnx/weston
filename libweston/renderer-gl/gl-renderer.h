@@ -214,31 +214,4 @@ struct gl_renderer_interface {
 	 * EGL_ANDROID_native_fence_sync extension.
 	 */
 	int (*create_fence_fd)(struct weston_output *output);
-
-	/**
-	 * Create an FBO renderbuffer that repaint_output can render to
-	 *
-	 * \param output The output to create an FBO renderbuffer for.
-	 * \param format The renderbuffer pixel format.
-	 * \param width The renderbuffer width.
-	 * \param height The renderbuffer height.
-	 * \param pixels Optional buffer to download the pixels to after rendering.
-	 * \param discarded_cb Optional callback emitted on a discarded event.
-	 * \param user_data Optional user data passed to \c discarded_cb.
-	 * \return 0 on success, -1 on failure.
-	 *
-	 * This function creates an FBO renderbuffer that can be passed to \c
-	 * repaint_output. If pixels is non-NULL, repaint_output will call
-	 * glReadPixels to download pixel data into the provided buffer after
-	 * repaint.
-	 *
-	 * Backends should provide a \c discarded_cb callback in order to
-	 * properly handle renderbuffer lifetime.
-	 */
-	weston_renderbuffer_t (*create_fbo)(struct weston_output *output,
-					    const struct pixel_format_info *format,
-					    int width, int height,
-					    uint32_t *pixels,
-					    weston_renderbuffer_discarded_func discarded_cb,
-					    void *user_data);
 };

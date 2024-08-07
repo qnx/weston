@@ -434,29 +434,12 @@ rdp_buffer_create(struct rdp_output *output)
 						  output->base.current_mode->width * 4);
 	buffer = xmalloc(sizeof *buffer);
 
-	switch (rdr->type) {
-	case WESTON_RENDERER_PIXMAN: {
-		rb = rdr->pixman->create_image_from_ptr(&output->base, format,
-							output->base.current_mode->width,
-							output->base.current_mode->height,
-							pixman_image_get_data(shadow_surface),
-							output->base.current_mode->width * 4,
-							rdp_rb_discarded_cb,
-							buffer);
-		break;
-	}
-	case WESTON_RENDERER_GL: {
-		rb = rdr->gl->create_fbo(&output->base, format,
-					 output->base.current_mode->width,
-					 output->base.current_mode->height,
-					 pixman_image_get_data(shadow_surface),
-					 rdp_rb_discarded_cb, buffer);
-		break;
-	}
-	default:
-		unreachable("cannot have auto renderer at runtime");
-	}
-
+	rb = rdr->create_renderbuffer(&output->base, format,
+				      output->base.current_mode->width,
+				      output->base.current_mode->height,
+				      pixman_image_get_data(shadow_surface),
+				      output->base.current_mode->width * 4,
+				      rdp_rb_discarded_cb, buffer);
 	if (rb == NULL) {
 		weston_log("Failed to create offscreen renderbuffer.\n");
 		pixman_image_unref(shadow_surface);

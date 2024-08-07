@@ -1589,7 +1589,6 @@ drm_rb_discarded_cb(weston_renderbuffer_t rb, void *data)
 {
 	struct drm_output *output = (struct drm_output *) data;
 	struct weston_renderer *renderer = output->base.compositor->renderer;
-	const struct pixman_renderer_interface *pixman = renderer->pixman;
 	const struct pixel_format_info *pfmt = output->format;
 	int w = output->base.current_mode->width;
 	int h = output->base.current_mode->height;
@@ -1607,9 +1606,8 @@ drm_rb_discarded_cb(weston_renderbuffer_t rb, void *data)
 						  pfmt->format);
 			if (!dumb)
 				break;
-			rb = pixman->create_image_from_ptr(&output->base,
-							   pfmt, w, h,
-							   dumb->map,
+			rb = renderer->create_renderbuffer(&output->base, pfmt,
+							   w, h, dumb->map,
 							   dumb->strides[0],
 							   drm_rb_discarded_cb,
 							   output);
@@ -1664,7 +1662,7 @@ drm_output_init_pixman(struct drm_output *output, struct drm_backend *b)
 			goto err;
 
 		output->renderbuffer[i] =
-			pixman->create_image_from_ptr(&output->base,
+			renderer->create_renderbuffer(&output->base,
 						      options.format, w, h,
 						      output->dumb[i]->map,
 						      output->dumb[i]->strides[0],

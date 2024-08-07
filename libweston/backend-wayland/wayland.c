@@ -319,7 +319,6 @@ static struct wayland_shm_buffer *
 wayland_output_get_shm_buffer(struct wayland_output *output)
 {
 	const struct weston_renderer *renderer;
-	const struct pixman_renderer_interface *pixman;
 	struct wayland_backend *b = output->backend;
 	const struct pixel_format_info *pfmt = b->formats[0];
 	uint32_t shm_format = pixel_format_get_shm_format(pfmt);
@@ -413,12 +412,11 @@ wayland_output_get_shm_buffer(struct wayland_output *output)
 	}
 
 	renderer = b->compositor->renderer;
-	pixman = renderer->pixman;
 
 	/* Address only the interior, excluding output decorations */
 	if (renderer->type == WESTON_RENDERER_PIXMAN)
 		sb->renderbuffer =
-			pixman->create_image_from_ptr(&output->base, pfmt,
+			renderer->create_renderbuffer(&output->base, pfmt,
 						      area.width, area.height,
 						      (uint32_t *)(data + area.y * stride) + area.x,
 						      stride,

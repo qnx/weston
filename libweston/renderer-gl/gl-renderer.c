@@ -92,7 +92,7 @@ enum gl_border_status {
 
 enum gl_renderbuffer_type {
 	RENDERBUFFER_DUMMY = 0,
-	RENDERBUFFER_FBO,
+	RENDERBUFFER_BUFFER,
 	RENDERBUFFER_DMABUF,
 };
 
@@ -107,9 +107,10 @@ struct gl_renderbuffer_dummy {
 	int age;
 };
 
-struct gl_renderbuffer_fbo {
+struct gl_renderbuffer_buffer {
 	GLuint rb;
-	uint32_t *pixels;
+	void *data;
+	int stride;
 };
 
 struct gl_renderbuffer_dmabuf {
@@ -128,7 +129,7 @@ struct gl_renderbuffer {
 	GLuint fb;
 	union {
 		struct gl_renderbuffer_dummy dummy;
-		struct gl_renderbuffer_fbo fbo;
+		struct gl_renderbuffer_buffer buffer;
 		struct gl_renderbuffer_dmabuf dmabuf;
 	};
 
@@ -801,8 +802,8 @@ gl_renderbuffer_fini(struct gl_renderbuffer *renderbuffer)
 
 	pixman_region32_fini(&renderbuffer->damage);
 
-	if (renderbuffer->type == RENDERBUFFER_FBO) {
-		gl_fbo_fini(&renderbuffer->fb, &renderbuffer->fbo.rb);
+	if (renderbuffer->type == RENDERBUFFER_BUFFER) {
+		gl_fbo_fini(&renderbuffer->fb, &renderbuffer->buffer.rb);
 	} else if (renderbuffer->type == RENDERBUFFER_DMABUF) {
 		gl_fbo_fini(&renderbuffer->fb, &renderbuffer->dmabuf.rb);
 		renderbuffer->dmabuf.gr->destroy_image(renderbuffer->dmabuf.gr->egl_display,
@@ -868,11 +869,11 @@ gl_renderer_create_renderbuffer_dummy(struct weston_output *output)
 }
 
 static weston_renderbuffer_t
-gl_renderer_create_fbo(struct weston_output *output,
-		       const struct pixel_format_info *format,
-		       int width, int height, uint32_t *pixels,
-		       weston_renderbuffer_discarded_func discarded_cb,
-		       void *user_data)
+gl_renderer_create_renderbuffer(struct weston_output *output,
+				const struct pixel_format_info *format,
+				int width, int height, void *buffer, int stride,
+				weston_renderbuffer_discarded_func discarded_cb,
+				void *user_data)
 {
 	struct gl_renderer *gr = get_renderer(output->compositor);
 	struct gl_renderbuffer *renderbuffer;
@@ -896,15 +897,17 @@ gl_renderer_create_fbo(struct weston_output *output,
 	}
 
 	if (!gl_fbo_init(format->gl_internalformat, width, height, &fb, &rb)) {
-		weston_log("Failed to init renderbuffer\n");
+		weston_log("Failed to init renderbuffer%s\n",
+			   buffer ? " from buffer" : "");
 		return NULL;
 	}
 
 	renderbuffer = xzalloc(sizeof(*renderbuffer));
 
-	renderbuffer->fbo.rb = rb;
-	renderbuffer->fbo.pixels = pixels;
-	gl_renderbuffer_init(renderbuffer, RENDERBUFFER_FBO,
+	renderbuffer->buffer.rb = rb;
+	renderbuffer->buffer.data = buffer;
+	renderbuffer->buffer.stride = stride;
+	gl_renderbuffer_init(renderbuffer, RENDERBUFFER_BUFFER,
 			     BORDER_STATUS_CLEAN, fb, discarded_cb, user_data,
 			     output);
 
@@ -2671,8 +2674,8 @@ gl_renderer_repaint_output(struct weston_output *output,
 
 	update_buffer_release_fences(compositor, output);
 
-	if (rb->type == RENDERBUFFER_FBO && rb->fbo.pixels) {
-		uint32_t *pixels = rb->fbo.pixels;
+	if (rb->type == RENDERBUFFER_BUFFER && rb->buffer.data) {
+		uint32_t *pixels = rb->buffer.data;
 		int width = go->fb_size.width;
 		int stride = width * (compositor->read_format->bpp >> 3);
 		pixman_box32_t extents;
@@ -2680,6 +2683,10 @@ gl_renderer_repaint_output(struct weston_output *output,
 			.x = go->area.x,
 			.width = go->area.width,
 		};
+
+		/* XXX Needs a bit of rework in order to respect the backend
+		 * provided stride. */
+		assert(rb->buffer.stride == stride);
 
 		extents = weston_matrix_transform_rect(&output->matrix,
 						       rb->damage.extents);
@@ -4623,6 +4630,7 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	gr->base.read_pixels = gl_renderer_read_pixels;
 	gr->base.repaint_output = gl_renderer_repaint_output;
 	gr->base.resize_output = gl_renderer_resize_output;
+	gr->base.create_renderbuffer = gl_renderer_create_renderbuffer;
 	gr->base.destroy_renderbuffer = gl_renderer_destroy_renderbuffer;
 	gr->base.flush_damage = gl_renderer_flush_damage;
 	gr->base.attach = gl_renderer_attach;
@@ -4691,7 +4699,8 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	    gl_extensions_has(gr, EXTENSION_OES_EGL_IMAGE)) {
 		gr->base.import_dmabuf = gl_renderer_import_dmabuf;
 		gr->base.get_supported_formats = gl_renderer_get_supported_formats;
-		gr->base.create_renderbuffer_dmabuf = gl_renderer_create_renderbuffer_dmabuf;
+		gr->base.create_renderbuffer_dmabuf =
+			gl_renderer_create_renderbuffer_dmabuf;
 		ret = populate_supported_formats(ec, &gr->supported_formats);
 		if (ret < 0)
 			goto fail_terminate;
@@ -5025,5 +5034,4 @@ WL_EXPORT struct gl_renderer_interface gl_renderer_interface = {
 	.output_destroy = gl_renderer_output_destroy,
 	.output_set_border = gl_renderer_output_set_border,
 	.create_fence_fd = gl_renderer_create_fence_fd,
-	.create_fbo = gl_renderer_create_fbo,
 };
