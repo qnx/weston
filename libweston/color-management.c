@@ -43,9 +43,8 @@ enum supports_get_info {
 };
 
 /**
- * This is the object that backs the image description abstraction from the
- * protocol. We may have multiple images descriptions for the same color
- * profile.
+ * Backs the image description abstraction from the protocol. We may have
+ * multiple images descriptions for the same color profile.
  *
  * Image description that we failed to create do not have such backing object.
  */
@@ -74,8 +73,7 @@ struct cm_image_desc_info {
 };
 
 /**
- * When clients want to create image description based on ICC color profiles, we
- * use this struct to help.
+ * Backs protocol objects that are used to create ICC-based image descriptions.
  */
 struct cm_creator_icc {
 	struct wl_resource *owner;
@@ -258,8 +256,6 @@ image_description_get_information(struct wl_client *client,
 	struct cm_image_desc_info *cm_image_desc_info;
 	bool success;
 
-	/* Invalid image description for this request, as we gracefully failed
-	 * to create it. */
 	if (!cm_image_desc) {
 		wl_resource_post_error(cm_image_desc_res,
 				       XX_IMAGE_DESCRIPTION_V4_ERROR_NOT_READY,
@@ -268,7 +264,6 @@ image_description_get_information(struct wl_client *client,
 		return;
 	}
 
-	/* Invalid image description for this request, as it isn't ready yet. */
 	if (!cm_image_desc->cprof) {
 		wl_resource_post_error(cm_image_desc_res,
 				       XX_IMAGE_DESCRIPTION_V4_ERROR_NOT_READY,
@@ -276,8 +271,6 @@ image_description_get_information(struct wl_client *client,
 		return;
 	}
 
-	/* Depending how the image description is created, the protocol states
-	 * that get_information() request should be invalid. */
 	if (!cm_image_desc->supports_get_info) {
 		wl_resource_post_error(cm_image_desc_res,
 				       XX_IMAGE_DESCRIPTION_V4_ERROR_NO_INFORMATION,
@@ -286,7 +279,6 @@ image_description_get_information(struct wl_client *client,
 		return;
 	}
 
-	/* Create object responsible for sending the image description info. */
 	cm_image_desc_info =
 		image_description_info_create(client, version,
 					      cm_image_desc->cm->compositor,
@@ -297,8 +289,7 @@ image_description_get_information(struct wl_client *client,
 	}
 
 	/* The color plugin is the one that has information about the color
-	 * profile, so we go through it to send the info to clients. It uses
-	 * our helpers (weston_cm_send_primaries(), etc) to do that. */
+	 * profile, so we go through it to send the info to clients. */
 	success = cm_image_desc->cm->send_image_desc_info(cm_image_desc_info,
 							  cm_image_desc->cprof);
 	if (success)
@@ -396,7 +387,7 @@ cm_image_desc_destroy(struct cm_image_desc *cm_image_desc)
 static void
 cm_output_get_image_description(struct wl_client *client,
 				struct wl_resource *cm_output_res,
-				uint32_t image_description_id)
+				uint32_t protocol_object_id)
 {
 	struct weston_head *head = wl_resource_get_user_data(cm_output_res);
 	struct weston_compositor *compositor;
@@ -409,12 +400,13 @@ cm_output_get_image_description(struct wl_client *client,
 	 * the weston_head object) no longer exists, we should immediately send
 	 * a "failed" event for the image desc. After receiving that, clients
 	 * are not allowed to make requests other than "destroy" for the image
-	 * description. So let's avoid creating a cm_image_desc object, let's
-	 * create only the resource and send the failed event. */
+	 * description. For such image descriptions that we failed to create, we
+	 * do not create a backing cm_image_desc (and other functions can tell
+	 * that they are invalid through that). */
 	if (!head) {
 		cm_image_desc_res =
 			wl_resource_create(client, &xx_image_description_v4_interface,
-					   version, image_description_id);
+					   version, protocol_object_id);
 		if (!cm_image_desc_res) {
 			wl_resource_post_no_memory(cm_output_res);
 			return;
@@ -442,7 +434,7 @@ cm_output_get_image_description(struct wl_client *client,
 
 	cm_image_desc = cm_image_desc_create(compositor->color_manager,
 					     output->color_profile, client,
-					     version, image_description_id,
+					     version, protocol_object_id,
 					     YES_GET_INFO);
 	if (!cm_image_desc) {
 		wl_resource_post_no_memory(cm_output_res);
@@ -477,8 +469,8 @@ cm_output_resource_destroy(struct wl_resource *cm_output_res)
 	 * resource link to weston_head::cm_output_resource_list.
 	 *
 	 * If the cm_output was created with an active head but it became
-	 * inactive later, we have already done what is necessary when cm_output
-	 * became inert, in weston_head_remove_global(). */
+	 * inactive later, we have already done what was necessary when
+	 * cm_output became inert, in weston_head_remove_global(). */
 	if (!head)
 		return;
 
@@ -494,17 +486,13 @@ cm_output_implementation = {
 };
 
 /**
- * This function is called by libweston when the struct weston_output color
- * profile is updated.
+ * Should be called when the struct weston_output color profile is updated.
  *
  * For each weston_head attached to the weston_output, we need to tell clients
- * that the cm_output image description has changed. Also, for each surface
- * whose primary output is the given, we need to send the preferred image
- * description changed event.
+ * that the cm_output image description has changed.
  *
  * If this is called during output initialization, this function is no-op. There
- * will be no client resources in weston_head::cm_output_resource_list and
- * neither surfaces whose primary output is the one we are dealing with.
+ * will be no client resources in weston_head::cm_output_resource_list.
  *
  * \param output The weston_output that changed the color profile.
  */
@@ -515,8 +503,7 @@ weston_output_send_image_description_changed(struct weston_output *output)
 	struct wl_resource *res;
 	int ver;
 
-	/* For each head attached to this weston_output, send the events that
-	 * notifies that the output image description changed. */
+	/* Send the events for each head attached to this weston_output. */
 	wl_list_for_each(head, &output->head_list, output_link) {
 		wl_resource_for_each(res, &head->cm_output_resource_list)
 			xx_color_management_output_v4_send_image_description_changed(res);
@@ -557,7 +544,8 @@ cm_get_output(struct wl_client *client, struct wl_resource *cm_res,
 	}
 
 	/* Client wants the cm_output but we've already made the head inactive,
-	 * so let's set the implementation data as NULL. */
+	 * so let's set the implementation data as NULL (and other functions can
+	 * tell that they are inert through that). */
 	if (!head) {
 		wl_resource_set_implementation(res, &cm_output_implementation,
 					       NULL, cm_output_resource_destroy);
@@ -757,7 +745,7 @@ cm_feedback_surface_destroy(struct wl_client *client,
 static void
 cm_feedback_surface_get_preferred(struct wl_client *client,
 				  struct wl_resource *cm_feedback_surface_res,
-				  uint32_t image_description_id)
+				  uint32_t protocol_object_id)
 {
 	struct weston_surface *surface = wl_resource_get_user_data(cm_feedback_surface_res);
 	uint32_t version = wl_resource_get_version(cm_feedback_surface_res);
@@ -776,7 +764,7 @@ cm_feedback_surface_get_preferred(struct wl_client *client,
 	cm = surface->compositor->color_manager;
 
 	cm_image_desc = cm_image_desc_create(cm, surface->preferred_color_profile,
-					     client, version, image_description_id,
+					     client, version, protocol_object_id,
 					     YES_GET_INFO);
 	if (!cm_image_desc) {
 		wl_resource_post_no_memory(cm_feedback_surface_res);
@@ -804,8 +792,7 @@ cm_feedback_surface_resource_destroy(struct wl_resource *cm_feedback_surface_res
 	/* For inert cm_feedback_surface, we don't have to do anything.
 	 *
 	 * We already did what was necessary when cm_feedback_surface became
-	 * inert, in  the surface destruction process (in weston_surface_unref(),
-	 * which is the surface destruction function). */
+	 * inert, in the surface destruction process: weston_surface_unref(). */
 	if (!surface)
 		return;
 
@@ -824,8 +811,6 @@ weston_surface_send_preferred_image_description_changed(struct weston_surface *s
 {
 	struct wl_resource *res;
 
-	/* For each resource, send the event that notifies that the surface
-	 * preferred image description changed. */
 	wl_resource_for_each(res, &surface->cm_feedback_surface_resource_list)
 		xx_color_management_feedback_surface_v4_send_preferred_changed(res);
 }
@@ -874,14 +859,13 @@ cm_creator_icc_set_icc_file(struct wl_client *client,
 		goto err;
 	}
 
-	/* Length should be in the (0, 4MB] interval */
 	if (length == 0 || length > (4 * 1024 * 1024)) {
 		err_code = XX_IMAGE_DESCRIPTION_CREATOR_ICC_V4_ERROR_BAD_SIZE;
-		err_msg = "invalid ICC file size";
+		err_msg = "invalid ICC file size, should be in the " \
+			  "(0, 4MB] interval";
 		goto err;
 	}
 
-	/* Fd should be readable. */
 	flags = fcntl(icc_profile_fd, F_GETFL);
 	if ((flags & O_ACCMODE) == O_WRONLY) {
 		err_code = XX_IMAGE_DESCRIPTION_CREATOR_ICC_V4_ERROR_BAD_FD;
@@ -889,7 +873,6 @@ cm_creator_icc_set_icc_file(struct wl_client *client,
 		goto err;
 	}
 
-	/* Fd should be seekable. */
 	if (lseek(icc_profile_fd, 0, SEEK_CUR) < 0) {
 		err_code = XX_IMAGE_DESCRIPTION_CREATOR_ICC_V4_ERROR_BAD_FD;
 		err_msg = "ICC fd is not seekable";
@@ -953,7 +936,7 @@ create_image_description_color_profile_from_icc_creator(struct cm_image_desc *cm
 		return -1;
 	}
 
-	/* Create buffer to read ICC profile. As they may have up to 4Mb, we
+	/* Create buffer to read ICC profile. As they may have up to 4MB, we
 	 * send OOM if something fails (instead of using xalloc). */
 	icc_prof_data = zalloc(cm_creator_icc->icc_data_length);
 	if (!icc_prof_data) {
@@ -974,8 +957,7 @@ create_image_description_color_profile_from_icc_creator(struct cm_image_desc *cm
 				  cm_creator_icc->icc_data_length - bytes_read,
 				  (off_t)cm_creator_icc->icc_data_offset + bytes_read);
 		if (pread_ret < 0) {
-			/* Failed to read but not an error (just interruption),
-			 * so continue trying to read. */
+			/* Interruption, so continue trying to read. */
 			if (errno == EINTR)
 				continue;
 
@@ -1002,7 +984,6 @@ create_image_description_color_profile_from_icc_creator(struct cm_image_desc *cm
 	}
 	weston_assert_true(compositor, bytes_read == cm_creator_icc->icc_data_length);
 
-	/* We've read the ICC file so let's create the color profile. */
 	ret = cm->get_color_profile_from_icc(cm, icc_prof_data,
 					     cm_creator_icc->icc_data_length,
 					     "icc-from-client", &cprof, &err_msg);
@@ -1067,10 +1048,9 @@ cm_creator_icc_create(struct wl_client *client, struct wl_resource *resource,
 	ret = create_image_description_color_profile_from_icc_creator(cm_image_desc,
 								      cm_creator_icc);
 	if (ret < 0) {
-		/* If something went wrong and we failed to create the image
-		 * description, let's set the resource userdata to NULL. We use
-		 * that to be able to tell if a client is trying to use an
-		 * (invalid) image description that we failed to create. */
+		/* Failed to create the image description, let's set the
+		 * resource userdata to NULL (and other functions can tell that
+		 * it is invalid through that). */
 		wl_resource_set_user_data(cm_image_desc->owner, NULL);
 		cm_image_desc_destroy(cm_image_desc);
 	}
@@ -1115,8 +1095,7 @@ cm_new_image_description_creator_icc(struct wl_client *client, struct wl_resourc
 
 	if (!((cm->supported_color_features >> WESTON_COLOR_FEATURE_ICC) & 1)) {
 		wl_resource_post_error(cm_res, XX_COLOR_MANAGER_V4_ERROR_UNSUPPORTED_FEATURE,
-				       "creating ICC image description creator is " \
-				       "still unsupported");
+				       "creating ICC image descriptions is not supported");
 		return;
 	}
 

@@ -123,7 +123,8 @@ struct weston_color_profile {
 	int ref_count;
 	char *description;
 
-	/* Unique id to be used by the CM&HDR protocol extension. */
+	/* Unique id to be used by the CM&HDR protocol extension. Should not
+	 * be confused with the protocol object id. */
 	uint32_t id;
 };
 
