@@ -170,8 +170,7 @@ x11_output_destroy(struct weston_output *base);
 
 static int
 x11_output_init_shm(struct x11_backend *b, struct x11_output *output,
-		    const struct pixel_format_info *pfmt, int width,
-		    int height);
+		    const struct pixel_format_info *pfmt);
 
 static inline struct x11_output *
 to_x11_output(struct weston_output *base)
@@ -809,9 +808,7 @@ x11_rb_discarded_cb(weston_renderbuffer_t rb, void *data)
 		pfmt = x11_output_get_shm_pixel_format(output);
 		if (!pfmt)
 			return false;
-		if (x11_output_init_shm(output->backend, output, pfmt,
-					output->base.current_mode->width,
-					output->base.current_mode->height) < 0) {
+		if (x11_output_init_shm(output->backend, output, pfmt) < 0) {
 			weston_log("Failed to initialize SHM for the X11 output\n");
 			return false;
 		}
@@ -822,15 +819,18 @@ x11_rb_discarded_cb(weston_renderbuffer_t rb, void *data)
 
 static int
 x11_output_init_shm(struct x11_backend *b, struct x11_output *output,
-		    const struct pixel_format_info *pfmt, int width, int height)
+		    const struct pixel_format_info *pfmt)
 {
 	struct weston_renderer *renderer = output->base.compositor->renderer;
 	int bitsperpixel = pfmt->bpp;
+	size_t size = output->base.current_mode->width *
+		output->base.current_mode->height * (bitsperpixel / 8);
+	int stride = output->base.current_mode->width * (bitsperpixel / 8);
 	xcb_void_cookie_t cookie;
 	xcb_generic_error_t *err;
 
 	/* Create SHM segment and attach it */
-	output->shm_id = shmget(IPC_PRIVATE, width * height * (bitsperpixel / 8), IPC_CREAT | S_IRWXU);
+	output->shm_id = shmget(IPC_PRIVATE, size, IPC_CREAT | S_IRWXU);
 	if (output->shm_id == -1) {
 		weston_log("x11shm: failed to allocate SHM segment\n");
 		return -1;
@@ -854,10 +854,9 @@ x11_output_init_shm(struct x11_backend *b, struct x11_output *output,
 
 	/* Now create pixman image */
 	output->renderbuffer =
-		renderer->create_renderbuffer(&output->base, pfmt, width,
-					      height, output->buf,
-					      width * (bitsperpixel / 8),
-					      x11_rb_discarded_cb, output);
+		renderer->create_renderbuffer(&output->base, pfmt, output->buf,
+					      stride, x11_rb_discarded_cb,
+					      output);
 
 	output->gc = xcb_generate_id(b->conn);
 	xcb_create_gc(b->conn, output->gc, output->window, 0, NULL);
@@ -1083,8 +1082,7 @@ x11_output_enable(struct weston_output *base)
 			weston_log("Failed to create pixman renderer for output\n");
 			goto err;
 		}
-		if (x11_output_init_shm(b, output, options.format,
-					mode->width, mode->height) < 0) {
+		if (x11_output_init_shm(b, output, options.format) < 0) {
 			weston_log("Failed to initialize SHM for the X11 output\n");
 			renderer->pixman->output_destroy(&output->base);
 			goto err;

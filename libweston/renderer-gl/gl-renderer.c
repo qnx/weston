@@ -871,10 +871,11 @@ gl_renderer_create_renderbuffer_dummy(struct weston_output *output)
 static weston_renderbuffer_t
 gl_renderer_create_renderbuffer(struct weston_output *output,
 				const struct pixel_format_info *format,
-				int width, int height, void *buffer, int stride,
+				void *buffer, int stride,
 				weston_renderbuffer_discarded_func discarded_cb,
 				void *user_data)
 {
+	struct gl_output_state *go = get_output_state(output);
 	struct gl_renderer *gr = get_renderer(output->compositor);
 	struct gl_renderbuffer *renderbuffer;
 	GLuint fb, rb;
@@ -896,7 +897,8 @@ gl_renderer_create_renderbuffer(struct weston_output *output,
 		return NULL;
 	}
 
-	if (!gl_fbo_init(format->gl_internalformat, width, height, &fb, &rb)) {
+	if (!gl_fbo_init(format->gl_internalformat, go->fb_size.width,
+			 go->fb_size.height, &fb, &rb)) {
 		weston_log("Failed to init renderbuffer%s\n",
 			   buffer ? " from buffer" : "");
 		return NULL;

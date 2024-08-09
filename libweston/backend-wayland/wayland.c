@@ -404,11 +404,11 @@ wayland_output_get_shm_buffer(struct wayland_output *output)
 	if (output->frame) {
 		frame_interior(output->frame, &area.x, &area.y,
 			       &area.width, &area.height);
+		assert(area.width == output->base.current_mode->width);
+		assert(area.height == output->base.current_mode->height);
 	} else {
 		area.x = 0;
 		area.y = 0;
-		area.width = output->base.current_mode->width;
-		area.height = output->base.current_mode->height;
 	}
 
 	renderer = b->compositor->renderer;
@@ -417,7 +417,6 @@ wayland_output_get_shm_buffer(struct wayland_output *output)
 	if (renderer->type == WESTON_RENDERER_PIXMAN)
 		sb->renderbuffer =
 			renderer->create_renderbuffer(&output->base, pfmt,
-						      area.width, area.height,
 						      (uint32_t *)(data + area.y * stride) + area.x,
 						      stride,
 						      wayland_rb_discarded_cb,

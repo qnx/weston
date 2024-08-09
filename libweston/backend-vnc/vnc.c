@@ -698,10 +698,8 @@ vnc_buffer_create(struct nvnc_fb* fb, struct vnc_output *output)
 	struct vnc_buffer *buffer = xmalloc(sizeof *buffer);
 
 	buffer->rb = rdr->create_renderbuffer(&output->base, pfmt,
-					      output->base.width,
-					      output->base.height,
 					      nvnc_fb_get_addr(fb),
-					      output->base.width * 4,
+					      output->base.current_mode->width * 4,
 					      vnc_rb_discarded_cb, buffer);
 	buffer->fb = fb;
 	buffer->output = output;
@@ -822,8 +820,8 @@ vnc_output_enable(struct weston_output *base)
 	case WESTON_RENDERER_PIXMAN: {
 		const struct pixman_renderer_output_options options = {
 			.fb_size = {
-				.width = output->base.width,
-				.height = output->base.height,
+				.width = output->base.current_mode->width,
+				.height = output->base.current_mode->height,
 			},
 			.format = backend->formats[0],
 		};
@@ -834,12 +832,12 @@ vnc_output_enable(struct weston_output *base)
 	case WESTON_RENDERER_GL: {
 		const struct gl_renderer_fbo_options options = {
 			.area = {
-				.width = output->base.width,
-				.height = output->base.height,
+				.width = output->base.current_mode->width,
+				.height = output->base.current_mode->height,
 			},
 			.fb_size = {
-				.width = output->base.width,
-				.height = output->base.height,
+				.width = output->base.current_mode->width,
+				.height = output->base.current_mode->height,
 			},
 		};
 		if (renderer->gl->output_fbo_create(&output->base, &options) < 0)
@@ -855,10 +853,10 @@ vnc_output_enable(struct weston_output *base)
 							     finish_frame_handler,
 							     output);
 
-	output->fb_pool = nvnc_fb_pool_new(output->base.width,
-					   output->base.height,
+	output->fb_pool = nvnc_fb_pool_new(output->base.current_mode->width,
+					   output->base.current_mode->height,
 					   backend->formats[0]->format,
-					   output->base.width);
+					   output->base.current_mode->width);
 
 	output->display = nvnc_display_new(0, 0);
 

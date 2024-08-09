@@ -118,8 +118,6 @@ struct weston_renderer {
 	 *
 	 * \param output The output to render.
 	 * \param format The renderbuffer pixel format.
-	 * \param width The renderbuffer width.
-	 * \param height The renderbuffer height.
 	 * \param buffer The destination buffer, or \c NULL.
 	 * \param stride The destination \c buffer stride in bytes, or 0.
 	 * \param discarded_cb The callback emitted on a discarded event, or
@@ -129,7 +127,8 @@ struct weston_renderer {
 	 *
 	 * This function creates a renderbuffer of the requested format. The
 	 * renderer can then use it to repaint the \c output into the specified
-	 * destination \c buffer, or into an internal buffer if \c NULL.
+	 * destination \c buffer, which must be the same size as the \c output
+	 * (including borders), or into an internal buffer if \c NULL.
 	 *
 	 * Backends should provide a \c discarded_cb callback in order to
 	 * properly handle renderbuffer lifetime.
@@ -139,8 +138,6 @@ struct weston_renderer {
 	weston_renderbuffer_t
 	(*create_renderbuffer)(struct weston_output *output,
 			       const struct pixel_format_info *format,
-			       int width,
-			       int height,
 			       void *buffer,
 			       int stride,
 			       weston_renderbuffer_discarded_func discarded_cb,
@@ -158,7 +155,8 @@ struct weston_renderer {
 	 *
 	 * This function creates a renderbuffer from a DMABUF. The renderer can
 	 * then use it to repaint the output into the specified destination \c
-	 * dmabuf.
+	 * dmabuf, which must be the same size as the \c output (including
+	 * borders).
 	 *
 	 * Backends should provide a \c discarded_cb callback in order to
 	 * properly handle renderbuffer lifetime.

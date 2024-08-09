@@ -1607,7 +1607,7 @@ drm_rb_discarded_cb(weston_renderbuffer_t rb, void *data)
 			if (!dumb)
 				break;
 			rb = renderer->create_renderbuffer(&output->base, pfmt,
-							   w, h, dumb->map,
+							   dumb->map,
 							   dumb->strides[0],
 							   drm_rb_discarded_cb,
 							   output);
@@ -1663,7 +1663,7 @@ drm_output_init_pixman(struct drm_output *output, struct drm_backend *b)
 
 		output->renderbuffer[i] =
 			renderer->create_renderbuffer(&output->base,
-						      options.format, w, h,
+						      options.format,
 						      output->dumb[i]->map,
 						      output->dumb[i]->strides[0],
 						      drm_rb_discarded_cb,

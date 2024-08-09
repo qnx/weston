@@ -266,14 +266,16 @@ pipewire_output_connect(struct pipewire_output *output)
 		/* TODO: Add support for modifier discovery and negotiation. */
 		uint64_t modifier[] = { DRM_FORMAT_MOD_LINEAR };
 		params[i++] = spa_pod_build_format(&builder,
-						   output->base.width, output->base.height,
+						   output->base.current_mode->width,
+						   output->base.current_mode->height,
 						   output->base.current_mode->refresh / 1000,
 						   output->pixel_format->format,
 						   modifier);
 	}
 
 	params[i++] = spa_pod_build_format(&builder,
-					   output->base.width, output->base.height,
+					   output->base.current_mode->width,
+					   output->base.current_mode->height,
 					   output->base.current_mode->refresh / 1000,
 					   output->pixel_format->format, NULL);
 
@@ -307,8 +309,8 @@ pipewire_output_enable_pixman(struct pipewire_output *output)
 	const struct pixman_renderer_output_options options = {
 		.use_shadow = true,
 		.fb_size = {
-			.width = output->base.width,
-			.height = output->base.height,
+			.width = output->base.current_mode->width,
+			.height = output->base.current_mode->height,
 		},
 		.format = output->pixel_format,
 	};
@@ -490,8 +492,8 @@ pipewire_output_create_dmabuf(struct pipewire_output *output)
 	uint64_t modifier[] = { DRM_FORMAT_MOD_LINEAR };
 
 	format = output->pixel_format;
-	width = output->base.width;
-	height = output->base.height;
+	width = output->base.current_mode->width;
+	height = output->base.current_mode->height;
 
 	linux_dmabuf_memory = renderer->dmabuf_alloc(renderer, width, height,
 						     format->format,
@@ -612,8 +614,8 @@ pipewire_output_create_memfd(struct pipewire_output *output)
 	memfd = xzalloc(sizeof *memfd);
 
 	format = output->pixel_format;
-	width = output->base.width;
-	height = output->base.height;
+	width = output->base.current_mode->width;
+	height = output->base.current_mode->height;
 	stride = width * format->bpp / 8;
 	size = height * stride;
 
@@ -710,9 +712,7 @@ pipewire_output_stream_add_buffer(void *data, struct pw_buffer *buffer)
 		frame_data->dmabuf = dmabuf;
 	} else if (buffertype & (1u << SPA_DATA_MemFd)) {
 		const struct pixel_format_info *format = output->pixel_format;
-		int width = output->base.width;
-		int height = output->base.height;
-		int stride = width * format->bpp / 8;
+		int stride = output->base.current_mode->width * format->bpp / 8;
 		struct pipewire_memfd *memfd;
 
 		memfd = pipewire_output_create_memfd(output);
@@ -725,8 +725,8 @@ pipewire_output_stream_add_buffer(void *data, struct pw_buffer *buffer)
 
 		frame_data->renderbuffer =
 			renderer->create_renderbuffer(&output->base, format,
-						      width, height, d[0].data,
-						      stride, NULL, NULL);
+						      d[0].data, stride, NULL,
+						      NULL);
 		frame_data->memfd = memfd;
 	}
 }
@@ -904,7 +904,7 @@ pipewire_submit_buffer(struct pipewire_output *output,
 	if (dmabuf)
 		stride = dmabuf->linux_dmabuf_memory->attributes->stride[0];
 	else
-		stride = output->base.width * pixel_format->bpp / 8;
+		stride = output->base.current_mode->width * pixel_format->bpp / 8;
 	size = output->base.height * stride;
 
 	spa_buffer = buffer->buffer;

@@ -435,8 +435,6 @@ rdp_buffer_create(struct rdp_output *output)
 	buffer = xmalloc(sizeof *buffer);
 
 	rb = rdr->create_renderbuffer(&output->base, format,
-				      output->base.current_mode->width,
-				      output->base.current_mode->height,
 				      pixman_image_get_data(shadow_surface),
 				      output->base.current_mode->width * 4,
 				      rdp_rb_discarded_cb, buffer);
