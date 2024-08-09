@@ -511,8 +511,6 @@ static int
 x11_output_repaint_shm(struct weston_output *output_base)
 {
 	struct x11_output *output = to_x11_output(output_base);
-	const struct weston_renderer *renderer;
-	pixman_image_t *image;
 	struct weston_compositor *ec;
 	struct x11_backend *b;
 	xcb_void_cookie_t cookie;
@@ -522,10 +520,7 @@ x11_output_repaint_shm(struct weston_output *output_base)
 	assert(output);
 
 	ec = output->base.compositor;
-	renderer = ec->renderer;
 	b = output->backend;
-
-	image = renderer->pixman->renderbuffer_get_image(output->renderbuffer);
 
 	pixman_region32_init(&damage);
 
@@ -538,13 +533,13 @@ x11_output_repaint_shm(struct weston_output *output_base)
 	pixman_region32_fini(&damage);
 
 	cookie = xcb_shm_put_image_checked(b->conn, output->window, output->gc,
-					pixman_image_get_width(image),
-					pixman_image_get_height(image),
-					0, 0,
-					pixman_image_get_width(image),
-					pixman_image_get_height(image),
-					0, 0, output->depth, XCB_IMAGE_FORMAT_Z_PIXMAP,
-					0, output->segment, 0);
+					   output_base->current_mode->width,
+					   output_base->current_mode->height,
+					   0, 0,
+					   output_base->current_mode->width,
+					   output_base->current_mode->height,
+					   0, 0, output->depth, XCB_IMAGE_FORMAT_Z_PIXMAP,
+					   0, output->segment, 0);
 	err = xcb_request_check(b->conn, cookie);
 	if (err != NULL) {
 		weston_log("Failed to put shm image, err: %d\n", err->error_code);

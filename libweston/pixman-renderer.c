@@ -82,15 +82,6 @@ struct pixman_renderer {
 	struct wl_signal destroy_signal;
 };
 
-static pixman_image_t *
-pixman_renderer_renderbuffer_get_image(weston_renderbuffer_t renderbuffer)
-{
-	struct pixman_renderbuffer *rb =
-		(struct pixman_renderbuffer *) renderbuffer;
-
-	return rb->image;
-}
-
 static inline struct pixman_output_state *
 get_output_state(struct weston_output *output)
 {
@@ -1241,5 +1232,4 @@ pixman_renderer_output_destroy(struct weston_output *output)
 static struct pixman_renderer_interface pixman_renderer_interface = {
 	.output_create = pixman_renderer_output_create,
 	.output_destroy = pixman_renderer_output_destroy,
-	.renderbuffer_get_image = pixman_renderer_renderbuffer_get_image,
 };
