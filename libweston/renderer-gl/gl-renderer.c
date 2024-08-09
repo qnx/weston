@@ -91,7 +91,7 @@ enum gl_border_status {
 };
 
 enum gl_renderbuffer_type {
-	RENDERBUFFER_DUMMY = 0,
+	RENDERBUFFER_WINDOW = 0,
 	RENDERBUFFER_BUFFER,
 	RENDERBUFFER_DMABUF,
 };
@@ -103,7 +103,8 @@ struct gl_border_image {
 	void *data;
 };
 
-struct gl_renderbuffer_dummy {
+/* Track buffers allocated by the window system for window-based outputs. */
+struct gl_renderbuffer_window {
 	int age;
 };
 
@@ -128,7 +129,7 @@ struct gl_renderbuffer {
 
 	GLuint fb;
 	union {
-		struct gl_renderbuffer_dummy dummy;
+		struct gl_renderbuffer_window window;
 		struct gl_renderbuffer_buffer buffer;
 		struct gl_renderbuffer_dmabuf dmabuf;
 	};
@@ -841,7 +842,7 @@ gl_renderer_discard_renderbuffers(struct gl_output_state *go,
 	 * released. It's kept in the output states' renderbuffer list waiting
 	 * for the backend to destroy it. */
 	wl_list_for_each_safe(rb, tmp, &go->renderbuffer_list, link) {
-		if ((rb->type == RENDERBUFFER_DUMMY) || destroy) {
+		if ((rb->type == RENDERBUFFER_WINDOW) || destroy) {
 			gl_renderer_destroy_renderbuffer((weston_renderbuffer_t) rb);
 		} else if (!rb->stale) {
 			gl_renderbuffer_fini(rb);
@@ -855,15 +856,15 @@ gl_renderer_discard_renderbuffers(struct gl_output_state *go,
 }
 
 static struct gl_renderbuffer *
-gl_renderer_create_renderbuffer_dummy(struct weston_output *output)
+gl_renderer_create_renderbuffer_window(struct weston_output *output)
 {
 	struct gl_renderbuffer *renderbuffer;
 
 	renderbuffer = xzalloc(sizeof(*renderbuffer));
 
-	/* Dummy renderbuffers use the default surface framebuffer 0. */
-	gl_renderbuffer_init(renderbuffer, RENDERBUFFER_DUMMY, BORDER_ALL_DIRTY,
-			     0, NULL, NULL, output);
+	/* Window renderbuffers use the default surface framebuffer 0. */
+	gl_renderbuffer_init(renderbuffer, RENDERBUFFER_WINDOW,
+			     BORDER_ALL_DIRTY, 0, NULL, NULL, output);
 
 	return renderbuffer;
 }
@@ -2285,7 +2286,7 @@ output_get_buffer_age(struct weston_output *output)
 }
 
 static struct gl_renderbuffer *
-output_get_dummy_renderbuffer(struct weston_output *output)
+output_get_window_renderbuffer(struct weston_output *output)
 {
 	struct gl_output_state *go = get_output_state(output);
 	struct gl_renderer *gr = get_renderer(output->compositor);
@@ -2297,22 +2298,23 @@ output_get_dummy_renderbuffer(struct weston_output *output)
 	int max_buffers;
 
 	wl_list_for_each(rb, &go->renderbuffer_list, link) {
-		if (rb->type == RENDERBUFFER_DUMMY) {
-			/* Count dummy renderbuffers, age them, */
+		if (rb->type == RENDERBUFFER_WINDOW) {
+			/* Count window renderbuffers, age them, */
 			count++;
-			rb->dummy.age++;
+			rb->window.age++;
 			/* find the one with buffer_age to return, */
-			if (rb->dummy.age == buffer_age)
+			if (rb->window.age == buffer_age)
 				ret = rb;
 			/* and the oldest one in case we decide to reuse it. */
-			if (!oldest_rb || rb->dummy.age > oldest_rb->dummy.age)
+			if (!oldest_rb ||
+			    rb->window.age > oldest_rb->window.age)
 				oldest_rb = rb;
 		}
 	}
 
 	/* If a renderbuffer of correct age was found, return it, */
 	if (ret) {
-		ret->dummy.age = 0;
+		ret->window.age = 0;
 		return ret;
 	}
 
@@ -2324,12 +2326,12 @@ output_get_dummy_renderbuffer(struct weston_output *output)
 	    count >= max_buffers) {
 		pixman_region32_copy(&oldest_rb->damage, &output->region);
 		oldest_rb->border_damage = BORDER_ALL_DIRTY;
-		oldest_rb->dummy.age = 0;
+		oldest_rb->window.age = 0;
 		return oldest_rb;
 	}
 
-	/* or create a new dummy renderbuffer */
-	return gl_renderer_create_renderbuffer_dummy(output);
+	/* or create a new window renderbuffer */
+	return gl_renderer_create_renderbuffer_window(output);
 }
 
 /**
@@ -2533,7 +2535,7 @@ gl_renderer_repaint_output(struct weston_output *output,
 	if (renderbuffer)
 		rb = (struct gl_renderbuffer *) renderbuffer;
 	else
-		rb = output_get_dummy_renderbuffer(output);
+		rb = output_get_window_renderbuffer(output);
 
 	/* Clear the used_in_output_repaint flag, so that we can properly track
 	 * which surfaces were used in this output repaint. */
