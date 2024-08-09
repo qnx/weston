@@ -349,9 +349,9 @@ validate_icc_profile(struct lcmsProfilePtr profile, char **errmsg)
 		return false;
 	}
 
-	if (class_sig != cmsSigDisplayClass) {
-		str_printf(errmsg, "ICC profile is required to be of Display device class, "
-				   "but it is %s class (0x%08x)",
+	if (class_sig != cmsSigDisplayClass && class_sig != cmsSigColorSpaceClass) {
+		str_printf(errmsg, "ICC profile is required to be of Display or "
+				   "ColorSpace device class, but it is %s class (0x%08x)",
 			   icc_profile_class_name(class_sig), (unsigned)class_sig);
 		return false;
 	}
