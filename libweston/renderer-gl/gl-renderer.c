@@ -122,6 +122,7 @@ struct gl_renderbuffer_dmabuf {
 };
 
 struct gl_renderbuffer {
+	struct weston_output *output;
 	enum gl_renderbuffer_type type;
 	pixman_region32_t damage;
 	enum gl_border_status border_damage;
@@ -785,6 +786,7 @@ gl_renderbuffer_init(struct gl_renderbuffer *renderbuffer,
 {
 	struct gl_output_state *go = get_output_state(output);
 
+	renderbuffer->output = output;
 	renderbuffer->type = type;
 	pixman_region32_init(&renderbuffer->damage);
 	pixman_region32_copy(&renderbuffer->damage, &output->region);
@@ -2529,13 +2531,19 @@ gl_renderer_repaint_output(struct weston_output *output,
 	struct gl_renderer *gr = get_renderer(compositor);
 	static int errored;
 	struct weston_paint_node *pnode;
-	const int32_t area_y =
-		is_y_flipped(go) ? go->fb_size.height - go->area.height - go->area.y : go->area.y;
+	int32_t area_y;
 	struct gl_renderbuffer *rb;
 
+	assert(go);
+	assert(!renderbuffer ||
+	       ((struct gl_renderbuffer *) renderbuffer)->output == output);
+	assert(renderbuffer || go->egl_surface != EGL_NO_SURFACE);
 	assert(output->from_blend_to_output_by_backend ||
 	       output->color_outcome->from_blend_to_output == NULL ||
 	       shadow_exists(go));
+
+	area_y = is_y_flipped(go) ?
+		go->fb_size.height - go->area.height - go->area.y : go->area.y;
 
 	if (use_output(output) < 0)
 		return;
@@ -4273,6 +4281,8 @@ gl_renderer_output_create(struct weston_output *output,
 	struct gl_renderer *gr = get_renderer(output->compositor);
 	const struct weston_testsuite_quirks *quirks;
 
+	assert(!get_output_state(output));
+
 	quirks = &output->compositor->test_data.test_quirks;
 
 	go = zalloc(sizeof *go);
@@ -4441,6 +4451,8 @@ gl_renderer_output_destroy(struct weston_output *output)
 	struct gl_output_state *go = get_output_state(output);
 	struct timeline_render_point *trp, *tmp;
 
+	assert(go);
+
 	if (shadow_exists(go))
 		gl_fbo_texture_fini(&go->shadow_fb, &go->shadow_tex);
 
@@ -4465,6 +4477,7 @@ gl_renderer_output_destroy(struct weston_output *output)
 	gl_renderer_discard_renderbuffers(go, true);
 
 	free(go);
+	output->renderer_state = NULL;
 }
 
 static int
