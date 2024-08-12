@@ -855,18 +855,82 @@ gl_renderer_discard_renderbuffers(struct gl_output_state *go,
 	return success;
 }
 
-static struct gl_renderbuffer *
-gl_renderer_create_renderbuffer_window(struct weston_output *output)
+/* Get the age of the current back-buffer as the number of frames elapsed since
+ * it was most recently defined. */
+static int
+get_renderbuffer_window_age(struct weston_output *output)
 {
-	struct gl_renderbuffer *renderbuffer;
+	struct gl_output_state *go = get_output_state(output);
+	struct gl_renderer *gr = get_renderer(output->compositor);
+	EGLint buffer_age = 0;
+	EGLBoolean ret;
 
-	renderbuffer = xzalloc(sizeof(*renderbuffer));
+	if ((egl_display_has(gr, EXTENSION_EXT_BUFFER_AGE) ||
+	     egl_display_has(gr, EXTENSION_KHR_PARTIAL_UPDATE)) &&
+	    go->egl_surface != EGL_NO_SURFACE) {
+		ret = eglQuerySurface(gr->egl_display, go->egl_surface,
+				      EGL_BUFFER_AGE_EXT, &buffer_age);
+		if (ret == EGL_FALSE) {
+			weston_log("buffer age query failed.\n");
+			gl_renderer_print_egl_error_state();
+		}
+	}
 
-	/* Window renderbuffers use the default surface framebuffer 0. */
-	gl_renderbuffer_init(renderbuffer, RENDERBUFFER_WINDOW,
-			     BORDER_ALL_DIRTY, 0, NULL, NULL, output);
+	return buffer_age;
+}
 
-	return renderbuffer;
+static struct gl_renderbuffer *
+gl_renderer_get_renderbuffer_window(struct weston_output *output)
+{
+	struct gl_output_state *go = get_output_state(output);
+	struct gl_renderer *gr = get_renderer(output->compositor);
+	int current_age = get_renderbuffer_window_age(output);
+	int count = 0;
+	struct gl_renderbuffer *rb;
+	struct gl_renderbuffer *ret = NULL;
+	struct gl_renderbuffer *oldest_rb = NULL;
+	int max_buffers;
+
+	wl_list_for_each(rb, &go->renderbuffer_list, link) {
+		if (rb->type == RENDERBUFFER_WINDOW) {
+			/* Count window renderbuffers, age them, */
+			count++;
+			rb->window.age++;
+			/* find the one with current_age to return, */
+			if (rb->window.age == current_age)
+				ret = rb;
+			/* and the oldest one in case we decide to reuse it. */
+			if (!oldest_rb ||
+			    rb->window.age > oldest_rb->window.age)
+				oldest_rb = rb;
+		}
+	}
+
+	/* If a renderbuffer of correct age was found, return it, */
+	if (ret) {
+		ret->window.age = 0;
+		return ret;
+	}
+
+	/* otherwise decide whether to refurbish and return the oldest, */
+	max_buffers = (egl_display_has(gr, EXTENSION_EXT_BUFFER_AGE) ||
+		       egl_display_has(gr, EXTENSION_KHR_PARTIAL_UPDATE)) ?
+		      BUFFER_DAMAGE_COUNT : 1;
+	if ((current_age == 0 || current_age - 1 > BUFFER_DAMAGE_COUNT) &&
+	    count >= max_buffers) {
+		pixman_region32_copy(&oldest_rb->damage, &output->region);
+		oldest_rb->border_damage = BORDER_ALL_DIRTY;
+		oldest_rb->window.age = 0;
+		return oldest_rb;
+	}
+
+	/* or create a new window renderbuffer (window renderbuffers use the
+	 * default surface framebuffer 0). */
+	rb = xzalloc(sizeof(*rb));
+	gl_renderbuffer_init(rb, RENDERBUFFER_WINDOW, BORDER_ALL_DIRTY, 0, NULL,
+			     NULL, output);
+
+	return rb;
 }
 
 static weston_renderbuffer_t
@@ -2263,77 +2327,6 @@ output_get_border_damage(struct weston_output *output,
 	}
 }
 
-static int
-output_get_buffer_age(struct weston_output *output)
-{
-	struct gl_output_state *go = get_output_state(output);
-	struct gl_renderer *gr = get_renderer(output->compositor);
-	EGLint buffer_age = 0;
-	EGLBoolean ret;
-
-	if ((egl_display_has(gr, EXTENSION_EXT_BUFFER_AGE) ||
-	     egl_display_has(gr, EXTENSION_KHR_PARTIAL_UPDATE)) &&
-	    go->egl_surface != EGL_NO_SURFACE) {
-		ret = eglQuerySurface(gr->egl_display, go->egl_surface,
-				      EGL_BUFFER_AGE_EXT, &buffer_age);
-		if (ret == EGL_FALSE) {
-			weston_log("buffer age query failed.\n");
-			gl_renderer_print_egl_error_state();
-		}
-	}
-
-	return buffer_age;
-}
-
-static struct gl_renderbuffer *
-output_get_window_renderbuffer(struct weston_output *output)
-{
-	struct gl_output_state *go = get_output_state(output);
-	struct gl_renderer *gr = get_renderer(output->compositor);
-	int buffer_age = output_get_buffer_age(output);
-	int count = 0;
-	struct gl_renderbuffer *rb;
-	struct gl_renderbuffer *ret = NULL;
-	struct gl_renderbuffer *oldest_rb = NULL;
-	int max_buffers;
-
-	wl_list_for_each(rb, &go->renderbuffer_list, link) {
-		if (rb->type == RENDERBUFFER_WINDOW) {
-			/* Count window renderbuffers, age them, */
-			count++;
-			rb->window.age++;
-			/* find the one with buffer_age to return, */
-			if (rb->window.age == buffer_age)
-				ret = rb;
-			/* and the oldest one in case we decide to reuse it. */
-			if (!oldest_rb ||
-			    rb->window.age > oldest_rb->window.age)
-				oldest_rb = rb;
-		}
-	}
-
-	/* If a renderbuffer of correct age was found, return it, */
-	if (ret) {
-		ret->window.age = 0;
-		return ret;
-	}
-
-	/* otherwise decide whether to refurbish and return the oldest, */
-	max_buffers = (egl_display_has(gr, EXTENSION_EXT_BUFFER_AGE) ||
-		       egl_display_has(gr, EXTENSION_KHR_PARTIAL_UPDATE)) ?
-		      BUFFER_DAMAGE_COUNT : 1;
-	if ((buffer_age == 0 || buffer_age - 1 > BUFFER_DAMAGE_COUNT) &&
-	    count >= max_buffers) {
-		pixman_region32_copy(&oldest_rb->damage, &output->region);
-		oldest_rb->border_damage = BORDER_ALL_DIRTY;
-		oldest_rb->window.age = 0;
-		return oldest_rb;
-	}
-
-	/* or create a new window renderbuffer */
-	return gl_renderer_create_renderbuffer_window(output);
-}
-
 /**
  * Given a region in Weston's (top-left-origin) global co-ordinate space,
  * translate it to the co-ordinate space used by GL for our output
@@ -2535,7 +2528,7 @@ gl_renderer_repaint_output(struct weston_output *output,
 	if (renderbuffer)
 		rb = (struct gl_renderbuffer *) renderbuffer;
 	else
-		rb = output_get_window_renderbuffer(output);
+		rb = gl_renderer_get_renderbuffer_window(output);
 
 	/* Clear the used_in_output_repaint flag, so that we can properly track
 	 * which surfaces were used in this output repaint. */
