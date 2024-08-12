@@ -1019,6 +1019,30 @@ gl_renderer_create_renderbuffer_dmabuf(struct weston_output *output,
 	return (weston_renderbuffer_t) renderbuffer;
 }
 
+static struct gl_renderbuffer *
+gl_renderer_update_renderbuffers(struct weston_output *output,
+				 pixman_region32_t *damage,
+				 weston_renderbuffer_t renderbuffer)
+{
+	struct gl_output_state *go = get_output_state(output);
+	struct gl_renderbuffer *rb;
+
+	/* Accumulate damages in non-stale renderbuffers. */
+	wl_list_for_each(rb, &go->renderbuffer_list, link) {
+		if (!rb->stale) {
+			pixman_region32_union(&rb->damage, &rb->damage, damage);
+			rb->border_damage |= go->border_status;
+		}
+	}
+
+	if (renderbuffer)
+		return (struct gl_renderbuffer *) renderbuffer;
+
+	/* A NULL renderbuffer parameter is a special value to request
+	 * renderbuffers for window outputs. */
+	return gl_renderer_get_renderbuffer_window(output);
+}
+
 static bool
 gl_renderer_do_read_pixels(struct gl_renderer *gr,
 			   struct gl_output_state *go,
@@ -2516,19 +2540,8 @@ gl_renderer_repaint_output(struct weston_output *output,
 	if (use_output(output) < 0)
 		return;
 
-	/* Accumulate damage in all renderbuffers */
-	wl_list_for_each(rb, &go->renderbuffer_list, link) {
-		if (!rb->stale) {
-			pixman_region32_union(&rb->damage, &rb->damage,
-					      output_damage);
-			rb->border_damage |= go->border_status;
-		}
-	}
-
-	if (renderbuffer)
-		rb = (struct gl_renderbuffer *) renderbuffer;
-	else
-		rb = gl_renderer_get_renderbuffer_window(output);
+	rb = gl_renderer_update_renderbuffers(output, output_damage,
+					      renderbuffer);
 
 	/* Clear the used_in_output_repaint flag, so that we can properly track
 	 * which surfaces were used in this output repaint. */
