@@ -633,8 +633,8 @@ timeline_submit_render_sync(struct gl_renderer *gr,
 	wl_list_insert(&go->timeline_render_point_list, &trp->link);
 }
 
-/* Initialise a pair of framebuffer and renderbuffer objects. Use gl_fbo_fini()
- * to finalise.
+/* Initialise a pair of framebuffer and renderbuffer objects. The framebuffer
+ * object is left bound on success. Use gl_fbo_fini() to finalise.
  */
 static bool
 gl_fbo_init(GLenum internal_format,
@@ -654,7 +654,6 @@ gl_fbo_init(GLenum internal_format,
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 				  GL_RENDERBUFFER, rb);
 	status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glBindRenderbuffer(GL_RENDERBUFFER, 0);
 	if (status != GL_FRAMEBUFFER_COMPLETE) {
 		weston_log("Error: FBO incomplete.\n");
@@ -684,7 +683,8 @@ gl_fbo_fini(GLuint *fb,
 }
 
 /* Initialise a pair of framebuffer and renderbuffer objects to render into an
- * EGL image. Use gl_fbo_fini() to finalise.
+ * EGL image. The framebuffer object is left bound on success. Use gl_fbo_fini()
+ * to finalise.
  */
 static bool
 gl_fbo_image_init(struct gl_renderer *gr,
@@ -703,7 +703,6 @@ gl_fbo_image_init(struct gl_renderer *gr,
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 				  GL_RENDERBUFFER, rb);
 	status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glBindRenderbuffer(GL_RENDERBUFFER, 0);
 	if (status != GL_FRAMEBUFFER_COMPLETE) {
 		weston_log("Error: FBO incomplete.\n");
@@ -721,7 +720,8 @@ gl_fbo_image_init(struct gl_renderer *gr,
 }
 
 /* Initialise a pair of framebuffer and texture objects to render into a
- * texture. Use gl_fbo_texture_fini() to finalise.
+ * texture. The framebuffer object is left bound on success. Use
+ * gl_fbo_texture_fini() to finalise.
  */
 static bool
 gl_fbo_texture_init(GLenum internal_format,
@@ -745,7 +745,6 @@ gl_fbo_texture_init(GLenum internal_format,
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 			       GL_TEXTURE_2D, tex, 0);
 	status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	if (status != GL_FRAMEBUFFER_COMPLETE) {
 		weston_log("Error: FBO incomplete.\n");
 		goto error;
@@ -3965,8 +3964,6 @@ gl_renderer_surface_copy_content(struct weston_surface *surface,
 		weston_log("Failed to init FBO\n");
 		goto fbo_init_error;
 	}
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glBindRenderbuffer(GL_RENDERBUFFER, rb);
 
 	glViewport(0, 0, cw, ch);
 	glDisable(GL_BLEND);
