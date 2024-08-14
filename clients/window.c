@@ -4372,8 +4372,8 @@ undo_resize(struct window *window)
 	}
 }
 
-void
-window_schedule_resize(struct window *window, int width, int height)
+static void
+window_configure_resize(struct window *window, int width, int height)
 {
 	/* We should probably get these numbers from the theme. */
 	const int min_width = 200, min_height = 200;
@@ -4400,6 +4400,12 @@ window_schedule_resize(struct window *window, int width, int height)
 		window->pending_allocation.height = window->min_allocation.height;
 
 	window->resize_needed = 1;
+}
+
+void
+window_schedule_resize(struct window *window, int width, int height)
+{
+	window_configure_resize(window, width, height);
 	window_schedule_redraw(window);
 }
 
@@ -4508,14 +4514,14 @@ xdg_toplevel_handle_configure(void *data, struct xdg_toplevel *xdg_toplevel,
 		 * on the shadow margin to get the difference. */
 		int margin = window_get_shadow_margin(window);
 
-		window_schedule_resize(window,
-				       width + margin * 2,
-				       height + margin * 2);
+		window_configure_resize(window,
+				        width + margin * 2,
+				        height + margin * 2);
 	} else if (window->saved_allocation.width > 0 &&
 		   window->saved_allocation.height > 0) {
-		window_schedule_resize(window,
-				       window->saved_allocation.width,
-				       window->saved_allocation.height);
+		window_configure_resize(window,
+				        window->saved_allocation.width,
+				        window->saved_allocation.height);
 	}
 }
 
