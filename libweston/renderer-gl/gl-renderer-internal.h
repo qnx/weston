@@ -488,7 +488,12 @@ gl_features_has(struct gl_renderer *gr,
 }
 
 bool
-gl_fbo_init(GLenum internal_format,
+gl_fbo_is_format_supported(struct gl_renderer *gr,
+			   GLenum format);
+
+bool
+gl_fbo_init(struct gl_renderer *gr,
+	    GLenum format,
 	    int width,
 	    int height,
 	    GLuint *fb_out,

@@ -107,11 +107,96 @@
  * ⁵ External format and type combination(s).
  */
 
-/* Initialise a pair of framebuffer and renderbuffer objects. The framebuffer
- * object is left bound on success. Use gl_fbo_fini() to finalise.
+/* Check whether gl_fbo_init() supports FBO creation for a given
+ * colour-renderable sized internal 'format' or not.
  */
 bool
-gl_fbo_init(GLenum internal_format,
+gl_fbo_is_format_supported(struct gl_renderer *gr,
+			   GLenum format)
+{
+	switch (format) {
+	case GL_RGBA4:
+	case GL_RGB5_A1:
+	case GL_RGB565:
+		return true; /* From OpenGL ES 2.0 (Table 4.5 in spec). */
+
+	case GL_RGB8:
+	case GL_RGBA8:
+		return gr->gl_version >= gl_version(3, 0) ||
+			gl_extensions_has(gr, EXTENSION_OES_RGB8_RGBA8);
+
+	case GL_R8:
+	case GL_RG8:
+	case GL_SRGB8_ALPHA8:
+	case GL_R8I:
+	case GL_R8UI:
+	case GL_R16I:
+	case GL_R16UI:
+	case GL_R32I:
+	case GL_R32UI:
+	case GL_RG8I:
+	case GL_RG8UI:
+	case GL_RG16I:
+	case GL_RG16UI:
+	case GL_RG32I:
+	case GL_RG32UI:
+	case GL_RGBA8I:
+	case GL_RGBA8UI:
+	case GL_RGBA16I:
+	case GL_RGBA16UI:
+	case GL_RGBA32I:
+	case GL_RGBA32UI:
+	case GL_RGB10_A2:
+	case GL_RGB10_A2UI:
+		return gr->gl_version >= gl_version(3, 0);
+
+	case GL_R16F:
+	case GL_RG16F:
+	case GL_RGBA16F:
+	case GL_R32F:
+	case GL_RG32F:
+	case GL_RGBA32F:
+	case GL_R11F_G11F_B10F:
+		return gr->gl_version >= gl_version(3, 2);
+
+	case GL_R8_SNORM:
+	case GL_RG8_SNORM:
+	case GL_SRGB8:
+	case GL_RGB9_E5:
+	case GL_RGB16F:
+	case GL_RGB32F:
+	case GL_RGB8_SNORM:
+	case GL_RGB8I:
+	case GL_RGB8UI:
+	case GL_RGB16I:
+	case GL_RGB16UI:
+	case GL_RGB32I:
+	case GL_RGB32UI:
+	case GL_RGBA8_SNORM:
+		return false;
+
+	default:
+		unreachable("Unsupported sized internal format!");
+		return false;
+	}
+}
+
+/* Initialise a pair of framebuffer and renderbuffer objects. 'format' is a
+ * colour-renderable sized internal format listed in Table 1 above with the
+ * Renderable column filled. The framebuffer object is left bound on success.
+ * Use gl_fbo_fini() to finalise.
+ *
+ * OpenGL ES 2 notes:
+ *
+ * Implementations support at least these formats: GL_RGBA4, GL_RGB5_A1 and
+ * GL_RGB565. Additional formats are supported depending on extensions: GL_RGB8
+ * and GL_RGBA8.
+ *
+ * See gl_fbo_is_format_supported().
+ */
+bool
+gl_fbo_init(struct gl_renderer *gr,
+	    GLenum format,
 	    int width,
 	    int height,
 	    GLuint *fb_out,
@@ -120,11 +205,16 @@ gl_fbo_init(GLenum internal_format,
 	GLuint fb, rb;
 	GLenum status;
 
+	if (!gl_fbo_is_format_supported(gr, format)) {
+		weston_log("Error: FBO format not supported.\n");
+		return false;
+	}
+
 	glGenFramebuffers(1, &fb);
 	glBindFramebuffer(GL_FRAMEBUFFER, fb);
 	glGenRenderbuffers(1, &rb);
 	glBindRenderbuffer(GL_RENDERBUFFER, rb);
-	glRenderbufferStorage(GL_RENDERBUFFER, internal_format, width, height);
+	glRenderbufferStorage(GL_RENDERBUFFER, format, width, height);
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 				  GL_RENDERBUFFER, rb);
 	status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
