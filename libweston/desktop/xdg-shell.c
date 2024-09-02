@@ -930,8 +930,6 @@ weston_desktop_xdg_popup_protocol_grab(struct wl_client *wl_client,
 	struct weston_seat *wseat = wl_resource_get_user_data(seat_resource);
 	struct weston_desktop_seat *seat = weston_desktop_seat_from_seat(wseat);
 	struct weston_desktop_surface *topmost;
-	bool parent_is_toplevel =
-		popup->parent->role == WESTON_DESKTOP_XDG_SURFACE_ROLE_TOPLEVEL;
 
 	/* Check that if we have a valid wseat we also got a valid desktop seat */
 	if (wseat != NULL && seat == NULL) {
@@ -946,18 +944,8 @@ weston_desktop_xdg_popup_protocol_grab(struct wl_client *wl_client,
 		return;
 	}
 
-	/* If seat is NULL then get_topmost_surface will return NULL. In
-	 * combination with setting parent_is_toplevel to TRUE here we will
-	 * avoid posting an error, and we will instead gracefully fail the
-	 * grab and dismiss the surface.
-	 * FIXME: this is a hack because currently we cannot check the topmost
-	 * parent with a destroyed weston_seat */
-	if (seat == NULL)
-		parent_is_toplevel = true;
-
 	topmost = weston_desktop_seat_popup_grab_get_topmost_surface(seat);
-	if ((topmost == NULL && !parent_is_toplevel) ||
-	    (topmost != NULL && topmost != popup->parent->desktop_surface)) {
+	if (topmost != NULL && topmost != popup->parent->desktop_surface) {
 		struct weston_desktop_client *client =
 			weston_desktop_surface_get_client(dsurface);
 		struct wl_resource *client_resource =
