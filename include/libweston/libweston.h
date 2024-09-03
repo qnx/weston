@@ -110,6 +110,10 @@ enum weston_led {
 	LED_NUM_LOCK = (1 << 0),
 	LED_CAPS_LOCK = (1 << 1),
 	LED_SCROLL_LOCK = (1 << 2),
+#ifdef HAVE_COMPOSE_AND_KANA
+	LED_COMPOSE = (1 << 3),
+	LED_KANA = (1 << 4),
+#endif
 };
 
 enum weston_mode_aspect_ratio {
@@ -1229,6 +1233,10 @@ struct weston_xkb_info {
 	xkb_led_index_t num_led;
 	xkb_led_index_t caps_led;
 	xkb_led_index_t scroll_led;
+#ifdef HAVE_COMPOSE_AND_KANA
+	xkb_led_index_t compose_led;
+	xkb_led_index_t kana_led;
+#endif
 };
 
 struct weston_keyboard {

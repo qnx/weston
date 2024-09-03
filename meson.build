@@ -149,15 +149,17 @@ if not get_option('backend-' + backend_default)
 	error('Backend @0@ was chosen as native but is not being built.'.format(backend_default))
 endif
 
-dep_xkbcommon = dependency('xkbcommon', version: '>= 0.3.0')
-if dep_xkbcommon.version().version_compare('>= 0.5.0')
-	config_h.set('HAVE_XKBCOMMON_COMPOSE', '1')
-endif
-
 dep_wayland_server = dependency('wayland-server', version: '>= 1.22.0')
 dep_wayland_client = dependency('wayland-client', version: '>= 1.22.0')
 dep_pixman = dependency('pixman-1', version: '>= 0.25.2')
+dep_xkbcommon = dependency('xkbcommon', version: '>= 0.5.0')
 dep_libinput = dependency('libinput', version: '>= 1.2.0')
+if dep_xkbcommon.version().version_compare('>= 1.8.0')
+	if dep_libinput.version().version_compare('>= 1.26.0')
+		config_h.set('HAVE_COMPOSE_AND_KANA', '1')
+	endif
+endif
+
 dep_libevdev = dependency('libevdev')
 dep_libm = cc.find_library('m')
 dep_libdl = cc.find_library('dl')

@@ -2525,6 +2525,14 @@ notify_modifiers(struct weston_seat *seat, uint32_t serial)
 	if (xkb_state_led_index_is_active(keyboard->xkb_state.state,
 					  keyboard->xkb_info->scroll_led))
 		leds |= LED_SCROLL_LOCK;
+#ifdef HAVE_COMPOSE_AND_KANA
+	if (xkb_state_led_index_is_active(keyboard->xkb_state.state,
+					  keyboard->xkb_info->compose_led))
+		leds |= LED_COMPOSE;
+	if (xkb_state_led_index_is_active(keyboard->xkb_state.state,
+					  keyboard->xkb_info->kana_led))
+		leds |= LED_KANA;
+#endif
 	if (leds != keyboard->xkb_state.leds && seat->led_update)
 		seat->led_update(seat, leds);
 	keyboard->xkb_state.leds = leds;
@@ -4017,6 +4025,12 @@ weston_xkb_info_create(struct xkb_keymap *keymap)
 						      XKB_LED_NAME_CAPS);
 	xkb_info->scroll_led = xkb_keymap_led_get_index(xkb_info->keymap,
 							XKB_LED_NAME_SCROLL);
+#ifdef HAVE_COMPOSE_AND_KANA
+	xkb_info->compose_led = xkb_keymap_led_get_index(xkb_info->keymap,
+							XKB_LED_NAME_COMPOSE);
+	xkb_info->kana_led = xkb_keymap_led_get_index(xkb_info->keymap,
+							XKB_LED_NAME_KANA);
+#endif
 
 	keymap_string = xkb_keymap_get_as_string(xkb_info->keymap,
 							   XKB_KEYMAP_FORMAT_TEXT_V1);
