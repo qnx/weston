@@ -485,6 +485,36 @@ gl_features_has(struct gl_renderer *gr,
 	return (bool) (gr->features & ((uint64_t) flag));
 }
 
+bool
+gl_fbo_init(GLenum internal_format,
+	    int width,
+	    int height,
+	    GLuint *fb_out,
+	    GLuint *rb_out);
+
+void
+gl_fbo_fini(GLuint *fb,
+	    GLuint *rb);
+
+bool
+gl_fbo_image_init(struct gl_renderer *gr,
+		  EGLImageKHR image,
+		  GLuint *fb_out,
+		  GLuint *rb_out);
+
+bool
+gl_fbo_texture_init(GLenum internal_format,
+		    int width,
+		    int height,
+		    GLenum format,
+		    GLenum type,
+		    GLuint *fb_out,
+		    GLuint *tex_out);
+
+void
+gl_fbo_texture_fini(GLuint *fb,
+		    GLuint *tex);
+
 static inline struct gl_renderer *
 get_renderer(struct weston_compositor *ec)
 {
