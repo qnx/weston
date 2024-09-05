@@ -29,6 +29,84 @@
 #include "gl-renderer.h"
 #include "gl-renderer-internal.h"
 
+/*
+ * Table 1: List of OpenGL ES 3 sized internal colour formats allowed for
+ * texture and FBO creation. Built from Table 3.13 in the OpenGL ES 3.0 and 3.1
+ * specs and from Table 8.10 in the OpenGL ES 3.2 spec.
+ *
+ * ┌─────────────────────┬─────┬─────┬─────┬─────────────────┬──────────────────────────────────┐
+ * │ Internal fmt¹       │ T²  │ F³  │ R⁴  │ External fmt⁵   │ External type(s)⁵                │
+ * ╞═════════════════════╪═════╪═════╪═════╪═════════════════╪══════════════════════════════════╡
+ * │ GL_R8               │ 3.0 │ 3.0 │ 3.0 │ GL_RED          │ GL_UNSIGNED_BYTE                 │
+ * │ GL_R8_SNORM         │ 3.0 │ 3.0 │     │ GL_RED          │ GL_BYTE                          │
+ * │ GL_R16F             │ 3.0 │ 3.0 │ 3.2 │ GL_RED          │ GL_HALF_FLOAT,                   │
+ * │                     │     │     │     │                 │ GL_FLOAT                         │
+ * │ GL_R32F             │ 3.0 │     │ 3.2 │ GL_RED          │ GL_FLOAT                         │
+ * │ GL_R8UI             │ 3.0 │     │ 3.0 │ GL_RED_INTEGER  │ GL_UNSIGNED_BYTE                 │
+ * │ GL_R8I              │ 3.0 │     │ 3.0 │ GL_RED_INTEGER  │ GL_BYTE                          │
+ * │ GL_R16UI            │ 3.0 │     │ 3.0 │ GL_RED_INTEGER  │ GL_UNSIGNED_SHORT                │
+ * │ GL_R16I             │ 3.0 │     │ 3.0 │ GL_RED_INTEGER  │ GL_SHORT                         │
+ * │ GL_R32UI            │ 3.0 │     │ 3.0 │ GL_RED_INTEGER  │ GL_UNSIGNED_INT                  │
+ * │ GL_R32I             │ 3.0 │     │ 3.0 │ GL_RED_INTEGER  │ GL_INT                           │
+ * │ GL_RG8              │ 3.0 │ 3.0 │ 3.0 │ GL_RG           │ GL_UNSIGNED_BYTE                 │
+ * │ GL_RG8_SNORM        │ 3.0 │ 3.0 │     │ GL_RG           │ GL_BYTE                          │
+ * │ GL_RG16F            │ 3.0 │ 3.0 │ 3.2 │ GL_RG           │ GL_HALF_FLOAT,                   │
+ * │                     │     │     │     │                 │ GL_FLOAT                         │
+ * │ GL_RG32F            │ 3.0 │     │ 3.2 │ GL_RG           │ GL_FLOAT                         │
+ * │ GL_RG8UI            │ 3.0 │     │ 3.0 │ GL_RG_INTEGER   │ GL_UNSIGNED_BYTE                 │
+ * │ GL_RG8I             │ 3.0 │     │ 3.0 │ GL_RG_INTEGER   │ GL_BYTE                          │
+ * │ GL_RG16UI           │ 3.0 │     │ 3.0 │ GL_RG_INTEGER   │ GL_UNSIGNED_SHORT                │
+ * │ GL_RG16I            │ 3.0 │     │ 3.0 │ GL_RG_INTEGER   │ GL_SHORT                         │
+ * │ GL_RG32UI           │ 3.0 │     │ 3.0 │ GL_RG_INTEGER   │ GL_UNSIGNED_INT                  │
+ * │ GL_RG32I            │ 3.0 │     │ 3.0 │ GL_RG_INTEGER   │ GL_INT                           │
+ * │ GL_RGB8             │ 3.0 │ 3.0 │ 3.0 │ GL_RGB          │ GL_UNSIGNED_BYTE                 │
+ * │ GL_SRGB8            │ 3.0 │ 3.0 │     │ GL_RGB          │ GL_UNSIGNED_BYTE                 │
+ * │ GL_RGB565           │ 3.0 │ 3.0 │ 3.0 │ GL_RGB          │ GL_UNSIGNED_BYTE,                │
+ * │                     │     │     │     │                 │ GL_UNSIGNED_SHORT_5_6_5          │
+ * │ GL_RGB8_SNORM       │ 3.0 │ 3.0 │     │ GL_RGB          │ GL_BYTE                          │
+ * │ GL_R11F_G11F_B10F   │ 3.0 │ 3.0 │ 3.2 │ GL_RGB          │ GL_UNSIGNED_INT_10F_11F_11F_REV, │
+ * │                     │     │     │     │                 │ GL_HALF_FLOAT,                   │
+ * │                     │     │     │     │                 │ GL_FLOAT                         │
+ * │ GL_RGB9_E5          │ 3.0 │ 3.0 │     │ GL_RGB          │ GL_UNSIGNED_INT_5_9_9_9_REV,     │
+ * │                     │     │     │     │                 │ GL_HALF_FLOAT,                   │
+ * │                     │     │     │     │                 │ GL_FLOAT                         │
+ * │ GL_RGB16F           │ 3.0 │ 3.0 │     │ GL_RGB          │ GL_HALF_FLOAT,                   │
+ * │                     │     │     │     │                 │ GL_FLOAT                         │
+ * │ GL_RGB32F           │ 3.0 │     │     │ GL_RGB          │ GL_FLOAT                         │
+ * │ GL_RGB8UI           │ 3.0 │     │     │ GL_RGB_INTEGER  │ GL_UNSIGNED_BYTE                 │
+ * │ GL_RGB8I            │ 3.0 │     │     │ GL_RGB_INTEGER  │ GL_BYTE                          │
+ * │ GL_RGB16UI          │ 3.0 │     │     │ GL_RGB_INTEGER  │ GL_UNSIGNED_SHORT                │
+ * │ GL_RGB16I           │ 3.0 │     │     │ GL_RGB_INTEGER  │ GL_SHORT                         │
+ * │ GL_RGB32UI          │ 3.0 │     │     │ GL_RGB_INTEGER  │ GL_UNSIGNED_INT                  │
+ * │ GL_RGB32I           │ 3.0 │     │     │ GL_RGB_INTEGER  │ GL_INT                           │
+ * │ GL_RGBA8            │ 3.0 │ 3.0 │ 3.0 │ GL_RGBA         │ GL_UNSIGNED_BYTE                 │
+ * │ GL_SRGB8_ALPHA8     │ 3.0 │ 3.0 │ 3.0 │ GL_RGBA         │ GL_UNSIGNED_BYTE                 │
+ * │ GL_RGBA8_SNORM      │ 3.0 │ 3.0 │     │ GL_RGBA         │ GL_BYTE                          │
+ * │ GL_RGB5_A1          │ 3.0 │ 3.0 │ 3.0 │ GL_RGBA         │ GL_UNSIGNED_BYTE,                │
+ * │                     │     │     │     │                 │ GL_UNSIGNED_SHORT_5_5_5_1,       │
+ * │                     │     │     │     │                 │ GL_UNSIGNED_INT_2_10_10_10_REV   │
+ * │ GL_RGBA4            │ 3.0 │ 3.0 │ 3.0 │ GL_RGBA         │ GL_UNSIGNED_BYTE,                │
+ * │                     │     │     │     │                 │ GL_UNSIGNED_SHORT_4_4_4_4        │
+ * │ GL_RGB10_A2         │ 3.0 │ 3.0 │ 3.0 │ GL_RGBA         │ GL_UNSIGNED_INT_2_10_10_10_REV   │
+ * │ GL_RGBA16F          │ 3.0 │ 3.0 │ 3.2 │ GL_RGBA         │ GL_HALF_FLOAT,                   │
+ * │                     │     │     │     │                 │ GL_FLOAT                         │
+ * │ GL_RGBA32F          │ 3.0 │     │ 3.2 │ GL_RGBA         │ GL_FLOAT                         │
+ * │ GL_RGBA8UI          │ 3.0 │     │ 3.0 │ GL_RGBA_INTEGER │ GL_UNSIGNED_BYTE                 │
+ * │ GL_RGBA8I           │ 3.0 │     │ 3.0 │ GL_RGBA_INTEGER │ GL_BYTE                          │
+ * │ GL_RGB10_A2UI       │ 3.0 │     │ 3.0 │ GL_RGBA_INTEGER │ GL_UNSIGNED_INT_2_10_10_10_REV   │
+ * │ GL_RGBA16UI         │ 3.0 │     │ 3.0 │ GL_RGBA_INTEGER │ GL_UNSIGNED_SHORT                │
+ * │ GL_RGBA16I          │ 3.0 │     │ 3.0 │ GL_RGBA_INTEGER │ GL_SHORT                         │
+ * │ GL_RGBA32I          │ 3.0 │     │ 3.0 │ GL_RGBA_INTEGER │ GL_INT                           │
+ * │ GL_RGBA32UI         │ 3.0 │     │ 3.0 │ GL_RGBA_INTEGER │ GL_UNSIGNED_INT                  │
+ * └─────────────────────┴─────┴─────┴─────┴─────────────────┴──────────────────────────────────┘
+ *
+ * ¹ Sized internal format.
+ * ² Texturable since.
+ * ³ Texture-filterable (GL_LINEAR support) since.
+ * ⁴ Renderable (FBO support) since.
+ * ⁵ External format and type combination(s).
+ */
+
 /* Initialise a pair of framebuffer and renderbuffer objects. The framebuffer
  * object is left bound on success. Use gl_fbo_fini() to finalise.
  */
