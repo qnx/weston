@@ -36,7 +36,6 @@
 
 #include <libweston/libweston.h>
 #include <libweston/weston-log.h>
-#include <GLES2/gl2.h>
 
 #include <string.h>
 

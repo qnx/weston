@@ -64,6 +64,8 @@
 #include <wayland-util.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
+#include <GLES3/gl32.h>
+
 #include "shared/weston-egl-ext.h"  /* for PFN* stuff */
 #include "shared/helpers.h"
 
