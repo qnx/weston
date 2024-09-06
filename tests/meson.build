@@ -181,14 +181,6 @@ tests = [
 		],
 	},
 	{
-		'name': 'kiosk-shell',
-		'sources': [
-			'kiosk-shell-test.c',
-			xdg_shell_client_protocol_h,
-			xdg_shell_protocol_c,
-		],
-        },
-	{
 		'name': 'linux-explicit-synchronization',
 		'sources': [
 			'linux-explicit-synchronization-test.c',
@@ -422,6 +414,19 @@ if get_option('shell-ivi')
 				'ivi-shell-app-test.c',
 				ivi_application_client_protocol_h,
 				ivi_application_protocol_c,
+			],
+		},
+	]
+endif
+
+if get_option('shell-kiosk')
+	tests += [
+		{
+			'name': 'kiosk-shell',
+			'sources': [
+				'kiosk-shell-test.c',
+				xdg_shell_client_protocol_h,
+				xdg_shell_protocol_c,
 			],
 		},
 	]
