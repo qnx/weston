@@ -704,8 +704,6 @@ gl_fbo_image_init(struct gl_renderer *gr,
 	glGenRenderbuffers(1, &rb);
 	glBindRenderbuffer(GL_RENDERBUFFER, rb);
 	gr->image_target_renderbuffer_storage(GL_RENDERBUFFER, image);
-	if (glGetError() == GL_INVALID_OPERATION)
-		goto error;
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 				  GL_RENDERBUFFER, rb);
 	status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
