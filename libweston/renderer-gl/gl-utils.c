@@ -107,6 +107,441 @@
  * ⁵ External format and type combination(s).
  */
 
+#if !defined(NDEBUG)
+
+/* Validate an external format for a given OpenGL ES 3 sized internal colour
+ * format. Based on Table 1 above.
+ */
+static bool
+is_valid_format_es3(struct gl_renderer *gr,
+		    GLenum internal_format,
+		    GLenum external_format)
+{
+	assert(gr->gl_version >= gl_version(3, 0));
+
+	switch (internal_format) {
+	case GL_R8I:
+	case GL_R8UI:
+	case GL_R16I:
+	case GL_R16UI:
+	case GL_R32I:
+	case GL_R32UI:
+		return external_format == GL_RED_INTEGER;
+
+	case GL_R8:
+	case GL_R8_SNORM:
+	case GL_R16F:
+	case GL_R32F:
+		return external_format == GL_RED;
+
+	case GL_RG8I:
+	case GL_RG8UI:
+	case GL_RG16I:
+	case GL_RG16UI:
+	case GL_RG32I:
+	case GL_RG32UI:
+		return external_format == GL_RG_INTEGER;
+
+	case GL_RG8:
+	case GL_RG8_SNORM:
+	case GL_RG16F:
+	case GL_RG32F:
+		return external_format == GL_RG;
+
+	case GL_RGB8I:
+	case GL_RGB8UI:
+	case GL_RGB16I:
+	case GL_RGB16UI:
+	case GL_RGB32I:
+	case GL_RGB32UI:
+		return external_format == GL_RGB_INTEGER;
+
+	case GL_RGB8:
+	case GL_RGB8_SNORM:
+	case GL_RGB16F:
+	case GL_RGB32F:
+	case GL_R11F_G11F_B10F:
+	case GL_RGB9_E5:
+	case GL_RGB565:
+	case GL_SRGB8:
+		return external_format == GL_RGB;
+
+	case GL_RGBA8I:
+	case GL_RGBA8UI:
+	case GL_RGBA16I:
+	case GL_RGBA16UI:
+	case GL_RGBA32I:
+	case GL_RGBA32UI:
+	case GL_RGB10_A2UI:
+		return external_format == GL_RGBA_INTEGER;
+
+	case GL_RGBA8:
+	case GL_RGBA8_SNORM:
+	case GL_RGBA16F:
+	case GL_RGBA32F:
+	case GL_RGB10_A2:
+	case GL_SRGB8_ALPHA8:
+	case GL_RGB5_A1:
+	case GL_RGBA4:
+		return external_format == GL_RGBA;
+
+	default:
+		return false;
+	}
+}
+
+/* Validate an external type for a given OpenGL ES 3 sized internal colour
+ * format. Based on Table 1 above.
+ */
+static bool
+is_valid_type_es3(struct gl_renderer *gr,
+		  GLenum internal_format,
+		  GLenum type)
+{
+	assert(gr->gl_version >= gl_version(3, 0));
+
+	switch (internal_format) {
+	case GL_R8:
+	case GL_R8UI:
+	case GL_RG8:
+	case GL_RG8UI:
+	case GL_RGB8:
+	case GL_RGB8UI:
+	case GL_RGBA8:
+	case GL_RGBA8UI:
+	case GL_SRGB8:
+	case GL_SRGB8_ALPHA8:
+		return type == GL_UNSIGNED_BYTE;
+
+	case GL_R8I:
+	case GL_R8_SNORM:
+	case GL_RG8I:
+	case GL_RG8_SNORM:
+	case GL_RGB8I:
+	case GL_RGB8_SNORM:
+	case GL_RGBA8I:
+	case GL_RGBA8_SNORM:
+		return type == GL_BYTE;
+
+	case GL_R16UI:
+	case GL_RG16UI:
+	case GL_RGB16UI:
+	case GL_RGBA16UI:
+		return type == GL_UNSIGNED_SHORT;
+
+	case GL_R16I:
+	case GL_RG16I:
+	case GL_RGB16I:
+	case GL_RGBA16I:
+		return type == GL_SHORT;
+
+	case GL_R32UI:
+	case GL_RG32UI:
+	case GL_RGB32UI:
+	case GL_RGBA32UI:
+		return type == GL_UNSIGNED_INT;
+
+	case GL_RGB10_A2UI:
+		return type == GL_UNSIGNED_INT_2_10_10_10_REV;
+
+	case GL_R32I:
+	case GL_RG32I:
+	case GL_RGB32I:
+	case GL_RGBA32I:
+		return type == GL_INT;
+
+	case GL_R32F:
+	case GL_RG32F:
+	case GL_RGB32F:
+	case GL_RGBA32F:
+		return type == GL_FLOAT;
+
+	case GL_R16F:
+	case GL_RG16F:
+	case GL_RGB16F:
+	case GL_RGBA16F:
+		return type == GL_HALF_FLOAT ||
+			type == GL_FLOAT;
+
+	case GL_RGB565:
+		return type == GL_UNSIGNED_BYTE ||
+			type == GL_UNSIGNED_SHORT_5_6_5;
+
+	case GL_R11F_G11F_B10F:
+		return type == GL_UNSIGNED_INT_10F_11F_11F_REV ||
+			type == GL_HALF_FLOAT ||
+			type == GL_FLOAT;
+
+	case GL_RGB9_E5:
+		return type == GL_UNSIGNED_INT_5_9_9_9_REV ||
+			type == GL_HALF_FLOAT ||
+			type == GL_FLOAT;
+
+	case GL_RGB5_A1:
+		return type == GL_UNSIGNED_BYTE ||
+			type == GL_UNSIGNED_SHORT_5_5_5_1 ||
+			type == GL_UNSIGNED_INT_2_10_10_10_REV;
+
+	case GL_RGBA4:
+		return type == GL_UNSIGNED_BYTE ||
+			type == GL_UNSIGNED_SHORT_4_4_4_4;
+
+	case GL_RGB10_A2:
+		return type == GL_UNSIGNED_INT_2_10_10_10_REV;
+
+	default:
+		return false;
+	}
+}
+
+/* Validate an external format and type combination for OpenGL ES 3.
+ */
+static bool
+is_valid_combination_es3(struct gl_renderer *gr,
+			 GLenum external_format,
+			 GLenum type)
+{
+	assert(gr->gl_version >= gl_version(3, 0));
+
+	switch (external_format) {
+	case GL_RED:
+	case GL_RG:
+		switch (type) {
+		case GL_UNSIGNED_BYTE:
+		case GL_BYTE:
+		case GL_HALF_FLOAT:
+		case GL_FLOAT:
+			return true;
+
+		default:
+			return false;
+		}
+
+	case GL_RED_INTEGER:
+	case GL_RG_INTEGER:
+	case GL_RGB_INTEGER:
+		switch (type) {
+		case GL_UNSIGNED_BYTE:
+		case GL_BYTE:
+		case GL_UNSIGNED_SHORT:
+		case GL_SHORT:
+		case GL_UNSIGNED_INT:
+		case GL_INT:
+			return true;
+
+		default:
+			return false;
+		}
+
+	case GL_RGB:
+		switch (type) {
+		case GL_UNSIGNED_BYTE:
+		case GL_BYTE:
+		case GL_UNSIGNED_SHORT_5_6_5:
+		case GL_UNSIGNED_INT_10F_11F_11F_REV:
+		case GL_UNSIGNED_INT_5_9_9_9_REV:
+		case GL_HALF_FLOAT:
+		case GL_FLOAT:
+			return true;
+
+		default:
+			return false;
+		}
+
+	case GL_RGBA:
+		switch (type) {
+		case GL_UNSIGNED_BYTE:
+		case GL_BYTE:
+		case GL_UNSIGNED_SHORT_4_4_4_4:
+		case GL_UNSIGNED_SHORT_5_5_5_1:
+		case GL_UNSIGNED_INT_2_10_10_10_REV:
+		case GL_HALF_FLOAT:
+		case GL_FLOAT:
+			return true;
+
+		default:
+			return false;
+		}
+
+	case GL_RGBA_INTEGER:
+		switch (type) {
+		case GL_UNSIGNED_BYTE:
+		case GL_BYTE:
+		case GL_UNSIGNED_SHORT:
+		case GL_SHORT:
+		case GL_UNSIGNED_INT:
+		case GL_INT:
+		case GL_UNSIGNED_INT_2_10_10_10_REV:
+			return true;
+
+		default:
+			return false;
+		}
+
+	default:
+		return false;
+	}
+}
+
+#endif /* !defined(NDEBUG) */
+
+/* Check whether gl_texture_2d_init() supports texture creation for a given
+ * coloured sized internal format or not.
+ */
+bool
+gl_texture_is_format_supported(struct gl_renderer *gr,
+			       GLenum format)
+{
+	switch (format) {
+	case GL_R8I:
+	case GL_R8UI:
+	case GL_R8:
+	case GL_R8_SNORM:
+	case GL_R16I:
+	case GL_R16UI:
+	case GL_R16F:
+	case GL_R32I:
+	case GL_R32UI:
+	case GL_R32F:
+	case GL_RG8I:
+	case GL_RG8UI:
+	case GL_RG8:
+	case GL_RG8_SNORM:
+	case GL_RG16I:
+	case GL_RG16UI:
+	case GL_RG16F:
+	case GL_RG32I:
+	case GL_RG32UI:
+	case GL_RG32F:
+	case GL_RGB8I:
+	case GL_RGB8UI:
+	case GL_RGB8:
+	case GL_RGB8_SNORM:
+	case GL_RGB16I:
+	case GL_RGB16UI:
+	case GL_RGB16F:
+	case GL_RGB32I:
+	case GL_RGB32UI:
+	case GL_RGB32F:
+	case GL_R11F_G11F_B10F:
+	case GL_RGB9_E5:
+	case GL_RGB565:
+	case GL_SRGB8:
+	case GL_RGBA8I:
+	case GL_RGBA8UI:
+	case GL_RGBA8:
+	case GL_RGBA8_SNORM:
+	case GL_RGBA16I:
+	case GL_RGBA16UI:
+	case GL_RGBA16F:
+	case GL_RGBA32I:
+	case GL_RGBA32UI:
+	case GL_RGBA32F:
+	case GL_RGB10_A2:
+	case GL_RGB10_A2UI:
+	case GL_SRGB8_ALPHA8:
+	case GL_RGB5_A1:
+	case GL_RGBA4:
+		return gr->gl_version >= gl_version(3, 0);
+
+	default:
+		unreachable("Unsupported sized internal format!");
+		return false;
+	}
+}
+
+/* Initialise a 2D texture object. 'format' is a coloured sized internal format
+ * listed in Table 1 above with the Texturable column filled. The texture object
+ * is left bound on the 2D texture target of the current texture unit on
+ * success. No texture parameters are set. Use gl_texture_fini() to finalise.
+ *
+ * See gl_texture_is_format_supported().
+ */
+bool
+gl_texture_2d_init(struct gl_renderer *gr,
+		   int levels,
+		   GLenum format,
+		   int width,
+		   int height,
+		   GLuint *tex_out)
+{
+	GLuint tex;
+
+	assert(width > 0);
+	assert(height > 0);
+	assert(levels <= (int) log2(MAX(width, height)) + 1);
+
+	if (!gl_texture_is_format_supported(gr, format)) {
+		weston_log("Error: texture format not supported.\n");
+		return false;
+	}
+
+	glGenTextures(1, &tex);
+	glBindTexture(GL_TEXTURE_2D, tex);
+	glTexStorage2D(GL_TEXTURE_2D, levels, format, width, height);
+
+	*tex_out = tex;
+	return true;
+}
+
+/* Store data into the texture object bound to the 2D texture target of the
+ * current texture unit. 'format' and 'type' must be a valid external format and
+ * type combination for the internal format of the texture object as listed in
+ * Table 1 above. The texture object is left bound. No texture parameters are
+ * set.
+ *
+ * See gl_texture_2d_init().
+ */
+void
+gl_texture_2d_store(struct gl_renderer *gr,
+		    int level,
+		    int x,
+		    int y,
+		    int width,
+		    int height,
+		    GLenum format,
+		    GLenum type,
+		    const void *data)
+{
+#if !defined(NDEBUG)
+	GLint tex, tex_width, tex_height, tex_internal_format;
+
+	glGetIntegerv(GL_TEXTURE_BINDING_2D, &tex);
+	assert(tex != 0);
+
+	if (gr->gl_version == gl_version(3, 0)) {
+		assert(is_valid_combination_es3(gr, format, type));
+	} else if (gr->gl_version >= gl_version(3, 1)) {
+		glGetTexLevelParameteriv(GL_TEXTURE_2D, level,
+					 GL_TEXTURE_WIDTH, &tex_width);
+		glGetTexLevelParameteriv(GL_TEXTURE_2D, level,
+					 GL_TEXTURE_HEIGHT, &tex_height);
+		glGetTexLevelParameteriv(GL_TEXTURE_2D, level,
+					 GL_TEXTURE_INTERNAL_FORMAT,
+					 &tex_internal_format);
+		assert(level >= 0);
+		assert(x >= 0);
+		assert(y >= 0);
+		assert(x + width <= tex_width);
+		assert(y + height <= tex_height);
+		assert(is_valid_format_es3(gr, tex_internal_format, format));
+		assert(is_valid_type_es3(gr, tex_internal_format, type));
+	}
+#endif
+
+	glTexSubImage2D(GL_TEXTURE_2D, level, x, y, width, height, format, type,
+			data);
+}
+
+/* Finalise a texture object.
+ */
+void
+gl_texture_fini(GLuint *tex)
+{
+	glDeleteTextures(1, tex);
+	*tex = 0;
+}
+
 /* Check whether gl_fbo_init() supports FBO creation for a given
  * colour-renderable sized internal 'format' or not.
  */

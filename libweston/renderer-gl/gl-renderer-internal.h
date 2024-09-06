@@ -488,6 +488,32 @@ gl_features_has(struct gl_renderer *gr,
 }
 
 bool
+gl_texture_is_format_supported(struct gl_renderer *gr,
+			       GLenum format);
+
+bool
+gl_texture_2d_init(struct gl_renderer *gr,
+		   int levels,
+		   GLenum format,
+		   int width,
+		   int height,
+		   GLuint *tex_out);
+
+void
+gl_texture_2d_store(struct gl_renderer *gr,
+		    int level,
+		    int x,
+		    int y,
+		    int width,
+		    int height,
+		    GLenum format,
+		    GLenum type,
+		    const void *data);
+
+void
+gl_texture_fini(GLuint *tex);
+
+bool
 gl_fbo_is_format_supported(struct gl_renderer *gr,
 			   GLenum format);
 
