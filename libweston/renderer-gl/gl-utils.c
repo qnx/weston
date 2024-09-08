@@ -383,6 +383,35 @@ is_valid_combination_es3(struct gl_renderer *gr,
 	}
 }
 
+/* Validate an external format and type combination for OpenGL ES 2.
+ */
+static bool
+is_valid_combination_es2(struct gl_renderer *gr,
+			 GLenum external_format,
+			 GLenum type)
+{
+	assert(gr->gl_version == gl_version(2, 0));
+
+	switch (external_format) {
+	case GL_ALPHA:
+	case GL_LUMINANCE:
+	case GL_LUMINANCE_ALPHA:
+		return type == GL_UNSIGNED_BYTE;
+
+	case GL_RGB:
+		return type == GL_UNSIGNED_BYTE ||
+			type == GL_UNSIGNED_SHORT_5_6_5;
+
+	case GL_RGBA:
+		return type == GL_UNSIGNED_BYTE ||
+			type == GL_UNSIGNED_SHORT_4_4_4_4 ||
+			type == GL_UNSIGNED_SHORT_5_5_5_1;
+
+	default:
+		return false;
+	}
+}
+
 #endif /* !defined(NDEBUG) */
 
 /* Check whether gl_texture_2d_init() supports texture creation for a given
@@ -393,9 +422,17 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 			       GLenum format)
 {
 	switch (format) {
+	case GL_R8:
+	case GL_RG8:
+	case GL_RGB8:
+	case GL_RGB565:
+	case GL_RGBA8:
+	case GL_RGB5_A1:
+	case GL_RGBA4:
+		return true;
+
 	case GL_R8I:
 	case GL_R8UI:
-	case GL_R8:
 	case GL_R8_SNORM:
 	case GL_R16I:
 	case GL_R16UI:
@@ -405,7 +442,6 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 	case GL_R32F:
 	case GL_RG8I:
 	case GL_RG8UI:
-	case GL_RG8:
 	case GL_RG8_SNORM:
 	case GL_RG16I:
 	case GL_RG16UI:
@@ -415,7 +451,6 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 	case GL_RG32F:
 	case GL_RGB8I:
 	case GL_RGB8UI:
-	case GL_RGB8:
 	case GL_RGB8_SNORM:
 	case GL_RGB16I:
 	case GL_RGB16UI:
@@ -425,11 +460,9 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 	case GL_RGB32F:
 	case GL_R11F_G11F_B10F:
 	case GL_RGB9_E5:
-	case GL_RGB565:
 	case GL_SRGB8:
 	case GL_RGBA8I:
 	case GL_RGBA8UI:
-	case GL_RGBA8:
 	case GL_RGBA8_SNORM:
 	case GL_RGBA16I:
 	case GL_RGBA16UI:
@@ -440,8 +473,6 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 	case GL_RGB10_A2:
 	case GL_RGB10_A2UI:
 	case GL_SRGB8_ALPHA8:
-	case GL_RGB5_A1:
-	case GL_RGBA4:
 		return gr->gl_version >= gl_version(3, 0);
 
 	default:
@@ -454,6 +485,17 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
  * listed in Table 1 above with the Texturable column filled. The texture object
  * is left bound on the 2D texture target of the current texture unit on
  * success. No texture parameters are set. Use gl_texture_fini() to finalise.
+ *
+ * OpenGL ES 2 notes:
+ *
+ * Implementations support at least this subset of formats: GL_R8, GL_RG8,
+ * GL_RGB8, GL_RGB565, GL_RGBA8, GL_RGBA4 and GL_RGB5_A1.
+ *
+ * This is implemented by implicitly converting 'format' into an external
+ * format. If the red and red-green texture formats aren't supported, GL_R8 is
+ * converted into a luminance format and GL_RG8 into a luminance alpha format.
+ * Care must be taken in the latter case in order to access the green component
+ * in the shader: "c.a" (or "c[3]") must be used instead of "c.g" (or "c[1]").
  *
  * See gl_texture_is_format_supported().
  */
@@ -478,7 +520,64 @@ gl_texture_2d_init(struct gl_renderer *gr,
 
 	glGenTextures(1, &tex);
 	glBindTexture(GL_TEXTURE_2D, tex);
-	glTexStorage2D(GL_TEXTURE_2D, levels, format, width, height);
+
+	if (gr->gl_version >= gl_version(3, 0)) {
+		glTexStorage2D(GL_TEXTURE_2D, levels, format, width, height);
+	} else {
+		GLenum type;
+		int i;
+
+		/* Implicit conversion to external format for supported
+		 * subset. */
+		switch (format) {
+		case GL_R8:
+			format = GL_LUMINANCE;
+			type = GL_UNSIGNED_BYTE;
+			break;
+
+		case GL_RG8:
+			format = GL_LUMINANCE_ALPHA;
+			type = GL_UNSIGNED_BYTE;
+			break;
+
+		case GL_RGB8:
+			format = GL_RGB;
+			type = GL_UNSIGNED_BYTE;
+			break;
+
+		case GL_RGB565:
+			format = GL_RGB;
+			type = GL_UNSIGNED_SHORT_5_6_5;
+			break;
+
+		case GL_RGBA8:
+			format = GL_RGBA;
+			type = GL_UNSIGNED_BYTE;
+			break;
+
+		case GL_RGBA4:
+			format = GL_RGBA;
+			type = GL_UNSIGNED_SHORT_4_4_4_4;
+			break;
+
+		case GL_RGB5_A1:
+			format = GL_RGBA;
+			type = GL_UNSIGNED_SHORT_5_5_5_1;
+			break;
+
+		default:
+			unreachable("Missing conversion to external format!");
+			return false;
+		}
+
+		/* Allocate storage. */
+		for (i = 0; i < levels; i++) {
+			glTexImage2D(GL_TEXTURE_2D, i, format, width, height, 0,
+				     format, type, NULL);
+			width = MAX(width / 2, 1);
+			height = MAX(height / 2, 1);
+		}
+	}
 
 	*tex_out = tex;
 	return true;
@@ -489,6 +588,20 @@ gl_texture_2d_init(struct gl_renderer *gr,
  * type combination for the internal format of the texture object as listed in
  * Table 1 above. The texture object is left bound. No texture parameters are
  * set.
+ *
+ * OpenGL ES 2 notes:
+ *
+ * Table 2: List of invalid external format and type combinations from Table 1
+ * for the supported subset of formats.
+ *
+ * ┌───────────────────────┬─────────────────┬────────────────────────────────┐
+ * │ Sized internal format │ External format │ Type(s)                        │
+ * ╞═══════════════════════╪═════════════════╪════════════════════════════════╡
+ * │ GL_RGB565             │ GL_RGB          │ GL_UNSIGNED_BYTE               │
+ * │ GL_RGBA4              │ GL_RGBA         │ GL_UNSIGNED_BYTE               │
+ * │ GL_RGB5_A1            │ GL_RGBA         │ GL_UNSIGNED_BYTE,              │
+ * │                       │                 │ GL_UNSIGNED_INT_2_10_10_10_REV │
+ * └───────────────────────┴─────────────────┴────────────────────────────────┘
  *
  * See gl_texture_2d_init().
  */
@@ -505,11 +618,22 @@ gl_texture_2d_store(struct gl_renderer *gr,
 {
 #if !defined(NDEBUG)
 	GLint tex, tex_width, tex_height, tex_internal_format;
+#endif
 
+	if (gr->gl_version == gl_version(2, 0)) {
+		if (format == GL_RED)
+			format = GL_LUMINANCE;
+		else if (format == GL_RG)
+			format = GL_LUMINANCE_ALPHA;
+	}
+
+#if !defined(NDEBUG)
 	glGetIntegerv(GL_TEXTURE_BINDING_2D, &tex);
 	assert(tex != 0);
 
-	if (gr->gl_version == gl_version(3, 0)) {
+	if (gr->gl_version == gl_version(2, 0)) {
+		assert(is_valid_combination_es2(gr, format, type));
+	} else if (gr->gl_version == gl_version(3, 0)) {
 		assert(is_valid_combination_es3(gr, format, type));
 	} else if (gr->gl_version >= gl_version(3, 1)) {
 		glGetTexLevelParameteriv(GL_TEXTURE_2D, level,
