@@ -1200,6 +1200,14 @@ weston_desktop_xdg_surface_protocol_ack_configure(struct wl_client *wl_client,
 {
 	struct weston_desktop_surface *dsurface =
 		wl_resource_get_user_data(resource);
+	if (dsurface == NULL) {
+		wl_resource_post_error(resource,
+				       ZXDG_SURFACE_V6_ERROR_NOT_CONSTRUCTED,
+				      "xdg surface already destroyed configure "
+				      "serial: %u", serial);
+		return;
+	}
+
 	struct weston_desktop_xdg_surface *surface =
 		weston_desktop_surface_get_implementation_data(dsurface);
 	struct weston_desktop_xdg_surface_configure *configure, *temp;
