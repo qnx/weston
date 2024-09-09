@@ -4780,6 +4780,9 @@ gl_renderer_setup(struct weston_compositor *ec)
 				~EXTENSION_EXT_DISJOINT_TIMER_QUERY;
 	}
 
+	if (gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_STORAGE))
+		GET_PROC_ADDRESS(gr->tex_storage_2d, "glTexStorage2DEXT");
+
 	/* Async read-back feature. */
 	if (gr->gl_version >= gl_version(3, 0) &&
 	    egl_display_has(gr, EXTENSION_KHR_GET_ALL_PROC_ADDRESSES)) {
@@ -4820,6 +4823,15 @@ gl_renderer_setup(struct weston_compositor *ec)
 	    gl_extensions_has(gr, EXTENSION_EXT_DISJOINT_TIMER_QUERY))
 		gr->features |= FEATURE_GPU_TIMELINE;
 
+	/* Texture immutability feature. */
+	if (gr->gl_version >= gl_version(3, 0) &&
+	    egl_display_has(gr, EXTENSION_KHR_GET_ALL_PROC_ADDRESSES)) {
+		GET_PROC_ADDRESS(gr->tex_storage_2d, "glTexStorage2D");
+		gr->features |= FEATURE_TEXTURE_IMMUTABILITY;
+	} else if (gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_STORAGE)) {
+		gr->features |= FEATURE_TEXTURE_IMMUTABILITY;
+	}
+
 	wl_list_init(&gr->pending_capture_list);
 
 	glActiveTexture(GL_TEXTURE0);
@@ -4857,6 +4869,8 @@ gl_renderer_setup(struct weston_compositor *ec)
 			    yesno(gl_extensions_has(gr, EXTENSION_OES_EGL_IMAGE_EXTERNAL)));
 	weston_log_continue(STAMP_SPACE "GPU timeline: %s\n",
 			    yesno(gl_features_has(gr, FEATURE_GPU_TIMELINE)));
+	weston_log_continue(STAMP_SPACE "Texture immutability: %s\n",
+			    yesno(gl_features_has(gr, FEATURE_TEXTURE_IMMUTABILITY)));
 
 	return 0;
 }

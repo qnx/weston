@@ -521,8 +521,16 @@ gl_texture_2d_init(struct gl_renderer *gr,
 	glGenTextures(1, &tex);
 	glBindTexture(GL_TEXTURE_2D, tex);
 
-	if (gr->gl_version >= gl_version(3, 0)) {
-		glTexStorage2D(GL_TEXTURE_2D, levels, format, width, height);
+	if (gl_features_has(gr, FEATURE_TEXTURE_IMMUTABILITY)) {
+		if (gr->gl_version == gl_version(2, 0)) {
+			if (format == GL_R8)
+				format = GL_LUMINANCE8_EXT;
+			else if (format == GL_RG8)
+				format = GL_LUMINANCE8_ALPHA8_EXT;
+		}
+
+		gr->tex_storage_2d(GL_TEXTURE_2D, levels, format, width,
+				   height);
 	} else {
 		GLenum type;
 		int i;

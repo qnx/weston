@@ -166,6 +166,10 @@ enum gl_feature_flag {
 	/* GL renderer can instrument output repaint time and report it through
 	 * the timeline logging scope. */
 	FEATURE_GPU_TIMELINE = 1ull << 5,
+
+	/* GL renderer can specify the entire structure of a texture in a single
+	 * call. Once specified, format and dimensions can't be changed. */
+	FEATURE_TEXTURE_IMMUTABILITY = 1ull << 6,
 };
 
 /* Keep the following in sync with vertex.glsl. */
@@ -405,6 +409,9 @@ struct gl_renderer {
 	PFNGLGETQUERYOBJECTIVEXTPROC get_query_object_iv;
 #endif
 	PFNGLGETQUERYOBJECTUI64VEXTPROC get_query_object_ui64v;
+
+	/* GL_EXT_texture_storage */
+	PFNGLTEXSTORAGE2DEXTPROC tex_storage_2d;
 
 	uint64_t features;
 
