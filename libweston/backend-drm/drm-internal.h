@@ -586,8 +586,8 @@ struct drm_output {
 	unsigned max_bpc;
 	enum wdrm_colorspace connector_colorspace;
 
-	bool deprecated_gamma_is_set;
 	bool legacy_gamma_not_supported;
+	uint16_t legacy_gamma_size;
 
 	/* Plane being displayed directly on the CRTC */
 	struct drm_plane *scanout_plane;
@@ -793,10 +793,6 @@ int
 drm_pending_state_apply(struct drm_pending_state *pending_state);
 int
 drm_pending_state_apply_sync(struct drm_pending_state *pending_state);
-
-void
-drm_output_set_gamma(struct weston_output *output_base,
-		     uint16_t size, uint16_t *r, uint16_t *g, uint16_t *b);
 
 void
 drm_output_update_msc(struct drm_output *output, unsigned int seq);

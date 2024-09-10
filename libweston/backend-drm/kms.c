@@ -703,28 +703,6 @@ drm_plane_supports_color_range(struct drm_plane *plane,
 	return enum_info->valid;
 }
 
-void
-drm_output_set_gamma(struct weston_output *output_base,
-		     uint16_t size, uint16_t *r, uint16_t *g, uint16_t *b)
-{
-	int rc;
-	struct drm_output *output = to_drm_output(output_base);
-	struct drm_device *device = output->device;
-
-	assert(output);
-
-	/* check */
-	if (output_base->gamma_size != size)
-		return;
-
-	output->deprecated_gamma_is_set = true;
-	rc = drmModeCrtcSetGamma(device->drm.fd,
-				 output->crtc->crtc_id,
-				 size, r, g, b);
-	if (rc)
-		weston_log("set gamma failed: %s\n", strerror(errno));
-}
-
 /**
  * Mark an output state as current on the output, i.e. it has been
  * submitted to the kernel. The mode argument determines whether this
@@ -842,7 +820,7 @@ err:
 static void
 drm_output_reset_legacy_gamma(struct drm_output *output)
 {
-	uint32_t len = output->base.gamma_size;
+	uint32_t len = output->legacy_gamma_size;
 	uint16_t *lut;
 	uint32_t i;
 	int ret;
@@ -955,8 +933,7 @@ drm_output_apply_state_legacy(struct drm_output_state *state)
 			goto err;
 		}
 
-		if (!output->deprecated_gamma_is_set)
-			drm_output_reset_legacy_gamma(output);
+		drm_output_reset_legacy_gamma(output);
 	}
 
 	pinfo = scanout_state->fb->format;
@@ -1344,12 +1321,9 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
 				     current_mode->blob_id);
 		ret |= crtc_add_prop(req, crtc, WDRM_CRTC_ACTIVE, 1);
 
-		if (!output->deprecated_gamma_is_set) {
-			ret |= crtc_add_prop_zero_ok(req, crtc,
-						     WDRM_CRTC_GAMMA_LUT, 0);
-			ret |= crtc_add_prop_zero_ok(req, crtc,
-						     WDRM_CRTC_DEGAMMA_LUT, 0);
-		}
+		ret |= crtc_add_prop_zero_ok(req, crtc, WDRM_CRTC_GAMMA_LUT, 0);
+		ret |= crtc_add_prop_zero_ok(req, crtc, WDRM_CRTC_DEGAMMA_LUT, 0);
+
 		ret |= crtc_add_prop_zero_ok(req, crtc, WDRM_CRTC_CTM, 0);
 		ret |= crtc_add_prop_zero_ok(req, crtc, WDRM_CRTC_VRR_ENABLED,
 					     wdrm_vrr_enabled_from_output(output));

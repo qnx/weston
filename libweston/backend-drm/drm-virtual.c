@@ -318,8 +318,6 @@ drm_virtual_output_enable(struct weston_output *output_base)
 	output->base.assign_planes = drm_assign_planes;
 	output->base.set_dpms = NULL;
 	output->base.switch_mode = NULL;
-	output->base.gamma_size = 0;
-	output->base.set_gamma = NULL;
 
 	weston_compositor_stack_plane(b->compositor,
 				      &output->scanout_plane->base,
