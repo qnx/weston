@@ -403,6 +403,9 @@ is_valid_combination_es2(struct gl_renderer *gr,
 		case GL_HALF_FLOAT_OES:
 			return gl_extensions_has(gr, EXTENSION_OES_TEXTURE_HALF_FLOAT);
 
+		case GL_FLOAT:
+			return gl_extensions_has(gr, EXTENSION_OES_TEXTURE_FLOAT);
+
 		default:
 			return false;
 		}
@@ -415,6 +418,10 @@ is_valid_combination_es2(struct gl_renderer *gr,
 
 		case GL_HALF_FLOAT_OES:
 			return gl_extensions_has(gr, EXTENSION_OES_TEXTURE_HALF_FLOAT) &&
+				gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG);
+
+		case GL_FLOAT:
+			return gl_extensions_has(gr, EXTENSION_OES_TEXTURE_FLOAT) &&
 				gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG);
 
 		default:
@@ -430,6 +437,9 @@ is_valid_combination_es2(struct gl_renderer *gr,
 		case GL_HALF_FLOAT_OES:
 			return gl_extensions_has(gr, EXTENSION_OES_TEXTURE_HALF_FLOAT);
 
+		case GL_FLOAT:
+			return gl_extensions_has(gr, EXTENSION_OES_TEXTURE_FLOAT);
+
 		default:
 			return false;
 		}
@@ -443,6 +453,9 @@ is_valid_combination_es2(struct gl_renderer *gr,
 
 		case GL_HALF_FLOAT_OES:
 			return gl_extensions_has(gr, EXTENSION_OES_TEXTURE_HALF_FLOAT);
+
+		case GL_FLOAT:
+			return gl_extensions_has(gr, EXTENSION_OES_TEXTURE_FLOAT);
 
 		default:
 			return false;
@@ -479,6 +492,13 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 		return gr->gl_version >= gl_version(3, 0) ||
 			gl_extensions_has(gr, EXTENSION_OES_TEXTURE_HALF_FLOAT);
 
+	case GL_R32F:
+	case GL_RG32F:
+	case GL_RGB32F:
+	case GL_RGBA32F:
+		return gr->gl_version >= gl_version(3, 0) ||
+			gl_extensions_has(gr, EXTENSION_OES_TEXTURE_FLOAT);
+
 	case GL_R8I:
 	case GL_R8UI:
 	case GL_R8_SNORM:
@@ -486,7 +506,6 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 	case GL_R16UI:
 	case GL_R32I:
 	case GL_R32UI:
-	case GL_R32F:
 	case GL_RG8I:
 	case GL_RG8UI:
 	case GL_RG8_SNORM:
@@ -494,7 +513,6 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 	case GL_RG16UI:
 	case GL_RG32I:
 	case GL_RG32UI:
-	case GL_RG32F:
 	case GL_RGB8I:
 	case GL_RGB8UI:
 	case GL_RGB8_SNORM:
@@ -502,7 +520,6 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 	case GL_RGB16UI:
 	case GL_RGB32I:
 	case GL_RGB32UI:
-	case GL_RGB32F:
 	case GL_R11F_G11F_B10F:
 	case GL_RGB9_E5:
 	case GL_SRGB8:
@@ -513,7 +530,6 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 	case GL_RGBA16UI:
 	case GL_RGBA32I:
 	case GL_RGBA32UI:
-	case GL_RGBA32F:
 	case GL_RGB10_A2:
 	case GL_RGB10_A2UI:
 	case GL_SRGB8_ALPHA8:
@@ -534,8 +550,8 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
  *
  * Implementations support at least this subset of formats: GL_R8, GL_RG8,
  * GL_RGB8, GL_RGB565, GL_RGBA8, GL_RGBA4 and GL_RGB5_A1. Additional formats are
- * supported depending on extensions: GL_R16F, GL_RG16F, GL_RGB16F and
- * GL_RGBA16F.
+ * supported depending on extensions: GL_R16F, GL_RG16F, GL_RGB16F, GL_RGBA16F,
+ * GL_R32F, GL_RG32F, GL_RGB32F and GL_RGBA32F.
  *
  * This is implemented by implicitly converting 'format' into an external
  * format. If the red and red-green texture formats aren't supported
@@ -579,12 +595,20 @@ gl_texture_2d_init(struct gl_renderer *gr,
 				format = GL_LUMINANCE16F_EXT;
 				break;
 
+			case GL_R32F:
+				format = GL_LUMINANCE32F_EXT;
+				break;
+
 			case GL_RG8:
 				format = GL_LUMINANCE8_ALPHA8_EXT;
 				break;
 
 			case GL_RG16F:
 				format = GL_LUMINANCE_ALPHA16F_EXT;
+				break;
+
+			case GL_RG32F:
+				format = GL_LUMINANCE_ALPHA32F_EXT;
 				break;
 
 			default:
@@ -613,6 +637,12 @@ gl_texture_2d_init(struct gl_renderer *gr,
 			type = GL_HALF_FLOAT_OES;
 			break;
 
+		case GL_R32F:
+			format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
+				GL_RED : GL_LUMINANCE;
+			type = GL_FLOAT;
+			break;
+
 		case GL_RG8:
 			format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
 				GL_RG : GL_LUMINANCE_ALPHA;
@@ -623,6 +653,12 @@ gl_texture_2d_init(struct gl_renderer *gr,
 			format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
 				GL_RG : GL_LUMINANCE_ALPHA;
 			type = GL_HALF_FLOAT_OES;
+			break;
+
+		case GL_RG32F:
+			format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
+				GL_RG : GL_LUMINANCE_ALPHA;
+			type = GL_FLOAT;
 			break;
 
 		case GL_RGB8:
@@ -638,6 +674,11 @@ gl_texture_2d_init(struct gl_renderer *gr,
 		case GL_RGB16F:
 			format = GL_RGB;
 			type = GL_HALF_FLOAT_OES;
+			break;
+
+		case GL_RGB32F:
+			format = GL_RGB;
+			type = GL_FLOAT;
 			break;
 
 		case GL_RGBA8:
@@ -658,6 +699,11 @@ gl_texture_2d_init(struct gl_renderer *gr,
 		case GL_RGBA16F:
 			format = GL_RGBA;
 			type = GL_HALF_FLOAT_OES;
+			break;
+
+		case GL_RGBA32F:
+			format = GL_RGBA;
+			type = GL_FLOAT;
 			break;
 
 		default:
