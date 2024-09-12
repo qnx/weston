@@ -70,7 +70,7 @@
  * │ GL_RGB9_E5          │ 3.0 │ 3.0 │     │ GL_RGB          │ GL_UNSIGNED_INT_5_9_9_9_REV,     │
  * │                     │     │     │     │                 │ GL_HALF_FLOAT,                   │
  * │                     │     │     │     │                 │ GL_FLOAT                         │
- * │ GL_RGB16F           │ 3.0 │ 3.0 │     │ GL_RGB          │ GL_HALF_FLOAT,                   │
+ * │ GL_RGB16F           │ 3.0 │ 3.0 │ E⁶  │ GL_RGB          │ GL_HALF_FLOAT,                   │
  * │                     │     │     │     │                 │ GL_FLOAT                         │
  * │ GL_RGB32F           │ 3.0 │     │     │ GL_RGB          │ GL_FLOAT                         │
  * │ GL_RGB8UI           │ 3.0 │     │     │ GL_RGB_INTEGER  │ GL_UNSIGNED_BYTE                 │
@@ -105,6 +105,7 @@
  * ³ Texture-filterable (GL_LINEAR support) since.
  * ⁴ Renderable (FBO support) since.
  * ⁵ External format and type combination(s).
+ * ⁶ Supported via extensions.
  */
 
 #if !defined(NDEBUG)
@@ -859,6 +860,12 @@ gl_fbo_is_format_supported(struct gl_renderer *gr,
 	case GL_R16F:
 	case GL_RG16F:
 	case GL_RGBA16F:
+		return gr->gl_version >= gl_version(3, 2) ||
+			gl_extensions_has(gr, EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT);
+
+	case GL_RGB16F:
+		return gl_extensions_has(gr, EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT);
+
 	case GL_R32F:
 	case GL_RG32F:
 	case GL_RGBA32F:
@@ -869,7 +876,6 @@ gl_fbo_is_format_supported(struct gl_renderer *gr,
 	case GL_RG8_SNORM:
 	case GL_SRGB8:
 	case GL_RGB9_E5:
-	case GL_RGB16F:
 	case GL_RGB32F:
 	case GL_RGB8_SNORM:
 	case GL_RGB8I:
@@ -896,7 +902,7 @@ gl_fbo_is_format_supported(struct gl_renderer *gr,
  *
  * Implementations support at least these formats: GL_RGBA4, GL_RGB5_A1 and
  * GL_RGB565. Additional formats are supported depending on extensions: GL_R8,
- * GL_RG8, GL_RGB8 and GL_RGBA8.
+ * GL_RG8, GL_RGB8, GL_RGBA8, GL_R16F, GL_RG16F, GL_RGB16F and GL_RGBA16F.
  *
  * See gl_fbo_is_format_supported().
  */
