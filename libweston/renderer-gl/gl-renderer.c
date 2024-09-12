@@ -3364,8 +3364,7 @@ gl_renderer_query_dmabuf_formats(struct weston_compositor *wc,
 
 	if (!egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS) ||
 	    !gr->query_dmabuf_formats(gr->egl_display, 0, NULL, &num)) {
-		if (gr->gl_version >= gl_version(3, 0) ||
-		    gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG))
+		if (gl_features_has(gr, FEATURE_TEXTURE_RG))
 			num = ARRAY_LENGTH(fallback_formats);
 		else
 			num = 2;
@@ -4832,6 +4831,11 @@ gl_renderer_setup(struct weston_compositor *ec)
 		gr->features |= FEATURE_TEXTURE_IMMUTABILITY;
 	}
 
+	/* Texture RG feature. */
+	if (gr->gl_version >= gl_version(3, 0) ||
+	    gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG))
+		gr->features |= FEATURE_TEXTURE_RG;
+
 	wl_list_init(&gr->pending_capture_list);
 
 	glActiveTexture(GL_TEXTURE0);
@@ -4863,8 +4867,7 @@ gl_renderer_setup(struct weston_compositor *ec)
 	weston_log_continue(STAMP_SPACE "wl_shm half-float formats: %s\n",
 			    yesno(gl_features_has(gr, FEATURE_COLOR_TRANSFORMS)));
 	weston_log_continue(STAMP_SPACE "internal R and RG formats: %s\n",
-			    yesno(gr->gl_version >= gl_version(3, 0) ||
-				  gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG)));
+			    yesno(gl_features_has(gr, FEATURE_TEXTURE_RG)));
 	weston_log_continue(STAMP_SPACE "OES_EGL_image_external: %s\n",
 			    yesno(gl_extensions_has(gr, EXTENSION_OES_EGL_IMAGE_EXTERNAL)));
 	weston_log_continue(STAMP_SPACE "GPU timeline: %s\n",

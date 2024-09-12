@@ -170,6 +170,9 @@ enum gl_feature_flag {
 	/* GL renderer can specify the entire structure of a texture in a single
 	 * call. Once specified, format and dimensions can't be changed. */
 	FEATURE_TEXTURE_IMMUTABILITY = 1ull << 6,
+
+	/* GL renderer can create two-component red-green textures. */
+	FEATURE_TEXTURE_RG = 1ull << 7,
 };
 
 /* Keep the following in sync with vertex.glsl. */

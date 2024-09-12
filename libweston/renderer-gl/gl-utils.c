@@ -398,6 +398,11 @@ is_valid_combination_es2(struct gl_renderer *gr,
 	case GL_LUMINANCE_ALPHA:
 		return type == GL_UNSIGNED_BYTE;
 
+	case GL_RED:
+	case GL_RG:
+		return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG) &&
+			type == GL_UNSIGNED_BYTE;
+
 	case GL_RGB:
 		return type == GL_UNSIGNED_BYTE ||
 			type == GL_UNSIGNED_SHORT_5_6_5;
@@ -492,10 +497,11 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
  * GL_RGB8, GL_RGB565, GL_RGBA8, GL_RGBA4 and GL_RGB5_A1.
  *
  * This is implemented by implicitly converting 'format' into an external
- * format. If the red and red-green texture formats aren't supported, GL_R8 is
- * converted into a luminance format and GL_RG8 into a luminance alpha format.
- * Care must be taken in the latter case in order to access the green component
- * in the shader: "c.a" (or "c[3]") must be used instead of "c.g" (or "c[1]").
+ * format. If the red and red-green texture formats aren't supported
+ * (FEATURE_TEXTURE_RG flag not set), GL_R8 is converted into a luminance format
+ * and GL_RG8 into a luminance alpha format. Care must be taken in the latter
+ * case in order to access the green component in the shader: "c.a" (or "c[3]")
+ * must be used instead of "c.g" (or "c[1]").
  *
  * See gl_texture_is_format_supported().
  */
@@ -522,7 +528,7 @@ gl_texture_2d_init(struct gl_renderer *gr,
 	glBindTexture(GL_TEXTURE_2D, tex);
 
 	if (gl_features_has(gr, FEATURE_TEXTURE_IMMUTABILITY)) {
-		if (gr->gl_version == gl_version(2, 0)) {
+		if (!gl_features_has(gr, FEATURE_TEXTURE_RG)) {
 			if (format == GL_R8)
 				format = GL_LUMINANCE8_EXT;
 			else if (format == GL_RG8)
@@ -539,12 +545,14 @@ gl_texture_2d_init(struct gl_renderer *gr,
 		 * subset. */
 		switch (format) {
 		case GL_R8:
-			format = GL_LUMINANCE;
+			format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
+				GL_RED : GL_LUMINANCE;
 			type = GL_UNSIGNED_BYTE;
 			break;
 
 		case GL_RG8:
-			format = GL_LUMINANCE_ALPHA;
+			format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
+				GL_RG : GL_LUMINANCE_ALPHA;
 			type = GL_UNSIGNED_BYTE;
 			break;
 
@@ -628,7 +636,7 @@ gl_texture_2d_store(struct gl_renderer *gr,
 	GLint tex, tex_width, tex_height, tex_internal_format;
 #endif
 
-	if (gr->gl_version == gl_version(2, 0)) {
+	if (!gl_features_has(gr, FEATURE_TEXTURE_RG)) {
 		if (format == GL_RED)
 			format = GL_LUMINANCE;
 		else if (format == GL_RG)
@@ -687,13 +695,16 @@ gl_fbo_is_format_supported(struct gl_renderer *gr,
 	case GL_RGB565:
 		return true; /* From OpenGL ES 2.0 (Table 4.5 in spec). */
 
+	case GL_R8:
+	case GL_RG8:
+		return gr->gl_version >= gl_version(3, 0) ||
+			gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG);
+
 	case GL_RGB8:
 	case GL_RGBA8:
 		return gr->gl_version >= gl_version(3, 0) ||
 			gl_extensions_has(gr, EXTENSION_OES_RGB8_RGBA8);
 
-	case GL_R8:
-	case GL_RG8:
 	case GL_SRGB8_ALPHA8:
 	case GL_R8I:
 	case GL_R8UI:
@@ -756,8 +767,8 @@ gl_fbo_is_format_supported(struct gl_renderer *gr,
  * OpenGL ES 2 notes:
  *
  * Implementations support at least these formats: GL_RGBA4, GL_RGB5_A1 and
- * GL_RGB565. Additional formats are supported depending on extensions: GL_RGB8
- * and GL_RGBA8.
+ * GL_RGB565. Additional formats are supported depending on extensions: GL_R8,
+ * GL_RG8, GL_RGB8 and GL_RGBA8.
  *
  * See gl_fbo_is_format_supported().
  */
