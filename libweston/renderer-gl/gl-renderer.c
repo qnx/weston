@@ -295,6 +295,7 @@ static const struct gl_extension_table extension_table[] = {
 	EXT("GL_OES_mapbuffer", EXTENSION_OES_MAPBUFFER),
 	EXT("GL_OES_rgb8_rgba8", EXTENSION_OES_RGB8_RGBA8),
 	EXT("GL_OES_texture_float_linear", EXTENSION_OES_TEXTURE_FLOAT_LINEAR),
+	EXT("GL_OES_texture_half_float", EXTENSION_OES_TEXTURE_HALF_FLOAT),
 	{ NULL, 0, 0 }
 };
 

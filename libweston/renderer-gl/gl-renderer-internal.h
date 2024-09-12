@@ -137,6 +137,7 @@ enum gl_extension_flag {
 	EXTENSION_OES_MAPBUFFER                   = 1ull << 24,
 	EXTENSION_OES_RGB8_RGBA8                  = 1ull << 26,
 	EXTENSION_OES_TEXTURE_FLOAT_LINEAR        = 1ull << 29,
+	EXTENSION_OES_TEXTURE_HALF_FLOAT          = 1ull << 30,
 };
 
 enum gl_feature_flag {

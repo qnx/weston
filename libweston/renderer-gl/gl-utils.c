@@ -396,21 +396,57 @@ is_valid_combination_es2(struct gl_renderer *gr,
 	case GL_ALPHA:
 	case GL_LUMINANCE:
 	case GL_LUMINANCE_ALPHA:
-		return type == GL_UNSIGNED_BYTE;
+		switch (type) {
+		case GL_UNSIGNED_BYTE:
+			return true;
+
+		case GL_HALF_FLOAT_OES:
+			return gl_extensions_has(gr, EXTENSION_OES_TEXTURE_HALF_FLOAT);
+
+		default:
+			return false;
+		}
 
 	case GL_RED:
 	case GL_RG:
-		return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG) &&
-			type == GL_UNSIGNED_BYTE;
+		switch (type) {
+		case GL_UNSIGNED_BYTE:
+			return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG);
+
+		case GL_HALF_FLOAT_OES:
+			return gl_extensions_has(gr, EXTENSION_OES_TEXTURE_HALF_FLOAT) &&
+				gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG);
+
+		default:
+			return false;
+		}
 
 	case GL_RGB:
-		return type == GL_UNSIGNED_BYTE ||
-			type == GL_UNSIGNED_SHORT_5_6_5;
+		switch (type) {
+		case GL_UNSIGNED_BYTE:
+		case GL_UNSIGNED_SHORT_5_6_5:
+			return true;
+
+		case GL_HALF_FLOAT_OES:
+			return gl_extensions_has(gr, EXTENSION_OES_TEXTURE_HALF_FLOAT);
+
+		default:
+			return false;
+		}
 
 	case GL_RGBA:
-		return type == GL_UNSIGNED_BYTE ||
-			type == GL_UNSIGNED_SHORT_4_4_4_4 ||
-			type == GL_UNSIGNED_SHORT_5_5_5_1;
+		switch (type) {
+		case GL_UNSIGNED_BYTE:
+		case GL_UNSIGNED_SHORT_4_4_4_4:
+		case GL_UNSIGNED_SHORT_5_5_5_1:
+			return true;
+
+		case GL_HALF_FLOAT_OES:
+			return gl_extensions_has(gr, EXTENSION_OES_TEXTURE_HALF_FLOAT);
+
+		default:
+			return false;
+		}
 
 	default:
 		return false;
@@ -436,12 +472,18 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 	case GL_RGBA4:
 		return true;
 
+	case GL_R16F:
+	case GL_RG16F:
+	case GL_RGB16F:
+	case GL_RGBA16F:
+		return gr->gl_version >= gl_version(3, 0) ||
+			gl_extensions_has(gr, EXTENSION_OES_TEXTURE_HALF_FLOAT);
+
 	case GL_R8I:
 	case GL_R8UI:
 	case GL_R8_SNORM:
 	case GL_R16I:
 	case GL_R16UI:
-	case GL_R16F:
 	case GL_R32I:
 	case GL_R32UI:
 	case GL_R32F:
@@ -450,7 +492,6 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 	case GL_RG8_SNORM:
 	case GL_RG16I:
 	case GL_RG16UI:
-	case GL_RG16F:
 	case GL_RG32I:
 	case GL_RG32UI:
 	case GL_RG32F:
@@ -459,7 +500,6 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 	case GL_RGB8_SNORM:
 	case GL_RGB16I:
 	case GL_RGB16UI:
-	case GL_RGB16F:
 	case GL_RGB32I:
 	case GL_RGB32UI:
 	case GL_RGB32F:
@@ -471,7 +511,6 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 	case GL_RGBA8_SNORM:
 	case GL_RGBA16I:
 	case GL_RGBA16UI:
-	case GL_RGBA16F:
 	case GL_RGBA32I:
 	case GL_RGBA32UI:
 	case GL_RGBA32F:
@@ -494,7 +533,9 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
  * OpenGL ES 2 notes:
  *
  * Implementations support at least this subset of formats: GL_R8, GL_RG8,
- * GL_RGB8, GL_RGB565, GL_RGBA8, GL_RGBA4 and GL_RGB5_A1.
+ * GL_RGB8, GL_RGB565, GL_RGBA8, GL_RGBA4 and GL_RGB5_A1. Additional formats are
+ * supported depending on extensions: GL_R16F, GL_RG16F, GL_RGB16F and
+ * GL_RGBA16F.
  *
  * This is implemented by implicitly converting 'format' into an external
  * format. If the red and red-green texture formats aren't supported
@@ -529,10 +570,26 @@ gl_texture_2d_init(struct gl_renderer *gr,
 
 	if (gl_features_has(gr, FEATURE_TEXTURE_IMMUTABILITY)) {
 		if (!gl_features_has(gr, FEATURE_TEXTURE_RG)) {
-			if (format == GL_R8)
+			switch (format) {
+			case GL_R8:
 				format = GL_LUMINANCE8_EXT;
-			else if (format == GL_RG8)
+				break;
+
+			case GL_R16F:
+				format = GL_LUMINANCE16F_EXT;
+				break;
+
+			case GL_RG8:
 				format = GL_LUMINANCE8_ALPHA8_EXT;
+				break;
+
+			case GL_RG16F:
+				format = GL_LUMINANCE_ALPHA16F_EXT;
+				break;
+
+			default:
+				break;
+			}
 		}
 
 		gr->tex_storage_2d(GL_TEXTURE_2D, levels, format, width,
@@ -550,10 +607,22 @@ gl_texture_2d_init(struct gl_renderer *gr,
 			type = GL_UNSIGNED_BYTE;
 			break;
 
+		case GL_R16F:
+			format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
+				GL_RED : GL_LUMINANCE;
+			type = GL_HALF_FLOAT_OES;
+			break;
+
 		case GL_RG8:
 			format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
 				GL_RG : GL_LUMINANCE_ALPHA;
 			type = GL_UNSIGNED_BYTE;
+			break;
+
+		case GL_RG16F:
+			format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
+				GL_RG : GL_LUMINANCE_ALPHA;
+			type = GL_HALF_FLOAT_OES;
 			break;
 
 		case GL_RGB8:
@@ -564,6 +633,11 @@ gl_texture_2d_init(struct gl_renderer *gr,
 		case GL_RGB565:
 			format = GL_RGB;
 			type = GL_UNSIGNED_SHORT_5_6_5;
+			break;
+
+		case GL_RGB16F:
+			format = GL_RGB;
+			type = GL_HALF_FLOAT_OES;
 			break;
 
 		case GL_RGBA8:
@@ -579,6 +653,11 @@ gl_texture_2d_init(struct gl_renderer *gr,
 		case GL_RGB5_A1:
 			format = GL_RGBA;
 			type = GL_UNSIGNED_SHORT_5_5_5_1;
+			break;
+
+		case GL_RGBA16F:
+			format = GL_RGBA;
+			type = GL_HALF_FLOAT_OES;
 			break;
 
 		default:
@@ -642,6 +721,9 @@ gl_texture_2d_store(struct gl_renderer *gr,
 		else if (format == GL_RG)
 			format = GL_LUMINANCE_ALPHA;
 	}
+
+	if (type == GL_HALF_FLOAT && gr->gl_version == gl_version(2, 0))
+		type = GL_HALF_FLOAT_OES;
 
 #if !defined(NDEBUG)
 	glGetIntegerv(GL_TEXTURE_BINDING_2D, &tex);
