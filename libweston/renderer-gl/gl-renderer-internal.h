@@ -121,6 +121,7 @@ enum egl_display_extension_flag {
 /* Keep in sync with gl-renderer.c. */
 enum gl_extension_flag {
 	EXTENSION_ANGLE_PACK_REVERSE_ROW_ORDER    = 1ull << 1,
+	EXTENSION_EXT_COLOR_BUFFER_FLOAT          = 1ull << 5,
 	EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT     = 1ull << 6,
 	EXTENSION_EXT_DISJOINT_TIMER_QUERY        = 1ull << 7,
 	EXTENSION_EXT_MAP_BUFFER_RANGE            = 1ull << 9,

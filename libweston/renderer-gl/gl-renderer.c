@@ -279,6 +279,7 @@ struct timeline_render_point {
 /* Keep in sync with gl-renderer-internal.h. */
 static const struct gl_extension_table extension_table[] = {
 	EXT("GL_ANGLE_pack_reverse_row_order", EXTENSION_ANGLE_PACK_REVERSE_ROW_ORDER),
+	EXT("GL_EXT_color_buffer_float", EXTENSION_EXT_COLOR_BUFFER_FLOAT),
 	EXT("GL_EXT_color_buffer_half_float", EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT),
 	EXT("GL_EXT_disjoint_timer_query", EXTENSION_EXT_DISJOINT_TIMER_QUERY),
 	EXT("GL_EXT_map_buffer_range", EXTENSION_EXT_MAP_BUFFER_RANGE),

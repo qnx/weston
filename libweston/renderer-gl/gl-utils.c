@@ -861,6 +861,7 @@ gl_fbo_is_format_supported(struct gl_renderer *gr,
 	case GL_RG16F:
 	case GL_RGBA16F:
 		return gr->gl_version >= gl_version(3, 2) ||
+			gl_extensions_has(gr, EXTENSION_EXT_COLOR_BUFFER_FLOAT) ||
 			gl_extensions_has(gr, EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT);
 
 	case GL_RGB16F:
@@ -870,7 +871,8 @@ gl_fbo_is_format_supported(struct gl_renderer *gr,
 	case GL_RG32F:
 	case GL_RGBA32F:
 	case GL_R11F_G11F_B10F:
-		return gr->gl_version >= gl_version(3, 2);
+		return gr->gl_version >= gl_version(3, 2) ||
+			gl_extensions_has(gr, EXTENSION_EXT_COLOR_BUFFER_FLOAT);
 
 	case GL_R8_SNORM:
 	case GL_RG8_SNORM:
