@@ -4466,6 +4466,12 @@ shell_reposition_view_on_output_change(struct weston_view *view)
 	struct shell_surface *shsurf;
 	int visible;
 
+	/* We can't simply reposition popups and such, they must move with
+	 * the parent.
+	 */
+	if (view->geometry.parent)
+		return;
+
 	if (wl_list_empty(&ec->output_list))
 		return;
 
