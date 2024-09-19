@@ -75,6 +75,7 @@ static const struct gl_extension_table display_table[] = {
 	EXT("EGL_EXT_buffer_age", EXTENSION_EXT_BUFFER_AGE),
 	EXT("EGL_EXT_image_dma_buf_import", EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT),
 	EXT("EGL_EXT_image_dma_buf_import_modifiers", EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS),
+	EXT("EGL_EXT_pixel_format_float", EXTENSION_EXT_PIXEL_FORMAT_FLOAT),
 	EXT("EGL_EXT_swap_buffers_with_damage", EXTENSION_EXT_SWAP_BUFFERS_WITH_DAMAGE),
 	EXT("EGL_IMG_context_priority", EXTENSION_IMG_CONTEXT_PRIORITY),
 	EXT("EGL_KHR_fence_sync", EXTENSION_KHR_FENCE_SYNC),
@@ -296,6 +297,7 @@ egl_config_pixel_format_matches(struct gl_renderer *gr,
 	const int *argb[4] = {
 		&pinfo->bits.a, &pinfo->bits.r, &pinfo->bits.g, &pinfo->bits.b
 	};
+	bool fixed_point = (pinfo->component_type == PIXEL_COMPONENT_TYPE_FIXED);
 	unsigned i;
 	EGLint value;
 
@@ -314,6 +316,15 @@ egl_config_pixel_format_matches(struct gl_renderer *gr,
 		if (value != *argb[i])
 			return false;
 	}
+
+	if (!eglGetConfigAttrib(gr->egl_display, config,
+				EGL_COLOR_COMPONENT_TYPE_EXT, &value))
+		value = EGL_COLOR_COMPONENT_TYPE_FIXED_EXT;
+
+	if (fixed_point && value != EGL_COLOR_COMPONENT_TYPE_FIXED_EXT)
+		return false;
+	if (!fixed_point && value != EGL_COLOR_COMPONENT_TYPE_FLOAT_EXT)
+		return false;
 
 	return true;
 }
@@ -446,6 +457,7 @@ gl_renderer_get_egl_config(struct gl_renderer *gr,
 		EGL_GREEN_SIZE,      1,
 		EGL_BLUE_SIZE,       1,
 		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+		EGL_NONE, EGL_NONE, /* we may change this latter */
 		EGL_NONE
 	};
 
@@ -455,6 +467,12 @@ gl_renderer_get_egl_config(struct gl_renderer *gr,
 	if (egl_config_is_compatible(gr, gr->egl_config, egl_surface_type,
 				     formats, formats_count))
 		return gr->egl_config;
+
+	if (egl_display_has(gr, EXTENSION_EXT_PIXEL_FORMAT_FLOAT)) {
+		uint32_t index = ARRAY_LENGTH(config_attribs) - 3;
+		config_attribs[index] = EGL_COLOR_COMPONENT_TYPE_EXT;
+		config_attribs[++index] = EGL_DONT_CARE;
+	}
 
 	if (egl_choose_config(gr, config_attribs, formats, formats_count,
 			      &egl_config) < 0) {
