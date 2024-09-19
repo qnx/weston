@@ -302,6 +302,7 @@ static const struct gl_extension_table extension_table[] = {
 	EXT("GL_OES_texture_float", EXTENSION_OES_TEXTURE_FLOAT),
 	EXT("GL_OES_texture_float_linear", EXTENSION_OES_TEXTURE_FLOAT_LINEAR),
 	EXT("GL_OES_texture_half_float", EXTENSION_OES_TEXTURE_HALF_FLOAT),
+	EXT("GL_QCOM_render_sRGB_R8_RG8", EXTENSION_QCOM_RENDER_SRGB_R8_RG8),
 	{ NULL, 0, 0 }
 };
 

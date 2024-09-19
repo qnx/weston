@@ -38,7 +38,7 @@
  * │ Internal fmt¹       │ T²  │ F³  │ R⁴  │ External fmt⁵   │ External type(s)⁵                │
  * ╞═════════════════════╪═════╪═════╪═════╪═════════════════╪══════════════════════════════════╡
  * │ GL_R8               │ 3.0 │ 3.0 │ 3.0 │ GL_RED          │ GL_UNSIGNED_BYTE                 │
- * │ GL_SR8_EXT          │ E⁶  │     │     │ GL_RED          │ GL_UNSIGNED_BYTE                 │
+ * │ GL_SR8_EXT          │ E⁶  │     │ E⁶  │ GL_RED          │ GL_UNSIGNED_BYTE                 │
  * │ GL_R8_SNORM         │ 3.0 │ 3.0 │     │ GL_RED          │ GL_BYTE                          │
  * │ GL_R16F             │ 3.0 │ 3.0 │ 3.2 │ GL_RED          │ GL_HALF_FLOAT,                   │
  * │                     │     │     │     │                 │ GL_FLOAT                         │
@@ -50,7 +50,7 @@
  * │ GL_R32UI            │ 3.0 │     │ 3.0 │ GL_RED_INTEGER  │ GL_UNSIGNED_INT                  │
  * │ GL_R32I             │ 3.0 │     │ 3.0 │ GL_RED_INTEGER  │ GL_INT                           │
  * │ GL_RG8              │ 3.0 │ 3.0 │ 3.0 │ GL_RG           │ GL_UNSIGNED_BYTE                 │
- * │ GL_SRG8_EXT         │ E⁶  │     │     │ GL_RG           │ GL_UNSIGNED_BYTE                 │
+ * │ GL_SRG8_EXT         │ E⁶  │     │ E⁶  │ GL_RG           │ GL_UNSIGNED_BYTE                 │
  * │ GL_RG8_SNORM        │ 3.0 │ 3.0 │     │ GL_RG           │ GL_BYTE                          │
  * │ GL_RG16F            │ 3.0 │ 3.0 │ 3.2 │ GL_RG           │ GL_HALF_FLOAT,                   │
  * │                     │     │     │     │                 │ GL_FLOAT                         │
@@ -881,6 +881,10 @@ gl_fbo_is_format_supported(struct gl_renderer *gr,
 		return gr->gl_version >= gl_version(3, 0) ||
 			gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG);
 
+	case GL_SR8_EXT:
+	case GL_SRG8_EXT:
+		return gl_extensions_has(gr, EXTENSION_QCOM_RENDER_SRGB_R8_RG8);
+
 	case GL_RGB8:
 	case GL_RGBA8:
 		return gr->gl_version >= gl_version(3, 0) ||
@@ -932,9 +936,7 @@ gl_fbo_is_format_supported(struct gl_renderer *gr,
 			 gl_extensions_has(gr, EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT));
 
 	case GL_R8_SNORM:
-	case GL_SR8_EXT:
 	case GL_RG8_SNORM:
-	case GL_SRG8_EXT:
 	case GL_SRGB8:
 	case GL_RGB9_E5:
 	case GL_RGB32F:

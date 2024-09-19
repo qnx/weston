@@ -144,6 +144,7 @@ enum gl_extension_flag {
 	EXTENSION_OES_TEXTURE_FLOAT               = 1ull << 28,
 	EXTENSION_OES_TEXTURE_FLOAT_LINEAR        = 1ull << 29,
 	EXTENSION_OES_TEXTURE_HALF_FLOAT          = 1ull << 30,
+	EXTENSION_QCOM_RENDER_SRGB_R8_RG8         = 1ull << 31,
 };
 
 enum gl_feature_flag {
