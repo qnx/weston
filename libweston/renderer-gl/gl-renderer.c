@@ -290,6 +290,7 @@ static const struct gl_extension_table extension_table[] = {
 	EXT("GL_EXT_texture_storage", EXTENSION_EXT_TEXTURE_STORAGE),
 	EXT("GL_EXT_texture_type_2_10_10_10_REV", EXTENSION_EXT_TEXTURE_TYPE_2_10_10_10_REV),
 	EXT("GL_EXT_unpack_subimage", EXTENSION_EXT_UNPACK_SUBIMAGE),
+	EXT("GL_NV_packed_float", EXTENSION_NV_PACKED_FLOAT),
 	EXT("GL_NV_pixel_buffer_object", EXTENSION_NV_PIXEL_BUFFER_OBJECT),
 	EXT("GL_OES_EGL_image", EXTENSION_OES_EGL_IMAGE),
 	EXT("GL_OES_EGL_image_external", EXTENSION_OES_EGL_IMAGE_EXTERNAL),

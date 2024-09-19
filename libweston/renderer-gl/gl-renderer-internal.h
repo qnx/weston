@@ -132,6 +132,7 @@ enum gl_extension_flag {
 	EXTENSION_EXT_TEXTURE_STORAGE             = 1ull << 16,
 	EXTENSION_EXT_TEXTURE_TYPE_2_10_10_10_REV = 1ull << 17,
 	EXTENSION_EXT_UNPACK_SUBIMAGE             = 1ull << 18,
+	EXTENSION_NV_PACKED_FLOAT                 = 1ull << 20,
 	EXTENSION_NV_PIXEL_BUFFER_OBJECT          = 1ull << 21,
 	EXTENSION_OES_EGL_IMAGE                   = 1ull << 22,
 	EXTENSION_OES_EGL_IMAGE_EXTERNAL          = 1ull << 23,
