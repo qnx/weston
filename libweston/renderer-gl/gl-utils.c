@@ -50,6 +50,7 @@
  * │ GL_R32UI            │ 3.0 │     │ 3.0 │ GL_RED_INTEGER  │ GL_UNSIGNED_INT                  │
  * │ GL_R32I             │ 3.0 │     │ 3.0 │ GL_RED_INTEGER  │ GL_INT                           │
  * │ GL_RG8              │ 3.0 │ 3.0 │ 3.0 │ GL_RG           │ GL_UNSIGNED_BYTE                 │
+ * │ GL_SRG8_EXT         │ E⁶  │     │     │ GL_RG           │ GL_UNSIGNED_BYTE                 │
  * │ GL_RG8_SNORM        │ 3.0 │ 3.0 │     │ GL_RG           │ GL_BYTE                          │
  * │ GL_RG16F            │ 3.0 │ 3.0 │ 3.2 │ GL_RG           │ GL_HALF_FLOAT,                   │
  * │                     │     │     │     │                 │ GL_FLOAT                         │
@@ -154,6 +155,10 @@ is_valid_format_es3(struct gl_renderer *gr,
 	case GL_RG32F:
 		return external_format == GL_RG;
 
+	case GL_SRG8_EXT:
+		return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_SRGB_RG8) &&
+			external_format == GL_RG;
+
 	case GL_RGB8I:
 	case GL_RGB8UI:
 	case GL_RGB16I:
@@ -221,6 +226,10 @@ is_valid_type_es3(struct gl_renderer *gr,
 
 	case GL_SR8_EXT:
 		return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_SRGB_R8) &&
+			type == GL_UNSIGNED_BYTE;
+
+	case GL_SRG8_EXT:
+		return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_SRGB_RG8) &&
 			type == GL_UNSIGNED_BYTE;
 
 	case GL_R8I:
@@ -504,6 +513,9 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 
 	case GL_SR8_EXT:
 		return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_SRGB_R8);
+
+	case GL_SRG8_EXT:
+		return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_SRGB_RG8);
 
 	case GL_R16F:
 	case GL_RG16F:
@@ -922,6 +934,7 @@ gl_fbo_is_format_supported(struct gl_renderer *gr,
 	case GL_R8_SNORM:
 	case GL_SR8_EXT:
 	case GL_RG8_SNORM:
+	case GL_SRG8_EXT:
 	case GL_SRGB8:
 	case GL_RGB9_E5:
 	case GL_RGB32F:

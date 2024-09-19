@@ -131,6 +131,7 @@ enum gl_extension_flag {
 	EXTENSION_EXT_TEXTURE_NORM16              = 1ull << 12,
 	EXTENSION_EXT_TEXTURE_RG                  = 1ull << 13,
 	EXTENSION_EXT_TEXTURE_SRGB_R8             = 1ull << 14,
+	EXTENSION_EXT_TEXTURE_SRGB_RG8            = 1ull << 15,
 	EXTENSION_EXT_TEXTURE_STORAGE             = 1ull << 16,
 	EXTENSION_EXT_TEXTURE_TYPE_2_10_10_10_REV = 1ull << 17,
 	EXTENSION_EXT_UNPACK_SUBIMAGE             = 1ull << 18,
