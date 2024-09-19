@@ -288,6 +288,7 @@ static const struct gl_extension_table extension_table[] = {
 	EXT("GL_EXT_texture_format_BGRA8888", EXTENSION_EXT_TEXTURE_FORMAT_BGRA8888),
 	EXT("GL_EXT_texture_norm16", EXTENSION_EXT_TEXTURE_NORM16),
 	EXT("GL_EXT_texture_rg", EXTENSION_EXT_TEXTURE_RG),
+	EXT("GL_EXT_texture_sRGB_R8", EXTENSION_EXT_TEXTURE_SRGB_R8),
 	EXT("GL_EXT_texture_storage", EXTENSION_EXT_TEXTURE_STORAGE),
 	EXT("GL_EXT_texture_type_2_10_10_10_REV", EXTENSION_EXT_TEXTURE_TYPE_2_10_10_10_REV),
 	EXT("GL_EXT_unpack_subimage", EXTENSION_EXT_UNPACK_SUBIMAGE),
