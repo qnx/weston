@@ -436,7 +436,11 @@ is_valid_combination_es2(struct gl_renderer *gr,
 			return true;
 
 		case GL_UNSIGNED_INT_10F_11F_11F_REV:
-			return gl_extensions_has(gr, EXTENSION_NV_PACKED_FLOAT);
+			return gl_extensions_has(gr, EXTENSION_NV_PACKED_FLOAT) ||
+				gl_extensions_has(gr, EXTENSION_APPLE_TEXTURE_PACKED_FLOAT);
+
+		case GL_UNSIGNED_INT_5_9_9_9_REV:
+			return gl_extensions_has(gr, EXTENSION_APPLE_TEXTURE_PACKED_FLOAT);
 
 		case GL_HALF_FLOAT_OES:
 			return gl_extensions_has(gr, EXTENSION_OES_TEXTURE_HALF_FLOAT);
@@ -505,7 +509,12 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 
 	case GL_R11F_G11F_B10F:
 		return gr->gl_version >= gl_version(3, 0) ||
-			gl_extensions_has(gr, EXTENSION_NV_PACKED_FLOAT);
+			gl_extensions_has(gr, EXTENSION_NV_PACKED_FLOAT) ||
+			gl_extensions_has(gr, EXTENSION_APPLE_TEXTURE_PACKED_FLOAT);
+
+	case GL_RGB9_E5:
+		return gr->gl_version >= gl_version(3, 0) ||
+			gl_extensions_has(gr, EXTENSION_APPLE_TEXTURE_PACKED_FLOAT);
 
 	case GL_R8I:
 	case GL_R8UI:
@@ -528,7 +537,6 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 	case GL_RGB16UI:
 	case GL_RGB32I:
 	case GL_RGB32UI:
-	case GL_RGB9_E5:
 	case GL_SRGB8:
 	case GL_RGBA8I:
 	case GL_RGBA8UI:
@@ -558,7 +566,7 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
  * Implementations support at least this subset of formats: GL_R8, GL_RG8,
  * GL_RGB8, GL_RGB565, GL_RGBA8, GL_RGBA4 and GL_RGB5_A1. Additional formats are
  * supported depending on extensions: GL_R16F, GL_RG16F, GL_RGB16F, GL_RGBA16F,
- * GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F and GL_R11F_G11F_B10F.
+ * GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F, GL_R11F_G11F_B10F and GL_RGB9_E5.
  *
  * This is implemented by implicitly converting 'format' into an external
  * format. If the red and red-green texture formats aren't supported
@@ -693,6 +701,11 @@ gl_texture_2d_init(struct gl_renderer *gr,
 			type = GL_UNSIGNED_INT_10F_11F_11F_REV;
 			break;
 
+		case GL_RGB9_E5:
+			format = GL_RGB;
+			type = GL_UNSIGNED_INT_5_9_9_9_REV;
+			break;
+
 		case GL_RGBA8:
 			format = GL_RGBA;
 			type = GL_UNSIGNED_BYTE;
@@ -752,6 +765,8 @@ gl_texture_2d_init(struct gl_renderer *gr,
  * ╞═══════════════════════╪═════════════════╪════════════════════════════════╡
  * │ GL_RGB565             │ GL_RGB          │ GL_UNSIGNED_BYTE               │
  * │ GL_R11F_G11F_B10F     │ GL_RGB          │ GL_HALF_FLOAT,                 │
+ * │                       │                 │ GL_FLOAT                       │
+ * │ GL_RGB9_E5            │ GL_RGB          │ GL_HALF_FLOAT,                 │
  * │                       │                 │ GL_FLOAT                       │
  * │ GL_RGBA4              │ GL_RGBA         │ GL_UNSIGNED_BYTE               │
  * │ GL_RGB5_A1            │ GL_RGBA         │ GL_UNSIGNED_BYTE,              │
