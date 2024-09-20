@@ -40,6 +40,8 @@
  * │ GL_R8               │ 3.0 │ 3.0 │ 3.0 │ GL_RED          │ GL_UNSIGNED_BYTE                 │
  * │ GL_SR8_EXT          │ E⁶  │     │ E⁶  │ GL_RED          │ GL_UNSIGNED_BYTE                 │
  * │ GL_R8_SNORM         │ 3.0 │ 3.0 │     │ GL_RED          │ GL_BYTE                          │
+ * │ GL_R16_EXT          │ E⁶  │ E⁶  │ E⁶  │ GL_RED          │ GL_UNSIGNED_SHORT                │
+ * │ GL_R16_SNORM_EXT    │ E⁶  │ E⁶  │     │ GL_RED          │ GL_SHORT                         │
  * │ GL_R16F             │ 3.0 │ 3.0 │ 3.2 │ GL_RED          │ GL_HALF_FLOAT,                   │
  * │                     │     │     │     │                 │ GL_FLOAT                         │
  * │ GL_R32F             │ 3.0 │     │ 3.2 │ GL_RED          │ GL_FLOAT                         │
@@ -52,6 +54,8 @@
  * │ GL_RG8              │ 3.0 │ 3.0 │ 3.0 │ GL_RG           │ GL_UNSIGNED_BYTE                 │
  * │ GL_SRG8_EXT         │ E⁶  │     │ E⁶  │ GL_RG           │ GL_UNSIGNED_BYTE                 │
  * │ GL_RG8_SNORM        │ 3.0 │ 3.0 │     │ GL_RG           │ GL_BYTE                          │
+ * │ GL_RG16_EXT         │ E⁶  │ E⁶  │ E⁶  │ GL_RG           │ GL_UNSIGNED_SHORT                │
+ * │ GL_RG16_SNORM_EXT   │ E⁶  │ E⁶  │     │ GL_RG           │ GL_SHORT                         │
  * │ GL_RG16F            │ 3.0 │ 3.0 │ 3.2 │ GL_RG           │ GL_HALF_FLOAT,                   │
  * │                     │     │     │     │                 │ GL_FLOAT                         │
  * │ GL_RG32F            │ 3.0 │     │ 3.2 │ GL_RG           │ GL_FLOAT                         │
@@ -66,6 +70,8 @@
  * │ GL_RGB565           │ 3.0 │ 3.0 │ 3.0 │ GL_RGB          │ GL_UNSIGNED_BYTE,                │
  * │                     │     │     │     │                 │ GL_UNSIGNED_SHORT_5_6_5          │
  * │ GL_RGB8_SNORM       │ 3.0 │ 3.0 │     │ GL_RGB          │ GL_BYTE                          │
+ * │ GL_RGB16_EXT        │ E⁶  │ E⁶  │     │ GL_RGB          │ GL_UNSIGNED_SHORT                │
+ * │ GL_RGB16_SNORM_EXT  │ E⁶  │ E⁶  │     │ GL_RGB          │ GL_SHORT                         │
  * │ GL_R11F_G11F_B10F   │ 3.0 │ 3.0 │ 3.2 │ GL_RGB          │ GL_UNSIGNED_INT_10F_11F_11F_REV, │
  * │                     │     │     │     │                 │ GL_HALF_FLOAT,                   │
  * │                     │     │     │     │                 │ GL_FLOAT                         │
@@ -90,6 +96,8 @@
  * │ GL_RGBA4            │ 3.0 │ 3.0 │ 3.0 │ GL_RGBA         │ GL_UNSIGNED_BYTE,                │
  * │                     │     │     │     │                 │ GL_UNSIGNED_SHORT_4_4_4_4        │
  * │ GL_RGB10_A2         │ 3.0 │ 3.0 │ 3.0 │ GL_RGBA         │ GL_UNSIGNED_INT_2_10_10_10_REV   │
+ * │ GL_RGBA16_EXT       │ E⁶  │ E⁶  │ E⁶  │ GL_RGBA         │ GL_UNSIGNED_SHORT                │
+ * │ GL_RGBA16_SNORM_EXT │ E⁶  │ E⁶  │     │ GL_RGBA         │ GL_SHORT                         │
  * │ GL_RGBA16F          │ 3.0 │ 3.0 │ 3.2 │ GL_RGBA         │ GL_HALF_FLOAT,                   │
  * │                     │     │     │     │                 │ GL_FLOAT                         │
  * │ GL_RGBA32F          │ 3.0 │     │ 3.2 │ GL_RGBA         │ GL_FLOAT                         │
@@ -141,6 +149,11 @@ is_valid_format_es3(struct gl_renderer *gr,
 		return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_SRGB_R8) &&
 			external_format == GL_RED;
 
+	case GL_R16_EXT:
+	case GL_R16_SNORM_EXT:
+		return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_NORM16) &&
+			external_format == GL_RED;
+
 	case GL_RG8I:
 	case GL_RG8UI:
 	case GL_RG16I:
@@ -157,6 +170,11 @@ is_valid_format_es3(struct gl_renderer *gr,
 
 	case GL_SRG8_EXT:
 		return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_SRGB_RG8) &&
+			external_format == GL_RG;
+
+	case GL_RG16_EXT:
+	case GL_RG16_SNORM_EXT:
+		return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_NORM16) &&
 			external_format == GL_RG;
 
 	case GL_RGB8I:
@@ -177,6 +195,11 @@ is_valid_format_es3(struct gl_renderer *gr,
 	case GL_SRGB8:
 		return external_format == GL_RGB;
 
+	case GL_RGB16_EXT:
+	case GL_RGB16_SNORM_EXT:
+		return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_NORM16) &&
+			external_format == GL_RGB;
+
 	case GL_RGBA8I:
 	case GL_RGBA8UI:
 	case GL_RGBA16I:
@@ -195,6 +218,11 @@ is_valid_format_es3(struct gl_renderer *gr,
 	case GL_RGB5_A1:
 	case GL_RGBA4:
 		return external_format == GL_RGBA;
+
+	case GL_RGBA16_EXT:
+	case GL_RGBA16_SNORM_EXT:
+		return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_NORM16) &&
+			external_format == GL_RGBA;
 
 	default:
 		return false;
@@ -253,6 +281,20 @@ is_valid_type_es3(struct gl_renderer *gr,
 	case GL_RGB16I:
 	case GL_RGBA16I:
 		return type == GL_SHORT;
+
+	case GL_R16_EXT:
+	case GL_RG16_EXT:
+	case GL_RGB16_EXT:
+	case GL_RGBA16_EXT:
+		return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_NORM16) &&
+			type == GL_UNSIGNED_SHORT;
+
+	case GL_R16_SNORM_EXT:
+	case GL_RG16_SNORM_EXT:
+	case GL_RGB16_SNORM_EXT:
+	case GL_RGBA16_SNORM_EXT:
+		return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_NORM16) &&
+			type == GL_SHORT;
 
 	case GL_R32UI:
 	case GL_RG32UI:
@@ -332,6 +374,10 @@ is_valid_combination_es3(struct gl_renderer *gr,
 		case GL_FLOAT:
 			return true;
 
+		case GL_UNSIGNED_SHORT:
+		case GL_SHORT:
+			return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_NORM16);
+
 		default:
 			return false;
 		}
@@ -363,6 +409,10 @@ is_valid_combination_es3(struct gl_renderer *gr,
 		case GL_FLOAT:
 			return true;
 
+		case GL_UNSIGNED_SHORT:
+		case GL_SHORT:
+			return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_NORM16);
+
 		default:
 			return false;
 		}
@@ -377,6 +427,10 @@ is_valid_combination_es3(struct gl_renderer *gr,
 		case GL_HALF_FLOAT:
 		case GL_FLOAT:
 			return true;
+
+		case GL_UNSIGNED_SHORT:
+		case GL_SHORT:
+			return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_NORM16);
 
 		default:
 			return false;
@@ -539,6 +593,16 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 	case GL_RGB9_E5:
 		return gr->gl_version >= gl_version(3, 0) ||
 			gl_extensions_has(gr, EXTENSION_APPLE_TEXTURE_PACKED_FLOAT);
+
+	case GL_R16_EXT:
+	case GL_RG16_EXT:
+	case GL_RGB16_EXT:
+	case GL_RGBA16_EXT:
+	case GL_R16_SNORM_EXT:
+	case GL_RG16_SNORM_EXT:
+	case GL_RGB16_SNORM_EXT:
+	case GL_RGBA16_SNORM_EXT:
+		return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_NORM16);
 
 	case GL_R8I:
 	case GL_R8UI:
@@ -935,12 +999,21 @@ gl_fbo_is_format_supported(struct gl_renderer *gr,
 			(gl_extensions_has(gr, EXTENSION_NV_PACKED_FLOAT) &&
 			 gl_extensions_has(gr, EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT));
 
+	case GL_R16_EXT:
+	case GL_RG16_EXT:
+	case GL_RGBA16_EXT:
+		return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_NORM16);
+
 	case GL_R8_SNORM:
+	case GL_R16_SNORM_EXT:
 	case GL_RG8_SNORM:
+	case GL_RG16_SNORM_EXT:
 	case GL_SRGB8:
 	case GL_RGB9_E5:
 	case GL_RGB32F:
 	case GL_RGB8_SNORM:
+	case GL_RGB16_EXT:
+	case GL_RGB16_SNORM_EXT:
 	case GL_RGB8I:
 	case GL_RGB8UI:
 	case GL_RGB16I:
@@ -948,6 +1021,7 @@ gl_fbo_is_format_supported(struct gl_renderer *gr,
 	case GL_RGB32I:
 	case GL_RGB32UI:
 	case GL_RGBA8_SNORM:
+	case GL_RGBA16_SNORM_EXT:
 		return false;
 
 	default:
