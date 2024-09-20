@@ -729,105 +729,129 @@ gl_texture_2d_init(struct gl_renderer *gr,
 		gr->tex_storage_2d(GL_TEXTURE_2D, levels, format, width,
 				   height);
 	} else {
-		GLenum type;
+		GLenum external_format, type;
 		int i;
 
 		/* Implicit conversion to external format for supported
 		 * subset. */
 		switch (format) {
 		case GL_R8:
-			format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
-				GL_RED : GL_LUMINANCE;
+			if (gl_features_has(gr, FEATURE_TEXTURE_RG)) {
+				format = external_format = GL_RED;
+			} else if (!gl_extensions_has(gr, EXTENSION_OES_REQUIRED_INTERNALFORMAT)) {
+				format = external_format = GL_LUMINANCE;
+			} else {
+				format = GL_LUMINANCE8_OES;
+				external_format = GL_LUMINANCE;
+			}
 			type = GL_UNSIGNED_BYTE;
 			break;
 
 		case GL_R16F:
-			format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
+			format = external_format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
 				GL_RED : GL_LUMINANCE;
 			type = GL_HALF_FLOAT_OES;
 			break;
 
 		case GL_R32F:
-			format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
+			format = external_format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
 				GL_RED : GL_LUMINANCE;
 			type = GL_FLOAT;
 			break;
 
 		case GL_RG8:
-			format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
-				GL_RG : GL_LUMINANCE_ALPHA;
+			if (gl_features_has(gr, FEATURE_TEXTURE_RG)) {
+				format = external_format = GL_RG;
+			} else if (!gl_extensions_has(gr, EXTENSION_OES_REQUIRED_INTERNALFORMAT)) {
+				format = external_format = GL_LUMINANCE_ALPHA;
+			} else {
+				format = GL_LUMINANCE8_ALPHA8_OES;
+				external_format = GL_LUMINANCE_ALPHA;
+			}
 			type = GL_UNSIGNED_BYTE;
 			break;
 
 		case GL_RG16F:
-			format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
+			format = external_format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
 				GL_RG : GL_LUMINANCE_ALPHA;
 			type = GL_HALF_FLOAT_OES;
 			break;
 
 		case GL_RG32F:
-			format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
+			format = external_format = gl_features_has(gr, FEATURE_TEXTURE_RG) ?
 				GL_RG : GL_LUMINANCE_ALPHA;
 			type = GL_FLOAT;
 			break;
 
 		case GL_RGB8:
-			format = GL_RGB;
+			if (!gl_extensions_has(gr, EXTENSION_OES_REQUIRED_INTERNALFORMAT))
+				format = GL_RGB;
+			external_format = GL_RGB;
 			type = GL_UNSIGNED_BYTE;
 			break;
 
 		case GL_RGB565:
-			format = GL_RGB;
+			if (!gl_extensions_has(gr, EXTENSION_OES_REQUIRED_INTERNALFORMAT))
+				format = GL_RGB;
+			external_format = GL_RGB;
 			type = GL_UNSIGNED_SHORT_5_6_5;
 			break;
 
 		case GL_RGB16F:
-			format = GL_RGB;
+			format = external_format = GL_RGB;
 			type = GL_HALF_FLOAT_OES;
 			break;
 
 		case GL_RGB32F:
-			format = GL_RGB;
+			format = external_format = GL_RGB;
 			type = GL_FLOAT;
 			break;
 
 		case GL_R11F_G11F_B10F:
-			format = GL_RGB;
+			format = external_format = GL_RGB;
 			type = GL_UNSIGNED_INT_10F_11F_11F_REV;
 			break;
 
 		case GL_RGB9_E5:
-			format = GL_RGB;
+			format = external_format = GL_RGB;
 			type = GL_UNSIGNED_INT_5_9_9_9_REV;
 			break;
 
 		case GL_RGBA8:
-			format = GL_RGBA;
+			if (!gl_extensions_has(gr, EXTENSION_OES_REQUIRED_INTERNALFORMAT))
+				format = GL_RGBA;
+			external_format = GL_RGBA;
 			type = GL_UNSIGNED_BYTE;
 			break;
 
 		case GL_RGBA4:
-			format = GL_RGBA;
+			if (!gl_extensions_has(gr, EXTENSION_OES_REQUIRED_INTERNALFORMAT))
+				format = GL_RGBA;
+			external_format = GL_RGBA;
 			type = GL_UNSIGNED_SHORT_4_4_4_4;
 			break;
 
 		case GL_RGB5_A1:
-			format = GL_RGBA;
+			if (!gl_extensions_has(gr, EXTENSION_OES_REQUIRED_INTERNALFORMAT))
+				format = GL_RGBA;
+			external_format = GL_RGBA;
 			type = GL_UNSIGNED_SHORT_5_5_5_1;
 			break;
 
 		case GL_RGB10_A2:
-			format = GL_RGBA;
+			if (!gl_extensions_has(gr, EXTENSION_OES_REQUIRED_INTERNALFORMAT))
+				format = GL_RGBA;
+			external_format = GL_RGBA;
 			type = GL_UNSIGNED_INT_2_10_10_10_REV;
 			break;
 
 		case GL_RGBA16F:
-			format = GL_RGBA;
+			format = external_format = GL_RGBA;
 			type = GL_HALF_FLOAT_OES;
 			break;
 
 		case GL_RGBA32F:
-			format = GL_RGBA;
+			format = external_format = GL_RGBA;
 			type = GL_FLOAT;
 			break;
 
@@ -839,7 +863,7 @@ gl_texture_2d_init(struct gl_renderer *gr,
 		/* Allocate storage. */
 		for (i = 0; i < levels; i++) {
 			glTexImage2D(GL_TEXTURE_2D, i, format, width, height, 0,
-				     format, type, NULL);
+				     external_format, type, NULL);
 			width = MAX(width / 2, 1);
 			height = MAX(height / 2, 1);
 		}
@@ -962,9 +986,13 @@ gl_fbo_is_format_supported(struct gl_renderer *gr,
 		return gl_extensions_has(gr, EXTENSION_QCOM_RENDER_SRGB_R8_RG8);
 
 	case GL_RGB8:
-	case GL_RGBA8:
 		return gr->gl_version >= gl_version(3, 0) ||
 			gl_extensions_has(gr, EXTENSION_OES_RGB8_RGBA8);
+
+	case GL_RGBA8:
+		return gr->gl_version >= gl_version(3, 0) ||
+			gl_extensions_has(gr, EXTENSION_OES_RGB8_RGBA8) ||
+			gl_extensions_has(gr, EXTENSION_OES_REQUIRED_INTERNALFORMAT);
 
 	case GL_SRGB8_ALPHA8:
 	case GL_R8I:

@@ -298,6 +298,7 @@ static const struct gl_extension_table extension_table[] = {
 	EXT("GL_OES_EGL_image", EXTENSION_OES_EGL_IMAGE),
 	EXT("GL_OES_EGL_image_external", EXTENSION_OES_EGL_IMAGE_EXTERNAL),
 	EXT("GL_OES_mapbuffer", EXTENSION_OES_MAPBUFFER),
+	EXT("GL_OES_required_internalformat", EXTENSION_OES_REQUIRED_INTERNALFORMAT),
 	EXT("GL_OES_rgb8_rgba8", EXTENSION_OES_RGB8_RGBA8),
 	EXT("GL_OES_texture_float", EXTENSION_OES_TEXTURE_FLOAT),
 	EXT("GL_OES_texture_float_linear", EXTENSION_OES_TEXTURE_FLOAT_LINEAR),
@@ -4882,6 +4883,9 @@ gl_renderer_setup(struct weston_compositor *ec)
 			    yesno(gl_features_has(gr, FEATURE_GPU_TIMELINE)));
 	weston_log_continue(STAMP_SPACE "Texture immutability: %s\n",
 			    yesno(gl_features_has(gr, FEATURE_TEXTURE_IMMUTABILITY)));
+	weston_log_continue(STAMP_SPACE "Required precision: %s\n",
+			    yesno(gr->gl_version >= gl_version(3, 0) ||
+				  gl_extensions_has(gr, EXTENSION_OES_REQUIRED_INTERNALFORMAT)));
 
 	return 0;
 }
