@@ -595,7 +595,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 		    plane->props[WDRM_PLANE_IN_FENCE_FD].prop_id == 0) {
 			drm_debug(b, "\t\t\t\t[%s] not placing view %p on %s: "
 			          "no in-fence support\n", p_name, ev, p_name);
-			return NULL;
+			continue;
 		}
 
 		if (!b->has_underlay && mm_underlay_only) {
