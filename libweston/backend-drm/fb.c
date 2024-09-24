@@ -742,7 +742,7 @@ drm_fb_get_from_paint_node(struct drm_output_state *state,
 		fb = drm_fb_get_from_bo(bo, device, is_opaque, BUFFER_CLIENT);
 		if (!fb) {
 			pnode->try_view_on_plane_failure_reasons |=
-				(1 << FAILURE_REASONS_ADD_FB_FAILED);
+				FAILURE_REASONS_ADD_FB_FAILED;
 			gbm_bo_destroy(bo);
 			goto unsuitable;
 		}
