@@ -321,7 +321,8 @@ dmabuf_feedback_maybe_update(struct drm_device *device, struct weston_view *ev,
 	/* Direct scanout won't happen even if client re-allocates using
 	 * params from the scanout tranche, so keep only the renderer tranche. */
 	if (try_view_on_plane_failure_reasons & (FAILURE_REASONS_FORCE_RENDERER |
-						 FAILURE_REASONS_NO_PLANES_AVAILABLE)) {
+						 FAILURE_REASONS_NO_PLANES_AVAILABLE |
+						 FAILURE_REASONS_INADEQUATE_CONTENT_PROTECTION)) {
 		action_needed = ACTION_NEEDED_REMOVE_SCANOUT_TRANCHE;
 	/* Direct scanout may be possible if client re-allocates using the
 	 * params from the scanout tranche. */
