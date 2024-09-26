@@ -4585,14 +4585,9 @@ gl_renderer_display_create(struct weston_compositor *ec,
 		goto fail_terminate;
 
 	if (!gl_features_has(gr, FEATURE_NO_CONFIG_CONTEXT)) {
-		EGLint egl_surface_type = options->egl_surface_type;
-
-		if (!egl_display_has(gr, EXTENSION_KHR_SURFACELESS_CONTEXT))
-			egl_surface_type |= EGL_PBUFFER_BIT;
-
 		gr->egl_config =
 			gl_renderer_get_egl_config(gr,
-						   egl_surface_type,
+						   options->egl_surface_type,
 						   options->formats,
 						   options->formats_count);
 		if (gr->egl_config == EGL_NO_CONFIG_KHR) {
