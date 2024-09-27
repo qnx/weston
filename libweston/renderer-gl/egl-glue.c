@@ -532,6 +532,7 @@ int
 gl_renderer_setup_egl_display(struct gl_renderer *gr,
 			      void *native_display)
 {
+	EGLint major, minor;
 	gr->egl_display = NULL;
 
 	if (egl_client_has(gr, EXTENSION_EXT_PLATFORM_BASE))
@@ -551,9 +552,14 @@ gl_renderer_setup_egl_display(struct gl_renderer *gr,
 		return -1;
 	}
 
-	if (!eglInitialize(gr->egl_display, NULL, NULL)) {
+	if (!eglInitialize(gr->egl_display, &major, &minor)) {
 		weston_log("failed to initialize display\n");
 		goto fail;
+	}
+
+	if (gl_version(major, minor) < gl_version(1, 2)) {
+		weston_log("EGL version >= 1.2 is required.\n");
+		return -1;
 	}
 
 	if (egl_client_has(gr, EXTENSION_EXT_DEVICE_QUERY))
