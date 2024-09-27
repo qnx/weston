@@ -78,6 +78,7 @@ static const struct gl_extension_table display_table[] = {
 	EXT("EGL_EXT_swap_buffers_with_damage", EXTENSION_EXT_SWAP_BUFFERS_WITH_DAMAGE),
 	EXT("EGL_IMG_context_priority", EXTENSION_IMG_CONTEXT_PRIORITY),
 	EXT("EGL_KHR_fence_sync", EXTENSION_KHR_FENCE_SYNC),
+	EXT("EGL_KHR_image_base", EXTENSION_KHR_IMAGE_BASE),
 	EXT("EGL_KHR_no_config_context", EXTENSION_KHR_NO_CONFIG_CONTEXT),
 	EXT("EGL_KHR_partial_update", EXTENSION_KHR_PARTIAL_UPDATE),
 	EXT("EGL_KHR_surfaceless_context", EXTENSION_KHR_SURFACELESS_CONTEXT),
@@ -650,9 +651,6 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 	bool has_bind_display = false;
 	const char *extensions;
 
-	GET_PROC_ADDRESS(gr->create_image, "eglCreateImageKHR");
-	GET_PROC_ADDRESS(gr->destroy_image, "eglDestroyImageKHR");
-
 	GET_PROC_ADDRESS(gr->bind_display, "eglBindWaylandDisplayWL");
 	GET_PROC_ADDRESS(gr->unbind_display, "eglUnbindWaylandDisplayWL");
 	GET_PROC_ADDRESS(gr->query_buffer, "eglQueryWaylandBufferWL");
@@ -667,6 +665,14 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 
 	gl_extensions_add(display_table, extensions,
 			  &gr->egl_display_extensions);
+
+	/* eglCreateImage() and eglDestroyImage() from EGL 1.5 could be used
+	 * instead when available but the type of the attribute list passed to
+	 * eglCreateImage() is different and Mesa does a conversion anyway. */
+	if (egl_display_has(gr, EXTENSION_KHR_IMAGE_BASE)) {
+		GET_PROC_ADDRESS(gr->create_image, "eglCreateImageKHR");
+		GET_PROC_ADDRESS(gr->destroy_image, "eglDestroyImageKHR");
+	}
 
 	if (egl_display_has(gr, EXTENSION_WL_BIND_WAYLAND_DISPLAY))
 		has_bind_display = gr->bind_display(gr->egl_display,

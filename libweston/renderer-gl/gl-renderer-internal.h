@@ -89,13 +89,14 @@ enum egl_display_extension_flag {
 	EXTENSION_EXT_SWAP_BUFFERS_WITH_DAMAGE       = 1ull << 4,
 	EXTENSION_IMG_CONTEXT_PRIORITY               = 1ull << 5,
 	EXTENSION_KHR_FENCE_SYNC                     = 1ull << 6,
-	EXTENSION_KHR_NO_CONFIG_CONTEXT              = 1ull << 7,
-	EXTENSION_KHR_PARTIAL_UPDATE                 = 1ull << 8,
-	EXTENSION_KHR_SURFACELESS_CONTEXT            = 1ull << 9,
-	EXTENSION_KHR_SWAP_BUFFERS_WITH_DAMAGE       = 1ull << 10,
-	EXTENSION_KHR_WAIT_SYNC                      = 1ull << 11,
-	EXTENSION_MESA_CONFIGLESS_CONTEXT            = 1ull << 12,
-	EXTENSION_WL_BIND_WAYLAND_DISPLAY            = 1ull << 13,
+	EXTENSION_KHR_IMAGE_BASE                     = 1ull << 7,
+	EXTENSION_KHR_NO_CONFIG_CONTEXT              = 1ull << 8,
+	EXTENSION_KHR_PARTIAL_UPDATE                 = 1ull << 9,
+	EXTENSION_KHR_SURFACELESS_CONTEXT            = 1ull << 10,
+	EXTENSION_KHR_SWAP_BUFFERS_WITH_DAMAGE       = 1ull << 11,
+	EXTENSION_KHR_WAIT_SYNC                      = 1ull << 12,
+	EXTENSION_MESA_CONFIGLESS_CONTEXT            = 1ull << 13,
+	EXTENSION_WL_BIND_WAYLAND_DISPLAY            = 1ull << 14,
 };
 
 enum gl_feature_flag {
