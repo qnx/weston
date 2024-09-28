@@ -261,6 +261,28 @@ struct timeline_render_point {
 	struct wl_event_source *event_source;
 };
 
+/* Keep in sync with gl-renderer-internal.h. */
+static const struct gl_extension_table extension_table[] = {
+	EXT("GL_ANGLE_pack_reverse_row_order", EXTENSION_ANGLE_PACK_REVERSE_ROW_ORDER),
+	EXT("GL_EXT_color_buffer_half_float", EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT),
+	EXT("GL_EXT_disjoint_timer_query", EXTENSION_EXT_DISJOINT_TIMER_QUERY),
+	EXT("GL_EXT_map_buffer_range", EXTENSION_EXT_MAP_BUFFER_RANGE),
+	EXT("GL_EXT_read_format_bgra", EXTENSION_EXT_READ_FORMAT_BGRA),
+	EXT("GL_EXT_texture_format_BGRA8888", EXTENSION_EXT_TEXTURE_FORMAT_BGRA8888),
+	EXT("GL_EXT_texture_norm16", EXTENSION_EXT_TEXTURE_NORM16),
+	EXT("GL_EXT_texture_rg", EXTENSION_EXT_TEXTURE_RG),
+	EXT("GL_EXT_texture_storage", EXTENSION_EXT_TEXTURE_STORAGE),
+	EXT("GL_EXT_texture_type_2_10_10_10_REV", EXTENSION_EXT_TEXTURE_TYPE_2_10_10_10_REV),
+	EXT("GL_EXT_unpack_subimage", EXTENSION_EXT_UNPACK_SUBIMAGE),
+	EXT("GL_NV_pixel_buffer_object", EXTENSION_NV_PIXEL_BUFFER_OBJECT),
+	EXT("GL_OES_EGL_image_external", EXTENSION_OES_EGL_IMAGE_EXTERNAL),
+	EXT("GL_OES_mapbuffer", EXTENSION_OES_MAPBUFFER),
+	EXT("GL_OES_rgb8_rgba8", EXTENSION_OES_RGB8_RGBA8),
+	EXT("GL_OES_texture_3D", EXTENSION_OES_TEXTURE_3D),
+	EXT("GL_OES_texture_float_linear", EXTENSION_OES_TEXTURE_FLOAT_LINEAR),
+	{ NULL, 0, 0 }
+};
+
 static inline const char *
 dump_format(uint32_t format, char out[4])
 {
@@ -4815,45 +4837,47 @@ gl_renderer_setup(struct weston_compositor *ec)
 		return -1;
 	}
 
-	if (!weston_check_egl_extension(extensions, "GL_EXT_texture_format_BGRA8888")) {
+	gl_extensions_add(extension_table, extensions, &gr->gl_extensions);
+
+	if (!gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_FORMAT_BGRA8888)) {
 		weston_log("GL_EXT_texture_format_BGRA8888 not available\n");
 		return -1;
 	}
 
-	if (weston_check_egl_extension(extensions, "GL_EXT_read_format_bgra"))
+	if (gl_extensions_has(gr, EXTENSION_EXT_READ_FORMAT_BGRA))
 		ec->read_format = pixel_format_get_info(DRM_FORMAT_ARGB8888);
 	else
 		ec->read_format = pixel_format_get_info(DRM_FORMAT_ABGR8888);
 
 	if (gr->gl_version < gl_version(3, 0) &&
-	    !weston_check_egl_extension(extensions, "GL_EXT_unpack_subimage")) {
+	    !gl_extensions_has(gr, EXTENSION_EXT_UNPACK_SUBIMAGE)) {
 		weston_log("GL_EXT_unpack_subimage not available.\n");
 		return -1;
 	}
 
 	if (gr->gl_version >= gl_version(3, 0) ||
-	    weston_check_egl_extension(extensions, "GL_EXT_texture_type_2_10_10_10_REV"))
+	    gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_TYPE_2_10_10_10_REV))
 		gr->has_texture_type_2_10_10_10_rev = true;
 
-	if (weston_check_egl_extension(extensions, "GL_EXT_texture_norm16"))
+	if (gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_NORM16))
 		gr->has_texture_norm16 = true;
 
 	if (gr->gl_version >= gl_version(3, 0) ||
-	    weston_check_egl_extension(extensions, "GL_EXT_texture_storage"))
+	    gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_STORAGE))
 		gr->has_texture_storage = true;
 
-	if (weston_check_egl_extension(extensions, "GL_ANGLE_pack_reverse_row_order"))
+	if (gl_extensions_has(gr, EXTENSION_ANGLE_PACK_REVERSE_ROW_ORDER))
 		gr->has_pack_reverse = true;
 
 	if (gr->gl_version >= gl_version(3, 0) ||
-	    weston_check_egl_extension(extensions, "GL_EXT_texture_rg"))
+	    gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG))
 		gr->has_gl_texture_rg = true;
 
-	if (weston_check_egl_extension(extensions, "GL_OES_EGL_image_external"))
+	if (gl_extensions_has(gr, EXTENSION_OES_EGL_IMAGE_EXTERNAL))
 		gr->has_egl_image_external = true;
 
 	if (gr->gl_version >= gl_version(3, 0) ||
-	    weston_check_egl_extension(extensions, "GL_OES_rgb8_rgba8"))
+	    gl_extensions_has(gr, EXTENSION_OES_RGB8_RGBA8))
 		gr->has_rgb8_rgba8 = true;
 
 	if (gr->gl_version >= gl_version(3, 0)) {
@@ -4863,10 +4887,9 @@ gl_renderer_setup(struct weston_compositor *ec)
 		assert(gr->unmap_buffer);
 		gr->pbo_usage = GL_STREAM_READ;
 		gr->has_pbo = true;
-	} else if (gr->gl_version >= gl_version(2, 0) &&
-		   weston_check_egl_extension(extensions, "GL_NV_pixel_buffer_object") &&
-		   weston_check_egl_extension(extensions, "GL_EXT_map_buffer_range") &&
-		   weston_check_egl_extension(extensions, "GL_OES_mapbuffer")) {
+	} else if (gl_extensions_has(gr, EXTENSION_NV_PIXEL_BUFFER_OBJECT) &&
+		   gl_extensions_has(gr, EXTENSION_EXT_MAP_BUFFER_RANGE) &&
+		   gl_extensions_has(gr, EXTENSION_OES_MAPBUFFER)) {
 		gr->map_buffer_range = (void *) eglGetProcAddress("glMapBufferRangeEXT");
 		gr->unmap_buffer = (void *) eglGetProcAddress("glUnmapBufferOES");
 		assert(gr->map_buffer_range);
@@ -4887,15 +4910,15 @@ gl_renderer_setup(struct weston_compositor *ec)
 	wl_list_init(&gr->pending_capture_list);
 
 	if (gr->gl_version >= gl_version(3, 0) &&
-	    weston_check_egl_extension(extensions, "GL_OES_texture_float_linear") &&
-	    weston_check_egl_extension(extensions, "GL_EXT_color_buffer_half_float") &&
-		weston_check_egl_extension(extensions, "GL_OES_texture_3D")) {
+	    gl_extensions_has(gr, EXTENSION_OES_TEXTURE_FLOAT_LINEAR) &&
+	    gl_extensions_has(gr, EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT) &&
+	    gl_extensions_has(gr, EXTENSION_OES_TEXTURE_3D)) {
 		gr->gl_supports_color_transforms = true;
 		gr->tex_image_3d = (void *) eglGetProcAddress("glTexImage3D");
 		assert(gr->tex_image_3d);
 	}
 
-	if (weston_check_egl_extension(extensions, "GL_EXT_disjoint_timer_query")) {
+	if (gl_extensions_has(gr, EXTENSION_EXT_DISJOINT_TIMER_QUERY)) {
 		PFNGLGETQUERYIVEXTPROC get_query_iv =
 			(void *) eglGetProcAddress("glGetQueryivEXT");
 		int elapsed_bits;

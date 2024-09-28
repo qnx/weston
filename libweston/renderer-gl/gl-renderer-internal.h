@@ -99,6 +99,27 @@ enum egl_display_extension_flag {
 	EXTENSION_WL_BIND_WAYLAND_DISPLAY            = 1ull << 14,
 };
 
+/* Keep in sync with gl-renderer.c. */
+enum gl_extension_flag {
+	EXTENSION_ANGLE_PACK_REVERSE_ROW_ORDER    = 1ull << 0,
+	EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT     = 1ull << 1,
+	EXTENSION_EXT_DISJOINT_TIMER_QUERY        = 1ull << 2,
+	EXTENSION_EXT_MAP_BUFFER_RANGE            = 1ull << 3,
+	EXTENSION_EXT_READ_FORMAT_BGRA            = 1ull << 4,
+	EXTENSION_EXT_TEXTURE_FORMAT_BGRA8888     = 1ull << 5,
+	EXTENSION_EXT_TEXTURE_NORM16              = 1ull << 6,
+	EXTENSION_EXT_TEXTURE_RG                  = 1ull << 7,
+	EXTENSION_EXT_TEXTURE_STORAGE             = 1ull << 8,
+	EXTENSION_EXT_TEXTURE_TYPE_2_10_10_10_REV = 1ull << 9,
+	EXTENSION_EXT_UNPACK_SUBIMAGE             = 1ull << 10,
+	EXTENSION_NV_PIXEL_BUFFER_OBJECT          = 1ull << 11,
+	EXTENSION_OES_EGL_IMAGE_EXTERNAL          = 1ull << 12,
+	EXTENSION_OES_MAPBUFFER                   = 1ull << 13,
+	EXTENSION_OES_RGB8_RGBA8                  = 1ull << 14,
+	EXTENSION_OES_TEXTURE_3D                  = 1ull << 15,
+	EXTENSION_OES_TEXTURE_FLOAT_LINEAR        = 1ull << 16,
+};
+
 enum gl_feature_flag {
 	/* GL renderer can create contexts without specifying an EGLConfig. */
 	FEATURE_NO_CONFIG_CONTEXT = 1ull << 0,
@@ -327,6 +348,8 @@ struct gl_renderer {
 
 	uint64_t features;
 
+	uint64_t gl_extensions;
+
 	PFNGLEGLIMAGETARGETTEXTURE2DOESPROC image_target_texture_2d;
 	PFNGLTEXIMAGE3DOESPROC tex_image_3d;
 	PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC image_target_renderbuffer_storage;
@@ -419,6 +442,13 @@ egl_display_has(struct gl_renderer *gr,
 		enum egl_display_extension_flag flag)
 {
 	return (bool) (gr->egl_display_extensions & ((uint64_t) flag));
+}
+
+static inline bool
+gl_extensions_has(struct gl_renderer *gr,
+		  enum gl_extension_flag flag)
+{
+	return (bool) (gr->gl_extensions & ((uint64_t) flag));
 }
 
 static inline bool
