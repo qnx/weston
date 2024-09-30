@@ -114,10 +114,11 @@ enum gl_extension_flag {
 	EXTENSION_EXT_TEXTURE_TYPE_2_10_10_10_REV = 1ull << 9,
 	EXTENSION_EXT_UNPACK_SUBIMAGE             = 1ull << 10,
 	EXTENSION_NV_PIXEL_BUFFER_OBJECT          = 1ull << 11,
-	EXTENSION_OES_EGL_IMAGE_EXTERNAL          = 1ull << 12,
-	EXTENSION_OES_MAPBUFFER                   = 1ull << 13,
-	EXTENSION_OES_RGB8_RGBA8                  = 1ull << 14,
-	EXTENSION_OES_TEXTURE_FLOAT_LINEAR        = 1ull << 15,
+	EXTENSION_OES_EGL_IMAGE                   = 1ull << 12,
+	EXTENSION_OES_EGL_IMAGE_EXTERNAL          = 1ull << 13,
+	EXTENSION_OES_MAPBUFFER                   = 1ull << 14,
+	EXTENSION_OES_RGB8_RGBA8                  = 1ull << 15,
+	EXTENSION_OES_TEXTURE_FLOAT_LINEAR        = 1ull << 16,
 };
 
 enum gl_feature_flag {

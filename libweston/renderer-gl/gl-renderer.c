@@ -275,6 +275,7 @@ static const struct gl_extension_table extension_table[] = {
 	EXT("GL_EXT_texture_type_2_10_10_10_REV", EXTENSION_EXT_TEXTURE_TYPE_2_10_10_10_REV),
 	EXT("GL_EXT_unpack_subimage", EXTENSION_EXT_UNPACK_SUBIMAGE),
 	EXT("GL_NV_pixel_buffer_object", EXTENSION_NV_PIXEL_BUFFER_OBJECT),
+	EXT("GL_OES_EGL_image", EXTENSION_OES_EGL_IMAGE),
 	EXT("GL_OES_EGL_image_external", EXTENSION_OES_EGL_IMAGE_EXTERNAL),
 	EXT("GL_OES_mapbuffer", EXTENSION_OES_MAPBUFFER),
 	EXT("GL_OES_rgb8_rgba8", EXTENSION_OES_RGB8_RGBA8),
@@ -4617,6 +4618,9 @@ gl_renderer_display_create(struct weston_compositor *ec,
 		}
 	}
 
+	if (gl_renderer_setup(ec) < 0)
+		goto fail_terminate;
+
 	ec->capabilities |= WESTON_CAP_ROTATION_ANY;
 	ec->capabilities |= WESTON_CAP_CAPTURE_YFLIP;
 	ec->capabilities |= WESTON_CAP_VIEW_CLIP_MASK;
@@ -4626,7 +4630,10 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	if (gr->allocator)
 		gr->base.dmabuf_alloc = gl_renderer_dmabuf_alloc;
 
-	if (egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT)) {
+	/* No need to check for GL_OES_EGL_image_external because this is gated
+	 * by EGL_EXT_image_dma_buf_import_modifiers which depends on it. */
+	if (egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT) &&
+	    gl_extensions_has(gr, EXTENSION_OES_EGL_IMAGE)) {
 		gr->base.import_dmabuf = gl_renderer_import_dmabuf;
 		gr->base.get_supported_formats = gl_renderer_get_supported_formats;
 		gr->base.create_renderbuffer_dmabuf = gl_renderer_create_renderbuffer_dmabuf;
@@ -4649,9 +4656,6 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	wl_list_init(&gr->dmabuf_formats);
 
 	wl_signal_init(&gr->destroy_signal);
-
-	if (gl_renderer_setup(ec) < 0)
-		goto fail_with_error;
 
 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XBGR8888);
 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR8888);
@@ -4824,12 +4828,6 @@ gl_renderer_setup(struct weston_compositor *ec)
 	gr->gl_version = get_gl_version();
 	log_gl_info(gr);
 
-	gr->image_target_texture_2d =
-		(void *) eglGetProcAddress("glEGLImageTargetTexture2DOES");
-
-	gr->image_target_renderbuffer_storage =
-		(void *)eglGetProcAddress("glEGLImageTargetRenderbufferStorageOES");
-
 	extensions = (const char *) glGetString(GL_EXTENSIONS);
 	if (!extensions) {
 		weston_log("Retrieving GL extension string failed.\n");
@@ -4837,6 +4835,15 @@ gl_renderer_setup(struct weston_compositor *ec)
 	}
 
 	gl_extensions_add(extension_table, extensions, &gr->gl_extensions);
+
+	if (gl_extensions_has(gr, EXTENSION_OES_EGL_IMAGE)) {
+		gr->image_target_texture_2d =
+			(void *) eglGetProcAddress("glEGLImageTargetTexture2DOES");
+		gr->image_target_renderbuffer_storage =
+			(void *) eglGetProcAddress("glEGLImageTargetRenderbufferStorageOES");
+		assert(gr->image_target_texture_2d);
+		assert(gr->image_target_renderbuffer_storage);
+	}
 
 	if (!gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_FORMAT_BGRA8888)) {
 		weston_log("GL_EXT_texture_format_BGRA8888 not available\n");
