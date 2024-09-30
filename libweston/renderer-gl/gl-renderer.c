@@ -3702,16 +3702,16 @@ gl_renderer_attach_buffer(struct weston_surface *surface,
 }
 
 static const struct weston_drm_format_array *
-gl_renderer_get_supported_formats(struct weston_compositor *ec)
+gl_renderer_get_supported_dmabuf_formats(struct weston_compositor *ec)
 {
 	struct gl_renderer *gr = get_renderer(ec);
 
-	return &gr->supported_formats;
+	return &gr->supported_dmabuf_formats;
 }
 
 static int
-populate_supported_formats(struct weston_compositor *ec,
-			   struct weston_drm_format_array *supported_formats)
+populate_supported_dmabuf_formats(struct weston_compositor *ec,
+				  struct weston_drm_format_array *supported_formats)
 {
 	struct weston_drm_format *fmt;
 	int *formats = NULL;
@@ -4545,7 +4545,7 @@ gl_renderer_destroy(struct weston_compositor *ec)
 	wl_list_for_each_safe(format, next_format, &gr->dmabuf_formats, link)
 		dmabuf_format_destroy(format);
 
-	weston_drm_format_array_fini(&gr->supported_formats);
+	weston_drm_format_array_fini(&gr->supported_dmabuf_formats);
 
 	gl_renderer_allocator_destroy(gr->allocator);
 
@@ -4642,7 +4642,7 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	if (!gr->allocator)
 		weston_log("failed to initialize allocator\n");
 
-	weston_drm_format_array_init(&gr->supported_formats);
+	weston_drm_format_array_init(&gr->supported_dmabuf_formats);
 
 	log_egl_info(gr, gr->egl_display);
 
@@ -4693,17 +4693,16 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	if (egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT) &&
 	    gl_extensions_has(gr, EXTENSION_OES_EGL_IMAGE)) {
 		gr->base.import_dmabuf = gl_renderer_import_dmabuf;
-		gr->base.get_supported_formats = gl_renderer_get_supported_formats;
-		gr->base.create_renderbuffer_dmabuf =
-			gl_renderer_create_renderbuffer_dmabuf;
-		ret = populate_supported_formats(ec, &gr->supported_formats);
+		gr->base.get_supported_dmabuf_formats = gl_renderer_get_supported_dmabuf_formats;
+		gr->base.create_renderbuffer_dmabuf = gl_renderer_create_renderbuffer_dmabuf;
+		ret = populate_supported_dmabuf_formats(ec, &gr->supported_dmabuf_formats);
 		if (ret < 0)
 			goto fail_terminate;
 		if (gr->drm_device) {
 			/* We support dma-buf feedback only when the renderer
 			 * exposes a DRM-device */
 			ec->dmabuf_feedback_format_table =
-				weston_dmabuf_feedback_format_table_create(&gr->supported_formats);
+				weston_dmabuf_feedback_format_table_create(&gr->supported_dmabuf_formats);
 			if (!ec->dmabuf_feedback_format_table)
 				goto fail_terminate;
 			ret = create_default_dmabuf_feedback(ec, gr);
@@ -4765,7 +4764,7 @@ fail_feedback:
 		ec->dmabuf_feedback_format_table = NULL;
 	}
 fail_terminate:
-	weston_drm_format_array_fini(&gr->supported_formats);
+	weston_drm_format_array_fini(&gr->supported_dmabuf_formats);
 	eglTerminate(gr->egl_display);
 fail:
 	weston_log_scope_destroy(gr->shader_scope);

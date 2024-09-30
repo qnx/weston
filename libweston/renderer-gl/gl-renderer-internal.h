@@ -403,7 +403,7 @@ struct gl_renderer {
 	EGLDeviceEXT egl_device;
 	const char *drm_device;
 
-	struct weston_drm_format_array supported_formats;
+	struct weston_drm_format_array supported_dmabuf_formats;
 
 	uint64_t egl_client_extensions;
 	uint64_t egl_device_extensions;

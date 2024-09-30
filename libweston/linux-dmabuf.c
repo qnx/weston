@@ -1057,9 +1057,11 @@ bind_linux_dmabuf(struct wl_client *client,
 		return;
 
 	/* If we got here, it means that the renderer is able to import dma-buf
-	 * buffers, and so it must have get_supported_formats() set. */
-	weston_assert_ptr_not_null(compositor, compositor->renderer->get_supported_formats);
-	supported_formats = compositor->renderer->get_supported_formats(compositor);
+	 * buffers, and so it must have get_supported_dmabuf_formats() set. */
+	weston_assert_ptr_not_null(compositor,
+				   compositor->renderer->get_supported_dmabuf_formats);
+	supported_formats =
+		compositor->renderer->get_supported_dmabuf_formats(compositor);
 
 	wl_array_for_each(fmt, &supported_formats->arr) {
 		modifiers = weston_drm_format_get_modifiers(fmt, &num_modifiers);

@@ -115,7 +115,7 @@ struct weston_renderer {
 			      struct linux_dmabuf_buffer *buffer);
 
 	const struct weston_drm_format_array *
-			(*get_supported_formats)(struct weston_compositor *ec);
+			(*get_supported_dmabuf_formats)(struct weston_compositor *ec);
 
 	bool (*fill_buffer_info)(struct weston_compositor *ec,
 				 struct weston_buffer *buffer);

@@ -3926,7 +3926,7 @@ vulkan_renderer_import_dmabuf(struct weston_compositor *ec,
 }
 
 static const struct weston_drm_format_array *
-vulkan_renderer_get_supported_formats(struct weston_compositor *ec)
+vulkan_renderer_get_supported_dmabuf_formats(struct weston_compositor *ec)
 {
 	struct vulkan_renderer *vr = get_renderer(ec);
 
@@ -4352,7 +4352,7 @@ vulkan_renderer_display_create(struct weston_compositor *ec,
 	if (vr->has_external_memory_dma_buf) {
 		int ret;
 		vr->base.import_dmabuf = vulkan_renderer_import_dmabuf;
-		vr->base.get_supported_formats = vulkan_renderer_get_supported_formats;
+		vr->base.get_supported_dmabuf_formats = vulkan_renderer_get_supported_dmabuf_formats;
 		vr->base.create_renderbuffer_dmabuf =
 			vulkan_renderer_create_renderbuffer_dmabuf;
 

@@ -2351,8 +2351,8 @@ get_scanout_formats(struct drm_device *device)
 
 	/* If we got here it means that dma-buf feedback is supported and that
 	 * the renderer has formats/modifiers to expose. */
-	assert(ec->renderer->get_supported_formats != NULL);
-	renderer_formats = ec->renderer->get_supported_formats(ec);
+	assert(ec->renderer->get_supported_dmabuf_formats != NULL);
+	renderer_formats = ec->renderer->get_supported_dmabuf_formats(ec);
 
 	scanout_formats = zalloc(sizeof(*scanout_formats));
 	if (!scanout_formats) {
