@@ -503,7 +503,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 	wl_list_for_each(plane, &device->plane_list, link) {
 		const char *p_name = drm_output_get_plane_type_name(plane);
 		uint64_t zpos;
-		bool mm_has_underlay = false;
+		bool mm_underlay_only = false;
 
 		if (possible_plane_mask == 0)
 			break;
@@ -512,7 +512,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 			continue;
 
 		possible_plane_mask &= ~(1 << plane->plane_idx);
-		mm_has_underlay =
+		mm_underlay_only =
 			drm_mixed_mode_check_underlay(mode, scanout_state, plane->zpos_max);
 
 		switch (plane->type) {
@@ -540,7 +540,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 				continue;
 			/* for alpha views, avoid placing them on the HW planes that
 			 * are below the primary plane. */
-			if (mm_has_underlay && !weston_view_is_opaque(ev, &ev->transform.boundingbox))
+			if (mm_underlay_only && !weston_view_is_opaque(ev, &ev->transform.boundingbox))
 				continue;
 			break;
 		default:
@@ -598,7 +598,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 			return NULL;
 		}
 
-		if (!b->has_underlay && mm_has_underlay) {
+		if (!b->has_underlay && mm_underlay_only) {
 			drm_debug(b, "\t\t\t\t[plane] not adding plane %d to "
 				     "candidate list: plane is below the primary "
 				     "plane and backend format (%s) is opaque, "
