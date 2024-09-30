@@ -2217,8 +2217,6 @@ void
 weston_output_schedule_repaint_reset(struct weston_output *output);
 void
 weston_output_schedule_repaint_restart(struct weston_output *output);
-enum weston_compositor_backend
-weston_get_backend_type(struct weston_backend *backend);
 void
 weston_compositor_schedule_repaint(struct weston_compositor *compositor);
 void
@@ -2475,6 +2473,8 @@ struct weston_backend *
 weston_compositor_load_backend(struct weston_compositor *compositor,
 			       enum weston_compositor_backend backend,
 			       struct weston_backend_config *config_base);
+enum weston_compositor_backend
+weston_get_backend_type(struct weston_backend *backend);
 void
 weston_compositor_exit(struct weston_compositor *ec);
 void *
