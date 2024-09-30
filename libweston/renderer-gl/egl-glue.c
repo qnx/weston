@@ -280,6 +280,67 @@ out:
 	free(configs);
 }
 
+const struct pixel_format_info **
+egl_set_supported_rendering_formats(EGLDisplay egldpy,
+				    unsigned int *formats_count)
+{
+	struct wl_array formats;
+	const struct pixel_format_info **f, *p;
+	EGLConfig *configs;
+	EGLint count = 0;
+	EGLint value;
+	EGLint i;
+	bool found;
+
+	wl_array_init(&formats);
+
+	if (!eglGetConfigs(egldpy, NULL, 0, &count) || count < 1)
+		return NULL;
+
+	configs = zalloc(count * sizeof(*configs));
+	if (!configs)
+		return NULL;
+
+	if (!eglGetConfigs(egldpy, configs, count, &count)) {
+		free(configs);
+		return NULL;
+	}
+
+	for (i = 0; i < count; i++) {
+		if (!eglGetConfigAttrib(egldpy, configs[i], EGL_SURFACE_TYPE, &value))
+			continue;
+		if (!(value & EGL_WINDOW_BIT))
+			continue;
+
+		if (!eglGetConfigAttrib(egldpy, configs[i], EGL_NATIVE_VISUAL_ID, &value))
+			continue;
+		if (value == 0)
+			continue;
+
+		p = pixel_format_get_info(value);
+		if (!p)
+			continue;
+
+		found = false;
+		wl_array_for_each(f, &formats) {
+			if (p == (*f)) {
+				found = true;
+				break;
+			}
+		}
+		if (found)
+			continue;
+
+		f = wl_array_add(&formats, sizeof(*f));
+		*f = p;
+	}
+
+	free(configs);
+
+	*formats_count = formats.size / sizeof(p);
+	return formats.data;
+}
+
 void
 log_egl_config_info(struct gl_renderer *gr, EGLConfig eglconfig)
 {

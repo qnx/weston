@@ -405,6 +405,9 @@ struct gl_renderer {
 
 	struct weston_drm_format_array supported_dmabuf_formats;
 
+	unsigned int supported_rendering_formats_count;
+	const struct pixel_format_info **supported_rendering_formats;
+
 	uint64_t egl_client_extensions;
 	uint64_t egl_device_extensions;
 	uint64_t egl_display_extensions;
@@ -681,6 +684,10 @@ gl_renderer_log_extensions(struct gl_renderer *gr,
 
 void
 log_egl_config_info(struct gl_renderer *gr, EGLConfig eglconfig);
+
+const struct pixel_format_info **
+egl_set_supported_rendering_formats(EGLDisplay egldpy,
+				    unsigned int *formats_count);
 
 EGLConfig
 gl_renderer_get_egl_config(struct gl_renderer *gr,

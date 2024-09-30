@@ -4321,6 +4321,16 @@ gl_renderer_output_window_create(struct weston_output *output,
 	return ret;
 }
 
+static const struct pixel_format_info **
+gl_renderer_get_supported_rendering_formats(struct weston_compositor *ec,
+					    unsigned int *formats_count)
+{
+	struct gl_renderer *gr = get_renderer(ec);
+
+	*formats_count = gr->supported_rendering_formats_count;
+	return gr->supported_rendering_formats;
+}
+
 static int
 gl_renderer_output_fbo_create(struct weston_output *output,
 			      const struct gl_renderer_fbo_options *options)
@@ -4546,6 +4556,7 @@ gl_renderer_destroy(struct weston_compositor *ec)
 		dmabuf_format_destroy(format);
 
 	weston_drm_format_array_fini(&gr->supported_dmabuf_formats);
+	free(gr->supported_rendering_formats);
 
 	gl_renderer_allocator_destroy(gr->allocator);
 
@@ -4688,6 +4699,14 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	if (gr->allocator)
 		gr->base.dmabuf_alloc = gl_renderer_dmabuf_alloc;
 
+	if (gr->platform == EGL_PLATFORM_GBM_KHR) {
+		gr->supported_rendering_formats =
+			egl_set_supported_rendering_formats(gr->egl_display,
+							    &gr->supported_rendering_formats_count);
+		if (!gr->supported_rendering_formats)
+			goto fail_terminate;
+	}
+
 	/* No need to check for GL_OES_EGL_image_external because this is gated
 	 * by EGL_EXT_image_dma_buf_import_modifiers which depends on it. */
 	if (egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT) &&
@@ -4764,6 +4783,7 @@ fail_feedback:
 		ec->dmabuf_feedback_format_table = NULL;
 	}
 fail_terminate:
+	free(gr->supported_rendering_formats);
 	weston_drm_format_array_fini(&gr->supported_dmabuf_formats);
 	eglTerminate(gr->egl_display);
 fail:
@@ -5078,6 +5098,7 @@ gl_renderer_setup(struct weston_compositor *ec)
 WL_EXPORT struct gl_renderer_interface gl_renderer_interface = {
 	.display_create = gl_renderer_display_create,
 	.output_window_create = gl_renderer_output_window_create,
+	.get_supported_rendering_formats = gl_renderer_get_supported_rendering_formats,
 	.output_fbo_create = gl_renderer_output_fbo_create,
 	.output_destroy = gl_renderer_output_destroy,
 	.create_fence_fd = gl_renderer_create_fence_fd,

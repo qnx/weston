@@ -154,6 +154,21 @@ struct gl_renderer_interface {
 				    const struct gl_renderer_output_options *options);
 
 	/**
+	 * Query rendering formats supported by EGL on GBM platform
+	 *
+	 * \param ec The weston_compositor.
+	 * \param formats_count The number of formats in the returned array.
+	 * \return The array of formats supported, or NULL on failure.
+	 *
+	 * This function returns the formats that are present in the EGLConfig's
+	 * that we query from the EGLDisplay. Such formats can be used for
+	 * rendering.
+	 */
+	const struct pixel_format_info **
+	(*get_supported_rendering_formats)(struct weston_compositor *ec,
+					   unsigned int *formats_count);
+
+	/**
 	 * Attach GL-renderer to the output with a frame buffer object
 	 *
 	 * \param output The output to prepare for FBO rendering.
