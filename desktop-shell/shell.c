@@ -2895,13 +2895,14 @@ panel_committed(struct weston_surface *es,
 		weston_surface_map(es);
 		assert(wl_list_empty(&es->views));
 		sh_output->panel_view = weston_view_create(es);
+
+		weston_view_move_to_layer(sh_output->panel_view,
+					  &shell->panel_layer.view_list);
 	}
 
 	assert(sh_output->panel_view);
 	pos = weston_coord_global_add(output->pos, sh_output->panel_offset);
 	weston_view_set_position(sh_output->panel_view, pos);
-	weston_view_move_to_layer(sh_output->panel_view,
-				  &shell->panel_layer.view_list);
 }
 
 static void
