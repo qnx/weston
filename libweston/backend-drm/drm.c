@@ -1766,6 +1766,34 @@ drm_rb_discarded_cb(weston_renderbuffer_t rb, void *data)
 	return false;
 }
 
+static bool
+drm_output_pick_format_pixman(struct drm_output *output)
+{
+	struct drm_device *device = output->device;
+	struct drm_backend *b = device->backend;
+
+	/* Any other value of eotf_mode requires color-management, which is not
+	 * supported by Pixman renderer. */
+	assert(output->base.eotf_mode == WESTON_EOTF_MODE_SDR);
+
+	if (!b->format->pixman_format) {
+		weston_log("Error: failed to pick format for output '%s', format %s unsupported by Pixman.\n",
+			   output->base.name, b->format->drm_format_name);
+		return false;
+	}
+
+	output->format = b->format;
+
+	if (b->has_underlay && (output->format->bits.a == 0)) {
+		weston_log("Disabling underlay planes: output '%s' with format %s does not have alpha channel,\n"
+			   "which is required to support underlay planes.\n",
+			   output->base.name, output->format->drm_format_name);
+		b->has_underlay = false;
+	}
+
+	return true;
+}
+
 static int
 drm_output_init_pixman(struct drm_output *output, struct drm_backend *b)
 {
@@ -1774,20 +1802,16 @@ drm_output_init_pixman(struct drm_output *output, struct drm_backend *b)
 	struct drm_device *device = output->device;
 	int w = output->base.current_mode->width;
 	int h = output->base.current_mode->height;
+	struct pixman_renderer_output_options options;
 	unsigned int i;
-	const struct pixman_renderer_output_options options = {
-		.use_shadow = b->use_pixman_shadow,
-		.fb_size = { .width = w, .height = h },
-		.format = output->format
-	};
 
-	assert(options.format);
-
-	if (!options.format->pixman_format) {
-		weston_log("Unsupported pixel format %s\n",
-			   options.format->drm_format_name);
+	if (!output->format && !drm_output_pick_format_pixman(output))
 		return -1;
-	}
+
+	options.format = output->format;
+	options.use_shadow = b->use_pixman_shadow;
+	options.fb_size.width = w;
+	options.fb_size.height = h;
 
 	if (pixman->output_create(&output->base, &options) < 0)
 		goto err;
@@ -2486,14 +2510,6 @@ drm_output_enable(struct weston_output *base)
 	 * DRM objects. */
 	while (should_wait_drm_events(device))
 		on_drm_input(device->drm.fd, 0 /* unused mask */, device);
-
-	if (!output->format) {
-		if (output->base.eotf_mode != WESTON_EOTF_MODE_SDR)
-			output->format =
-				pixel_format_get_info(DRM_FORMAT_XRGB2101010);
-		else
-			output->format = b->format;
-	}
 
 	output->connector_colorspace = wdrm_colorspace_from_output(&output->base);
 	if (output->connector_colorspace == WDRM_COLORSPACE__COUNT)

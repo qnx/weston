@@ -40,8 +40,9 @@
 #include "pixman-renderer.h"
 #include "pixel-formats.h"
 #include "renderer-gl/gl-renderer.h"
-#include "shared/weston-egl-ext.h"
 #include "renderer-vulkan/vulkan-renderer.h"
+#include "shared/weston-assert.h"
+#include "shared/weston-egl-ext.h"
 #include "linux-dmabuf.h"
 #include "linux-explicit-synchronization.h"
 
@@ -314,26 +315,196 @@ create_gbm_surface(struct gbm_device *gbm, struct drm_output *output)
 							 output->gbm_bo_flags);
 }
 
+enum format_alpha_required {
+	FORMAT_ALPHA_REQUIRED = true,
+	FORMAT_ALPHA_NOT_REQUIRED = false,
+};
+
+static const struct pixel_format_info *
+find_compatible_format(struct weston_compositor *compositor,
+		       struct wl_array *formats, int min_bpc,
+		       enum format_alpha_required alpha_required)
+{
+	const struct pixel_format_info **tmp, *p;
+	const struct pixel_format_info *candidate = NULL;
+
+	/**
+	 * Given a format array, this looks for a format respecting a few
+	 * criteria. First of all, this ignores formats that do not contain an
+	 * alpha channel when alpha_required == FORMAT_ALPHA_REQUIRED. Also, it
+	 * ignores formats that do not have bits per color channel (bpc) bigger
+	 * or equal to min_bpc.
+	 *
+	 * When we have multiple formats matching these criteria, we use the
+	 * following to choose:
+	 *
+	 * 1. a format with lower bytes per pixel (bpp) is favored.
+	 *
+	 * 2. if FORMAT_ALPHA_REQUIRED:
+	 *	  we prefer the format with more bits on the alpha channel
+	 *    else
+	 *        we prefer the format with more bits on the color channels
+	 */
+	wl_array_for_each(tmp, formats) {
+		p = *tmp;
+
+		/* Skip candidates that do not match minimum criteria. */
+		if (alpha_required == FORMAT_ALPHA_REQUIRED && p->bits.a == 0)
+			continue;
+		if (p->bits.r < min_bpc || p->bits.g < min_bpc || p->bits.b < min_bpc)
+			continue;
+
+		/* No other good candidate so far, so pick this one. */
+		if (!candidate) {
+			candidate = p;
+			continue;
+		}
+
+		/**
+		 * New candidate, let's compare with old and untie.
+		 */
+
+		if (p->bpp > candidate->bpp)
+			continue;
+
+		if (alpha_required == FORMAT_ALPHA_REQUIRED) {
+			if (p->bits.a <= candidate->bits.a)
+				continue;
+		} else {
+			if (p->bits.r + p->bits.g + p->bits.b <=
+			    candidate->bits.r + candidate->bits.g + candidate->bits.b)
+				continue;
+		}
+
+		candidate = p;
+	}
+
+	return candidate;
+}
+
+static bool
+drm_output_pick_format_egl(struct drm_output *output)
+{
+	struct drm_device *device = output->device;
+	struct drm_backend *b = device->backend;
+	struct weston_compositor *compositor = b->compositor;
+	const struct weston_renderer *renderer = compositor->renderer;
+	const struct pixel_format_info **renderer_formats;
+	const struct pixel_format_info **f;
+	unsigned int renderer_formats_count;
+	struct wl_array supported_formats;
+	uint32_t min_bpc;
+	unsigned int i;
+	bool ret = true;
+	bool found;
+
+	wl_array_init(&supported_formats);
+
+	/**
+	 * This computes the intersection between renderer formats supported by
+	 * EGL and the output->scanout_plane supported formats. We need that as
+	 * we want to select a format supported by both.
+	 */
+	renderer_formats =
+		renderer->gl->get_supported_rendering_formats(b->compositor,
+							      &renderer_formats_count);
+	for (i = 0; i < renderer_formats_count; i++) {
+		if (!weston_drm_format_array_find_format(&output->scanout_plane->formats,
+							 renderer_formats[i]->format))
+			continue;
+
+		f = wl_array_add(&supported_formats, sizeof(*f));
+		*f = renderer_formats[i];
+	}
+
+	if (output->base.eotf_mode != WESTON_EOTF_MODE_SDR) {
+		min_bpc = 10;
+	} else {
+		/**
+		 * If no requirements, we simply use b->format instead of
+		 * looking for a format with bpc >= min_bpc.
+		 */
+		min_bpc = 0;
+	}
+
+	if (min_bpc != 0) {
+		if (b->has_underlay) {
+			output->format =
+				find_compatible_format(compositor, &supported_formats,
+						       min_bpc, FORMAT_ALPHA_REQUIRED);
+			if (output->format)
+				goto done;
+
+			weston_log("Disabling underlay planes: EGL GBM or the primary plane for output '%s'\n" \
+				   "does not support format with min bpc %u and alpha channel.\n",
+				   output->base.name, min_bpc);
+			b->has_underlay = false;
+		}
+
+		output->format =
+			find_compatible_format(compositor, &supported_formats,
+					       min_bpc, FORMAT_ALPHA_NOT_REQUIRED);
+		if (output->format)
+			goto done;
+
+		weston_log("Error: EGL GBM or the primary plane for output '%s' does not support format\n" \
+			   "with min bpc %u.\n", output->base.name, min_bpc);
+		ret = false;
+		goto done;
+	}
+
+	found = false;
+	wl_array_for_each(f, &supported_formats) {
+		if ((*f)->format == b->format->format) {
+			found = true;
+			break;
+		}
+	}
+	if (!found) {
+		weston_log("Error: format %s unsupported by EGL GBM or the primary plane for output '%s'.\n",
+			   b->format->drm_format_name, output->base.name);
+		ret = false;
+		goto done;
+	}
+
+	if (b->has_underlay && (b->format->bits.a == 0)) {
+		weston_log("Disabling underlay planes: b->format %s does not have alpha channel,\n"
+			   "which is required to support underlay planes.\n",
+			   b->format->drm_format_name);
+		b->has_underlay = false;
+	}
+
+	output->format = b->format;
+
+done:
+	wl_array_release(&supported_formats);
+	return ret;
+}
+
 /* Init output state that depends on gl or gbm */
 int
 drm_output_init_egl(struct drm_output *output, struct drm_backend *b)
 {
 	const struct weston_renderer *renderer = b->compositor->renderer;
 	const struct weston_mode *mode = output->base.current_mode;
-	const struct pixel_format_info *format[2] = {
-		output->format,
-		fallback_format_for(output->format),
-	};
-	struct gl_renderer_output_options options = {
-		.formats = format,
-		.formats_count = 1,
-		.area.x = 0,
-		.area.y = 0,
-		.area.width = mode->width,
-		.area.height = mode->height,
-		.fb_size.width = mode->width,
-		.fb_size.height = mode->height,
-	};
+	const struct pixel_format_info *format[2] = { 0 };
+	struct gl_renderer_output_options options;
+
+	if (!output->format && !drm_output_pick_format_egl(output))
+		return -1;
+
+	format[0] = output->format;
+	if (!b->has_underlay)
+		format[1] = fallback_format_for(output->format);
+
+	options.formats = format;
+	options.formats_count = format[1] ? 2 : 1;
+	options.area.x = 0;
+	options.area.y = 0;
+	options.area.width = mode->width;
+	options.area.height = mode->height;
+	options.fb_size.width = mode->width;
+	options.fb_size.height = mode->height;
 
 	assert(output->gbm_surface == NULL);
 	create_gbm_surface(b->gbm, output);
@@ -342,8 +513,6 @@ drm_output_init_egl(struct drm_output *output, struct drm_backend *b)
 		return -1;
 	}
 
-	if (options.formats[1])
-		options.formats_count = 2;
 	options.window_for_legacy = (EGLNativeWindowType) output->gbm_surface;
 	options.window_for_platform = output->gbm_surface;
 	if (renderer->gl->output_window_create(&output->base, &options) < 0) {
