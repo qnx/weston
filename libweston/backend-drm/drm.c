@@ -56,7 +56,9 @@
 #include "shared/helpers.h"
 #include "shared/timespec-util.h"
 #include "shared/string-helpers.h"
+#include "shared/weston-assert.h"
 #include "shared/weston-drm-fourcc.h"
+#include "shared/xalloc.h"
 #include "output-capture.h"
 #include "weston-trace.h"
 #include "pixman-renderer.h"
@@ -1764,8 +1766,10 @@ drm_output_pick_format_pixman(struct drm_output *output)
 	struct drm_device *device = output->device;
 	struct drm_backend *b = device->backend;
 
-	/* Any other value of eotf_mode requires color-management, which is not
-	 * supported by Pixman renderer. */
+	/* Any other value of eotf_mode requires color management, which is also
+	 * necessary to have from_blend_to_output_by_backend set. Color
+	 * management is unsupported by Pixman renderer. */
+	assert(!output->base.from_blend_to_output_by_backend);
 	assert(output->base.eotf_mode == WESTON_EOTF_MODE_SDR);
 
 	if (!b->format->pixman_format) {
@@ -2079,6 +2083,169 @@ drm_output_init_legacy_gamma_size(struct drm_output *output)
 	return 0;
 }
 
+static void
+drm_colorop_3x1d_lut_destroy(struct drm_colorop_3x1d_lut *lut)
+{
+	wl_list_remove(&lut->destroy_listener.link);
+	wl_list_remove(&lut->link);
+	drmModeDestroyPropertyBlob(lut->device->drm.fd, lut->blob_id);
+	free(lut);
+}
+
+static void
+drm_colorop_3x1d_lut_destroy_handler(struct wl_listener *l, void *data)
+{
+	struct drm_colorop_3x1d_lut *lut;
+
+	lut = wl_container_of(l, lut, destroy_listener);
+	assert(lut->xform == data);
+
+	drm_colorop_3x1d_lut_destroy(lut);
+}
+
+static struct drm_colorop_3x1d_lut *
+drm_colorop_3x1d_lut_search(struct drm_device *device,
+			    struct weston_color_transform *xform,
+			    uint64_t lut_size)
+{
+	struct drm_colorop_3x1d_lut *colorop_lut;
+
+	wl_list_for_each(colorop_lut, &device->drm_colorop_3x1d_lut_list, link)
+		if (colorop_lut->xform == xform && colorop_lut->lut_size == lut_size)
+			return colorop_lut;
+
+	return NULL;
+}
+
+static struct drm_colorop_3x1d_lut *
+drm_colorop_3x1d_lut_create(struct weston_color_transform *xform,
+			    struct drm_device *device, uint64_t lut_size,
+			    uint32_t blob_id)
+{
+	struct drm_colorop_3x1d_lut *lut;
+
+	lut = xzalloc(sizeof(*lut));
+
+	lut->device = device;
+	lut->blob_id = blob_id;
+	lut->xform = xform;
+	lut->lut_size = lut_size;
+
+	wl_list_insert(&device->drm_colorop_3x1d_lut_list, &lut->link);
+
+	lut->destroy_listener.notify = drm_colorop_3x1d_lut_destroy_handler;
+	wl_signal_add(&lut->xform->destroy_signal, &lut->destroy_listener);
+
+	return lut;
+}
+
+static float *
+lut_3x1d_from_blend_to_output(struct weston_compositor *compositor,
+			      struct weston_color_transform *xform,
+			      uint32_t len_lut, char **err_msg)
+{
+	/**
+	 * We expect steps to be valid for blend-to-output, as LittleCMS is
+	 * always able to optimize such xform. If that's invalid, we'd need to
+	 * use to_shaper_plus_3dlut() to offload the xform, but the DRM API
+	 * currently only supports us programming a LUT after blending.
+	 */
+	if (!xform->steps_valid) {
+		str_printf(err_msg, "xform color steps are invalid");
+		return NULL;
+	}
+
+	/**
+	 * We expect blend-to-output to be composed of pre-curve only. We could
+	 * handle a post-curve as well (merging the pre-curve and post-curve),
+	 * but that's not necessary.
+	 */
+	if (xform->post_curve.type != WESTON_COLOR_CURVE_TYPE_IDENTITY ||
+	    xform->mapping.type != WESTON_COLOR_MAPPING_TYPE_IDENTITY) {
+		str_printf(err_msg, "xform unexpectedly has more steps than pre-curve");
+		return NULL;
+	}
+
+	/**
+	 * No need to craft LUT 3x1D from identity. But there shouldn't be a
+	 * blend-to-output xform like this in first place.
+	 */
+	weston_assert_uint32_neq(compositor, xform->pre_curve.type,
+					     WESTON_COLOR_CURVE_TYPE_IDENTITY);
+
+	return weston_color_curve_to_3x1D_LUT(compositor, xform,
+					      WESTON_COLOR_CURVE_STEP_PRE,
+					      WESTON_COLOR_PRECISION_CARELESS,
+					      len_lut, err_msg);
+}
+
+static int
+drm_output_pick_blend_to_output(struct drm_output *output)
+{
+	struct weston_compositor *compositor = output->base.compositor;
+	struct drm_device *device = output->device;
+	struct drm_backend *b = device->backend;
+	struct drm_colorop_3x1d_lut *colorop_lut;
+	struct weston_color_transform *xform;
+	struct drm_color_lut *drm_lut;
+	uint64_t lut_size;
+	uint32_t gamma_lut_blob_id;
+	float *cm_lut;
+	char *err_msg;
+	unsigned int i;
+	int ret;
+
+	/* Check if there's actually something to offload. */
+	weston_assert_ptr_not_null(compositor, output->base.color_outcome);
+	xform = output->base.color_outcome->from_blend_to_output;
+	if (!xform)
+		return 0;
+
+	lut_size = output->crtc->lut_size;
+	if (lut_size == 0) {
+		drm_debug(b, "[output] can't offload blend-to-output: GAMMA_LUT_SIZE unsupported\n");
+		return -1;
+	}
+
+	/**
+	 * First let's check if the xform has already been cached. If that's the
+	 * case, we make use of it.
+	 */
+	colorop_lut = drm_colorop_3x1d_lut_search(device, xform, lut_size);
+	if (colorop_lut) {
+		output->blend_to_output_xform = colorop_lut;
+		return 0;
+	}
+
+	cm_lut = lut_3x1d_from_blend_to_output(compositor, xform, lut_size, &err_msg);
+	if (!cm_lut) {
+		drm_debug(b, "[output] failed to create 3x1D LUT for blend-to-output: %s\n",
+			     err_msg);
+		free(err_msg);
+		return -1;
+	}
+
+	drm_lut = xzalloc(lut_size * sizeof(*drm_lut));
+	for (i = 0; i < lut_size; i++) {
+		drm_lut[i].red   = cm_lut[i] * 0xffff;
+		drm_lut[i].green = cm_lut[i + lut_size] * 0xffff;
+		drm_lut[i].blue  = cm_lut[i + 2 * lut_size] * 0xffff;
+	}
+	free(cm_lut);
+	ret = drmModeCreatePropertyBlob(device->drm.fd, drm_lut, lut_size * sizeof(*drm_lut),
+					&gamma_lut_blob_id);
+	free(drm_lut);
+	if (ret < 0) {
+		drm_debug(b, "[output] failed to create blob for gamma LUT\n");
+		return -1;
+	}
+
+	output->blend_to_output_xform =
+		drm_colorop_3x1d_lut_create(xform, device, lut_size,
+					    gamma_lut_blob_id);
+	return 0;
+}
+
 enum writeback_screenshot_state
 drm_output_get_writeback_state(struct drm_output *output)
 {
@@ -2225,7 +2392,10 @@ drm_crtc_create(struct drm_device *device, uint32_t crtc_id, uint32_t pipe)
 	crtc->device = device;
 	crtc->crtc_id = crtc_id;
 	crtc->pipe = pipe;
-	crtc->output = NULL;
+
+	crtc->lut_size =
+		drm_property_get_value(&crtc->props_crtc[WDRM_CRTC_GAMMA_LUT_SIZE],
+				       props, 0);
 
 	/* Add it to the last position of the DRM-backend CRTC list */
 	wl_list_insert(device->crtc_list.prev, &crtc->link);
@@ -2518,6 +2688,11 @@ drm_output_enable(struct weston_output *base)
 	if (drm_output_init_legacy_gamma_size(output) < 0)
 		goto err_planes;
 
+	output->base.from_blend_to_output_by_backend = b->offload_blend_to_output;
+	if (output->base.from_blend_to_output_by_backend &&
+	    drm_output_pick_blend_to_output(output) < 0)
+		goto err_planes;
+
 	if (b->pageflip_timeout)
 		drm_output_pageflip_timer_create(output);
 
@@ -2587,6 +2762,9 @@ drm_output_deinit(struct weston_output *base)
 
 	drm_output_deinit_planes(output);
 	drm_output_detach_crtc(output);
+
+	output->blend_to_output_xform = NULL;
+	output->base.from_blend_to_output_by_backend = false;
 
 	if (output->hdr_output_metadata_blob_id) {
 		drmModeDestroyPropertyBlob(device->drm.fd,
@@ -3691,6 +3869,8 @@ drm_destroy(struct weston_backend *backend)
 			      &b->drm->writeback_connector_list, link)
 		drm_writeback_destroy(writeback);
 
+	weston_assert_true(ec, wl_list_empty(&b->drm->drm_colorop_3x1d_lut_list));
+
 #ifdef BUILD_DRM_GBM
 	if (b->gbm)
 		gbm_device_destroy(b->gbm);
@@ -4128,6 +4308,8 @@ drm_device_create(struct drm_backend *backend, const char *name)
 	wl_list_init(&device->plane_list);
 	create_sprites(device);
 
+	wl_list_init(&device->drm_colorop_3x1d_lut_list);
+
 	wl_list_init(&device->writeback_connector_list);
 	if (drm_backend_discover_connectors(device, udev_device, res) < 0) {
 		weston_log("Failed to create heads for %s\n", device->drm.filename);
@@ -4218,6 +4400,7 @@ drm_backend_create(struct weston_compositor *compositor,
 	b->compositor = compositor;
 	b->pageflip_timeout = config->pageflip_timeout;
 	b->use_pixman_shadow = config->use_pixman_shadow;
+	b->offload_blend_to_output = config->offload_blend_to_output;
 	b->has_underlay = false;
 
 	b->debug = weston_compositor_add_log_scope(compositor, "drm-backend",
@@ -4330,6 +4513,8 @@ drm_backend_create(struct weston_compositor *compositor,
 
 	wl_list_init(&device->plane_list);
 	create_sprites(b->drm);
+
+	wl_list_init(&device->drm_colorop_3x1d_lut_list);
 
 	if (udev_input_init(&b->input,
 			    compositor, b->udev, seat_id,

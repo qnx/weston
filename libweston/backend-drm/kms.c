@@ -1321,7 +1321,13 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
 				     current_mode->blob_id);
 		ret |= crtc_add_prop(req, crtc, WDRM_CRTC_ACTIVE, 1);
 
-		ret |= crtc_add_prop_zero_ok(req, crtc, WDRM_CRTC_GAMMA_LUT, 0);
+		if (output->base.from_blend_to_output_by_backend &&
+		    output->blend_to_output_xform)
+			ret |= crtc_add_prop(req, crtc, WDRM_CRTC_GAMMA_LUT,
+					     output->blend_to_output_xform->blob_id);
+		else
+			ret |= crtc_add_prop_zero_ok(req, crtc, WDRM_CRTC_GAMMA_LUT, 0);
+
 		ret |= crtc_add_prop_zero_ok(req, crtc, WDRM_CRTC_DEGAMMA_LUT, 0);
 
 		ret |= crtc_add_prop_zero_ok(req, crtc, WDRM_CRTC_CTM, 0);

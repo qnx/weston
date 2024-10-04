@@ -3444,6 +3444,7 @@ load_drm_backend(struct weston_compositor *c, int *argc, char **argv,
 	struct wet_backend *wb;
 	bool without_input = false;
 	bool force_pixman = false;
+	bool offload_blend_to_output = false;
 
 	wet->drm_use_current_mode = false;
 
@@ -3471,6 +3472,14 @@ load_drm_backend(struct weston_compositor *c, int *argc, char **argv,
 	} else {
 		config.renderer = renderer;
 	}
+
+	weston_config_section_get_bool(section, "offload-blend-to-output",
+				       &offload_blend_to_output, false);
+
+	if (!c->color_manager && offload_blend_to_output)
+		offload_blend_to_output = false;
+
+	config.offload_blend_to_output = offload_blend_to_output;
 
 	weston_config_section_get_string(section,
 					 "gbm-format", &config.gbm_format,

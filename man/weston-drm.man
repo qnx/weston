@@ -71,6 +71,16 @@ would be needed for Weston to display content lifted into such hardware planes.
 sets Weston's pageflip timeout in milliseconds.  This sets a timer to exit
 gracefully with a log message and an exit code of 1 in case the DRM driver is
 non-responsive.  Setting it to 0 disables this feature.
+.TP
+\fBoffload-blend-to-output\fR=\fItrue\fR
+Allow backend to offload the blend-to-output color transformation (whenever
+possible) instead of performing this transformation in the renderer. Only the
+DRM-backend is capable of doing that at the moment. Requires color management
+enabled. Boolean, defaults to
+.BR false .
+
+.I CAVEAT:
+This may result in loss of color precision and may cause color banding.
 
 .SS Section output
 .TP

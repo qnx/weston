@@ -243,6 +243,9 @@ struct drm_device {
 
 	/* drm_backend::kms_list */
 	struct wl_list link;
+
+	/* struct drm_colorop_3x1d_lut::link  */
+	struct wl_list drm_colorop_3x1d_lut_list;
 };
 
 struct drm_backend {
@@ -263,6 +266,8 @@ struct drm_backend {
 	const struct pixel_format_info *format;
 
 	bool use_pixman_shadow;
+
+	bool offload_blend_to_output;
 
 	struct udev_input input;
 
@@ -519,6 +524,19 @@ struct drm_writeback {
 	struct weston_drm_format_array formats;
 };
 
+struct drm_colorop_3x1d_lut {
+	/* drm_device::drm_colorop_3x1d_lut_list */
+	struct wl_list link;
+	struct drm_device *device;
+
+	uint64_t lut_size;
+
+	struct weston_color_transform *xform;
+	struct wl_listener destroy_listener;
+
+	uint32_t blob_id;
+};
+
 struct drm_head {
 	struct weston_head base;
 	struct drm_connector connector;
@@ -549,6 +567,9 @@ struct drm_crtc {
 
 	/* Holds the properties for the CRTC */
 	struct drm_property_info props_crtc[WDRM_CRTC__COUNT];
+
+	/* CRTC prop WDRM_CRTC_GAMMA_LUT_SIZE */
+	uint32_t lut_size;
 };
 
 struct drm_output {
@@ -588,6 +609,7 @@ struct drm_output {
 
 	bool legacy_gamma_not_supported;
 	uint16_t legacy_gamma_size;
+	struct drm_colorop_3x1d_lut *blend_to_output_xform;
 
 	/* Plane being displayed directly on the CRTC */
 	struct drm_plane *scanout_plane;

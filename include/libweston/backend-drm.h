@@ -258,6 +258,14 @@ struct weston_drm_backend_config {
 	 * rendering device.
 	 */
 	char *additional_devices;
+
+	/** Try to offload blend-to-output color transformation
+	 *
+	 * As KMS currently only supports to offload the transformation in a
+	 * LUT, this may result in precision issues. Also, this requires
+	 * "color-management" to be enabled.
+	 */
+	bool offload_blend_to_output;
 };
 
 #ifdef  __cplusplus

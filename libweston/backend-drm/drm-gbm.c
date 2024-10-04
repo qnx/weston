@@ -320,9 +320,15 @@ enum format_alpha_required {
 	FORMAT_ALPHA_NOT_REQUIRED = false,
 };
 
+enum format_component_type {
+	FORMAT_COMPONENT_TYPE_ANY,
+	FORMAT_COMPONENT_TYPE_FLOAT_ONLY,
+};
+
 static const struct pixel_format_info *
 find_compatible_format(struct weston_compositor *compositor,
 		       struct wl_array *formats, int min_bpc,
+		       enum format_component_type component_type,
 		       enum format_alpha_required alpha_required)
 {
 	const struct pixel_format_info **tmp, *p;
@@ -331,9 +337,10 @@ find_compatible_format(struct weston_compositor *compositor,
 	/**
 	 * Given a format array, this looks for a format respecting a few
 	 * criteria. First of all, this ignores formats that do not contain an
-	 * alpha channel when alpha_required == FORMAT_ALPHA_REQUIRED. Also, it
-	 * ignores formats that do not have bits per color channel (bpc) bigger
-	 * or equal to min_bpc.
+	 * alpha channel when alpha_required == FORMAT_ALPHA_REQUIRED. Similar
+	 * for formats that are not floating point when component_type ==
+	 * FORMAT_COMPONENT_TYPE_FLOAT_ONLY. Also, it ignores formats that do
+	 * not have bits per color channel (bpc) bigger or equal to min_bpc.
 	 *
 	 * When we have multiple formats matching these criteria, we use the
 	 * following to choose:
@@ -349,6 +356,9 @@ find_compatible_format(struct weston_compositor *compositor,
 		p = *tmp;
 
 		/* Skip candidates that do not match minimum criteria. */
+		if (component_type == FORMAT_COMPONENT_TYPE_FLOAT_ONLY &&
+		    p->component_type != PIXEL_COMPONENT_TYPE_FLOAT)
+			continue;
 		if (alpha_required == FORMAT_ALPHA_REQUIRED && p->bits.a == 0)
 			continue;
 		if (p->bits.r < min_bpc || p->bits.g < min_bpc || p->bits.b < min_bpc)
@@ -393,6 +403,7 @@ drm_output_pick_format_egl(struct drm_output *output)
 	const struct pixel_format_info **f;
 	unsigned int renderer_formats_count;
 	struct wl_array supported_formats;
+	enum format_component_type component_type;
 	uint32_t min_bpc;
 	unsigned int i;
 	bool ret = true;
@@ -417,7 +428,11 @@ drm_output_pick_format_egl(struct drm_output *output)
 		*f = renderer_formats[i];
 	}
 
-	if (output->base.eotf_mode != WESTON_EOTF_MODE_SDR) {
+	if (output->base.from_blend_to_output_by_backend) {
+		component_type = FORMAT_COMPONENT_TYPE_FLOAT_ONLY;
+		min_bpc = 16;
+	} else if (output->base.eotf_mode != WESTON_EOTF_MODE_SDR) {
+		component_type = FORMAT_COMPONENT_TYPE_ANY;
 		min_bpc = 10;
 	} else {
 		/**
@@ -431,7 +446,8 @@ drm_output_pick_format_egl(struct drm_output *output)
 		if (b->has_underlay) {
 			output->format =
 				find_compatible_format(compositor, &supported_formats,
-						       min_bpc, FORMAT_ALPHA_REQUIRED);
+						       min_bpc, component_type,
+						       FORMAT_ALPHA_REQUIRED);
 			if (output->format)
 				goto done;
 
@@ -443,7 +459,8 @@ drm_output_pick_format_egl(struct drm_output *output)
 
 		output->format =
 			find_compatible_format(compositor, &supported_formats,
-					       min_bpc, FORMAT_ALPHA_NOT_REQUIRED);
+					       min_bpc, component_type,
+					       FORMAT_ALPHA_NOT_REQUIRED);
 		if (output->format)
 			goto done;
 

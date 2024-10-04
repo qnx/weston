@@ -7777,6 +7777,21 @@ weston_output_set_color_outcome(struct weston_output *output)
 
 	assert(output->color_profile);
 
+	if (output->color_outcome && output->from_blend_to_output_by_backend) {
+		/**
+		 * For now we can't allow changing the output color profile and
+		 * color outcome when the backend is offloading the
+		 * blend-to-output xform. We don't know if backend would be able
+		 * to offload the new blend-to-output, so we'd need to fallback
+		 * to the renderer. But that depends on some setup that we do
+		 * when starting the DRM-backend and GL-renderer.
+		 */
+		weston_log("Error: can't change color outcome for output \"%s\":\n" \
+			   "output->from_blend_to_output_by_backend is true.\n",
+			   output->name);
+		return false;
+	}
+
 	colorout = cm->create_output_color_outcome(cm, output);
 	if (!colorout) {
 		weston_log("Creating color transformation for output \"%s\" failed.\n",
@@ -7793,8 +7808,6 @@ weston_output_set_color_outcome(struct weston_output *output)
 	weston_output_color_outcome_destroy(&output->color_outcome);
 	output->color_outcome = colorout;
 	output->color_outcome_serial++;
-
-	output->from_blend_to_output_by_backend = false;
 
 	weston_log("Output '%s' using color profile: %s\n", output->name,
 		   weston_color_profile_get_description(output->color_profile));
