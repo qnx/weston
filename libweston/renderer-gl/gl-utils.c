@@ -531,6 +531,9 @@ is_valid_combination_es2(struct gl_renderer *gr,
 		case GL_UNSIGNED_SHORT_5_5_5_1:
 			return true;
 
+		case GL_UNSIGNED_INT_2_10_10_10_REV:
+			return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_TYPE_2_10_10_10_REV);
+
 		case GL_HALF_FLOAT_OES:
 			return gl_extensions_has(gr, EXTENSION_OES_TEXTURE_HALF_FLOAT);
 
@@ -604,6 +607,10 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 	case GL_RGBA16_SNORM_EXT:
 		return gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_NORM16);
 
+	case GL_RGB10_A2:
+		return gr->gl_version >= gl_version(3, 0) ||
+			gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_TYPE_2_10_10_10_REV);
+
 	case GL_R8I:
 	case GL_R8UI:
 	case GL_R8_SNORM:
@@ -633,7 +640,6 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 	case GL_RGBA16UI:
 	case GL_RGBA32I:
 	case GL_RGBA32UI:
-	case GL_RGB10_A2:
 	case GL_RGB10_A2UI:
 	case GL_SRGB8_ALPHA8:
 		return gr->gl_version >= gl_version(3, 0);
@@ -654,7 +660,8 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
  * Implementations support at least this subset of formats: GL_R8, GL_RG8,
  * GL_RGB8, GL_RGB565, GL_RGBA8, GL_RGBA4 and GL_RGB5_A1. Additional formats are
  * supported depending on extensions: GL_R16F, GL_RG16F, GL_RGB16F, GL_RGBA16F,
- * GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F, GL_R11F_G11F_B10F and GL_RGB9_E5.
+ * GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F, GL_R11F_G11F_B10F, GL_RGB9_E5 and
+ * GL_RGB10_A2.
  *
  * This is implemented by implicitly converting 'format' into an external
  * format. If the red and red-green texture formats aren't supported
@@ -807,6 +814,11 @@ gl_texture_2d_init(struct gl_renderer *gr,
 		case GL_RGB5_A1:
 			format = GL_RGBA;
 			type = GL_UNSIGNED_SHORT_5_5_5_1;
+			break;
+
+		case GL_RGB10_A2:
+			format = GL_RGBA;
+			type = GL_UNSIGNED_INT_2_10_10_10_REV;
 			break;
 
 		case GL_RGBA16F:
