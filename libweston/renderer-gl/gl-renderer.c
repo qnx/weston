@@ -4845,6 +4845,12 @@ gl_renderer_setup(struct weston_compositor *ec)
 	    gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG))
 		gr->features |= FEATURE_TEXTURE_RG;
 
+	/* Sized BGRA renderbuffer feature. */
+	if (gl_has_sized_bgra8_renderbuffer(gr))
+		gr->features |= FEATURE_SIZED_BGRA8_RENDERBUFFER;
+
+	gr->bgra8_texture_support = gl_get_bgra8_texture_support(gr);
+
 	wl_list_init(&gr->pending_capture_list);
 
 	glActiveTexture(GL_TEXTURE0);

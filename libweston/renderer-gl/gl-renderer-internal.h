@@ -182,6 +182,11 @@ enum gl_feature_flag {
 
 	/* GL renderer can create two-component red-green textures. */
 	FEATURE_TEXTURE_RG = 1ull << 7,
+
+	/* GL renderer supports the GL_EXT_texture_format_BGRA8888 extension
+	 * with the GL_BGRA8_EXT sized internal format revision (23/06/2024) for
+	 * renderbuffer objects. */
+	FEATURE_SIZED_BGRA8_RENDERBUFFER = 1ull << 8,
 };
 
 /* Keep the following in sync with vertex.glsl. */
@@ -236,6 +241,13 @@ static_assert(TEX_UNIT_LAST < 8, "OpenGL ES 2.0 requires at least 8 texture "
 	      "units. Consider replacing this assert with a "
 	      "GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS check at display creation "
 	      "to require more.");
+
+enum gl_bgra8_texture_support {
+	BGRA8_TEXTURE_SUPPORT_STORAGE = 0,
+	BGRA8_TEXTURE_SUPPORT_IMAGE_REVISED,
+	BGRA8_TEXTURE_SUPPORT_IMAGE_ORIGINAL,
+	BGRA8_TEXTURE_SUPPORT_NONE,
+};
 
 struct gl_extension_table {
 	const char *str;
@@ -428,6 +440,7 @@ struct gl_renderer {
 	uint64_t features;
 
 	GLenum pbo_usage;
+	enum gl_bgra8_texture_support bgra8_texture_support;
 
 	struct wl_list dmabuf_images;
 	struct wl_list dmabuf_formats;
@@ -505,6 +518,12 @@ gl_features_has(struct gl_renderer *gr,
 {
 	return (bool) (gr->features & ((uint64_t) flag));
 }
+
+enum gl_bgra8_texture_support
+gl_get_bgra8_texture_support(struct gl_renderer *gr);
+
+bool
+gl_has_sized_bgra8_renderbuffer(struct gl_renderer *gr);
 
 bool
 gl_texture_is_format_supported(struct gl_renderer *gr,
