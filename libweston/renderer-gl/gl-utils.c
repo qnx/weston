@@ -1115,6 +1115,7 @@ gl_fbo_is_format_supported(struct gl_renderer *gr,
 
 	case GL_RGBA8:
 		return gr->gl_version >= gl_version(3, 0) ||
+			gl_extensions_has(gr, EXTENSION_ARM_RGBA8) ||
 			gl_extensions_has(gr, EXTENSION_OES_RGB8_RGBA8) ||
 			gl_extensions_has(gr, EXTENSION_OES_REQUIRED_INTERNALFORMAT);
 

@@ -280,6 +280,7 @@ struct timeline_render_point {
 static const struct gl_extension_table extension_table[] = {
 	EXT("GL_ANGLE_pack_reverse_row_order", EXTENSION_ANGLE_PACK_REVERSE_ROW_ORDER),
 	EXT("GL_APPLE_texture_packed_float", EXTENSION_APPLE_TEXTURE_PACKED_FLOAT),
+	EXT("GL_ARM_rgba8", EXTENSION_ARM_RGBA8),
 	EXT("GL_EXT_color_buffer_float", EXTENSION_EXT_COLOR_BUFFER_FLOAT),
 	EXT("GL_EXT_color_buffer_half_float", EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT),
 	EXT("GL_EXT_disjoint_timer_query", EXTENSION_EXT_DISJOINT_TIMER_QUERY),
