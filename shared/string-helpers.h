@@ -95,6 +95,47 @@ str_printf(char **str_out, const char *fmt, ...)
 		*str_out = NULL;
 }
 
+/**
+ * Utility to print combination of enum values as string
+ *
+ * Only works for enum whose values are defined as power of two. Given a bitmask
+ * in which each bit represents an enum value and a function that maps each enum
+ * value to a string, this function returns a string (comma separated) with all
+ * the enum values that are present in the bitmask.
+ *
+ * \param bits The bitmask of enum values.
+ * \param map Function that maps enum values to string.
+ * \return A string combining all the enum values from the bitmask, comma
+ * separated. Callers must free() it.
+ */
+static inline char *
+bits_to_str(uint32_t bits, const char *(*map)(uint32_t))
+{
+	FILE *fp;
+	char *str = NULL;
+	size_t size = 0;
+	unsigned i;
+	const char *sep = "";
+
+	fp = open_memstream(&str, &size);
+	if (!fp)
+		return NULL;
+
+	for (i = 0; bits; i++) {
+		uint32_t bitmask = 1u << i;
+
+		if (bits & bitmask) {
+			fprintf(fp, "%s%s", sep, map(bitmask));
+			sep = ", ";
+		}
+
+		bits &= ~bitmask;
+	}
+	fclose(fp);
+
+	return str;
+}
+
 static inline const char *
 yesno(bool cond)
 {

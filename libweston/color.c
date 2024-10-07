@@ -41,6 +41,7 @@
 #include "libweston-internal.h"
 #include <libweston/weston-log.h>
 #include <libweston/helpers.h>
+#include "shared/string-helpers.h"
 #include "shared/xalloc.h"
 
 /**
@@ -408,34 +409,6 @@ weston_eotf_mode_to_str(enum weston_eotf_mode e)
 	case WESTON_EOTF_MODE_HLG:		return "HLG";
 	}
 	return "???";
-}
-
-static char *
-bits_to_str(uint32_t bits, const char *(*map)(uint32_t))
-{
-	FILE *fp;
-	char *str = NULL;
-	size_t size = 0;
-	unsigned i;
-	const char *sep = "";
-
-	fp = open_memstream(&str, &size);
-	if (!fp)
-		return NULL;
-
-	for (i = 0; bits; i++) {
-		uint32_t bitmask = 1u << i;
-
-		if (bits & bitmask) {
-			fprintf(fp, "%s%s", sep, map(bitmask));
-			sep = ", ";
-		}
-
-		bits &= ~bitmask;
-	}
-	fclose(fp);
-
-	return str;
 }
 
 /** A list of EOTF modes as a string
