@@ -759,29 +759,36 @@ gl_renderer_create_renderbuffer(struct weston_output *output,
 	struct gl_renderbuffer *renderbuffer;
 	GLuint fb, rb;
 
+	/* Filter accepted formats. Discard sRGB and integer formats as these
+	 * might need additional plumbing to properly be supported. */
 	switch (format->gl_internalformat) {
+	case GL_RGBA4:
+	case GL_RGB5_A1:
+	case GL_RGB565:
+	case GL_R8:
+	case GL_RG8:
 	case GL_RGB8:
 	case GL_RGBA8:
-		if (gr->gl_version < gl_version(3, 0) &&
-		    !gl_extensions_has(gr, EXTENSION_OES_RGB8_RGBA8))
-			return NULL;
-		break;
-	case GL_RGB10_A2:
-		if (gr->gl_version < gl_version(3, 0) &&
-		    (!gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_TYPE_2_10_10_10_REV) ||
-		     !gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_STORAGE)))
-			return NULL;
+	case GL_BGRA8_EXT:
+	case GL_R16F:
+	case GL_RG16F:
+	case GL_RGBA16F:
+	case GL_RGB16F:
+	case GL_R32F:
+	case GL_RG32F:
+	case GL_RGBA32F:
+	case GL_R11F_G11F_B10F:
+	case GL_R16_EXT:
+	case GL_RG16_EXT:
+	case GL_RGBA16_EXT:
 		break;
 	default:
-		return NULL;
+		goto error;
 	}
 
 	if (!gl_fbo_init(gr, format->gl_internalformat, go->fb_size.width,
-			 go->fb_size.height, &fb, &rb)) {
-		weston_log("Failed to init renderbuffer%s\n",
-			   buffer ? " from buffer" : "");
-		return NULL;
-	}
+			 go->fb_size.height, &fb, &rb))
+		goto error;
 
 	renderbuffer = xzalloc(sizeof(*renderbuffer));
 
@@ -793,6 +800,11 @@ gl_renderer_create_renderbuffer(struct weston_output *output,
 			     output);
 
 	return (weston_renderbuffer_t) renderbuffer;
+
+ error:
+	weston_log("Failed to create %s renderbuffer%s\n",
+		   format->drm_format_name, buffer ? " from buffer" : "");
+	return NULL;
 }
 
 static EGLImageKHR
