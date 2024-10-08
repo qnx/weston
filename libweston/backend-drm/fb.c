@@ -674,7 +674,8 @@ drm_fb_handle_buffer_destroy(struct wl_listener *listener, void *data)
 
 struct drm_fb *
 drm_fb_get_from_paint_node(struct drm_output_state *state,
-			   struct weston_paint_node *pnode)
+			   struct weston_paint_node *pnode,
+			   uint32_t *try_view_on_plane_failure_reasons)
 {
 	struct drm_output *output = state->output;
 	struct drm_backend *b = output->backend;
@@ -689,13 +690,13 @@ drm_fb_get_from_paint_node(struct drm_output_state *state,
 
 	if (ev->surface->protection_mode == WESTON_SURFACE_PROTECTION_MODE_ENFORCED &&
 	    ev->surface->desired_protection > output->base.current_protection) {
-		pnode->try_view_on_plane_failure_reasons |=
+		*try_view_on_plane_failure_reasons |=
 			FAILURE_REASONS_INADEQUATE_CONTENT_PROTECTION;
 		return NULL;
 	}
 
 	if (!buffer) {
-		pnode->try_view_on_plane_failure_reasons |= FAILURE_REASONS_NO_BUFFER;
+		*try_view_on_plane_failure_reasons |= FAILURE_REASONS_NO_BUFFER;
 		return NULL;
 	}
 
@@ -711,7 +712,7 @@ drm_fb_get_from_paint_node(struct drm_output_state *state,
 
 	wl_list_for_each(buf_fb, &private->buffer_fb_list, link) {
 		if (buf_fb->device == device) {
-			pnode->try_view_on_plane_failure_reasons |= buf_fb->failure_reasons;
+			*try_view_on_plane_failure_reasons |= buf_fb->failure_reasons;
 			return buf_fb->fb ? drm_fb_ref(buf_fb->fb) : NULL;
 		}
 	}
@@ -722,7 +723,7 @@ drm_fb_get_from_paint_node(struct drm_output_state *state,
 
 	/* GBM is used for dmabuf import as well as from client wl_buffer. */
 	if (!b->gbm) {
-		pnode->try_view_on_plane_failure_reasons |= FAILURE_REASONS_NO_GBM;
+		*try_view_on_plane_failure_reasons |= FAILURE_REASONS_NO_GBM;
 		goto unsuitable;
 	}
 
@@ -741,13 +742,13 @@ drm_fb_get_from_paint_node(struct drm_output_state *state,
 
 		fb = drm_fb_get_from_bo(bo, device, is_opaque, BUFFER_CLIENT);
 		if (!fb) {
-			pnode->try_view_on_plane_failure_reasons |=
+			*try_view_on_plane_failure_reasons |=
 				FAILURE_REASONS_ADD_FB_FAILED;
 			gbm_bo_destroy(bo);
 			goto unsuitable;
 		}
 	} else {
-		pnode->try_view_on_plane_failure_reasons |= FAILURE_REASONS_BUFFER_TYPE;
+		*try_view_on_plane_failure_reasons |= FAILURE_REASONS_BUFFER_TYPE;
 		goto unsuitable;
 	}
 
@@ -776,7 +777,7 @@ drm_fb_get_from_paint_node(struct drm_output_state *state,
 	return fb;
 
 unsuitable:
-	pnode->try_view_on_plane_failure_reasons |= buf_fb->failure_reasons;
+	*try_view_on_plane_failure_reasons |= buf_fb->failure_reasons;
 	return NULL;
 }
 #endif

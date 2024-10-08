@@ -802,7 +802,8 @@ wdrm_colorspace_from_output(struct weston_output *output);
 #ifdef BUILD_DRM_GBM
 extern struct drm_fb *
 drm_fb_get_from_paint_node(struct drm_output_state *state,
-			   struct weston_paint_node *pnode);
+			   struct weston_paint_node *pnode,
+			   uint32_t *try_view_on_plane_failure_reasons);
 
 extern bool
 drm_can_scanout_dmabuf(struct weston_backend *backend,
@@ -810,7 +811,8 @@ drm_can_scanout_dmabuf(struct weston_backend *backend,
 #else
 static inline struct drm_fb *
 drm_fb_get_from_paint_node(struct drm_output_state *state,
-			   struct weston_paint_node *pnode)
+			   struct weston_paint_node *pnode,
+			   uint32_t *try_view_on_plane_failure_reasons)
 {
 	return NULL;
 }

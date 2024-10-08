@@ -456,6 +456,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 
 	bool view_matches_entire_output, scanout_has_view_assigned;
 	uint32_t possible_plane_mask = 0;
+	uint32_t fb_failure_reasons = 0;
 	bool any_candidate_picked = false;
 
 	pnode->try_view_on_plane_failure_reasons = FAILURE_REASONS_NONE;
@@ -521,15 +522,15 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 			pnode->try_view_on_plane_failure_reasons |=
 				FAILURE_REASONS_INCOMPATIBLE_TRANSFORM;
 
-		fb = drm_fb_get_from_paint_node(state, pnode);
+		fb = drm_fb_get_from_paint_node(state, pnode, &fb_failure_reasons);
 		if (fb) {
 			possible_plane_mask &= fb->plane_mask;
 		} else {
-			char *fr_str = bits_to_str(pnode->try_view_on_plane_failure_reasons,
-						   failure_reasons_to_str);
+			char *fr_str = bits_to_str(fb_failure_reasons, failure_reasons_to_str);
 			weston_assert_ptr(b->compositor, fr_str);
 			drm_debug(b, "\t\t\t[view] couldn't get FB for view: %s\n", fr_str);
 			free(fr_str);
+			pnode->try_view_on_plane_failure_reasons |= fb_failure_reasons;
 		}
 	}
 
@@ -949,8 +950,12 @@ drm_output_propose_state(struct weston_output *output_base,
 			pixman_region32_fini(&clipped_view);
 			goto err_region;
 		} else if (!ps) {
+			char *fr_str = bits_to_str(pnode->try_view_on_plane_failure_reasons,
+						   failure_reasons_to_str);
+			weston_assert_ptr(b->compositor, fr_str);
 			drm_debug(b, "\t\t\t\t[view] view %p will be placed "
-				     "on the renderer\n", ev);
+				     "on the renderer: %s\n", ev, fr_str);
+			free(fr_str);
 		}
 
 		if (!ps || drm_mixed_mode_check_underlay(mode, scanout_state, ps->zpos)) {
