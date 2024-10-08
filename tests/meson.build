@@ -74,7 +74,7 @@ lib_lcms_util = static_library(
 	[ 'lcms_util.c' ],
 	include_directories: common_inc,
 	dependencies: [
-		dep_lcms2, dep_libm
+		dep_lcms2, dep_libm, dep_wayland_server
 	],
 	build_by_default: false,
 	install: false,
