@@ -117,8 +117,7 @@ enum gl_extension_flag {
 	EXTENSION_OES_EGL_IMAGE_EXTERNAL          = 1ull << 12,
 	EXTENSION_OES_MAPBUFFER                   = 1ull << 13,
 	EXTENSION_OES_RGB8_RGBA8                  = 1ull << 14,
-	EXTENSION_OES_TEXTURE_3D                  = 1ull << 15,
-	EXTENSION_OES_TEXTURE_FLOAT_LINEAR        = 1ull << 16,
+	EXTENSION_OES_TEXTURE_FLOAT_LINEAR        = 1ull << 15,
 };
 
 enum gl_feature_flag {

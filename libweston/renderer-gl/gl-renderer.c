@@ -278,7 +278,6 @@ static const struct gl_extension_table extension_table[] = {
 	EXT("GL_OES_EGL_image_external", EXTENSION_OES_EGL_IMAGE_EXTERNAL),
 	EXT("GL_OES_mapbuffer", EXTENSION_OES_MAPBUFFER),
 	EXT("GL_OES_rgb8_rgba8", EXTENSION_OES_RGB8_RGBA8),
-	EXT("GL_OES_texture_3D", EXTENSION_OES_TEXTURE_3D),
 	EXT("GL_OES_texture_float_linear", EXTENSION_OES_TEXTURE_FLOAT_LINEAR),
 	{ NULL, 0, 0 }
 };
@@ -4910,11 +4909,13 @@ gl_renderer_setup(struct weston_compositor *ec)
 
 	wl_list_init(&gr->pending_capture_list);
 
-	if (gr->gl_version >= gl_version(3, 0) &&
-	    egl_display_has(gr, EXTENSION_KHR_GET_ALL_PROC_ADDRESSES) &&
-	    gl_extensions_has(gr, EXTENSION_OES_TEXTURE_FLOAT_LINEAR) &&
-	    gl_extensions_has(gr, EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT) &&
-	    gl_extensions_has(gr, EXTENSION_OES_TEXTURE_3D)) {
+	if ((gr->gl_version >= gl_version(3, 2) &&
+	     egl_display_has(gr, EXTENSION_KHR_GET_ALL_PROC_ADDRESSES) &&
+	     gl_extensions_has(gr, EXTENSION_OES_TEXTURE_FLOAT_LINEAR)) ||
+	    (gr->gl_version >= gl_version(3, 0) &&
+	     egl_display_has(gr, EXTENSION_KHR_GET_ALL_PROC_ADDRESSES) &&
+	     gl_extensions_has(gr, EXTENSION_OES_TEXTURE_FLOAT_LINEAR) &&
+	     gl_extensions_has(gr, EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT))) {
 		gr->gl_supports_color_transforms = true;
 		gr->tex_image_3d = (void *) eglGetProcAddress("glTexImage3D");
 		assert(gr->tex_image_3d);
