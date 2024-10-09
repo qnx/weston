@@ -4918,8 +4918,6 @@ gl_renderer_setup(struct weston_compositor *ec)
 		gr->features |= FEATURE_ASYNC_READBACK;
 	}
 
-	wl_list_init(&gr->pending_capture_list);
-
 	/* Color transforms feature. */
 	if ((gr->gl_version >= gl_version(3, 2) &&
 	     egl_display_has(gr, EXTENSION_KHR_GET_ALL_PROC_ADDRESSES) &&
@@ -4936,6 +4934,8 @@ gl_renderer_setup(struct weston_compositor *ec)
 	if (egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC) &&
 	    gl_extensions_has(gr, EXTENSION_EXT_DISJOINT_TIMER_QUERY))
 		gr->features |= FEATURE_GPU_TIMELINE;
+
+	wl_list_init(&gr->pending_capture_list);
 
 	glActiveTexture(GL_TEXTURE0);
 
