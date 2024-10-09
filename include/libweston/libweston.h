@@ -291,6 +291,8 @@ struct weston_head {
         struct wl_list cm_output_resource_list;
 
 	uint32_t supported_vrr_mode_mask;
+
+	uint32_t supported_color_format_mask;
 };
 
 enum weston_output_power_state {
@@ -319,6 +321,25 @@ enum weston_vrr_mode {
 };
 #define WESTON_VRR_MODE_ALL_MASK \
 	((uint32_t)(WESTON_VRR_MODE_GAME))
+
+enum weston_color_format {
+	/** Driver assigned color format automatically */
+	WESTON_COLOR_FORMAT_AUTO	= (1 << 0),
+	/** Force RGB color format */
+	WESTON_COLOR_FORMAT_RGB		= (1 << 1),
+	/** Force YUV color format with 4:2:2 susampling */
+	WESTON_COLOR_FORMAT_YUV422	= (1 << 2),
+	/** Force YUV color format with no subsampling */
+	WESTON_COLOR_FORMAT_YUV444	= (1 << 3),
+	/** Force YUV color format with 4:2:0 subsampling */
+	WESTON_COLOR_FORMAT_YUV420	= (1 << 4),
+};
+
+/** Bitmask of all defined color formats */
+#define WESTON_COLOR_FORMAT_ALL_MASK \
+	((uint32_t)(WESTON_COLOR_FORMAT_AUTO | WESTON_COLOR_FORMAT_RGB | \
+		    WESTON_COLOR_FORMAT_YUV444 | WESTON_COLOR_FORMAT_YUV422 | \
+		    WESTON_COLOR_FORMAT_YUV420))
 
 struct weston_plane {
 	struct weston_compositor *compositor;
@@ -517,6 +538,8 @@ struct weston_output {
 	struct weston_output *mirror_of;
 
 	enum weston_vrr_mode vrr_mode;
+
+	enum weston_color_format color_format;
 };
 
 enum weston_pointer_motion_mask {
@@ -2680,6 +2703,13 @@ weston_compositor_arm_surface_counter_fps(struct weston_compositor *ec);
 
 void
 weston_compositor_disarm_surface_counter_fps(struct weston_compositor *ec);
+
+void
+weston_output_set_color_format(struct weston_output *output,
+			       enum weston_color_format color_format);
+
+uint32_t
+weston_output_get_supported_color_formats(struct weston_output *output);
 
 #ifdef  __cplusplus
 }

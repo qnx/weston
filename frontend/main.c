@@ -72,6 +72,7 @@
 #include <libweston/weston-log.h>
 #include <libweston/remoting-plugin.h>
 #include <libweston/pipewire-plugin.h>
+#include <libweston/color.h>
 
 #define WINDOW_TITLE "Weston Compositor"
 /* flight recorder size (in bytes) */
@@ -2389,6 +2390,55 @@ out_error:
 	return -1;
 }
 
+static int
+wet_output_set_color_format(struct weston_output *output,
+			    struct weston_config_section *section)
+{
+	static const struct weston_enum_map color_formats[] = {
+		{ "auto",	WESTON_COLOR_FORMAT_AUTO },
+		{ "rgb",	WESTON_COLOR_FORMAT_RGB },
+		{ "yuv444",	WESTON_COLOR_FORMAT_YUV444 },
+		{ "yuv422",	WESTON_COLOR_FORMAT_YUV422 },
+		{ "yuv420",	WESTON_COLOR_FORMAT_YUV420 },
+	};
+	enum weston_color_format color_format = WESTON_COLOR_FORMAT_AUTO;
+	const struct weston_enum_map *entry;
+	char *str = NULL;
+
+	weston_config_section_get_string(section, "color-format", &str, "auto");
+
+	entry = weston_enum_map_find_name(color_formats, str);
+	if (!entry) {
+		char *mask_to_str = NULL;
+		weston_log("Error in config for output '%s': '%s' is not a "
+			   "valid color format. Try one of: ",
+			   output->name, str);
+
+		mask_to_str = bits_to_str(WESTON_COLOR_FORMAT_ALL_MASK,
+					  weston_color_format_to_str);
+		weston_log_continue("%s\n", mask_to_str);
+
+		free(mask_to_str);
+		free(str);
+		return -1;
+	}
+	color_format = entry->value;
+
+	if ((weston_output_get_supported_color_formats(output) & color_format) == 0) {
+		weston_log("Error: output '%s' does not support output format %s\n",
+			   output->name, str);
+		free(str);
+		return -1;
+	}
+
+	weston_log("Setting output '%s' to color %s format\n",
+		   output->name, weston_color_format_to_str(color_format));
+	weston_output_set_color_format(output, color_format);
+
+	free(str);
+	return 0;
+}
+
 static void
 allow_content_protection(struct weston_output *output,
 			struct weston_config_section *section)
@@ -3140,6 +3190,9 @@ drm_backend_output_configure(struct weston_output *output,
 	if (wet_output_set_colorimetry_mode(output, section, wet->use_color_manager) < 0)
 		return -1;
 	if (wet_output_set_color_profile(output, section, wet->config, NULL) < 0)
+		return -1;
+
+	if (wet_output_set_color_format(output, section) < 0)
 		return -1;
 
 	if (wet_output_set_color_characteristics(output,

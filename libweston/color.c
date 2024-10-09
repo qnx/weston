@@ -1077,3 +1077,38 @@ weston_bradford_adaptation(struct weston_CIExy from, struct weston_CIExy to)
 	tmp = weston_m3f_mul_m3f(weston_m3f_diag(r), bradford);
 	return weston_m3f_mul_m3f(inv, tmp);
 }
+
+/** Get a string naming the color format
+ *
+ * \internal
+ */
+WL_EXPORT const char *
+weston_color_format_to_str(enum weston_color_format c)
+{
+	switch (c) {
+	case WESTON_COLOR_FORMAT_AUTO:
+		return "AUTO";
+	case WESTON_COLOR_FORMAT_RGB:
+		return "RGB";
+	case WESTON_COLOR_FORMAT_YUV444:
+		return "YUV 4:4:4";
+	case WESTON_COLOR_FORMAT_YUV422:
+		return "YUV 4:2:2";
+	case WESTON_COLOR_FORMAT_YUV420:
+		return "YUV 4:2:0";
+	}
+
+	return "???";
+}
+
+/** A list of color formats as a string
+ *
+ * \param color_format_mask Bitwise-or'd enum weston_color_format values.
+ * \return Comma separated names of the listed color formats.
+ * Must be free()'d by the caller.
+ */
+WL_EXPORT char *
+weston_color_format_mask_to_str(uint32_t color_format_mask)
+{
+	return bits_to_str(color_format_mask, weston_color_format_to_str);
+}

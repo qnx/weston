@@ -750,4 +750,10 @@ weston_colorimetry_mask_to_str(uint32_t colorimetry_mask);
 void
 weston_output_color_outcome_destroy(struct weston_output_color_outcome **pco);
 
+const char *
+weston_color_format_to_str(enum weston_color_format c);
+
+char *
+weston_color_format_mask_to_str(uint32_t color_format_mask);
+
 #endif /* WESTON_COLOR_H */

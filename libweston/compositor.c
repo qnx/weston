@@ -6009,6 +6009,7 @@ weston_head_init(struct weston_head *head, const char *name)
 	head->name = xstrdup(name);
 	head->supported_eotf_mask = WESTON_EOTF_MODE_SDR;
 	head->supported_colorimetry_mask = WESTON_COLORIMETRY_MODE_DEFAULT;
+	head->supported_color_format_mask = WESTON_COLOR_FORMAT_AUTO;
 	head->current_protection = WESTON_HDCP_DISABLE;
 
 	weston_head_set_monitor_strings(head, NULL, NULL, NULL);
@@ -7901,6 +7902,7 @@ weston_output_init(struct weston_output *output,
 	output->enabled = false;
 	output->eotf_mode = WESTON_EOTF_MODE_SDR;
 	output->colorimetry_mode = WESTON_COLORIMETRY_MODE_DEFAULT;
+	output->color_format = WESTON_COLOR_FORMAT_AUTO;
 	output->desired_protection = WESTON_HDCP_DISABLE;
 	output->allow_protection = true;
 	output->power_state = WESTON_OUTPUT_POWER_NORMAL;
@@ -8546,6 +8548,27 @@ weston_output_set_vrr_mode(struct weston_output *output,
 	return 0;
 }
 
+WL_EXPORT void
+weston_output_set_color_format(struct weston_output *output,
+			       enum weston_color_format color_format)
+{
+	output->color_format = color_format;
+}
+
+WL_EXPORT uint32_t
+weston_output_get_supported_color_formats(struct weston_output *output)
+{
+	uint32_t color_formats = WESTON_COLOR_FORMAT_ALL_MASK;
+	struct weston_head *head;
+
+	if (wl_list_empty(&output->head_list))
+		return WESTON_COLOR_FORMAT_AUTO;
+
+	wl_list_for_each(head, &output->head_list, output_link)
+		color_formats &= head->supported_color_format_mask;
+
+	return color_formats;
+}
 
 static void
 xdg_output_unlist(struct wl_resource *resource)
