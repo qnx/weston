@@ -507,7 +507,7 @@ timeline_begin_render_query(struct gl_renderer *gr, GLuint query)
 {
 	if (weston_log_scope_is_enabled(gr->compositor->timeline) &&
 	    egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC) &&
-	    gr->has_disjoint_timer_query)
+	    gl_extensions_has(gr, EXTENSION_EXT_DISJOINT_TIMER_QUERY))
 		gr->begin_query(GL_TIME_ELAPSED_EXT, query);
 }
 
@@ -516,7 +516,7 @@ timeline_end_render_query(struct gl_renderer *gr)
 {
 	if (weston_log_scope_is_enabled(gr->compositor->timeline) &&
 	    egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC) &&
-	    gr->has_disjoint_timer_query)
+	    gl_extensions_has(gr, EXTENSION_EXT_DISJOINT_TIMER_QUERY))
 		gr->end_query(GL_TIME_ELAPSED_EXT);
 }
 
@@ -592,7 +592,7 @@ timeline_submit_render_sync(struct gl_renderer *gr,
 
 	if (!weston_log_scope_is_enabled(gr->compositor->timeline) ||
 	    !egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC) ||
-	    !gr->has_disjoint_timer_query ||
+	    !gl_extensions_has(gr, EXTENSION_EXT_DISJOINT_TIMER_QUERY) ||
 	    sync == EGL_NO_SYNC_KHR)
 		return;
 
@@ -740,12 +740,14 @@ gl_renderer_create_fbo(struct weston_output *output,
 	switch (format->gl_internalformat) {
 	case GL_RGB8:
 	case GL_RGBA8:
-		if (!gr->has_rgb8_rgba8)
+		if (gr->gl_version < gl_version(3, 0) &&
+		    !gl_extensions_has(gr, EXTENSION_OES_RGB8_RGBA8))
 			return NULL;
 		break;
 	case GL_RGB10_A2:
-		if (!gr->has_texture_type_2_10_10_10_rev ||
-		    !gr->has_texture_storage)
+		if (gr->gl_version < gl_version(3, 0) &&
+		    (!gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_TYPE_2_10_10_10_REV) ||
+		     !gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_STORAGE)))
 			return NULL;
 		break;
 	default:
@@ -810,7 +812,7 @@ gl_renderer_do_read_pixels(struct gl_renderer *gr,
 		return true;
 	}
 
-	if (gr->has_pack_reverse) {
+	if (gl_extensions_has(gr, EXTENSION_ANGLE_PACK_REVERSE_ROW_ORDER)) {
 		/* Make glReadPixels() return top row first. */
 		glPixelStorei(GL_PACK_REVERSE_ROW_ORDER_ANGLE, GL_TRUE);
 		glReadPixels(rect->x, rect->y, rect->width, rect->height,
@@ -899,7 +901,8 @@ create_capture_task(struct weston_capture_task *task,
 	glGenBuffers(1, &gl_task->pbo);
 	gl_task->stride = (gr->compositor->read_format->bpp / 8) * rect->width;
 	gl_task->height = rect->height;
-	gl_task->reverse = !gr->has_pack_reverse;
+	gl_task->reverse =
+		!gl_extensions_has(gr, EXTENSION_ANGLE_PACK_REVERSE_ROW_ORDER);
 	gl_task->sync = EGL_NO_SYNC_KHR;
 	gl_task->fd = EGL_NO_NATIVE_FENCE_FD_ANDROID;
 
@@ -1012,7 +1015,8 @@ gl_renderer_do_read_pixels_async(struct gl_renderer *gr,
 	assert(fmt->gl_type != 0);
 	assert(fmt->gl_format != 0);
 
-	if (gr->has_pack_reverse && is_y_flipped(go))
+	if (gl_extensions_has(gr, EXTENSION_ANGLE_PACK_REVERSE_ROW_ORDER) &&
+	    is_y_flipped(go))
 		glPixelStorei(GL_PACK_REVERSE_ROW_ORDER_ANGLE, GL_TRUE);
 
 	gl_task = create_capture_task(task, gr, rect);
@@ -1056,7 +1060,8 @@ gl_renderer_do_read_pixels_async(struct gl_renderer *gr,
 
 	wl_list_insert(&gr->pending_capture_list, &gl_task->link);
 
-	if (gr->has_pack_reverse && is_y_flipped(go))
+	if (gl_extensions_has(gr, EXTENSION_ANGLE_PACK_REVERSE_ROW_ORDER) &&
+	    is_y_flipped(go))
 		glPixelStorei(GL_PACK_REVERSE_ROW_ORDER_ANGLE, GL_FALSE);
 }
 
@@ -2834,13 +2839,17 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 		/* Fall back to old luminance-based formats if we don't have
 		 * GL_EXT_texture_rg, which requires different sampling for
 		 * two-component formats. */
-		if (!gr->has_gl_texture_rg && gl_format[i] == GL_R8_EXT) {
+		if (using_glesv2 &&
+		    !gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG) &&
+		    gl_format[i] == GL_R8_EXT) {
 			assert(gl_pixel_type == GL_UNSIGNED_BYTE);
 			assert(shader_variant == SHADER_VARIANT_Y_U_V ||
 			       shader_variant == SHADER_VARIANT_Y_UV);
 			gl_format[i] = GL_LUMINANCE;
 		}
-		if (!gr->has_gl_texture_rg && gl_format[i] == GL_RG8_EXT) {
+		if (using_glesv2 &&
+		    !gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG) &&
+		    gl_format[i] == GL_RG8_EXT) {
 			assert(gl_pixel_type == GL_UNSIGNED_BYTE);
 			assert(shader_variant == SHADER_VARIANT_Y_UV ||
 			       shader_variant == SHADER_VARIANT_Y_XUXV);
@@ -3363,7 +3372,11 @@ gl_renderer_query_dmabuf_formats(struct weston_compositor *wc,
 
 	if (!egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS) ||
 	    !gr->query_dmabuf_formats(gr->egl_display, 0, NULL, &num)) {
-		num = gr->has_gl_texture_rg ? ARRAY_LENGTH(fallback_formats) : 2;
+		if (gr->gl_version >= gl_version(3, 0) ||
+		    gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG))
+			num = ARRAY_LENGTH(fallback_formats);
+		else
+			num = 2;
 		fallback = true;
 	}
 
@@ -4119,7 +4132,7 @@ gl_renderer_output_create(struct weston_output *output,
 	go->egl_surface = surface;
 	go->y_flip = surface == EGL_NO_SURFACE ? 1.0f : -1.0f;
 
-	if (gr->has_disjoint_timer_query)
+	if (gl_extensions_has(gr, EXTENSION_EXT_DISJOINT_TIMER_QUERY))
 		gr->gen_queries(1, &go->render_query);
 
 	wl_list_init(&go->timeline_render_point_list);
@@ -4384,7 +4397,7 @@ gl_renderer_output_destroy(struct weston_output *output)
 		weston_log("warning: discarding pending timeline render"
 			   "objects at output destruction");
 
-	if (gr->has_disjoint_timer_query)
+	if (gl_extensions_has(gr, EXTENSION_EXT_DISJOINT_TIMER_QUERY))
 		gr->delete_queries(1, &go->render_query);
 
 	wl_list_for_each_safe(trp, tmp, &go->timeline_render_point_list, link)
@@ -4675,7 +4688,8 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XYUV8888);
 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR8888);
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-	if (gr->has_texture_type_2_10_10_10_rev) {
+	if (gr->gl_version >= gl_version(3, 0) ||
+	    gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_TYPE_2_10_10_10_REV)) {
 		wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR2101010);
 		wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XBGR2101010);
 	}
@@ -4683,7 +4697,7 @@ gl_renderer_display_create(struct weston_compositor *ec,
 		wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR16161616F);
 		wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XBGR16161616F);
 	}
-	if (gr->has_texture_norm16) {
+	if (gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_NORM16)) {
 		wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR16161616);
 		wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XBGR16161616);
 	}
@@ -4861,31 +4875,6 @@ gl_renderer_setup(struct weston_compositor *ec)
 		return -1;
 	}
 
-	if (gr->gl_version >= gl_version(3, 0) ||
-	    gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_TYPE_2_10_10_10_REV))
-		gr->has_texture_type_2_10_10_10_rev = true;
-
-	if (gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_NORM16))
-		gr->has_texture_norm16 = true;
-
-	if (gr->gl_version >= gl_version(3, 0) ||
-	    gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_STORAGE))
-		gr->has_texture_storage = true;
-
-	if (gl_extensions_has(gr, EXTENSION_ANGLE_PACK_REVERSE_ROW_ORDER))
-		gr->has_pack_reverse = true;
-
-	if (gr->gl_version >= gl_version(3, 0) ||
-	    gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG))
-		gr->has_gl_texture_rg = true;
-
-	if (gl_extensions_has(gr, EXTENSION_OES_EGL_IMAGE_EXTERNAL))
-		gr->has_egl_image_external = true;
-
-	if (gr->gl_version >= gl_version(3, 0) ||
-	    gl_extensions_has(gr, EXTENSION_OES_RGB8_RGBA8))
-		gr->has_rgb8_rgba8 = true;
-
 	if (gr->gl_version >= gl_version(3, 0) &&
 	    egl_display_has(gr, EXTENSION_KHR_GET_ALL_PROC_ADDRESSES)) {
 		gr->map_buffer_range = (void *) eglGetProcAddress("glMapBufferRange");
@@ -4955,12 +4944,13 @@ gl_renderer_setup(struct weston_compositor *ec)
 			assert(gr->end_query);
 			assert(gr->get_query_object_iv);
 			assert(gr->get_query_object_ui64v);
-			gr->has_disjoint_timer_query = true;
 		} else {
 			weston_log("warning: Disabling render GPU timeline due "
 				   "to lack of support for elapsed counters by "
 				   "the GL_EXT_disjoint_timer_query "
 				   "extension\n");
+			gr->gl_extensions &=
+				~EXTENSION_EXT_DISJOINT_TIMER_QUERY;
 		}
 	} else if (egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC))  {
 		weston_log("warning: Disabling render GPU timeline due to "
@@ -4985,19 +4975,21 @@ gl_renderer_setup(struct weston_compositor *ec)
 	weston_log_continue(STAMP_SPACE "read-back format: %s\n",
 			    ec->read_format->drm_format_name);
 	weston_log_continue(STAMP_SPACE "glReadPixels supports y-flip: %s\n",
-			    yesno(gr->has_pack_reverse));
+			    yesno(gl_extensions_has(gr, EXTENSION_ANGLE_PACK_REVERSE_ROW_ORDER)));
 	weston_log_continue(STAMP_SPACE "glReadPixels supports PBO: %s\n",
 			    yesno(gr->has_pbo));
 	weston_log_continue(STAMP_SPACE "wl_shm 10 bpc formats: %s\n",
-			    yesno(gr->has_texture_type_2_10_10_10_rev));
+			    yesno(gr->gl_version >= gl_version(3, 0) ||
+				  gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_TYPE_2_10_10_10_REV)));
 	weston_log_continue(STAMP_SPACE "wl_shm 16 bpc formats: %s\n",
-			    yesno(gr->has_texture_norm16));
+			    yesno(gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_NORM16)));
 	weston_log_continue(STAMP_SPACE "wl_shm half-float formats: %s\n",
 			    yesno(gr->gl_supports_color_transforms));
 	weston_log_continue(STAMP_SPACE "internal R and RG formats: %s\n",
-			    yesno(gr->has_gl_texture_rg));
+			    yesno(gr->gl_version >= gl_version(3, 0) ||
+				  gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG)));
 	weston_log_continue(STAMP_SPACE "OES_EGL_image_external: %s\n",
-			    yesno(gr->has_egl_image_external));
+			    yesno(gl_extensions_has(gr, EXTENSION_OES_EGL_IMAGE_EXTERNAL)));
 
 	return 0;
 }

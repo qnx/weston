@@ -355,17 +355,8 @@ struct gl_renderer {
 	PFNGLTEXIMAGE3DOESPROC tex_image_3d;
 	PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC image_target_renderbuffer_storage;
 
-	bool has_egl_image_external;
-
 	struct wl_list dmabuf_images;
 	struct wl_list dmabuf_formats;
-
-	bool has_texture_type_2_10_10_10_rev;
-	bool has_gl_texture_rg;
-	bool has_texture_norm16;
-	bool has_texture_storage;
-	bool has_pack_reverse;
-	bool has_rgb8_rgba8;
 
 	bool has_pbo;
 	GLenum pbo_usage;
@@ -379,7 +370,6 @@ struct gl_renderer {
 
 	struct wl_signal destroy_signal;
 
-	bool has_disjoint_timer_query;
 	PFNGLGENQUERIESEXTPROC gen_queries;
 	PFNGLDELETEQUERIESEXTPROC delete_queries;
 	PFNGLBEGINQUERYEXTPROC begin_query;
