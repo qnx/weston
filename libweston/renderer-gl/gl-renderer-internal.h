@@ -56,6 +56,19 @@
 
 #define EXT(string, flag) { string, ARRAY_LENGTH(string) - 1, (uint64_t) flag }
 
+/* Keep in sync with egl-glue.c. */
+enum egl_client_extension_flag {
+	EXTENSION_EXT_DEVICE_QUERY          = 1ull << 0,
+	EXTENSION_EXT_PLATFORM_BASE         = 1ull << 1,
+	EXTENSION_EXT_PLATFORM_WAYLAND      = 1ull << 2,
+	EXTENSION_EXT_PLATFORM_X11          = 1ull << 3,
+	EXTENSION_KHR_PLATFORM_GBM          = 1ull << 4,
+	EXTENSION_KHR_PLATFORM_WAYLAND      = 1ull << 5,
+	EXTENSION_KHR_PLATFORM_X11          = 1ull << 6,
+	EXTENSION_MESA_PLATFORM_GBM         = 1ull << 7,
+	EXTENSION_MESA_PLATFORM_SURFACELESS = 1ull << 8,
+};
+
 /* Keep the following in sync with vertex.glsl. */
 enum gl_shader_texcoord_input {
 	SHADER_TEXCOORD_INPUT_ATTRIB = 0,
@@ -226,6 +239,8 @@ struct gl_renderer {
 
 	struct weston_drm_format_array supported_formats;
 
+	uint64_t egl_client_extensions;
+
 	PFNGLEGLIMAGETARGETTEXTURE2DOESPROC image_target_texture_2d;
 	PFNGLTEXIMAGE3DOESPROC tex_image_3d;
 	PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC image_target_renderbuffer_storage;
@@ -337,6 +352,13 @@ void
 gl_extensions_add(const struct gl_extension_table *table,
 		  const char *extensions,
 		  uint64_t *flags_out);
+
+static inline bool
+egl_client_has(struct gl_renderer *gr,
+	       enum egl_client_extension_flag flag)
+{
+	return (bool) (gr->egl_client_extensions & ((uint64_t) flag));
+}
 
 static inline struct gl_renderer *
 get_renderer(struct weston_compositor *ec)

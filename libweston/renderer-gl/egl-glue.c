@@ -48,6 +48,20 @@ struct egl_config_print_info {
 	int field_width;
 };
 
+/* Keep in sync with gl-renderer-internal.h. */
+static const struct gl_extension_table client_table[] = {
+	EXT("EGL_EXT_device_query", EXTENSION_EXT_DEVICE_QUERY),
+	EXT("EGL_EXT_platform_base", EXTENSION_EXT_PLATFORM_BASE),
+	EXT("EGL_EXT_platform_wayland", EXTENSION_EXT_PLATFORM_WAYLAND),
+	EXT("EGL_EXT_platform_x11", EXTENSION_EXT_PLATFORM_X11),
+	EXT("EGL_KHR_platform_gbm", EXTENSION_KHR_PLATFORM_GBM),
+	EXT("EGL_KHR_platform_wayland", EXTENSION_KHR_PLATFORM_WAYLAND),
+	EXT("EGL_KHR_platform_x11", EXTENSION_KHR_PLATFORM_X11),
+	EXT("EGL_MESA_platform_gbm", EXTENSION_MESA_PLATFORM_GBM),
+	EXT("EGL_MESA_platform_surfaceless", EXTENSION_MESA_PLATFORM_SURFACELESS),
+	{ NULL, 0, 0 }
+};
+
 static const char *
 egl_error_string(EGLint code)
 {
@@ -491,7 +505,6 @@ gl_renderer_setup_egl_display(struct gl_renderer *gr,
 {
 	gr->egl_display = NULL;
 
-	/* extension_suffix is supported */
 	if (gr->has_platform_base)
 		gr->egl_display = gr->get_platform_display(gr->platform,
 							   native_display,
@@ -524,39 +537,17 @@ fail:
 	return -1;
 }
 
-static const char *
-platform_to_extension(EGLenum platform)
-{
-	switch (platform) {
-	case EGL_PLATFORM_GBM_KHR:
-		return "gbm";
-	case EGL_PLATFORM_WAYLAND_KHR:
-		return "wayland";
-	case EGL_PLATFORM_X11_KHR:
-		return "x11";
-	case EGL_PLATFORM_SURFACELESS_MESA:
-		return "surfaceless";
-	default:
-		assert(0 && "bad EGL platform enum");
-	}
-}
-
 /** Checks for EGL client extensions (i.e. independent of EGL display),
  * loads the function pointers, and checks if the platform is supported.
  *
  * \param gr The OpenGL renderer
  * \return 0 for success, -1 if platform is unsupported
- *
- * This function checks whether a specific platform_* extension is supported
- * by EGL by checking in order "EGL_KHR_platform_foo", "EGL_EXT_platform_foo",
- * and "EGL_MESA_platform_foo" in order, for some platform "foo".
  */
 int
 gl_renderer_setup_egl_client_extensions(struct gl_renderer *gr)
 {
 	const char *extensions;
-	const char *extension_suffix = platform_to_extension(gr->platform);
-	char s[64];
+	const char *platform = NULL;
 
 	extensions = eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
 	if (!extensions) {
@@ -565,8 +556,9 @@ gl_renderer_setup_egl_client_extensions(struct gl_renderer *gr)
 	}
 
 	gl_renderer_log_extensions(gr, "EGL client extensions", extensions);
+	gl_extensions_add(client_table, extensions, &gr->egl_client_extensions);
 
-	if (weston_check_egl_extension(extensions, "EGL_EXT_device_query")) {
+	if (egl_client_has(gr, EXTENSION_EXT_DEVICE_QUERY)) {
 		gr->query_display_attrib =
 			(void *) eglGetProcAddress("eglQueryDisplayAttribEXT");
 		gr->query_device_string =
@@ -574,40 +566,53 @@ gl_renderer_setup_egl_client_extensions(struct gl_renderer *gr)
 		gr->has_device_query = true;
 	}
 
-	if (weston_check_egl_extension(extensions, "EGL_EXT_platform_base")) {
+	if (egl_client_has(gr, EXTENSION_EXT_PLATFORM_BASE)) {
 		gr->get_platform_display =
 			(void *) eglGetProcAddress("eglGetPlatformDisplayEXT");
 		gr->create_platform_window =
 			(void *) eglGetProcAddress("eglCreatePlatformWindowSurfaceEXT");
 		gr->has_platform_base = true;
-	} else {
+	} else if (gr->platform != EGL_PLATFORM_SURFACELESS_MESA) {
 		weston_log("warning: EGL_EXT_platform_base not supported.\n");
-
-		/* Surfaceless is unusable without platform_base extension */
-		if (gr->platform == EGL_PLATFORM_SURFACELESS_MESA) {
-			weston_log("Error: EGL surfaceless platform cannot be used.\n");
-			return -1;
-		}
-
 		return 0;
+	} else {
+		weston_log("Error: EGL surfaceless platform cannot be used.\n");
+		return -1;
 	}
 
-	snprintf(s, sizeof s, "EGL_KHR_platform_%s", extension_suffix);
-	if (weston_check_egl_extension(extensions, s))
-		return 0;
-
-	snprintf(s, sizeof s, "EGL_EXT_platform_%s", extension_suffix);
-	if (weston_check_egl_extension(extensions, s))
-		return 0;
-
-	snprintf(s, sizeof s, "EGL_MESA_platform_%s", extension_suffix);
-	if (weston_check_egl_extension(extensions, s))
-		return 0;
+	switch (gr->platform) {
+	case EGL_PLATFORM_GBM_KHR:
+		if (egl_client_has(gr, EXTENSION_KHR_PLATFORM_GBM) ||
+		    egl_client_has(gr, EXTENSION_MESA_PLATFORM_GBM))
+			return 0;
+		platform = "GBM";
+		break;
+	case EGL_PLATFORM_WAYLAND_KHR:
+		if (egl_client_has(gr, EXTENSION_KHR_PLATFORM_WAYLAND) ||
+		    egl_client_has(gr, EXTENSION_EXT_PLATFORM_WAYLAND))
+			return 0;
+		platform = "Wayland";
+		break;
+	case EGL_PLATFORM_X11_KHR:
+		if (egl_client_has(gr, EXTENSION_KHR_PLATFORM_X11) ||
+		    egl_client_has(gr, EXTENSION_EXT_PLATFORM_X11))
+			return 0;
+		platform = "X11";
+		break;
+	case EGL_PLATFORM_SURFACELESS_MESA:
+		if (egl_client_has(gr, EXTENSION_MESA_PLATFORM_SURFACELESS))
+			return 0;
+		platform = "surfaceless";
+		break;
+	default:
+		unreachable("bad EGL platform enum");
+		return -1;
+	}
 
 	/* at this point we definitely have some platform extensions but
 	 * haven't found the supplied platform, so chances are it's
 	 * not supported. */
-	weston_log("Error: EGL does not support %s platform.\n", extension_suffix);
+	weston_log("Error: EGL does not support %s platform.\n", platform);
 
 	return -1;
 }
