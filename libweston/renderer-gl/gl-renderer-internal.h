@@ -54,6 +54,8 @@
 /* Max number of images per buffer. */
 #define SHADER_INPUT_TEX_MAX 3
 
+#define EXT(string, flag) { string, ARRAY_LENGTH(string) - 1, (uint64_t) flag }
+
 /* Keep the following in sync with vertex.glsl. */
 enum gl_shader_texcoord_input {
 	SHADER_TEXCOORD_INPUT_ATTRIB = 0,
@@ -106,6 +108,12 @@ static_assert(TEX_UNIT_LAST < 8, "OpenGL ES 2.0 requires at least 8 texture "
 	      "units. Consider replacing this assert with a "
 	      "GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS check at display creation "
 	      "to require more.");
+
+struct gl_extension_table {
+	const char *str;
+	size_t len;
+	uint64_t flag;
+};
 
 /** GL shader requirements key
  *
@@ -324,6 +332,11 @@ gl_version_minor(uint32_t ver)
 {
 	return ver & 0xffff;
 }
+
+void
+gl_extensions_add(const struct gl_extension_table *table,
+		  const char *extensions,
+		  uint64_t *flags_out);
 
 static inline struct gl_renderer *
 get_renderer(struct weston_compositor *ec)

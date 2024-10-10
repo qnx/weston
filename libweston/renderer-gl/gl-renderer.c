@@ -424,6 +424,62 @@ struct yuv_format_descriptor yuv_formats[] = {
 	}
 };
 
+/* Add extension flags to the bitfield that 'flags_out' points to. 'table'
+ * stores extension names and flags to check for and 'extensions' is the list
+ * usually returned by the EGL or GL implementation. New flags are stored using
+ * a binary OR in order to keep flags set from a previous call. Caller must
+ * ensure the bitfield is set to 0 at first call.
+ */
+void
+gl_extensions_add(const struct gl_extension_table *table,
+		  const char *extensions,
+		  uint64_t *flags_out)
+{
+	struct { const char *str; size_t len; } *map;
+	size_t i = 0, n = 0;
+	uint64_t flags = 0;
+	char prev_char = ' ';
+
+	/* Get number of extensions. */
+	while (extensions[i]) {
+		if (prev_char == ' ' && extensions[i] != ' ')
+			n++;
+		prev_char = extensions[i++];
+	}
+
+	if (n == 0)
+		return;
+
+	/* Allocate data structure mapping each extension with their length. */
+	map = xmalloc(n * sizeof *map);
+	prev_char = ' ';
+	i = n = 0;
+	while (prev_char) {
+		if (extensions[i] != ' ' && extensions[i] != '\0') {
+			if (prev_char == ' ')
+				map[n].str = &extensions[i];
+		} else if (prev_char != ' ') {
+			map[n].len = &extensions[i] - map[n].str;
+			n++;
+		}
+		prev_char = extensions[i++];
+	}
+
+	/* Match extensions with table. */
+	for (; table->str; table++) {
+		for (i = 0; i < n; i++) {
+			if (table->len == map[i].len &&
+			    !strncmp(table->str, map[i].str, table->len)) {
+				flags |= table->flag;
+				break;
+			}
+		}
+	}
+
+	*flags_out |= flags;
+	free(map);
+}
+
 static void
 timeline_begin_render_query(struct gl_renderer *gr, GLuint query)
 {
