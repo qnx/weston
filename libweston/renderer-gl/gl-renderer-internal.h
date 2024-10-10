@@ -54,6 +54,11 @@
 /* Max number of images per buffer. */
 #define SHADER_INPUT_TEX_MAX 3
 
+#define GET_PROC_ADDRESS(dest, proc) do { \
+	dest = (void *) eglGetProcAddress(proc); \
+	assert(dest); \
+} while (0)
+
 #define EXT(string, flag) { string, ARRAY_LENGTH(string) - 1, (uint64_t) flag }
 
 /* Keep in sync with egl-glue.c. */

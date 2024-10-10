@@ -587,17 +587,17 @@ gl_renderer_setup_egl_client_extensions(struct gl_renderer *gr)
 	gl_extensions_add(client_table, extensions, &gr->egl_client_extensions);
 
 	if (egl_client_has(gr, EXTENSION_EXT_DEVICE_QUERY)) {
-		gr->query_display_attrib =
-			(void *) eglGetProcAddress("eglQueryDisplayAttribEXT");
-		gr->query_device_string =
-			(void *) eglGetProcAddress("eglQueryDeviceStringEXT");
+		GET_PROC_ADDRESS(gr->query_display_attrib,
+				 "eglQueryDisplayAttribEXT");
+		GET_PROC_ADDRESS(gr->query_device_string,
+				 "eglQueryDeviceStringEXT");
 	}
 
 	if (egl_client_has(gr, EXTENSION_EXT_PLATFORM_BASE)) {
-		gr->get_platform_display =
-			(void *) eglGetProcAddress("eglGetPlatformDisplayEXT");
-		gr->create_platform_window =
-			(void *) eglGetProcAddress("eglCreatePlatformWindowSurfaceEXT");
+		GET_PROC_ADDRESS(gr->get_platform_display,
+				 "eglGetPlatformDisplayEXT");
+		GET_PROC_ADDRESS(gr->create_platform_window,
+				 "eglCreatePlatformWindowSurfaceEXT");
 	} else if (gr->platform != EGL_PLATFORM_SURFACELESS_MESA) {
 		weston_log("warning: EGL_EXT_platform_base not supported.\n");
 		return 0;
@@ -664,17 +664,13 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 	const char *extensions;
 	unsigned i;
 
-	gr->create_image = (void *) eglGetProcAddress("eglCreateImageKHR");
-	gr->destroy_image = (void *) eglGetProcAddress("eglDestroyImageKHR");
+	GET_PROC_ADDRESS(gr->create_image, "eglCreateImageKHR");
+	GET_PROC_ADDRESS(gr->destroy_image, "eglDestroyImageKHR");
 
-	gr->bind_display =
-		(void *) eglGetProcAddress("eglBindWaylandDisplayWL");
-	gr->unbind_display =
-		(void *) eglGetProcAddress("eglUnbindWaylandDisplayWL");
-	gr->query_buffer =
-		(void *) eglGetProcAddress("eglQueryWaylandBufferWL");
-	gr->set_damage_region =
-		(void *) eglGetProcAddress("eglSetDamageRegionKHR");
+	GET_PROC_ADDRESS(gr->bind_display, "eglBindWaylandDisplayWL");
+	GET_PROC_ADDRESS(gr->unbind_display, "eglUnbindWaylandDisplayWL");
+	GET_PROC_ADDRESS(gr->query_buffer, "eglQueryWaylandBufferWL");
+	GET_PROC_ADDRESS(gr->set_damage_region, "eglSetDamageRegionKHR");
 
 	extensions =
 		(const char *) eglQueryString(gr->egl_display, EGL_EXTENSIONS);
@@ -686,61 +682,43 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 	gl_extensions_add(display_table, extensions,
 			  &gr->egl_display_extensions);
 
-	if (egl_display_has(gr, EXTENSION_WL_BIND_WAYLAND_DISPLAY)) {
-		assert(gr->bind_display);
-		assert(gr->unbind_display);
-		assert(gr->query_buffer);
+	if (egl_display_has(gr, EXTENSION_WL_BIND_WAYLAND_DISPLAY))
 		has_bind_display = gr->bind_display(gr->egl_display,
 						    ec->wl_display);
-	}
-
-	if (egl_display_has(gr, EXTENSION_KHR_PARTIAL_UPDATE))
-		assert(gr->set_damage_region);
 
 	for (i = 0; i < ARRAY_LENGTH(swap_damage_ext_to_entrypoint); i++) {
 		if (egl_display_has(gr,
 				swap_damage_ext_to_entrypoint[i].extension)) {
-			gr->swap_buffers_with_damage =
-				(void *) eglGetProcAddress(
-						swap_damage_ext_to_entrypoint[i].entrypoint);
-			assert(gr->swap_buffers_with_damage);
+			GET_PROC_ADDRESS(gr->swap_buffers_with_damage,
+					 swap_damage_ext_to_entrypoint[i].entrypoint);
 			break;
 		}
 	}
 
 	if (egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS)) {
-		gr->query_dmabuf_formats =
-			(void *) eglGetProcAddress("eglQueryDmaBufFormatsEXT");
-		gr->query_dmabuf_modifiers =
-			(void *) eglGetProcAddress("eglQueryDmaBufModifiersEXT");
-		assert(gr->query_dmabuf_formats);
-		assert(gr->query_dmabuf_modifiers);
+		GET_PROC_ADDRESS(gr->query_dmabuf_formats,
+				 "eglQueryDmaBufFormatsEXT");
+		GET_PROC_ADDRESS(gr->query_dmabuf_modifiers,
+				 "eglQueryDmaBufModifiersEXT");
 	}
 
 	if (egl_display_has(gr, EXTENSION_KHR_FENCE_SYNC) &&
 	    egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC)) {
-		gr->create_sync =
-			(void *) eglGetProcAddress("eglCreateSyncKHR");
-		gr->destroy_sync =
-			(void *) eglGetProcAddress("eglDestroySyncKHR");
-		gr->dup_native_fence_fd =
-			(void *) eglGetProcAddress("eglDupNativeFenceFDANDROID");
-		assert(gr->create_sync);
-		assert(gr->destroy_sync);
-		assert(gr->dup_native_fence_fd);
+		GET_PROC_ADDRESS(gr->create_sync, "eglCreateSyncKHR");
+		GET_PROC_ADDRESS(gr->destroy_sync, "eglDestroySyncKHR");
+		GET_PROC_ADDRESS(gr->dup_native_fence_fd,
+				 "eglDupNativeFenceFDANDROID");
 	} else {
 		weston_log("warning: Disabling render GPU timeline and explicit "
 			   "synchronization due to missing "
 			   "EGL_ANDROID_native_fence_sync extension\n");
 	}
 
-	if (egl_display_has(gr, EXTENSION_KHR_WAIT_SYNC)) {
-		gr->wait_sync = (void *) eglGetProcAddress("eglWaitSyncKHR");
-		assert(gr->wait_sync);
-	} else {
+	if (egl_display_has(gr, EXTENSION_KHR_WAIT_SYNC))
+		GET_PROC_ADDRESS(gr->wait_sync, "eglWaitSyncKHR");
+	else
 		weston_log("warning: Disabling explicit synchronization due "
 			   "to missing EGL_KHR_wait_sync extension\n");
-	}
 
 	weston_log("EGL features:\n");
 	weston_log_continue(STAMP_SPACE "EGL Wayland extension: %s\n",
