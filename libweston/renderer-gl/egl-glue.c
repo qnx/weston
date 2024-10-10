@@ -654,12 +654,7 @@ int
 gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 {
 	struct gl_renderer *gr = get_renderer(ec);
-	bool has_bind_display = false;
 	const char *extensions;
-
-	GET_PROC_ADDRESS(gr->bind_display, "eglBindWaylandDisplayWL");
-	GET_PROC_ADDRESS(gr->unbind_display, "eglUnbindWaylandDisplayWL");
-	GET_PROC_ADDRESS(gr->query_buffer, "eglQueryWaylandBufferWL");
 
 	extensions =
 		(const char *) eglQueryString(gr->egl_display, EGL_EXTENSIONS);
@@ -679,9 +674,12 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 		GET_PROC_ADDRESS(gr->destroy_image, "eglDestroyImageKHR");
 	}
 
-	if (egl_display_has(gr, EXTENSION_WL_BIND_WAYLAND_DISPLAY))
-		has_bind_display = gr->bind_display(gr->egl_display,
-						    ec->wl_display);
+	if (egl_display_has(gr, EXTENSION_WL_BIND_WAYLAND_DISPLAY)) {
+		GET_PROC_ADDRESS(gr->bind_display, "eglBindWaylandDisplayWL");
+		GET_PROC_ADDRESS(gr->unbind_display,
+				 "eglUnbindWaylandDisplayWL");
+		GET_PROC_ADDRESS(gr->query_buffer, "eglQueryWaylandBufferWL");
+	}
 
 	if (egl_display_has(gr, EXTENSION_KHR_PARTIAL_UPDATE))
 		GET_PROC_ADDRESS(gr->set_damage_region,
@@ -734,7 +732,7 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 
 	weston_log("EGL features:\n");
 	weston_log_continue(STAMP_SPACE "EGL Wayland extension: %s\n",
-			    yesno(has_bind_display));
+			    yesno(egl_display_has(gr, EXTENSION_WL_BIND_WAYLAND_DISPLAY)));
 	weston_log_continue(STAMP_SPACE "context priority: %s\n",
 			    yesno(egl_display_has(gr, EXTENSION_IMG_CONTEXT_PRIORITY)));
 	weston_log_continue(STAMP_SPACE "buffer age: %s\n",

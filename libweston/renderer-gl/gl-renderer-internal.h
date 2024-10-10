@@ -302,6 +302,7 @@ struct gl_renderer {
 	PFNEGLBINDWAYLANDDISPLAYWL bind_display;
 	PFNEGLUNBINDWAYLANDDISPLAYWL unbind_display;
 	PFNEGLQUERYWAYLANDBUFFERWL query_buffer;
+	bool display_bound;
 
 	/* EGL_KHR_partial_update */
 	PFNEGLSETDAMAGEREGIONKHRPROC set_damage_region;

@@ -2870,7 +2870,7 @@ gl_renderer_fill_buffer_info(struct weston_compositor *ec,
 			     struct weston_buffer *buffer)
 {
 	struct gl_renderer *gr = get_renderer(ec);
-	struct gl_buffer_state *gb = zalloc(sizeof(*gb));
+	struct gl_buffer_state *gb;
 	EGLint format;
 	uint32_t fourcc = DRM_FORMAT_INVALID;
 	GLenum target;
@@ -2878,6 +2878,12 @@ gl_renderer_fill_buffer_info(struct weston_compositor *ec,
 	bool ret = true;
 	int i;
 
+	/* Ensure that EGL_WL_bind_wayland_display (and EGL_KHR_image_base) is
+	 * available and that the Wayland display is bound. */
+	if (!gr->display_bound)
+		return false;
+
+	gb = zalloc(sizeof(*gb));
 	if (!gb)
 		return false;
 
@@ -4440,7 +4446,7 @@ gl_renderer_destroy(struct weston_compositor *ec)
 
 	wl_signal_emit(&gr->destroy_signal, gr);
 
-	if (egl_display_has(gr, EXTENSION_WL_BIND_WAYLAND_DISPLAY))
+	if (gr->display_bound)
 		gr->unbind_display(gr->egl_display, ec->wl_display);
 
 	wl_list_for_each_safe(gl_task, tmp, &gr->pending_capture_list, link)
@@ -4566,6 +4572,14 @@ gl_renderer_display_create(struct weston_compositor *ec,
 
 	if (gl_renderer_setup_egl_extensions(ec) < 0)
 		goto fail_with_error;
+
+	if (egl_display_has(gr, EXTENSION_WL_BIND_WAYLAND_DISPLAY)) {
+		gr->display_bound = gr->bind_display(gr->egl_display,
+						     ec->wl_display);
+		if (!gr->display_bound)
+			weston_log("warning: There is already a Wayland "
+				   "display bound to the EGL display.\n");
+	}
 
 	if (!egl_display_has(gr, EXTENSION_KHR_SURFACELESS_CONTEXT))
 		goto fail_terminate;
