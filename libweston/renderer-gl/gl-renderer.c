@@ -484,7 +484,7 @@ static void
 timeline_begin_render_query(struct gl_renderer *gr, GLuint query)
 {
 	if (weston_log_scope_is_enabled(gr->compositor->timeline) &&
-	    gr->has_native_fence_sync &&
+	    egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC) &&
 	    gr->has_disjoint_timer_query)
 		gr->begin_query(GL_TIME_ELAPSED_EXT, query);
 }
@@ -493,7 +493,7 @@ static void
 timeline_end_render_query(struct gl_renderer *gr)
 {
 	if (weston_log_scope_is_enabled(gr->compositor->timeline) &&
-	    gr->has_native_fence_sync &&
+	    egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC) &&
 	    gr->has_disjoint_timer_query)
 		gr->end_query(GL_TIME_ELAPSED_EXT);
 }
@@ -550,7 +550,7 @@ create_render_sync(struct gl_renderer *gr)
 {
 	static const EGLint attribs[] = { EGL_NONE };
 
-	if (!gr->has_native_fence_sync)
+	if (!egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC))
 		return EGL_NO_SYNC_KHR;
 
 	return gr->create_sync(gr->egl_display, EGL_SYNC_NATIVE_FENCE_ANDROID,
@@ -569,7 +569,7 @@ timeline_submit_render_sync(struct gl_renderer *gr,
 	struct timeline_render_point *trp;
 
 	if (!weston_log_scope_is_enabled(gr->compositor->timeline) ||
-	    !gr->has_native_fence_sync ||
+	    !egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC) ||
 	    !gr->has_disjoint_timer_query ||
 	    sync == EGL_NO_SYNC_KHR)
 		return;
@@ -1158,7 +1158,7 @@ ensure_surface_buffer_is_ready(struct gl_renderer *gr,
 
 	/* We should only get a fence if we support EGLSyncKHR, since
 	 * we don't advertise the explicit sync protocol otherwise. */
-	assert(gr->has_native_fence_sync);
+	assert(egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC));
 	/* We should only get a fence for non-SHM buffers, since surface
 	 * commit would have failed otherwise. */
 	assert(buffer->type != WESTON_BUFFER_SHM);
@@ -2079,7 +2079,8 @@ output_get_buffer_age(struct weston_output *output)
 	EGLint buffer_age = 0;
 	EGLBoolean ret;
 
-	if ((gr->has_egl_buffer_age || gr->has_egl_partial_update) &&
+	if ((egl_display_has(gr, EXTENSION_EXT_BUFFER_AGE) ||
+	     egl_display_has(gr, EXTENSION_KHR_PARTIAL_UPDATE)) &&
 	    go->egl_surface != EGL_NO_SURFACE) {
 		ret = eglQuerySurface(gr->egl_display, go->egl_surface,
 				      EGL_BUFFER_AGE_EXT, &buffer_age);
@@ -2123,7 +2124,8 @@ output_get_dummy_renderbuffer(struct weston_output *output)
 	}
 
 	/* otherwise decide whether to refurbish and return the oldest, */
-	max_buffers = (gr->has_egl_buffer_age || gr->has_egl_partial_update) ?
+	max_buffers = (egl_display_has(gr, EXTENSION_EXT_BUFFER_AGE) ||
+		       egl_display_has(gr, EXTENSION_KHR_PARTIAL_UPDATE)) ?
 		      BUFFER_DAMAGE_COUNT : 1;
 	if ((buffer_age == 0 || buffer_age - 1 > BUFFER_DAMAGE_COUNT) &&
 	    count >= max_buffers) {
@@ -2395,7 +2397,7 @@ gl_renderer_repaint_output(struct weston_output *output,
 		pixman_region32_fini(&undamaged);
 	}
 
-	if (gr->has_egl_partial_update &&
+	if (egl_display_has(gr, EXTENSION_KHR_PARTIAL_UPDATE) &&
 	    go->egl_surface != EGL_NO_SURFACE &&
 	    !gr->debug_clear) {
 		int n_egl_rects;
@@ -2443,7 +2445,9 @@ gl_renderer_repaint_output(struct weston_output *output,
 	if (go->egl_surface != EGL_NO_SURFACE) {
 		EGLBoolean ret;
 
-		if (gr->swap_buffers_with_damage && !gr->debug_clear) {
+		if ((egl_display_has(gr, EXTENSION_EXT_SWAP_BUFFERS_WITH_DAMAGE) ||
+		     egl_display_has(gr, EXTENSION_KHR_SWAP_BUFFERS_WITH_DAMAGE)) &&
+		    !gr->debug_clear) {
 			int n_egl_rects;
 			EGLint *egl_rects;
 
@@ -3015,7 +3019,7 @@ import_simple_dmabuf(struct gl_renderer *gr,
 	attribs[atti++] = EGL_TRUE;
 
 	if (attributes->modifier != DRM_FORMAT_MOD_INVALID) {
-		if (!gr->has_dmabuf_import_modifiers)
+		if (!egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS))
 			return NULL;
 		has_modifier = true;
 	} else {
@@ -3067,7 +3071,7 @@ import_simple_dmabuf(struct gl_renderer *gr,
 		}
 	}
 
-	if (gr->has_dmabuf_import_modifiers) {
+	if (egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS)) {
 		if (attributes->n_planes > 3) {
 			attribs[atti++] = EGL_DMA_BUF_PLANE3_FD_EXT;
 			attribs[atti++] = attributes->fd[3];
@@ -3327,9 +3331,9 @@ gl_renderer_query_dmabuf_formats(struct weston_compositor *wc,
 	bool fallback = false;
 	EGLint num;
 
-	assert(gr->has_dmabuf_import);
+	assert(egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT));
 
-	if (!gr->has_dmabuf_import_modifiers ||
+	if (!egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS) ||
 	    !gr->query_dmabuf_formats(gr->egl_display, 0, NULL, &num)) {
 		num = gr->has_gl_texture_rg ? ARRAY_LENGTH(fallback_formats) : 2;
 		fallback = true;
@@ -3364,9 +3368,9 @@ gl_renderer_query_dmabuf_modifiers_full(struct gl_renderer *gr, int format,
 {
 	int num;
 
-	assert(gr->has_dmabuf_import);
+	assert(egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT));
 
-	if (!gr->has_dmabuf_import_modifiers ||
+	if (!egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS) ||
 		!gr->query_dmabuf_modifiers(gr->egl_display, format, 0, NULL,
 					    NULL, &num) ||
 		num == 0) {
@@ -3418,11 +3422,11 @@ gl_renderer_import_dmabuf(struct weston_compositor *ec,
 	struct gl_renderer *gr = get_renderer(ec);
 	struct gl_buffer_state *gb;
 
-	assert(gr->has_dmabuf_import);
+	assert(egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT));
 
 	/* return if EGL doesn't support import modifiers */
 	if (dmabuf->attributes.modifier != DRM_FORMAT_MOD_INVALID)
-		if (!gr->has_dmabuf_import_modifiers)
+		if (!egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS))
 			return false;
 
 	/* reject all flags we do not recognize or handle */
@@ -4436,7 +4440,7 @@ gl_renderer_destroy(struct weston_compositor *ec)
 
 	wl_signal_emit(&gr->destroy_signal, gr);
 
-	if (gr->has_bind_display)
+	if (egl_display_has(gr, EXTENSION_WL_BIND_WAYLAND_DISPLAY))
 		gr->unbind_display(gr->egl_display, ec->wl_display);
 
 	wl_list_for_each_safe(gl_task, tmp, &gr->pending_capture_list, link)
@@ -4563,13 +4567,14 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	if (gl_renderer_setup_egl_extensions(ec) < 0)
 		goto fail_with_error;
 
-	if (!gr->has_surfaceless_context)
+	if (!egl_display_has(gr, EXTENSION_KHR_SURFACELESS_CONTEXT))
 		goto fail_terminate;
 
-	if (!gr->has_configless_context) {
+	if (!egl_display_has(gr, EXTENSION_KHR_NO_CONFIG_CONTEXT) &&
+	    !egl_display_has(gr, EXTENSION_MESA_CONFIGLESS_CONTEXT)) {
 		EGLint egl_surface_type = options->egl_surface_type;
 
-		if (!gr->has_surfaceless_context)
+		if (!egl_display_has(gr, EXTENSION_KHR_SURFACELESS_CONTEXT))
 			egl_surface_type |= EGL_PBUFFER_BIT;
 
 		gr->egl_config =
@@ -4586,13 +4591,14 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	ec->capabilities |= WESTON_CAP_ROTATION_ANY;
 	ec->capabilities |= WESTON_CAP_CAPTURE_YFLIP;
 	ec->capabilities |= WESTON_CAP_VIEW_CLIP_MASK;
-	if (gr->has_native_fence_sync && gr->has_wait_sync)
+	if (egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC) &&
+	    egl_display_has(gr, EXTENSION_KHR_WAIT_SYNC))
 		ec->capabilities |= WESTON_CAP_EXPLICIT_SYNC;
 
 	if (gr->allocator)
 		gr->base.dmabuf_alloc = gl_renderer_dmabuf_alloc;
 
-	if (gr->has_dmabuf_import) {
+	if (egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT)) {
 		gr->base.import_dmabuf = gl_renderer_import_dmabuf;
 		gr->base.get_supported_formats = gl_renderer_get_supported_formats;
 		gr->base.create_renderbuffer_dmabuf = gl_renderer_create_renderbuffer_dmabuf;
@@ -4741,7 +4747,7 @@ gl_renderer_setup(struct weston_compositor *ec)
 	 * first. If the driver doesn't permit us to create a high priority
 	 * context, it will fallback to the default priority (MEDIUM).
 	 */
-	if (gr->has_context_priority) {
+	if (egl_display_has(gr, EXTENSION_IMG_CONTEXT_PRIORITY)) {
 		context_attribs[nattr++] = EGL_CONTEXT_PRIORITY_LEVEL_IMG;
 		context_attribs[nattr++] = EGL_CONTEXT_PRIORITY_HIGH_IMG;
 	}
@@ -4767,7 +4773,7 @@ gl_renderer_setup(struct weston_compositor *ec)
 		}
 	}
 
-	if (gr->has_context_priority) {
+	if (egl_display_has(gr, EXTENSION_IMG_CONTEXT_PRIORITY)) {
 		EGLint value = EGL_CONTEXT_PRIORITY_MEDIUM_IMG;
 
 		eglQueryContext(gr->egl_display, gr->egl_context,
@@ -4916,7 +4922,7 @@ gl_renderer_setup(struct weston_compositor *ec)
 				   "the GL_EXT_disjoint_timer_query "
 				   "extension\n");
 		}
-	} else if (gr->has_native_fence_sync)  {
+	} else if (egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC))  {
 		weston_log("warning: Disabling render GPU timeline due to "
 			   "missing GL_EXT_disjoint_timer_query extension\n");
 	}

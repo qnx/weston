@@ -490,7 +490,7 @@ gl_renderer_set_egl_device(struct gl_renderer *gr)
 	EGLAttrib attrib;
 	const char *extensions;
 
-	assert(gr->has_device_query);
+	assert(egl_client_has(gr, EXTENSION_EXT_DEVICE_QUERY));
 
 	if (!gr->query_display_attrib(gr->egl_display, EGL_DEVICE_EXT, &attrib)) {
 		weston_log("failed to get EGL device\n");
@@ -533,7 +533,7 @@ gl_renderer_setup_egl_display(struct gl_renderer *gr,
 {
 	gr->egl_display = NULL;
 
-	if (gr->has_platform_base)
+	if (egl_client_has(gr, EXTENSION_EXT_PLATFORM_BASE))
 		gr->egl_display = gr->get_platform_display(gr->platform,
 							   native_display,
 							   NULL);
@@ -555,7 +555,7 @@ gl_renderer_setup_egl_display(struct gl_renderer *gr,
 		goto fail;
 	}
 
-	if (gr->has_device_query)
+	if (egl_client_has(gr, EXTENSION_EXT_DEVICE_QUERY))
 		gl_renderer_set_egl_device(gr);
 
 	return 0;
@@ -591,7 +591,6 @@ gl_renderer_setup_egl_client_extensions(struct gl_renderer *gr)
 			(void *) eglGetProcAddress("eglQueryDisplayAttribEXT");
 		gr->query_device_string =
 			(void *) eglGetProcAddress("eglQueryDeviceStringEXT");
-		gr->has_device_query = true;
 	}
 
 	if (egl_client_has(gr, EXTENSION_EXT_PLATFORM_BASE)) {
@@ -599,7 +598,6 @@ gl_renderer_setup_egl_client_extensions(struct gl_renderer *gr)
 			(void *) eglGetProcAddress("eglGetPlatformDisplayEXT");
 		gr->create_platform_window =
 			(void *) eglGetProcAddress("eglCreatePlatformWindowSurfaceEXT");
-		gr->has_platform_base = true;
 	} else if (gr->platform != EGL_PLATFORM_SURFACELESS_MESA) {
 		weston_log("warning: EGL_EXT_platform_base not supported.\n");
 		return 0;
@@ -649,20 +647,21 @@ int
 gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 {
 	static const struct {
-		char *extension, *entrypoint;
+		enum egl_display_extension_flag extension;
+		char *entrypoint;
 	} swap_damage_ext_to_entrypoint[] = {
 		{
-			.extension = "EGL_EXT_swap_buffers_with_damage",
+			.extension = EXTENSION_EXT_SWAP_BUFFERS_WITH_DAMAGE,
 			.entrypoint = "eglSwapBuffersWithDamageEXT",
 		},
 		{
-			.extension = "EGL_KHR_swap_buffers_with_damage",
+			.extension = EXTENSION_KHR_SWAP_BUFFERS_WITH_DAMAGE,
 			.entrypoint = "eglSwapBuffersWithDamageKHR",
 		},
 	};
 	struct gl_renderer *gr = get_renderer(ec);
+	bool has_bind_display = false;
 	const char *extensions;
-	EGLBoolean ret;
 	unsigned i;
 
 	gr->create_image = (void *) eglGetProcAddress("eglCreateImageKHR");
@@ -687,30 +686,19 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 	gl_extensions_add(display_table, extensions,
 			  &gr->egl_display_extensions);
 
-	if (egl_display_has(gr, EXTENSION_IMG_CONTEXT_PRIORITY))
-		gr->has_context_priority = true;
-
-	if (egl_display_has(gr, EXTENSION_WL_BIND_WAYLAND_DISPLAY))
-		gr->has_bind_display = true;
-	if (gr->has_bind_display) {
+	if (egl_display_has(gr, EXTENSION_WL_BIND_WAYLAND_DISPLAY)) {
 		assert(gr->bind_display);
 		assert(gr->unbind_display);
 		assert(gr->query_buffer);
-		ret = gr->bind_display(gr->egl_display, ec->wl_display);
-		if (!ret)
-			gr->has_bind_display = false;
+		has_bind_display = gr->bind_display(gr->egl_display,
+						    ec->wl_display);
 	}
 
-	if (egl_display_has(gr, EXTENSION_EXT_BUFFER_AGE))
-		gr->has_egl_buffer_age = true;
-
-	if (egl_display_has(gr, EXTENSION_KHR_PARTIAL_UPDATE)) {
+	if (egl_display_has(gr, EXTENSION_KHR_PARTIAL_UPDATE))
 		assert(gr->set_damage_region);
-		gr->has_egl_partial_update = true;
-	}
 
 	for (i = 0; i < ARRAY_LENGTH(swap_damage_ext_to_entrypoint); i++) {
-		if (weston_check_egl_extension(extensions,
+		if (egl_display_has(gr,
 				swap_damage_ext_to_entrypoint[i].extension)) {
 			gr->swap_buffers_with_damage =
 				(void *) eglGetProcAddress(
@@ -720,16 +708,6 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 		}
 	}
 
-	if (egl_display_has(gr, EXTENSION_KHR_NO_CONFIG_CONTEXT) ||
-	    egl_display_has(gr, EXTENSION_MESA_CONFIGLESS_CONTEXT))
-		gr->has_configless_context = true;
-
-	if (egl_display_has(gr, EXTENSION_KHR_SURFACELESS_CONTEXT))
-		gr->has_surfaceless_context = true;
-
-	if (egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT))
-		gr->has_dmabuf_import = true;
-
 	if (egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS)) {
 		gr->query_dmabuf_formats =
 			(void *) eglGetProcAddress("eglQueryDmaBufFormatsEXT");
@@ -737,7 +715,6 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 			(void *) eglGetProcAddress("eglQueryDmaBufModifiersEXT");
 		assert(gr->query_dmabuf_formats);
 		assert(gr->query_dmabuf_modifiers);
-		gr->has_dmabuf_import_modifiers = true;
 	}
 
 	if (egl_display_has(gr, EXTENSION_KHR_FENCE_SYNC) &&
@@ -751,7 +728,6 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 		assert(gr->create_sync);
 		assert(gr->destroy_sync);
 		assert(gr->dup_native_fence_fd);
-		gr->has_native_fence_sync = true;
 	} else {
 		weston_log("warning: Disabling render GPU timeline and explicit "
 			   "synchronization due to missing "
@@ -761,31 +737,31 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 	if (egl_display_has(gr, EXTENSION_KHR_WAIT_SYNC)) {
 		gr->wait_sync = (void *) eglGetProcAddress("eglWaitSyncKHR");
 		assert(gr->wait_sync);
-		gr->has_wait_sync = true;
 	} else {
-		weston_log("warning: Disabling explicit synchronization due"
+		weston_log("warning: Disabling explicit synchronization due "
 			   "to missing EGL_KHR_wait_sync extension\n");
 	}
 
 	weston_log("EGL features:\n");
 	weston_log_continue(STAMP_SPACE "EGL Wayland extension: %s\n",
-			    yesno(gr->has_bind_display));
+			    yesno(has_bind_display));
 	weston_log_continue(STAMP_SPACE "context priority: %s\n",
-			    yesno(gr->has_context_priority));
+			    yesno(egl_display_has(gr, EXTENSION_IMG_CONTEXT_PRIORITY)));
 	weston_log_continue(STAMP_SPACE "buffer age: %s\n",
-			    yesno(gr->has_egl_buffer_age));
+			    yesno(egl_display_has(gr, EXTENSION_EXT_BUFFER_AGE)));
 	weston_log_continue(STAMP_SPACE "partial update: %s\n",
-			    yesno(gr->has_egl_partial_update));
+			    yesno(egl_display_has(gr, EXTENSION_KHR_PARTIAL_UPDATE)));
 	weston_log_continue(STAMP_SPACE "swap buffers with damage: %s\n",
 			    yesno(gr->swap_buffers_with_damage));
 	weston_log_continue(STAMP_SPACE "configless context: %s\n",
-			    yesno(gr->has_configless_context));
+			    yesno(egl_display_has(gr, EXTENSION_KHR_NO_CONFIG_CONTEXT) ||
+				  egl_display_has(gr, EXTENSION_MESA_CONFIGLESS_CONTEXT)));
 	weston_log_continue(STAMP_SPACE "surfaceless context: %s\n",
-			    yesno(gr->has_surfaceless_context));
+			    yesno(egl_display_has(gr, EXTENSION_KHR_SURFACELESS_CONTEXT)));
 	weston_log_continue(STAMP_SPACE "dmabuf support: %s\n",
-			    gr->has_dmabuf_import ?
-			    (gr->has_dmabuf_import_modifiers ? "modifiers" : "legacy") :
-			    "no");
+			    !egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT) ? "no" :
+			    !egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS) ? "legacy" :
+			    "modifiers");
 
 	return 0;
 }

@@ -276,26 +276,15 @@ struct gl_renderer {
 
 	PFNEGLGETPLATFORMDISPLAYEXTPROC get_platform_display;
 	PFNEGLCREATEPLATFORMWINDOWSURFACEEXTPROC create_platform_window;
-	bool has_platform_base;
 
 	PFNEGLBINDWAYLANDDISPLAYWL bind_display;
 	PFNEGLUNBINDWAYLANDDISPLAYWL unbind_display;
 	PFNEGLQUERYWAYLANDBUFFERWL query_buffer;
-	bool has_bind_display;
-
-	bool has_context_priority;
 
 	bool has_egl_image_external;
 
-	bool has_egl_buffer_age;
-	bool has_egl_partial_update;
 	PFNEGLSETDAMAGEREGIONKHRPROC set_damage_region;
 
-	bool has_configless_context;
-
-	bool has_surfaceless_context;
-
-	bool has_dmabuf_import;
 	struct wl_list dmabuf_images;
 	struct wl_list dmabuf_formats;
 
@@ -318,20 +307,16 @@ struct gl_renderer {
 
 	struct wl_signal destroy_signal;
 
-	bool has_dmabuf_import_modifiers;
 	PFNEGLQUERYDMABUFFORMATSEXTPROC query_dmabuf_formats;
 	PFNEGLQUERYDMABUFMODIFIERSEXTPROC query_dmabuf_modifiers;
 
-	bool has_device_query;
 	PFNEGLQUERYDISPLAYATTRIBEXTPROC query_display_attrib;
 	PFNEGLQUERYDEVICESTRINGEXTPROC query_device_string;
 
-	bool has_native_fence_sync;
 	PFNEGLCREATESYNCKHRPROC create_sync;
 	PFNEGLDESTROYSYNCKHRPROC destroy_sync;
 	PFNEGLDUPNATIVEFENCEFDANDROIDPROC dup_native_fence_fd;
 
-	bool has_wait_sync;
 	PFNEGLWAITSYNCKHRPROC wait_sync;
 
 	bool has_disjoint_timer_query;
