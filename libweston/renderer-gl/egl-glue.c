@@ -654,7 +654,6 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 	GET_PROC_ADDRESS(gr->bind_display, "eglBindWaylandDisplayWL");
 	GET_PROC_ADDRESS(gr->unbind_display, "eglUnbindWaylandDisplayWL");
 	GET_PROC_ADDRESS(gr->query_buffer, "eglQueryWaylandBufferWL");
-	GET_PROC_ADDRESS(gr->set_damage_region, "eglSetDamageRegionKHR");
 
 	extensions =
 		(const char *) eglQueryString(gr->egl_display, EGL_EXTENSIONS);
@@ -678,6 +677,10 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 		has_bind_display = gr->bind_display(gr->egl_display,
 						    ec->wl_display);
 
+	if (egl_display_has(gr, EXTENSION_KHR_PARTIAL_UPDATE))
+		GET_PROC_ADDRESS(gr->set_damage_region,
+				 "eglSetDamageRegionKHR");
+
 	if (egl_display_has(gr, EXTENSION_EXT_SWAP_BUFFERS_WITH_DAMAGE))
 		GET_PROC_ADDRESS(gr->swap_buffers_with_damage,
 				 "eglSwapBuffersWithDamageEXT");
@@ -692,17 +695,18 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 				 "eglQueryDmaBufModifiersEXT");
 	}
 
-	if (egl_display_has(gr, EXTENSION_KHR_FENCE_SYNC) &&
-	    egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC)) {
+	if (egl_display_has(gr, EXTENSION_KHR_FENCE_SYNC)) {
 		GET_PROC_ADDRESS(gr->create_sync, "eglCreateSyncKHR");
 		GET_PROC_ADDRESS(gr->destroy_sync, "eglDestroySyncKHR");
+	}
+
+	if (egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC))
 		GET_PROC_ADDRESS(gr->dup_native_fence_fd,
 				 "eglDupNativeFenceFDANDROID");
-	} else {
+	else
 		weston_log("warning: Disabling render GPU timeline and explicit "
 			   "synchronization due to missing "
 			   "EGL_ANDROID_native_fence_sync extension\n");
-	}
 
 	if (egl_display_has(gr, EXTENSION_KHR_WAIT_SYNC))
 		GET_PROC_ADDRESS(gr->wait_sync, "eglWaitSyncKHR");
