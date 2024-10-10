@@ -69,6 +69,12 @@ enum egl_client_extension_flag {
 	EXTENSION_MESA_PLATFORM_SURFACELESS = 1ull << 8,
 };
 
+/* Keep in sync with egl-glue.c. */
+enum egl_device_extension_flag {
+	EXTENSION_EXT_DEVICE_DRM             = 1ull << 0,
+	EXTENSION_EXT_DEVICE_DRM_RENDER_NODE = 1ull << 1,
+};
+
 /* Keep the following in sync with vertex.glsl. */
 enum gl_shader_texcoord_input {
 	SHADER_TEXCOORD_INPUT_ATTRIB = 0,
@@ -240,6 +246,7 @@ struct gl_renderer {
 	struct weston_drm_format_array supported_formats;
 
 	uint64_t egl_client_extensions;
+	uint64_t egl_device_extensions;
 
 	PFNGLEGLIMAGETARGETTEXTURE2DOESPROC image_target_texture_2d;
 	PFNGLTEXIMAGE3DOESPROC tex_image_3d;
@@ -358,6 +365,13 @@ egl_client_has(struct gl_renderer *gr,
 	       enum egl_client_extension_flag flag)
 {
 	return (bool) (gr->egl_client_extensions & ((uint64_t) flag));
+}
+
+static inline bool
+egl_device_has(struct gl_renderer *gr,
+	       enum egl_device_extension_flag flag)
+{
+	return (bool) (gr->egl_device_extensions & ((uint64_t) flag));
 }
 
 static inline struct gl_renderer *

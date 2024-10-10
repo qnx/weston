@@ -62,6 +62,13 @@ static const struct gl_extension_table client_table[] = {
 	{ NULL, 0, 0 }
 };
 
+/* Keep in sync with gl-renderer-internal.h. */
+static const struct gl_extension_table device_table[] = {
+	EXT("EGL_EXT_device_drm", EXTENSION_EXT_DEVICE_DRM),
+	EXT("EGL_EXT_device_drm_render_node", EXTENSION_EXT_DEVICE_DRM_RENDER_NODE),
+	{ NULL, 0, 0 }
+};
+
 static const char *
 egl_error_string(EGLint code)
 {
@@ -481,15 +488,17 @@ gl_renderer_set_egl_device(struct gl_renderer *gr)
 	}
 
 	gl_renderer_log_extensions(gr, "EGL device extensions", extensions);
+	gl_extensions_add(device_table, extensions, &gr->egl_device_extensions);
 
 	/* Try to query the render node using EGL_DRM_RENDER_NODE_FILE_EXT */
-	if (weston_check_egl_extension(extensions, "EGL_EXT_device_drm_render_node"))
+	if (egl_device_has(gr, EXTENSION_EXT_DEVICE_DRM_RENDER_NODE))
 		gr->drm_device = gr->query_device_string(gr->egl_device,
 							 EGL_DRM_RENDER_NODE_FILE_EXT);
 
 	/* The extension is not supported by the Mesa version of the system or
 	 * the query failed. Fallback to EGL_DRM_DEVICE_FILE_EXT */
-	if (!gr->drm_device && weston_check_egl_extension(extensions, "EGL_EXT_device_drm"))
+	if (!gr->drm_device &&
+	    egl_device_has(gr, EXTENSION_EXT_DEVICE_DRM))
 		gr->drm_device = gr->query_device_string(gr->egl_device,
 							 EGL_DRM_DEVICE_FILE_EXT);
 
