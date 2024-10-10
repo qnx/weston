@@ -1158,7 +1158,8 @@ ensure_surface_buffer_is_ready(struct gl_renderer *gr,
 
 	/* We should only get a fence if we support EGLSyncKHR, since
 	 * we don't advertise the explicit sync protocol otherwise. */
-	assert(egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC));
+	assert(gl_features_has(gr, FEATURE_EXPLICIT_SYNC));
+
 	/* We should only get a fence for non-SHM buffers, since surface
 	 * commit would have failed otherwise. */
 	assert(buffer->type != WESTON_BUFFER_SHM);
@@ -4589,8 +4590,7 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	ec->capabilities |= WESTON_CAP_ROTATION_ANY;
 	ec->capabilities |= WESTON_CAP_CAPTURE_YFLIP;
 	ec->capabilities |= WESTON_CAP_VIEW_CLIP_MASK;
-	if (egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC) &&
-	    egl_display_has(gr, EXTENSION_KHR_WAIT_SYNC))
+	if (gl_features_has(gr, FEATURE_EXPLICIT_SYNC))
 		ec->capabilities |= WESTON_CAP_EXPLICIT_SYNC;
 
 	if (gr->allocator)

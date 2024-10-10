@@ -106,6 +106,10 @@ enum gl_feature_flag {
 	/* GL renderer can pass a list of damage rectangles at buffer swap in
 	 * order to reduce recomposition costs. */
 	FEATURE_SWAP_BUFFERS_WITH_DAMAGE = 1ull << 1,
+
+	/* GL renderer can create native sync objects and wait on them. This
+	 * enables support for the Linux explicit sync Wayland protocol. */
+	FEATURE_EXPLICIT_SYNC = 1ull << 2,
 };
 
 /* Keep the following in sync with vertex.glsl. */

@@ -710,9 +710,6 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 
 	if (egl_display_has(gr, EXTENSION_KHR_WAIT_SYNC))
 		GET_PROC_ADDRESS(gr->wait_sync, "eglWaitSyncKHR");
-	else
-		weston_log("warning: Disabling explicit synchronization due "
-			   "to missing EGL_KHR_wait_sync extension\n");
 
 	/* No config context feature. */
 	if (egl_display_has(gr, EXTENSION_KHR_NO_CONFIG_CONTEXT) ||
@@ -723,6 +720,11 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 	if (egl_display_has(gr, EXTENSION_KHR_SWAP_BUFFERS_WITH_DAMAGE) ||
 	    egl_display_has(gr, EXTENSION_EXT_SWAP_BUFFERS_WITH_DAMAGE))
 		gr->features |= FEATURE_SWAP_BUFFERS_WITH_DAMAGE;
+
+	/* Explicit sync feature. */
+	if (egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC) &&
+	    egl_display_has(gr, EXTENSION_KHR_WAIT_SYNC))
+		gr->features |= FEATURE_EXPLICIT_SYNC;
 
 	weston_log("EGL features:\n");
 	weston_log_continue(STAMP_SPACE "EGL Wayland extension: %s\n",
@@ -743,6 +745,13 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 			    !egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT) ? "no" :
 			    !egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS) ? "legacy" :
 			    "modifiers");
+	weston_log_continue(STAMP_SPACE "fence sync: %s\n",
+			    !egl_display_has(gr, EXTENSION_KHR_FENCE_SYNC) ? "no" :
+			    !egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC) &&
+			    !egl_display_has(gr, EXTENSION_KHR_WAIT_SYNC) ? "yes" :
+			    !egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC) ? "yes (wait)" :
+			    !egl_display_has(gr, EXTENSION_KHR_WAIT_SYNC) ? "yes (native)" :
+			    "yes (native, wait)");
 
 	return 0;
 }
