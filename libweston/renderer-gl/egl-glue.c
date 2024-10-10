@@ -69,6 +69,25 @@ static const struct gl_extension_table device_table[] = {
 	{ NULL, 0, 0 }
 };
 
+/* Keep in sync with gl-renderer-internal.h. */
+static const struct gl_extension_table display_table[] = {
+	EXT("EGL_ANDROID_native_fence_sync", EXTENSION_ANDROID_NATIVE_FENCE_SYNC),
+	EXT("EGL_EXT_buffer_age", EXTENSION_EXT_BUFFER_AGE),
+	EXT("EGL_EXT_image_dma_buf_import", EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT),
+	EXT("EGL_EXT_image_dma_buf_import_modifiers", EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS),
+	EXT("EGL_EXT_swap_buffers_with_damage", EXTENSION_EXT_SWAP_BUFFERS_WITH_DAMAGE),
+	EXT("EGL_IMG_context_priority", EXTENSION_IMG_CONTEXT_PRIORITY),
+	EXT("EGL_KHR_fence_sync", EXTENSION_KHR_FENCE_SYNC),
+	EXT("EGL_KHR_no_config_context", EXTENSION_KHR_NO_CONFIG_CONTEXT),
+	EXT("EGL_KHR_partial_update", EXTENSION_KHR_PARTIAL_UPDATE),
+	EXT("EGL_KHR_surfaceless_context", EXTENSION_KHR_SURFACELESS_CONTEXT),
+	EXT("EGL_KHR_swap_buffers_with_damage", EXTENSION_KHR_SWAP_BUFFERS_WITH_DAMAGE),
+	EXT("EGL_KHR_wait_sync", EXTENSION_KHR_WAIT_SYNC),
+	EXT("EGL_MESA_configless_context", EXTENSION_MESA_CONFIGLESS_CONTEXT),
+	EXT("EGL_WL_bind_wayland_display", EXTENSION_WL_BIND_WAYLAND_DISPLAY),
+	{ NULL, 0, 0 }
+};
+
 static const char *
 egl_error_string(EGLint code)
 {
@@ -665,10 +684,13 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 		return -1;
 	}
 
-	if (weston_check_egl_extension(extensions, "EGL_IMG_context_priority"))
+	gl_extensions_add(display_table, extensions,
+			  &gr->egl_display_extensions);
+
+	if (egl_display_has(gr, EXTENSION_IMG_CONTEXT_PRIORITY))
 		gr->has_context_priority = true;
 
-	if (weston_check_egl_extension(extensions, "EGL_WL_bind_wayland_display"))
+	if (egl_display_has(gr, EXTENSION_WL_BIND_WAYLAND_DISPLAY))
 		gr->has_bind_display = true;
 	if (gr->has_bind_display) {
 		assert(gr->bind_display);
@@ -679,10 +701,10 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 			gr->has_bind_display = false;
 	}
 
-	if (weston_check_egl_extension(extensions, "EGL_EXT_buffer_age"))
+	if (egl_display_has(gr, EXTENSION_EXT_BUFFER_AGE))
 		gr->has_egl_buffer_age = true;
 
-	if (weston_check_egl_extension(extensions, "EGL_KHR_partial_update")) {
+	if (egl_display_has(gr, EXTENSION_KHR_PARTIAL_UPDATE)) {
 		assert(gr->set_damage_region);
 		gr->has_egl_partial_update = true;
 	}
@@ -698,18 +720,17 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 		}
 	}
 
-	if (weston_check_egl_extension(extensions, "EGL_KHR_no_config_context") ||
-	    weston_check_egl_extension(extensions, "EGL_MESA_configless_context"))
+	if (egl_display_has(gr, EXTENSION_KHR_NO_CONFIG_CONTEXT) ||
+	    egl_display_has(gr, EXTENSION_MESA_CONFIGLESS_CONTEXT))
 		gr->has_configless_context = true;
 
-	if (weston_check_egl_extension(extensions, "EGL_KHR_surfaceless_context"))
+	if (egl_display_has(gr, EXTENSION_KHR_SURFACELESS_CONTEXT))
 		gr->has_surfaceless_context = true;
 
-	if (weston_check_egl_extension(extensions, "EGL_EXT_image_dma_buf_import"))
+	if (egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT))
 		gr->has_dmabuf_import = true;
 
-	if (weston_check_egl_extension(extensions,
-				"EGL_EXT_image_dma_buf_import_modifiers")) {
+	if (egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS)) {
 		gr->query_dmabuf_formats =
 			(void *) eglGetProcAddress("eglQueryDmaBufFormatsEXT");
 		gr->query_dmabuf_modifiers =
@@ -719,8 +740,8 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 		gr->has_dmabuf_import_modifiers = true;
 	}
 
-	if (weston_check_egl_extension(extensions, "EGL_KHR_fence_sync") &&
-	    weston_check_egl_extension(extensions, "EGL_ANDROID_native_fence_sync")) {
+	if (egl_display_has(gr, EXTENSION_KHR_FENCE_SYNC) &&
+	    egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC)) {
 		gr->create_sync =
 			(void *) eglGetProcAddress("eglCreateSyncKHR");
 		gr->destroy_sync =
@@ -737,7 +758,7 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 			   "EGL_ANDROID_native_fence_sync extension\n");
 	}
 
-	if (weston_check_egl_extension(extensions, "EGL_KHR_wait_sync")) {
+	if (egl_display_has(gr, EXTENSION_KHR_WAIT_SYNC)) {
 		gr->wait_sync = (void *) eglGetProcAddress("eglWaitSyncKHR");
 		assert(gr->wait_sync);
 		gr->has_wait_sync = true;

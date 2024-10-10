@@ -75,6 +75,24 @@ enum egl_device_extension_flag {
 	EXTENSION_EXT_DEVICE_DRM_RENDER_NODE = 1ull << 1,
 };
 
+/* Keep in sync with egl-glue.c. */
+enum egl_display_extension_flag {
+	EXTENSION_ANDROID_NATIVE_FENCE_SYNC          = 1ull << 0,
+	EXTENSION_EXT_BUFFER_AGE                     = 1ull << 1,
+	EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT           = 1ull << 2,
+	EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS = 1ull << 3,
+	EXTENSION_EXT_SWAP_BUFFERS_WITH_DAMAGE       = 1ull << 4,
+	EXTENSION_IMG_CONTEXT_PRIORITY               = 1ull << 5,
+	EXTENSION_KHR_FENCE_SYNC                     = 1ull << 6,
+	EXTENSION_KHR_NO_CONFIG_CONTEXT              = 1ull << 7,
+	EXTENSION_KHR_PARTIAL_UPDATE                 = 1ull << 8,
+	EXTENSION_KHR_SURFACELESS_CONTEXT            = 1ull << 9,
+	EXTENSION_KHR_SWAP_BUFFERS_WITH_DAMAGE       = 1ull << 10,
+	EXTENSION_KHR_WAIT_SYNC                      = 1ull << 11,
+	EXTENSION_MESA_CONFIGLESS_CONTEXT            = 1ull << 12,
+	EXTENSION_WL_BIND_WAYLAND_DISPLAY            = 1ull << 13,
+};
+
 /* Keep the following in sync with vertex.glsl. */
 enum gl_shader_texcoord_input {
 	SHADER_TEXCOORD_INPUT_ATTRIB = 0,
@@ -247,6 +265,7 @@ struct gl_renderer {
 
 	uint64_t egl_client_extensions;
 	uint64_t egl_device_extensions;
+	uint64_t egl_display_extensions;
 
 	PFNGLEGLIMAGETARGETTEXTURE2DOESPROC image_target_texture_2d;
 	PFNGLTEXIMAGE3DOESPROC tex_image_3d;
@@ -372,6 +391,13 @@ egl_device_has(struct gl_renderer *gr,
 	       enum egl_device_extension_flag flag)
 {
 	return (bool) (gr->egl_device_extensions & ((uint64_t) flag));
+}
+
+static inline bool
+egl_display_has(struct gl_renderer *gr,
+		enum egl_display_extension_flag flag)
+{
+	return (bool) (gr->egl_display_extensions & ((uint64_t) flag));
 }
 
 static inline struct gl_renderer *
