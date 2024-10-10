@@ -720,6 +720,11 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 		weston_log("warning: Disabling explicit synchronization due "
 			   "to missing EGL_KHR_wait_sync extension\n");
 
+	/* No config context feature. */
+	if (egl_display_has(gr, EXTENSION_KHR_NO_CONFIG_CONTEXT) ||
+	    egl_display_has(gr, EXTENSION_MESA_CONFIGLESS_CONTEXT))
+		gr->features |= FEATURE_NO_CONFIG_CONTEXT;
+
 	weston_log("EGL features:\n");
 	weston_log_continue(STAMP_SPACE "EGL Wayland extension: %s\n",
 			    yesno(has_bind_display));
@@ -732,8 +737,7 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 	weston_log_continue(STAMP_SPACE "swap buffers with damage: %s\n",
 			    yesno(gr->swap_buffers_with_damage));
 	weston_log_continue(STAMP_SPACE "configless context: %s\n",
-			    yesno(egl_display_has(gr, EXTENSION_KHR_NO_CONFIG_CONTEXT) ||
-				  egl_display_has(gr, EXTENSION_MESA_CONFIGLESS_CONTEXT)));
+			    yesno(gl_features_has(gr, FEATURE_NO_CONFIG_CONTEXT)));
 	weston_log_continue(STAMP_SPACE "surfaceless context: %s\n",
 			    yesno(egl_display_has(gr, EXTENSION_KHR_SURFACELESS_CONTEXT)));
 	weston_log_continue(STAMP_SPACE "dmabuf support: %s\n",

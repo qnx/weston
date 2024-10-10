@@ -4570,8 +4570,7 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	if (!egl_display_has(gr, EXTENSION_KHR_SURFACELESS_CONTEXT))
 		goto fail_terminate;
 
-	if (!egl_display_has(gr, EXTENSION_KHR_NO_CONFIG_CONTEXT) &&
-	    !egl_display_has(gr, EXTENSION_MESA_CONFIGLESS_CONTEXT)) {
+	if (!gl_features_has(gr, FEATURE_NO_CONFIG_CONTEXT)) {
 		EGLint egl_surface_type = options->egl_surface_type;
 
 		if (!egl_display_has(gr, EXTENSION_KHR_SURFACELESS_CONTEXT))
