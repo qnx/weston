@@ -307,6 +307,24 @@ struct gl_renderer {
 	struct dmabuf_allocator *allocator;
 };
 
+static inline uint32_t
+gl_version(uint16_t major, uint16_t minor)
+{
+	return ((uint32_t)major << 16) | minor;
+}
+
+static inline int
+gl_version_major(uint32_t ver)
+{
+	return ver >> 16;
+}
+
+static inline int
+gl_version_minor(uint32_t ver)
+{
+	return ver & 0xffff;
+}
+
 static inline struct gl_renderer *
 get_renderer(struct weston_compositor *ec)
 {

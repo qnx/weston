@@ -261,24 +261,6 @@ struct timeline_render_point {
 	struct wl_event_source *event_source;
 };
 
-static uint32_t
-gr_gl_version(uint16_t major, uint16_t minor)
-{
-	return ((uint32_t)major << 16) | minor;
-}
-
-static int
-gr_gl_version_major(uint32_t ver)
-{
-	return ver >> 16;
-}
-
-static int
-gr_gl_version_minor(uint32_t ver)
-{
-	return ver & 0xffff;
-}
-
 static inline const char *
 dump_format(uint32_t format, char out[4])
 {
@@ -2464,7 +2446,7 @@ gl_renderer_repaint_output(struct weston_output *output,
 			pixels += rect.width * extents.y1;
 		}
 
-		if (gr->gl_version >= gr_gl_version(3, 0) && !gr->debug_clear) {
+		if (gr->gl_version >= gl_version(3, 0) && !gr->debug_clear) {
 			glPixelStorei(GL_PACK_ROW_LENGTH, width);
 			rect.width = extents.x2 - extents.x1;
 			rect.x += extents.x1;
@@ -2474,7 +2456,7 @@ gl_renderer_repaint_output(struct weston_output *output,
 		gl_renderer_do_read_pixels(gr, go, compositor->read_format,
 					   pixels, stride, &rect);
 
-		if (gr->gl_version >= gr_gl_version(3, 0))
+		if (gr->gl_version >= gl_version(3, 0))
 			glPixelStorei(GL_PACK_ROW_LENGTH, 0);
 	}
 
@@ -2684,7 +2666,7 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 	int offset[3] = { 0, 0, 0 };
 	unsigned int num_planes;
 	unsigned int i;
-	bool using_glesv2 = gr->gl_version < gr_gl_version(3, 0);
+	bool using_glesv2 = gr->gl_version < gl_version(3, 0);
 	const struct yuv_format_descriptor *yuv = NULL;
 
 	/* When sampling YUV input textures and converting to RGB by hand, we
@@ -4671,11 +4653,11 @@ get_gl_version(void)
 	    (sscanf(version, "%d.%d", &major, &minor) == 2 ||
 	     sscanf(version, "OpenGL ES %d.%d", &major, &minor) == 2) &&
 	    major > 0 && minor >= 0) {
-		return gr_gl_version(major, minor);
+		return gl_version(major, minor);
 	}
 
 	weston_log("warning: failed to detect GLES version, defaulting to 2.0.\n");
-	return gr_gl_version(2, 0);
+	return gl_version(2, 0);
 }
 
 static int
@@ -4774,45 +4756,45 @@ gl_renderer_setup(struct weston_compositor *ec)
 	else
 		ec->read_format = pixel_format_get_info(DRM_FORMAT_ABGR8888);
 
-	if (gr->gl_version < gr_gl_version(3, 0) &&
+	if (gr->gl_version < gl_version(3, 0) &&
 	    !weston_check_egl_extension(extensions, "GL_EXT_unpack_subimage")) {
 		weston_log("GL_EXT_unpack_subimage not available.\n");
 		return -1;
 	}
 
-	if (gr->gl_version >= gr_gl_version(3, 0) ||
+	if (gr->gl_version >= gl_version(3, 0) ||
 	    weston_check_egl_extension(extensions, "GL_EXT_texture_type_2_10_10_10_REV"))
 		gr->has_texture_type_2_10_10_10_rev = true;
 
 	if (weston_check_egl_extension(extensions, "GL_EXT_texture_norm16"))
 		gr->has_texture_norm16 = true;
 
-	if (gr->gl_version >= gr_gl_version(3, 0) ||
+	if (gr->gl_version >= gl_version(3, 0) ||
 	    weston_check_egl_extension(extensions, "GL_EXT_texture_storage"))
 		gr->has_texture_storage = true;
 
 	if (weston_check_egl_extension(extensions, "GL_ANGLE_pack_reverse_row_order"))
 		gr->has_pack_reverse = true;
 
-	if (gr->gl_version >= gr_gl_version(3, 0) ||
+	if (gr->gl_version >= gl_version(3, 0) ||
 	    weston_check_egl_extension(extensions, "GL_EXT_texture_rg"))
 		gr->has_gl_texture_rg = true;
 
 	if (weston_check_egl_extension(extensions, "GL_OES_EGL_image_external"))
 		gr->has_egl_image_external = true;
 
-	if (gr->gl_version >= gr_gl_version(3, 0) ||
+	if (gr->gl_version >= gl_version(3, 0) ||
 	    weston_check_egl_extension(extensions, "GL_OES_rgb8_rgba8"))
 		gr->has_rgb8_rgba8 = true;
 
-	if (gr->gl_version >= gr_gl_version(3, 0)) {
+	if (gr->gl_version >= gl_version(3, 0)) {
 		gr->map_buffer_range = (void *) eglGetProcAddress("glMapBufferRange");
 		gr->unmap_buffer = (void *) eglGetProcAddress("glUnmapBuffer");
 		assert(gr->map_buffer_range);
 		assert(gr->unmap_buffer);
 		gr->pbo_usage = GL_STREAM_READ;
 		gr->has_pbo = true;
-	} else if (gr->gl_version >= gr_gl_version(2, 0) &&
+	} else if (gr->gl_version >= gl_version(2, 0) &&
 		   weston_check_egl_extension(extensions, "GL_NV_pixel_buffer_object") &&
 		   weston_check_egl_extension(extensions, "GL_EXT_map_buffer_range") &&
 		   weston_check_egl_extension(extensions, "GL_OES_mapbuffer")) {
@@ -4835,7 +4817,7 @@ gl_renderer_setup(struct weston_compositor *ec)
 
 	wl_list_init(&gr->pending_capture_list);
 
-	if (gr->gl_version >= gr_gl_version(3, 0) &&
+	if (gr->gl_version >= gl_version(3, 0) &&
 	    weston_check_egl_extension(extensions, "GL_OES_texture_float_linear") &&
 	    weston_check_egl_extension(extensions, "GL_EXT_color_buffer_half_float") &&
 		weston_check_egl_extension(extensions, "GL_OES_texture_3D")) {
@@ -4896,8 +4878,8 @@ gl_renderer_setup(struct weston_compositor *ec)
 						    debug_mode_binding, ec);
 
 	weston_log("GL ES %d.%d - renderer features:\n",
-		   gr_gl_version_major(gr->gl_version),
-		   gr_gl_version_minor(gr->gl_version));
+		   gl_version_major(gr->gl_version),
+		   gl_version_minor(gr->gl_version));
 	weston_log_continue(STAMP_SPACE "read-back format: %s\n",
 			    ec->read_format->drm_format_name);
 	weston_log_continue(STAMP_SPACE "glReadPixels supports y-flip: %s\n",
