@@ -101,6 +101,10 @@ enum egl_display_extension_flag {
 enum gl_feature_flag {
 	/* GL renderer can create contexts without specifying an EGLConfig. */
 	FEATURE_NO_CONFIG_CONTEXT = 1ull << 0,
+
+	/* GL renderer can pass a list of damage rectangles at buffer swap in
+	 * order to reduce recomposition costs. */
+	FEATURE_SWAP_BUFFERS_WITH_DAMAGE = 1ull << 1,
 };
 
 /* Keep the following in sync with vertex.glsl. */

@@ -646,23 +646,9 @@ gl_renderer_setup_egl_client_extensions(struct gl_renderer *gr)
 int
 gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 {
-	static const struct {
-		enum egl_display_extension_flag extension;
-		char *entrypoint;
-	} swap_damage_ext_to_entrypoint[] = {
-		{
-			.extension = EXTENSION_EXT_SWAP_BUFFERS_WITH_DAMAGE,
-			.entrypoint = "eglSwapBuffersWithDamageEXT",
-		},
-		{
-			.extension = EXTENSION_KHR_SWAP_BUFFERS_WITH_DAMAGE,
-			.entrypoint = "eglSwapBuffersWithDamageKHR",
-		},
-	};
 	struct gl_renderer *gr = get_renderer(ec);
 	bool has_bind_display = false;
 	const char *extensions;
-	unsigned i;
 
 	GET_PROC_ADDRESS(gr->create_image, "eglCreateImageKHR");
 	GET_PROC_ADDRESS(gr->destroy_image, "eglDestroyImageKHR");
@@ -686,14 +672,12 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 		has_bind_display = gr->bind_display(gr->egl_display,
 						    ec->wl_display);
 
-	for (i = 0; i < ARRAY_LENGTH(swap_damage_ext_to_entrypoint); i++) {
-		if (egl_display_has(gr,
-				swap_damage_ext_to_entrypoint[i].extension)) {
-			GET_PROC_ADDRESS(gr->swap_buffers_with_damage,
-					 swap_damage_ext_to_entrypoint[i].entrypoint);
-			break;
-		}
-	}
+	if (egl_display_has(gr, EXTENSION_EXT_SWAP_BUFFERS_WITH_DAMAGE))
+		GET_PROC_ADDRESS(gr->swap_buffers_with_damage,
+				 "eglSwapBuffersWithDamageEXT");
+	else if (egl_display_has(gr, EXTENSION_KHR_SWAP_BUFFERS_WITH_DAMAGE))
+		GET_PROC_ADDRESS(gr->swap_buffers_with_damage,
+				 "eglSwapBuffersWithDamageKHR");
 
 	if (egl_display_has(gr, EXTENSION_EXT_IMAGE_DMA_BUF_IMPORT_MODIFIERS)) {
 		GET_PROC_ADDRESS(gr->query_dmabuf_formats,
@@ -725,6 +709,11 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 	    egl_display_has(gr, EXTENSION_MESA_CONFIGLESS_CONTEXT))
 		gr->features |= FEATURE_NO_CONFIG_CONTEXT;
 
+	/* Swap buffers with damage feature. */
+	if (egl_display_has(gr, EXTENSION_KHR_SWAP_BUFFERS_WITH_DAMAGE) ||
+	    egl_display_has(gr, EXTENSION_EXT_SWAP_BUFFERS_WITH_DAMAGE))
+		gr->features |= FEATURE_SWAP_BUFFERS_WITH_DAMAGE;
+
 	weston_log("EGL features:\n");
 	weston_log_continue(STAMP_SPACE "EGL Wayland extension: %s\n",
 			    yesno(has_bind_display));
@@ -735,7 +724,7 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 	weston_log_continue(STAMP_SPACE "partial update: %s\n",
 			    yesno(egl_display_has(gr, EXTENSION_KHR_PARTIAL_UPDATE)));
 	weston_log_continue(STAMP_SPACE "swap buffers with damage: %s\n",
-			    yesno(gr->swap_buffers_with_damage));
+			    yesno(gl_features_has(gr, FEATURE_SWAP_BUFFERS_WITH_DAMAGE)));
 	weston_log_continue(STAMP_SPACE "configless context: %s\n",
 			    yesno(gl_features_has(gr, FEATURE_NO_CONFIG_CONTEXT)));
 	weston_log_continue(STAMP_SPACE "surfaceless context: %s\n",

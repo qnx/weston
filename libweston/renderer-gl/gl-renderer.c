@@ -2445,8 +2445,7 @@ gl_renderer_repaint_output(struct weston_output *output,
 	if (go->egl_surface != EGL_NO_SURFACE) {
 		EGLBoolean ret;
 
-		if ((egl_display_has(gr, EXTENSION_EXT_SWAP_BUFFERS_WITH_DAMAGE) ||
-		     egl_display_has(gr, EXTENSION_KHR_SWAP_BUFFERS_WITH_DAMAGE)) &&
+		if (gl_features_has(gr, FEATURE_SWAP_BUFFERS_WITH_DAMAGE) &&
 		    !gr->debug_clear) {
 			int n_egl_rects;
 			EGLint *egl_rects;
