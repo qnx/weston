@@ -267,23 +267,49 @@ struct gl_renderer {
 	uint64_t egl_device_extensions;
 	uint64_t egl_display_extensions;
 
-	PFNGLEGLIMAGETARGETTEXTURE2DOESPROC image_target_texture_2d;
-	PFNGLTEXIMAGE3DOESPROC tex_image_3d;
-	PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC image_target_renderbuffer_storage;
-	PFNEGLCREATEIMAGEKHRPROC create_image;
-	PFNEGLDESTROYIMAGEKHRPROC destroy_image;
-	PFNEGLSWAPBUFFERSWITHDAMAGEEXTPROC swap_buffers_with_damage;
+	/* EGL_EXT_device_query */
+	PFNEGLQUERYDISPLAYATTRIBEXTPROC query_display_attrib;
+	PFNEGLQUERYDEVICESTRINGEXTPROC query_device_string;
 
+	/* EGL_EXT_platform_base */
 	PFNEGLGETPLATFORMDISPLAYEXTPROC get_platform_display;
 	PFNEGLCREATEPLATFORMWINDOWSURFACEEXTPROC create_platform_window;
 
+	/* EGL_KHR_image_base */
+	PFNEGLCREATEIMAGEKHRPROC create_image;
+	PFNEGLDESTROYIMAGEKHRPROC destroy_image;
+
+	/* EGL_WL_bind_wayland_display */
 	PFNEGLBINDWAYLANDDISPLAYWL bind_display;
 	PFNEGLUNBINDWAYLANDDISPLAYWL unbind_display;
 	PFNEGLQUERYWAYLANDBUFFERWL query_buffer;
 
-	bool has_egl_image_external;
-
+	/* EGL_KHR_partial_update */
 	PFNEGLSETDAMAGEREGIONKHRPROC set_damage_region;
+
+	/* EGL_KHR_swap_buffers_with_damage
+	 * EGL_EXT_swap_buffers_with_damage */
+	PFNEGLSWAPBUFFERSWITHDAMAGEEXTPROC swap_buffers_with_damage;
+
+	/* EGL_EXT_image_dma_buf_import_modifiers */
+	PFNEGLQUERYDMABUFFORMATSEXTPROC query_dmabuf_formats;
+	PFNEGLQUERYDMABUFMODIFIERSEXTPROC query_dmabuf_modifiers;
+
+	/* EGL_KHR_fence_sync */
+	PFNEGLCREATESYNCKHRPROC create_sync;
+	PFNEGLDESTROYSYNCKHRPROC destroy_sync;
+
+	/* EGL_ANDROID_native_fence_sync */
+	PFNEGLDUPNATIVEFENCEFDANDROIDPROC dup_native_fence_fd;
+
+	/* EGL_KHR_wait_sync */
+	PFNEGLWAITSYNCKHRPROC wait_sync;
+
+	PFNGLEGLIMAGETARGETTEXTURE2DOESPROC image_target_texture_2d;
+	PFNGLTEXIMAGE3DOESPROC tex_image_3d;
+	PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC image_target_renderbuffer_storage;
+
+	bool has_egl_image_external;
 
 	struct wl_list dmabuf_images;
 	struct wl_list dmabuf_formats;
@@ -306,18 +332,6 @@ struct gl_renderer {
 	struct gl_shader *fallback_shader;
 
 	struct wl_signal destroy_signal;
-
-	PFNEGLQUERYDMABUFFORMATSEXTPROC query_dmabuf_formats;
-	PFNEGLQUERYDMABUFMODIFIERSEXTPROC query_dmabuf_modifiers;
-
-	PFNEGLQUERYDISPLAYATTRIBEXTPROC query_display_attrib;
-	PFNEGLQUERYDEVICESTRINGEXTPROC query_device_string;
-
-	PFNEGLCREATESYNCKHRPROC create_sync;
-	PFNEGLDESTROYSYNCKHRPROC destroy_sync;
-	PFNEGLDUPNATIVEFENCEFDANDROIDPROC dup_native_fence_fd;
-
-	PFNEGLWAITSYNCKHRPROC wait_sync;
 
 	bool has_disjoint_timer_query;
 	PFNGLGENQUERIESEXTPROC gen_queries;
