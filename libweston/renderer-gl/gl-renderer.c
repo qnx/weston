@@ -4142,7 +4142,7 @@ gl_renderer_output_create(struct weston_output *output,
 	if ((output->color_outcome->from_blend_to_output != NULL &&
 	     output->from_blend_to_output_by_backend == false) ||
 	    quirks->gl_force_full_redraw_of_shadow_fb) {
-		assert(gr->gl_supports_color_transforms);
+		assert(gl_features_has(gr, FEATURE_COLOR_TRANSFORMS));
 
 		go->shadow_format =
 			pixel_format_get_info(DRM_FORMAT_ABGR16161616F);
@@ -4639,6 +4639,8 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	ec->capabilities |= WESTON_CAP_VIEW_CLIP_MASK;
 	if (gl_features_has(gr, FEATURE_EXPLICIT_SYNC))
 		ec->capabilities |= WESTON_CAP_EXPLICIT_SYNC;
+	if (gl_features_has(gr, FEATURE_COLOR_TRANSFORMS))
+		ec->capabilities |= WESTON_CAP_COLOR_OPS;
 
 	if (gr->allocator)
 		gr->base.dmabuf_alloc = gl_renderer_dmabuf_alloc;
@@ -4693,7 +4695,7 @@ gl_renderer_display_create(struct weston_compositor *ec,
 		wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR2101010);
 		wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XBGR2101010);
 	}
-	if (gr->gl_supports_color_transforms) {
+	if (gl_features_has(gr, FEATURE_COLOR_TRANSFORMS)) {
 		wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR16161616F);
 		wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XBGR16161616F);
 	}
@@ -4702,10 +4704,6 @@ gl_renderer_display_create(struct weston_compositor *ec,
 		wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XBGR16161616);
 	}
 #endif
-
-	if (gr->gl_supports_color_transforms)
-		ec->capabilities |= WESTON_CAP_COLOR_OPS;
-
 	return 0;
 
 fail_with_error:
@@ -4906,6 +4904,7 @@ gl_renderer_setup(struct weston_compositor *ec)
 
 	wl_list_init(&gr->pending_capture_list);
 
+	/* Color transforms feature. */
 	if ((gr->gl_version >= gl_version(3, 2) &&
 	     egl_display_has(gr, EXTENSION_KHR_GET_ALL_PROC_ADDRESSES) &&
 	     gl_extensions_has(gr, EXTENSION_OES_TEXTURE_FLOAT_LINEAR)) ||
@@ -4913,8 +4912,8 @@ gl_renderer_setup(struct weston_compositor *ec)
 	     egl_display_has(gr, EXTENSION_KHR_GET_ALL_PROC_ADDRESSES) &&
 	     gl_extensions_has(gr, EXTENSION_OES_TEXTURE_FLOAT_LINEAR) &&
 	     gl_extensions_has(gr, EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT))) {
-		gr->gl_supports_color_transforms = true;
 		GET_PROC_ADDRESS(gr->tex_image_3d, "glTexImage3D");
+		gr->features |= FEATURE_COLOR_TRANSFORMS;
 	}
 
 	if (gl_extensions_has(gr, EXTENSION_EXT_DISJOINT_TIMER_QUERY)) {
@@ -4971,7 +4970,7 @@ gl_renderer_setup(struct weston_compositor *ec)
 	weston_log_continue(STAMP_SPACE "wl_shm 16 bpc formats: %s\n",
 			    yesno(gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_NORM16)));
 	weston_log_continue(STAMP_SPACE "wl_shm half-float formats: %s\n",
-			    yesno(gr->gl_supports_color_transforms));
+			    yesno(gl_features_has(gr, FEATURE_COLOR_TRANSFORMS)));
 	weston_log_continue(STAMP_SPACE "internal R and RG formats: %s\n",
 			    yesno(gr->gl_version >= gl_version(3, 0) ||
 				  gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG)));

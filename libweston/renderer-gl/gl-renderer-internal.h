@@ -140,6 +140,10 @@ enum gl_feature_flag {
 	 * unmap_buffer() to unmap once read. A fence sync can be used to signal
 	 * pixel transfer completion, this is flagged as another feature. */
 	FEATURE_ASYNC_READBACK = 1ull << 3,
+
+	/* GL renderer can create 16-bit floating-point framebuffers and
+	 * transform colours using linearly interpolated 3D look-up tables. */
+	FEATURE_COLOR_TRANSFORMS = 1ull << 4,
 };
 
 /* Keep the following in sync with vertex.glsl. */
@@ -383,8 +387,6 @@ struct gl_renderer {
 	uint64_t features;
 
 	GLenum pbo_usage;
-
-	bool gl_supports_color_transforms;
 
 	struct wl_list dmabuf_images;
 	struct wl_list dmabuf_formats;
