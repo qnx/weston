@@ -29,14 +29,30 @@
 /*
  * GL renderer best practices:
  *
- * 1. Texture units
+ * 1. Extensions and features
+ *
+ *    1. An extension flag ensures the availability of an EGL or OpenGL ES
+ *       extension at run-time, independently of the version.
+ *    2. A feature flag ensures the availability of a minimal OpenGL ES version
+ *       and/or extensions at run-time in order to enable the use of a specific
+ *       feature.
+ *    3. Any function pointers declared in the gl_renderer structure must be
+ *       loaded at setup so that an extension availability check can ensure
+ *       valid pointers.
+ *    4. OpenGL ES 3 functions must be loaded at run-time after having checked
+ *       for EGL_KHR_get_all_proc_addresses extension availability in order to
+ *       correctly link against OpenGL ES 2 only implementations.
+ *
+ * 2. Pixel storage modes
+ *
+ *    1. Any functions changing modes must restore them to their default values
+ *       before return so that other functions can assume default values.
+ *
+ * 3. Texture units
+ *
  *    1. Fixed allocation using the gl_tex_unit enumeration.
  *    2. Any functions changing the active unit must restore it to 0 before
  *       return so that other functions can assume a default value.
- *
- * 1. Pixel storage modes
- *    1. Any functions changing modes must restore them to their default values
- *       before return so that other functions can assume default values.
  */
 
 #ifndef GL_RENDERER_INTERNAL_H
