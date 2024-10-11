@@ -4774,6 +4774,8 @@ gl_renderer_setup(struct weston_compositor *ec)
 	struct gl_renderer *gr = get_renderer(ec);
 	const char *extensions;
 	EGLBoolean ret;
+	PFNGLGETQUERYIVEXTPROC get_query_iv;
+	int elapsed_bits;
 
 	EGLint context_attribs[16] = {
 		EGL_CONTEXT_CLIENT_VERSION, 0,
@@ -4851,12 +4853,10 @@ gl_renderer_setup(struct weston_compositor *ec)
 	gl_extensions_add(extension_table, extensions, &gr->gl_extensions);
 
 	if (gl_extensions_has(gr, EXTENSION_OES_EGL_IMAGE)) {
-		gr->image_target_texture_2d =
-			(void *) eglGetProcAddress("glEGLImageTargetTexture2DOES");
-		gr->image_target_renderbuffer_storage =
-			(void *) eglGetProcAddress("glEGLImageTargetRenderbufferStorageOES");
-		assert(gr->image_target_texture_2d);
-		assert(gr->image_target_renderbuffer_storage);
+		GET_PROC_ADDRESS(gr->image_target_texture_2d,
+				 "glEGLImageTargetTexture2DOES");
+		GET_PROC_ADDRESS(gr->image_target_renderbuffer_storage,
+				 "glEGLImageTargetRenderbufferStorageOES");
 	}
 
 	if (!gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_FORMAT_BGRA8888)) {
@@ -4877,19 +4877,15 @@ gl_renderer_setup(struct weston_compositor *ec)
 
 	if (gr->gl_version >= gl_version(3, 0) &&
 	    egl_display_has(gr, EXTENSION_KHR_GET_ALL_PROC_ADDRESSES)) {
-		gr->map_buffer_range = (void *) eglGetProcAddress("glMapBufferRange");
-		gr->unmap_buffer = (void *) eglGetProcAddress("glUnmapBuffer");
-		assert(gr->map_buffer_range);
-		assert(gr->unmap_buffer);
+		GET_PROC_ADDRESS(gr->map_buffer_range, "glMapBufferRange");
+		GET_PROC_ADDRESS(gr->unmap_buffer, "glUnmapBuffer");
 		gr->pbo_usage = GL_STREAM_READ;
 		gr->has_pbo = true;
 	} else if (gl_extensions_has(gr, EXTENSION_NV_PIXEL_BUFFER_OBJECT) &&
 		   gl_extensions_has(gr, EXTENSION_EXT_MAP_BUFFER_RANGE) &&
 		   gl_extensions_has(gr, EXTENSION_OES_MAPBUFFER)) {
-		gr->map_buffer_range = (void *) eglGetProcAddress("glMapBufferRangeEXT");
-		gr->unmap_buffer = (void *) eglGetProcAddress("glUnmapBufferOES");
-		assert(gr->map_buffer_range);
-		assert(gr->unmap_buffer);
+		GET_PROC_ADDRESS(gr->map_buffer_range, "glMapBufferRangeEXT");
+		GET_PROC_ADDRESS(gr->unmap_buffer, "glUnmapBufferOES");
 		/* Reading isn't exposed to BufferData() on ES 2.0 and
 		 * NV_pixel_buffer_object mentions that "glMapBufferOES does not
 		 * allow reading from the mapped pointer". EXT_map_buffer_range
@@ -4913,38 +4909,24 @@ gl_renderer_setup(struct weston_compositor *ec)
 	     gl_extensions_has(gr, EXTENSION_OES_TEXTURE_FLOAT_LINEAR) &&
 	     gl_extensions_has(gr, EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT))) {
 		gr->gl_supports_color_transforms = true;
-		gr->tex_image_3d = (void *) eglGetProcAddress("glTexImage3D");
-		assert(gr->tex_image_3d);
+		GET_PROC_ADDRESS(gr->tex_image_3d, "glTexImage3D");
 	}
 
 	if (gl_extensions_has(gr, EXTENSION_EXT_DISJOINT_TIMER_QUERY)) {
-		PFNGLGETQUERYIVEXTPROC get_query_iv =
-			(void *) eglGetProcAddress("glGetQueryivEXT");
-		int elapsed_bits;
-
-		assert(get_query_iv);
+		GET_PROC_ADDRESS(get_query_iv, "glGetQueryivEXT");
+		GET_PROC_ADDRESS(gr->gen_queries, "glGenQueriesEXT");
+		GET_PROC_ADDRESS(gr->delete_queries, "glDeleteQueriesEXT");
+		GET_PROC_ADDRESS(gr->begin_query, "glBeginQueryEXT");
+		GET_PROC_ADDRESS(gr->end_query, "glEndQueryEXT");
+#if !defined(NDEBUG)
+		GET_PROC_ADDRESS(gr->get_query_object_iv,
+				 "glGetQueryObjectivEXT");
+#endif
+		GET_PROC_ADDRESS(gr->get_query_object_ui64v,
+				 "glGetQueryObjectui64vEXT");
 		get_query_iv(GL_TIME_ELAPSED_EXT, GL_QUERY_COUNTER_BITS_EXT,
 			     &elapsed_bits);
-		if (elapsed_bits != 0) {
-			gr->gen_queries =
-				(void *) eglGetProcAddress("glGenQueriesEXT");
-			gr->delete_queries =
-				(void *) eglGetProcAddress("glDeleteQueriesEXT");
-			gr->begin_query = (void *) eglGetProcAddress("glBeginQueryEXT");
-			gr->end_query = (void *) eglGetProcAddress("glEndQueryEXT");
-#if !defined(NDEBUG)
-			gr->get_query_object_iv =
-				(void *) eglGetProcAddress("glGetQueryObjectivEXT");
-#endif
-			gr->get_query_object_ui64v =
-				(void *) eglGetProcAddress("glGetQueryObjectui64vEXT");
-			assert(gr->gen_queries);
-			assert(gr->delete_queries);
-			assert(gr->begin_query);
-			assert(gr->end_query);
-			assert(gr->get_query_object_iv);
-			assert(gr->get_query_object_ui64v);
-		} else {
+		if (elapsed_bits == 0) {
 			weston_log("warning: Disabling render GPU timeline due "
 				   "to lack of support for elapsed counters by "
 				   "the GL_EXT_disjoint_timer_query "
