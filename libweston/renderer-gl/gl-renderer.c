@@ -1009,7 +1009,7 @@ gl_renderer_do_read_pixels_async(struct gl_renderer *gr,
 	struct wl_event_loop *loop;
 	int refresh_mhz, refresh_msec;
 
-	assert(gr->has_pbo);
+	assert(gl_features_has(gr, FEATURE_ASYNC_READBACK));
 	assert(output->current_mode->refresh > 0);
 	assert(buffer->type == WESTON_BUFFER_SHM);
 	assert(fmt->gl_type != 0);
@@ -1114,7 +1114,7 @@ gl_renderer_do_capture_tasks(struct gl_renderer *gr,
 			continue;
 		}
 
-		if (gr->has_pbo) {
+		if (gl_features_has(gr, FEATURE_ASYNC_READBACK)) {
 			gl_renderer_do_read_pixels_async(gr, go, output, ct, &rect);
 			continue;
 		}
@@ -4875,17 +4875,22 @@ gl_renderer_setup(struct weston_compositor *ec)
 		return -1;
 	}
 
+	if (gl_extensions_has(gr, EXTENSION_OES_MAPBUFFER))
+		GET_PROC_ADDRESS(gr->unmap_buffer, "glUnmapBufferOES");
+
+	if (gl_extensions_has(gr, EXTENSION_EXT_MAP_BUFFER_RANGE))
+		GET_PROC_ADDRESS(gr->map_buffer_range, "glMapBufferRangeEXT");
+
+	/* Async read-back feature. */
 	if (gr->gl_version >= gl_version(3, 0) &&
 	    egl_display_has(gr, EXTENSION_KHR_GET_ALL_PROC_ADDRESSES)) {
 		GET_PROC_ADDRESS(gr->map_buffer_range, "glMapBufferRange");
 		GET_PROC_ADDRESS(gr->unmap_buffer, "glUnmapBuffer");
 		gr->pbo_usage = GL_STREAM_READ;
-		gr->has_pbo = true;
+		gr->features |= FEATURE_ASYNC_READBACK;
 	} else if (gl_extensions_has(gr, EXTENSION_NV_PIXEL_BUFFER_OBJECT) &&
 		   gl_extensions_has(gr, EXTENSION_EXT_MAP_BUFFER_RANGE) &&
 		   gl_extensions_has(gr, EXTENSION_OES_MAPBUFFER)) {
-		GET_PROC_ADDRESS(gr->map_buffer_range, "glMapBufferRangeEXT");
-		GET_PROC_ADDRESS(gr->unmap_buffer, "glUnmapBufferOES");
 		/* Reading isn't exposed to BufferData() on ES 2.0 and
 		 * NV_pixel_buffer_object mentions that "glMapBufferOES does not
 		 * allow reading from the mapped pointer". EXT_map_buffer_range
@@ -4896,7 +4901,7 @@ gl_renderer_setup(struct weston_compositor *ec)
 		 * EXT_map_buffer_range provides examples doing so. Mesa
 		 * actually ignores PBOs' usage hint assuming read access. */
 		gr->pbo_usage = GL_STREAM_DRAW;
-		gr->has_pbo = true;
+		gr->features |= FEATURE_ASYNC_READBACK;
 	}
 
 	wl_list_init(&gr->pending_capture_list);
@@ -4959,7 +4964,7 @@ gl_renderer_setup(struct weston_compositor *ec)
 	weston_log_continue(STAMP_SPACE "glReadPixels supports y-flip: %s\n",
 			    yesno(gl_extensions_has(gr, EXTENSION_ANGLE_PACK_REVERSE_ROW_ORDER)));
 	weston_log_continue(STAMP_SPACE "glReadPixels supports PBO: %s\n",
-			    yesno(gr->has_pbo));
+			    yesno(gl_features_has(gr, FEATURE_ASYNC_READBACK)));
 	weston_log_continue(STAMP_SPACE "wl_shm 10 bpc formats: %s\n",
 			    yesno(gr->gl_version >= gl_version(3, 0) ||
 				  gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_TYPE_2_10_10_10_REV)));

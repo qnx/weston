@@ -132,6 +132,14 @@ enum gl_feature_flag {
 	/* GL renderer can create native sync objects and wait on them. This
 	 * enables support for the Linux explicit sync Wayland protocol. */
 	FEATURE_EXPLICIT_SYNC = 1ull << 2,
+
+	/* GL renderer can asynchronously map the framebuffer into CPU memory
+	 * for reading. This is exposed by binding a Pixel Buffer Object (PBO)
+	 * to the GL_PIXEL_PACK_BUFFER target before read-back with
+	 * glReadPixels(). map_buffer_range() is then called to sync and map and
+	 * unmap_buffer() to unmap once read. A fence sync can be used to signal
+	 * pixel transfer completion, this is flagged as another feature. */
+	FEATURE_ASYNC_READBACK = 1ull << 3,
 };
 
 /* Keep the following in sync with vertex.glsl. */
@@ -376,7 +384,6 @@ struct gl_renderer {
 
 	GLenum pbo_usage;
 
-	bool has_pbo;
 	bool gl_supports_color_transforms;
 
 	struct wl_list dmabuf_images;
