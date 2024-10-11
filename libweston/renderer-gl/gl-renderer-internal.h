@@ -347,29 +347,22 @@ struct gl_renderer {
 	/* EGL_KHR_wait_sync */
 	PFNEGLWAITSYNCKHRPROC wait_sync;
 
-	uint64_t features;
-
 	uint64_t gl_extensions;
 
+	/* GL_OES_EGL_image */
 	PFNGLEGLIMAGETARGETTEXTURE2DOESPROC image_target_texture_2d;
-	PFNGLTEXIMAGE3DOESPROC tex_image_3d;
 	PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC image_target_renderbuffer_storage;
 
-	struct wl_list dmabuf_images;
-	struct wl_list dmabuf_formats;
-
-	bool has_pbo;
-	GLenum pbo_usage;
-	PFNGLMAPBUFFERRANGEEXTPROC map_buffer_range;
+	/* GL_OES_mapbuffer */
 	PFNGLUNMAPBUFFEROESPROC unmap_buffer;
 
-	struct wl_list pending_capture_list;
+	/* GL_EXT_map_buffer_range */
+	PFNGLMAPBUFFERRANGEEXTPROC map_buffer_range;
 
-	struct gl_shader *current_shader;
-	struct gl_shader *fallback_shader;
+	/* GL_OES_texture_3d */
+	PFNGLTEXIMAGE3DOESPROC tex_image_3d;
 
-	struct wl_signal destroy_signal;
-
+	/* GL_EXT_disjoint_timer_query */
 	PFNGLGENQUERIESEXTPROC gen_queries;
 	PFNGLDELETEQUERIESEXTPROC delete_queries;
 	PFNGLBEGINQUERYEXTPROC begin_query;
@@ -379,7 +372,21 @@ struct gl_renderer {
 #endif
 	PFNGLGETQUERYOBJECTUI64VEXTPROC get_query_object_ui64v;
 
+	uint64_t features;
+
+	GLenum pbo_usage;
+
+	bool has_pbo;
 	bool gl_supports_color_transforms;
+
+	struct wl_list dmabuf_images;
+	struct wl_list dmabuf_formats;
+	struct wl_list pending_capture_list;
+
+	struct gl_shader *current_shader;
+	struct gl_shader *fallback_shader;
+
+	struct wl_signal destroy_signal;
 
 	/** Shader program cache in most recently used order
 	 *
