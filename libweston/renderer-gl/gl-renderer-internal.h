@@ -144,6 +144,10 @@ enum gl_feature_flag {
 	/* GL renderer can create 16-bit floating-point framebuffers and
 	 * transform colours using linearly interpolated 3D look-up tables. */
 	FEATURE_COLOR_TRANSFORMS = 1ull << 4,
+
+	/* GL renderer can instrument output repaint time and report it through
+	 * the timeline logging scope. */
+	FEATURE_GPU_TIMELINE = 1ull << 5,
 };
 
 /* Keep the following in sync with vertex.glsl. */

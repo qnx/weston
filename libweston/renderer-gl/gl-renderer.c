@@ -505,18 +505,16 @@ gl_extensions_add(const struct gl_extension_table *table,
 static void
 timeline_begin_render_query(struct gl_renderer *gr, GLuint query)
 {
-	if (weston_log_scope_is_enabled(gr->compositor->timeline) &&
-	    egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC) &&
-	    gl_extensions_has(gr, EXTENSION_EXT_DISJOINT_TIMER_QUERY))
+	if (gl_features_has(gr, FEATURE_GPU_TIMELINE) &&
+	    weston_log_scope_is_enabled(gr->compositor->timeline))
 		gr->begin_query(GL_TIME_ELAPSED_EXT, query);
 }
 
 static void
 timeline_end_render_query(struct gl_renderer *gr)
 {
-	if (weston_log_scope_is_enabled(gr->compositor->timeline) &&
-	    egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC) &&
-	    gl_extensions_has(gr, EXTENSION_EXT_DISJOINT_TIMER_QUERY))
+	if (gl_features_has(gr, FEATURE_GPU_TIMELINE) &&
+	    weston_log_scope_is_enabled(gr->compositor->timeline))
 		gr->end_query(GL_TIME_ELAPSED_EXT);
 }
 
@@ -590,9 +588,8 @@ timeline_submit_render_sync(struct gl_renderer *gr,
 	int fd;
 	struct timeline_render_point *trp;
 
-	if (!weston_log_scope_is_enabled(gr->compositor->timeline) ||
-	    !egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC) ||
-	    !gl_extensions_has(gr, EXTENSION_EXT_DISJOINT_TIMER_QUERY) ||
+	if (!gl_features_has(gr, FEATURE_GPU_TIMELINE) ||
+	    !weston_log_scope_is_enabled(gr->compositor->timeline) ||
 	    sync == EGL_NO_SYNC_KHR)
 		return;
 
@@ -4132,7 +4129,7 @@ gl_renderer_output_create(struct weston_output *output,
 	go->egl_surface = surface;
 	go->y_flip = surface == EGL_NO_SURFACE ? 1.0f : -1.0f;
 
-	if (gl_extensions_has(gr, EXTENSION_EXT_DISJOINT_TIMER_QUERY))
+	if (gl_features_has(gr, FEATURE_GPU_TIMELINE))
 		gr->gen_queries(1, &go->render_query);
 
 	wl_list_init(&go->timeline_render_point_list);
@@ -4397,7 +4394,7 @@ gl_renderer_output_destroy(struct weston_output *output)
 		weston_log("warning: discarding pending timeline render"
 			   "objects at output destruction");
 
-	if (gl_extensions_has(gr, EXTENSION_EXT_DISJOINT_TIMER_QUERY))
+	if (gl_features_has(gr, FEATURE_GPU_TIMELINE))
 		gr->delete_queries(1, &go->render_query);
 
 	wl_list_for_each_safe(trp, tmp, &go->timeline_render_point_list, link)
@@ -4879,6 +4876,25 @@ gl_renderer_setup(struct weston_compositor *ec)
 	if (gl_extensions_has(gr, EXTENSION_EXT_MAP_BUFFER_RANGE))
 		GET_PROC_ADDRESS(gr->map_buffer_range, "glMapBufferRangeEXT");
 
+	if (gl_extensions_has(gr, EXTENSION_EXT_DISJOINT_TIMER_QUERY)) {
+		GET_PROC_ADDRESS(gr->gen_queries, "glGenQueriesEXT");
+		GET_PROC_ADDRESS(gr->delete_queries, "glDeleteQueriesEXT");
+		GET_PROC_ADDRESS(gr->begin_query, "glBeginQueryEXT");
+		GET_PROC_ADDRESS(gr->end_query, "glEndQueryEXT");
+#if !defined(NDEBUG)
+		GET_PROC_ADDRESS(gr->get_query_object_iv,
+				 "glGetQueryObjectivEXT");
+#endif
+		GET_PROC_ADDRESS(gr->get_query_object_ui64v,
+				 "glGetQueryObjectui64vEXT");
+		GET_PROC_ADDRESS(get_query_iv, "glGetQueryivEXT");
+		get_query_iv(GL_TIME_ELAPSED_EXT, GL_QUERY_COUNTER_BITS_EXT,
+			     &elapsed_bits);
+		if (elapsed_bits == 0)
+			gr->gl_extensions &=
+				~EXTENSION_EXT_DISJOINT_TIMER_QUERY;
+	}
+
 	/* Async read-back feature. */
 	if (gr->gl_version >= gl_version(3, 0) &&
 	    egl_display_has(gr, EXTENSION_KHR_GET_ALL_PROC_ADDRESSES)) {
@@ -4916,32 +4932,10 @@ gl_renderer_setup(struct weston_compositor *ec)
 		gr->features |= FEATURE_COLOR_TRANSFORMS;
 	}
 
-	if (gl_extensions_has(gr, EXTENSION_EXT_DISJOINT_TIMER_QUERY)) {
-		GET_PROC_ADDRESS(get_query_iv, "glGetQueryivEXT");
-		GET_PROC_ADDRESS(gr->gen_queries, "glGenQueriesEXT");
-		GET_PROC_ADDRESS(gr->delete_queries, "glDeleteQueriesEXT");
-		GET_PROC_ADDRESS(gr->begin_query, "glBeginQueryEXT");
-		GET_PROC_ADDRESS(gr->end_query, "glEndQueryEXT");
-#if !defined(NDEBUG)
-		GET_PROC_ADDRESS(gr->get_query_object_iv,
-				 "glGetQueryObjectivEXT");
-#endif
-		GET_PROC_ADDRESS(gr->get_query_object_ui64v,
-				 "glGetQueryObjectui64vEXT");
-		get_query_iv(GL_TIME_ELAPSED_EXT, GL_QUERY_COUNTER_BITS_EXT,
-			     &elapsed_bits);
-		if (elapsed_bits == 0) {
-			weston_log("warning: Disabling render GPU timeline due "
-				   "to lack of support for elapsed counters by "
-				   "the GL_EXT_disjoint_timer_query "
-				   "extension\n");
-			gr->gl_extensions &=
-				~EXTENSION_EXT_DISJOINT_TIMER_QUERY;
-		}
-	} else if (egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC))  {
-		weston_log("warning: Disabling render GPU timeline due to "
-			   "missing GL_EXT_disjoint_timer_query extension\n");
-	}
+	/* GPU timeline feature. */
+	if (egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC) &&
+	    gl_extensions_has(gr, EXTENSION_EXT_DISJOINT_TIMER_QUERY))
+		gr->features |= FEATURE_GPU_TIMELINE;
 
 	glActiveTexture(GL_TEXTURE0);
 
@@ -4976,6 +4970,8 @@ gl_renderer_setup(struct weston_compositor *ec)
 				  gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG)));
 	weston_log_continue(STAMP_SPACE "OES_EGL_image_external: %s\n",
 			    yesno(gl_extensions_has(gr, EXTENSION_OES_EGL_IMAGE_EXTERNAL)));
+	weston_log_continue(STAMP_SPACE "GPU timeline: %s\n",
+			    yesno(gl_features_has(gr, FEATURE_GPU_TIMELINE)));
 
 	return 0;
 }

@@ -708,10 +708,6 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
 	if (egl_display_has(gr, EXTENSION_ANDROID_NATIVE_FENCE_SYNC))
 		GET_PROC_ADDRESS(gr->dup_native_fence_fd,
 				 "eglDupNativeFenceFDANDROID");
-	else
-		weston_log("warning: Disabling render GPU timeline and explicit "
-			   "synchronization due to missing "
-			   "EGL_ANDROID_native_fence_sync extension\n");
 
 	if (egl_display_has(gr, EXTENSION_KHR_WAIT_SYNC))
 		GET_PROC_ADDRESS(gr->wait_sync, "eglWaitSyncKHR");
