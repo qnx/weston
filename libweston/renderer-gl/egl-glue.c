@@ -78,6 +78,7 @@ static const struct gl_extension_table display_table[] = {
 	EXT("EGL_EXT_swap_buffers_with_damage", EXTENSION_EXT_SWAP_BUFFERS_WITH_DAMAGE),
 	EXT("EGL_IMG_context_priority", EXTENSION_IMG_CONTEXT_PRIORITY),
 	EXT("EGL_KHR_fence_sync", EXTENSION_KHR_FENCE_SYNC),
+	EXT("EGL_KHR_get_all_proc_addresses", EXTENSION_KHR_GET_ALL_PROC_ADDRESSES),
 	EXT("EGL_KHR_image_base", EXTENSION_KHR_IMAGE_BASE),
 	EXT("EGL_KHR_no_config_context", EXTENSION_KHR_NO_CONFIG_CONTEXT),
 	EXT("EGL_KHR_partial_update", EXTENSION_KHR_PARTIAL_UPDATE),

@@ -4880,7 +4880,8 @@ gl_renderer_setup(struct weston_compositor *ec)
 	    gl_extensions_has(gr, EXTENSION_OES_RGB8_RGBA8))
 		gr->has_rgb8_rgba8 = true;
 
-	if (gr->gl_version >= gl_version(3, 0)) {
+	if (gr->gl_version >= gl_version(3, 0) &&
+	    egl_display_has(gr, EXTENSION_KHR_GET_ALL_PROC_ADDRESSES)) {
 		gr->map_buffer_range = (void *) eglGetProcAddress("glMapBufferRange");
 		gr->unmap_buffer = (void *) eglGetProcAddress("glUnmapBuffer");
 		assert(gr->map_buffer_range);
@@ -4910,6 +4911,7 @@ gl_renderer_setup(struct weston_compositor *ec)
 	wl_list_init(&gr->pending_capture_list);
 
 	if (gr->gl_version >= gl_version(3, 0) &&
+	    egl_display_has(gr, EXTENSION_KHR_GET_ALL_PROC_ADDRESSES) &&
 	    gl_extensions_has(gr, EXTENSION_OES_TEXTURE_FLOAT_LINEAR) &&
 	    gl_extensions_has(gr, EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT) &&
 	    gl_extensions_has(gr, EXTENSION_OES_TEXTURE_3D)) {
