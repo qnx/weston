@@ -170,7 +170,6 @@ tests = [
 	{	'name': 'drm-smoke', 'run_exclusive': true },
 	{	'name': 'drm-writeback-screenshot', 'run_exclusive': true },
 	{	'name': 'event', },
-	{	'name': 'internal-screenshot', },
 	{
 		'name': 'keyboard',
 		'sources': [
@@ -249,14 +248,6 @@ tests = [
 	{	'name': 'subsurface-shot', },
 	{	'name': 'surface', },
 	{	'name': 'surface-global', },
-	{
-		'name': 'text',
-		'sources': [
-			'text-test.c',
-			text_input_unstable_v1_client_protocol_h,
-			text_input_unstable_v1_protocol_c,
-		],
-	},
 	{
 		'name': 'touch',
 		'sources': [
@@ -381,6 +372,20 @@ surface_screenshot_test = shared_library(
 	name_prefix: '',
 	install: false,
 )
+
+if get_option('shell-desktop')
+	tests += [
+		{	'name': 'internal-screenshot', },
+		{
+			'name': 'text',
+			'sources': [
+				'text-test.c',
+				text_input_unstable_v1_client_protocol_h,
+				text_input_unstable_v1_protocol_c,
+			],
+		},
+	]
+endif
 
 if get_option('shell-ivi')
 	ivi_layout_test_plugin = shared_library(
