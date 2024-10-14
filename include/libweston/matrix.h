@@ -209,7 +209,7 @@ weston_coord_surface_sub(struct weston_coord_surface a,
 static inline struct weston_coord __attribute__ ((warn_unused_result))
 weston_coord_truncate(struct weston_coord in)
 {
-	return (struct weston_coord){ (int)in.x, (int)in.y };
+	return (struct weston_coord){ (double)(int) in.x, (double)(int) in.y };
 }
 
 static inline struct weston_coord_surface __attribute__ ((warn_unused_result))
