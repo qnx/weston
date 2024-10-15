@@ -143,6 +143,7 @@ enum gl_extension_flag {
 	EXTENSION_OES_MAPBUFFER                   = 1ull << 24,
 	EXTENSION_OES_REQUIRED_INTERNALFORMAT     = 1ull << 25,
 	EXTENSION_OES_RGB8_RGBA8                  = 1ull << 26,
+	EXTENSION_OES_TEXTURE_3D                  = 1ull << 27,
 	EXTENSION_OES_TEXTURE_FLOAT               = 1ull << 28,
 	EXTENSION_OES_TEXTURE_FLOAT_LINEAR        = 1ull << 29,
 	EXTENSION_OES_TEXTURE_HALF_FLOAT          = 1ull << 30,
@@ -170,7 +171,9 @@ enum gl_feature_flag {
 	FEATURE_ASYNC_READBACK = 1ull << 3,
 
 	/* GL renderer can create 16-bit floating-point framebuffers and
-	 * transform colours using linearly interpolated 3D look-up tables. */
+	 * transform colours using linearly interpolated 3D look-up tables.
+	 *
+	 * Strong dependency on the texture 3D feature. */
 	FEATURE_COLOR_TRANSFORMS = 1ull << 4,
 
 	/* GL renderer can instrument output repaint time and report it through
@@ -178,7 +181,10 @@ enum gl_feature_flag {
 	FEATURE_GPU_TIMELINE = 1ull << 5,
 
 	/* GL renderer can specify the entire structure of a texture in a single
-	 * call. Once specified, format and dimensions can't be changed. */
+	 * call. Once specified, format and dimensions can't be changed.
+	 *
+	 * Weak dependency on the texture 3D feature, enabling immutability of
+	 * of 3D textures. */
 	FEATURE_TEXTURE_IMMUTABILITY = 1ull << 6,
 
 	/* GL renderer can create two-component red-green textures. */
@@ -188,6 +194,9 @@ enum gl_feature_flag {
 	 * with the GL_BGRA8_EXT sized internal format revision (23/06/2024) for
 	 * renderbuffer objects. */
 	FEATURE_SIZED_BGRA8_RENDERBUFFER = 1ull << 8,
+
+	/* GL renderer can create 3D textures. */
+	FEATURE_TEXTURE_3D = 1ull << 9,
 };
 
 /* Keep the following in sync with vertex.glsl. */
@@ -424,6 +433,7 @@ struct gl_renderer {
 
 	/* GL_OES_texture_3d */
 	PFNGLTEXIMAGE3DOESPROC tex_image_3d;
+	PFNGLTEXSUBIMAGE3DOESPROC tex_sub_image_3d;
 
 	/* GL_EXT_disjoint_timer_query */
 	PFNGLGENQUERIESEXTPROC gen_queries;
@@ -437,6 +447,7 @@ struct gl_renderer {
 
 	/* GL_EXT_texture_storage */
 	PFNGLTEXSTORAGE2DEXTPROC tex_storage_2d;
+	PFNGLTEXSTORAGE3DEXTPROC tex_storage_3d;
 
 	uint64_t features;
 
@@ -545,6 +556,28 @@ gl_texture_2d_store(struct gl_renderer *gr,
 		    int y,
 		    int width,
 		    int height,
+		    GLenum format,
+		    GLenum type,
+		    const void *data);
+
+bool
+gl_texture_3d_init(struct gl_renderer *gr,
+		   int levels,
+		   GLenum format,
+		   int width,
+		   int height,
+		   int depth,
+		   GLuint *tex_out);
+
+bool
+gl_texture_3d_store(struct gl_renderer *gr,
+		    int level,
+		    int x,
+		    int y,
+		    int z,
+		    int width,
+		    int height,
+		    int depth,
 		    GLenum format,
 		    GLenum type,
 		    const void *data);

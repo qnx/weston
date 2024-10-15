@@ -760,50 +760,27 @@ gl_texture_is_format_supported(struct gl_renderer *gr,
 	}
 }
 
-/* Initialise a 2D texture object. 'format' is a coloured sized internal format
- * listed in Table 1 above with the Texturable column filled. The texture object
- * is left bound on the 2D texture target of the current texture unit on
- * success. No texture parameters are set. Use gl_texture_fini() to finalise.
- *
- * OpenGL ES 2 notes:
- *
- * Implementations support at least this subset of formats: GL_R8, GL_RG8,
- * GL_RGB8, GL_RGB565, GL_RGBA8, GL_RGBA4 and GL_RGB5_A1. Additional formats are
- * supported depending on extensions: GL_R16F, GL_RG16F, GL_RGB16F, GL_RGBA16F,
- * GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F, GL_R11F_G11F_B10F, GL_RGB9_E5,
- * GL_RGB10_A2 and GL_BGRA8_EXT.
- *
- * This is implemented by implicitly converting 'format' into an external
- * format. If the red and red-green texture formats aren't supported
- * (FEATURE_TEXTURE_RG flag not set), GL_R8 is converted into a luminance format
- * and GL_RG8 into a luminance alpha format. Care must be taken in the latter
- * case in order to access the green component in the shader: "c.a" (or "c[3]")
- * must be used instead of "c.g" (or "c[1]").
- *
- * See gl_texture_is_format_supported().
- */
-bool
-gl_texture_2d_init(struct gl_renderer *gr,
-		   int levels,
-		   GLenum format,
-		   int width,
-		   int height,
-		   GLuint *tex_out)
+static void
+texture_init(struct gl_renderer *gr,
+	     GLenum target,
+	     int levels,
+	     GLenum format,
+	     int width,
+	     int height,
+	     int depth,
+	     GLuint *tex_out)
 {
 	bool bgra_fallback;
 	GLuint tex;
 
 	assert(width > 0);
 	assert(height > 0);
-	assert(levels <= (int) log2(MAX(width, height)) + 1);
-
-	if (!gl_texture_is_format_supported(gr, format)) {
-		weston_log("Error: texture format not supported.\n");
-		return false;
-	}
+	assert(levels <= ((int) log2(MAX(width, height)) + 1));
+	assert(target == GL_TEXTURE_2D ||
+	       target == GL_TEXTURE_3D);
 
 	glGenTextures(1, &tex);
-	glBindTexture(GL_TEXTURE_2D, tex);
+	glBindTexture(target, tex);
 
 	/* Fallback to TexImage*D() when GL_BGRA8_EXT isn't supported by
 	 * TexStorage*D(). */
@@ -843,8 +820,12 @@ gl_texture_2d_init(struct gl_renderer *gr,
 			}
 		}
 
-		gr->tex_storage_2d(GL_TEXTURE_2D, levels, format, width,
-				   height);
+		if (target == GL_TEXTURE_2D)
+			gr->tex_storage_2d(GL_TEXTURE_2D, levels, format, width,
+					   height);
+		else
+			gr->tex_storage_3d(GL_TEXTURE_3D, levels, format, width,
+					   height, depth);
 	} else {
 		GLenum external_format, type;
 		int i;
@@ -981,20 +962,175 @@ gl_texture_2d_init(struct gl_renderer *gr,
 
 		default:
 			unreachable("Missing conversion to external format!");
-			return false;
+			return;
 		}
 
 		/* Allocate storage. */
-		for (i = 0; i < levels; i++) {
-			glTexImage2D(GL_TEXTURE_2D, i, format, width, height, 0,
-				     external_format, type, NULL);
-			width = MAX(width / 2, 1);
-			height = MAX(height / 2, 1);
+		if (target == GL_TEXTURE_2D) {
+			for (i = 0; i < levels; i++) {
+				glTexImage2D(GL_TEXTURE_2D, i, format, width,
+					     height, 0, external_format, type,
+					     NULL);
+				width = MAX(width / 2, 1);
+				height = MAX(height / 2, 1);
+			}
+		} else {
+			for (i = 0; i < levels; i++) {
+				gr->tex_image_3d(GL_TEXTURE_3D, i, format,
+						 width, height, depth, 0,
+						 external_format, type, NULL);
+				width = MAX(width / 2, 1);
+				height = MAX(height / 2, 1);
+				depth = MAX(depth / 2, 1);
+			}
 		}
 	}
 
 	*tex_out = tex;
+}
+
+/* Initialise a 2D texture object. 'format' is a coloured sized internal format
+ * listed in Table 1 above with the Texturable column filled. The texture object
+ * is left bound on the 2D texture target of the current texture unit on
+ * success. No texture parameters are set. Use gl_texture_fini() to finalise.
+ *
+ * OpenGL ES 2 notes:
+ *
+ * Implementations support at least this subset of formats: GL_R8, GL_RG8,
+ * GL_RGB8, GL_RGB565, GL_RGBA8, GL_RGBA4 and GL_RGB5_A1. Additional formats are
+ * supported depending on extensions: GL_R16F, GL_RG16F, GL_RGB16F, GL_RGBA16F,
+ * GL_R32F, GL_RG32F, GL_RGB32F, GL_RGBA32F, GL_R11F_G11F_B10F, GL_RGB9_E5,
+ * GL_RGB10_A2 and GL_BGRA8_EXT.
+ *
+ * This is implemented by implicitly converting 'format' into an external
+ * format. If the red and red-green texture formats aren't supported
+ * (FEATURE_TEXTURE_RG flag not set), GL_R8 is converted into a luminance format
+ * and GL_RG8 into a luminance alpha format. Care must be taken in the latter
+ * case in order to access the green component in the shader: "c.a" (or "c[3]")
+ * must be used instead of "c.g" (or "c[1]").
+ *
+ * See gl_texture_is_format_supported().
+ */
+bool
+gl_texture_2d_init(struct gl_renderer *gr,
+		   int levels,
+		   GLenum format,
+		   int width,
+		   int height,
+		   GLuint *tex_out)
+{
+	if (!gl_texture_is_format_supported(gr, format)) {
+		weston_log("Error: texture format not supported.\n");
+		return false;
+	}
+
+	texture_init(gr, GL_TEXTURE_2D, levels, format, width, height, 1,
+		     tex_out);
+
 	return true;
+}
+
+/* Initialise a 3D texture object. The texture object is left bound on the 3D
+ * texture target of the current texture unit on success. The accepted formats
+ * and OpenGL ES 2 notes are exactly the same as for the 2D init function.
+ *
+ * See gl_texture_2d_init().
+ */
+bool
+gl_texture_3d_init(struct gl_renderer *gr,
+		   int levels,
+		   GLenum format,
+		   int width,
+		   int height,
+		   int depth,
+		   GLuint *tex_out)
+{
+	if (!gl_features_has(gr, FEATURE_TEXTURE_3D)) {
+		weston_log("Error: texture 3D not supported.\n");
+		return false;
+	}
+
+	if (!gl_texture_is_format_supported(gr, format)) {
+		weston_log("Error: texture format not supported.\n");
+		return false;
+	}
+
+	texture_init(gr, GL_TEXTURE_3D, levels, format, width, height, depth,
+		     tex_out);
+
+	return true;
+}
+
+static void
+texture_store(struct gl_renderer *gr,
+	      GLenum target,
+	      int level,
+	      int x,
+	      int y,
+	      int z,
+	      int width,
+	      int height,
+	      int depth,
+	      GLenum format,
+	      GLenum type,
+	      const void *data)
+{
+#if !defined(NDEBUG)
+	GLint tex, tex_width, tex_height, tex_depth, tex_internal_format;
+#endif
+
+	if (!gl_features_has(gr, FEATURE_TEXTURE_RG)) {
+		if (format == GL_RED)
+			format = GL_LUMINANCE;
+		else if (format == GL_RG)
+			format = GL_LUMINANCE_ALPHA;
+	}
+
+	if (type == GL_HALF_FLOAT && gr->gl_version == gl_version(2, 0))
+		type = GL_HALF_FLOAT_OES;
+
+#if !defined(NDEBUG)
+	assert(target == GL_TEXTURE_2D ||
+	       target == GL_TEXTURE_3D);
+	glGetIntegerv(target == GL_TEXTURE_2D ?
+		      GL_TEXTURE_BINDING_2D :
+		      GL_TEXTURE_BINDING_3D, &tex);
+	assert(tex != 0);
+
+	if (gr->gl_version == gl_version(2, 0)) {
+		assert(is_valid_combination_es2(gr, format, type));
+	} else if (gr->gl_version == gl_version(3, 0)) {
+		assert(is_valid_combination_es3(gr, format, type));
+	} else if (gr->gl_version >= gl_version(3, 1)) {
+		glGetTexLevelParameteriv(target, level,
+					 GL_TEXTURE_WIDTH, &tex_width);
+		glGetTexLevelParameteriv(target, level,
+					 GL_TEXTURE_HEIGHT, &tex_height);
+		if (target == GL_TEXTURE_3D)
+			glGetTexLevelParameteriv(target, level,
+						 GL_TEXTURE_DEPTH, &tex_depth);
+		glGetTexLevelParameteriv(target, level,
+					 GL_TEXTURE_INTERNAL_FORMAT,
+					 &tex_internal_format);
+		assert(level >= 0);
+		assert(x >= 0);
+		assert(y >= 0);
+		assert(z >= 0);
+		assert(x + width <= tex_width);
+		assert(y + height <= tex_height);
+		if (target == GL_TEXTURE_3D)
+			assert(z + depth <= tex_depth);
+		assert(is_valid_format_es3(gr, tex_internal_format, format));
+		assert(is_valid_type_es3(gr, tex_internal_format, type));
+	}
+#endif
+
+	if (target == GL_TEXTURE_3D)
+		gr->tex_sub_image_3d(target, level, x, y, z, width, height,
+				     depth, format, type, data);
+	else
+		glTexSubImage2D(target, level, x, y, width, height, format,
+				type, data);
 }
 
 /* Store data into the texture object bound to the 2D texture target of the
@@ -1034,48 +1170,39 @@ gl_texture_2d_store(struct gl_renderer *gr,
 		    GLenum type,
 		    const void *data)
 {
-#if !defined(NDEBUG)
-	GLint tex, tex_width, tex_height, tex_internal_format;
-#endif
+	texture_store(gr, GL_TEXTURE_2D, level, x, y, 0, width, height, 1,
+		      format, type, data);
+}
 
-	if (!gl_features_has(gr, FEATURE_TEXTURE_RG)) {
-		if (format == GL_RED)
-			format = GL_LUMINANCE;
-		else if (format == GL_RG)
-			format = GL_LUMINANCE_ALPHA;
+/* Store data into the texture object bound to the 3D texture target of the
+ * current texture unit. The texture object is left bound. No texture parameters
+ * are set. The accepted external format and type combination and the OpenGL ES
+ * 2 notes are exactly the same as for the 2D store function.
+ *
+ * See gl_texture_store_2d() and gl_texture_3d_init().
+ */
+bool
+gl_texture_3d_store(struct gl_renderer *gr,
+		    int level,
+		    int x,
+		    int y,
+		    int z,
+		    int width,
+		    int height,
+		    int depth,
+		    GLenum format,
+		    GLenum type,
+		    const void *data)
+{
+	if (!gl_features_has(gr, FEATURE_TEXTURE_3D)) {
+		weston_log("Error: texture 3D not supported.\n");
+		return false;
 	}
 
-	if (type == GL_HALF_FLOAT && gr->gl_version == gl_version(2, 0))
-		type = GL_HALF_FLOAT_OES;
+	texture_store(gr, GL_TEXTURE_3D, level, x, y, z, width, height, depth,
+		      format, type, data);
 
-#if !defined(NDEBUG)
-	glGetIntegerv(GL_TEXTURE_BINDING_2D, &tex);
-	assert(tex != 0);
-
-	if (gr->gl_version == gl_version(2, 0)) {
-		assert(is_valid_combination_es2(gr, format, type));
-	} else if (gr->gl_version == gl_version(3, 0)) {
-		assert(is_valid_combination_es3(gr, format, type));
-	} else if (gr->gl_version >= gl_version(3, 1)) {
-		glGetTexLevelParameteriv(GL_TEXTURE_2D, level,
-					 GL_TEXTURE_WIDTH, &tex_width);
-		glGetTexLevelParameteriv(GL_TEXTURE_2D, level,
-					 GL_TEXTURE_HEIGHT, &tex_height);
-		glGetTexLevelParameteriv(GL_TEXTURE_2D, level,
-					 GL_TEXTURE_INTERNAL_FORMAT,
-					 &tex_internal_format);
-		assert(level >= 0);
-		assert(x >= 0);
-		assert(y >= 0);
-		assert(x + width <= tex_width);
-		assert(y + height <= tex_height);
-		assert(is_valid_format_es3(gr, tex_internal_format, format));
-		assert(is_valid_type_es3(gr, tex_internal_format, type));
-	}
-#endif
-
-	glTexSubImage2D(GL_TEXTURE_2D, level, x, y, width, height, format, type,
-			data);
+	return true;
 }
 
 /* Finalise a texture object.

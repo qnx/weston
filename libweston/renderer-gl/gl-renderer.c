@@ -301,6 +301,7 @@ static const struct gl_extension_table extension_table[] = {
 	EXT("GL_OES_mapbuffer", EXTENSION_OES_MAPBUFFER),
 	EXT("GL_OES_required_internalformat", EXTENSION_OES_REQUIRED_INTERNALFORMAT),
 	EXT("GL_OES_rgb8_rgba8", EXTENSION_OES_RGB8_RGBA8),
+	EXT("GL_OES_texture_3D", EXTENSION_OES_TEXTURE_3D),
 	EXT("GL_OES_texture_float", EXTENSION_OES_TEXTURE_FLOAT),
 	EXT("GL_OES_texture_float_linear", EXTENSION_OES_TEXTURE_FLOAT_LINEAR),
 	EXT("GL_OES_texture_half_float", EXTENSION_OES_TEXTURE_HALF_FLOAT),
@@ -4789,8 +4790,17 @@ gl_renderer_setup(struct weston_compositor *ec)
 				~EXTENSION_EXT_DISJOINT_TIMER_QUERY;
 	}
 
-	if (gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_STORAGE))
+	if (gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_STORAGE)) {
 		GET_PROC_ADDRESS(gr->tex_storage_2d, "glTexStorage2DEXT");
+		if (gl_extensions_has(gr, EXTENSION_OES_TEXTURE_3D))
+			GET_PROC_ADDRESS(gr->tex_storage_3d,
+					 "glTexStorage3DEXT");
+	}
+
+	if (gl_extensions_has(gr, EXTENSION_OES_TEXTURE_3D)) {
+		GET_PROC_ADDRESS(gr->tex_image_3d, "glTexImage3DOES");
+		GET_PROC_ADDRESS(gr->tex_sub_image_3d, "glTexSubImage3DOES");
+	}
 
 	/* Async read-back feature. */
 	if (gr->gl_version >= gl_version(3, 0) &&
@@ -4815,15 +4825,24 @@ gl_renderer_setup(struct weston_compositor *ec)
 		gr->features |= FEATURE_ASYNC_READBACK;
 	}
 
+	/* Texture 3D feature. */
+	if (gr->gl_version >= gl_version(3, 0) &&
+	    egl_display_has(gr, EXTENSION_KHR_GET_ALL_PROC_ADDRESSES)) {
+		GET_PROC_ADDRESS(gr->tex_image_3d, "glTexImage3D");
+		GET_PROC_ADDRESS(gr->tex_sub_image_3d, "glTexSubImage3D");
+		gr->features |= FEATURE_TEXTURE_3D;
+	} else if (gl_extensions_has(gr, EXTENSION_OES_TEXTURE_3D)) {
+		gr->features |= FEATURE_TEXTURE_3D;
+	}
+
 	/* Color transforms feature. */
 	if ((gr->gl_version >= gl_version(3, 2) &&
-	     egl_display_has(gr, EXTENSION_KHR_GET_ALL_PROC_ADDRESSES) &&
-	     gl_extensions_has(gr, EXTENSION_OES_TEXTURE_FLOAT_LINEAR)) ||
-	    (gr->gl_version >= gl_version(3, 0) &&
-	     egl_display_has(gr, EXTENSION_KHR_GET_ALL_PROC_ADDRESSES) &&
 	     gl_extensions_has(gr, EXTENSION_OES_TEXTURE_FLOAT_LINEAR) &&
-	     gl_extensions_has(gr, EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT))) {
-		GET_PROC_ADDRESS(gr->tex_image_3d, "glTexImage3D");
+	     gl_features_has(gr, FEATURE_TEXTURE_3D)) ||
+	    (gr->gl_version >= gl_version(3, 0) &&
+	     gl_extensions_has(gr, EXTENSION_OES_TEXTURE_FLOAT_LINEAR) &&
+	     gl_extensions_has(gr, EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT) &&
+	     gl_features_has(gr, FEATURE_TEXTURE_3D))) {
 		gr->features |= FEATURE_COLOR_TRANSFORMS;
 	}
 
@@ -4836,6 +4855,7 @@ gl_renderer_setup(struct weston_compositor *ec)
 	if (gr->gl_version >= gl_version(3, 0) &&
 	    egl_display_has(gr, EXTENSION_KHR_GET_ALL_PROC_ADDRESSES)) {
 		GET_PROC_ADDRESS(gr->tex_storage_2d, "glTexStorage2D");
+		GET_PROC_ADDRESS(gr->tex_storage_3d, "glTexStorage3D");
 		gr->features |= FEATURE_TEXTURE_IMMUTABILITY;
 	} else if (gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_STORAGE)) {
 		gr->features |= FEATURE_TEXTURE_IMMUTABILITY;
