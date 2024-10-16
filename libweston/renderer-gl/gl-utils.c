@@ -1438,28 +1438,33 @@ gl_fbo_image_init(struct gl_renderer *gr,
 }
 
 /* Initialise a pair of framebuffer and texture objects to render into a
- * texture. The framebuffer object is left bound on success. Use
+ * texture. 'format' is a colour-renderable sized internal format listed in
+ * Table 1 above with the Renderable column filled. The framebuffer object is
+ * left bound on the framebuffer target and the texture object is left bound on
+ * the 2D texture target of the current texture unit on success. Use
  * gl_fbo_texture_fini() to finalise.
  */
 bool
-gl_fbo_texture_init(GLenum internal_format,
+gl_fbo_texture_init(struct gl_renderer *gr,
+		    GLenum format,
 		    int width,
 		    int height,
-		    GLenum format,
-		    GLenum type,
 		    GLuint *fb_out,
 		    GLuint *tex_out)
 {
 	GLenum status;
 	GLuint fb, tex;
 
-	/* XXX Port to new texture utilities and had sized BGRA8 support. */
+	if (!gl_fbo_is_format_supported(gr, format)) {
+		weston_log("Error: FBO format not supported.\n");
+		return false;
+	}
 
-	glGenTextures(1, &tex);
-	glBindTexture(GL_TEXTURE_2D, tex);
-	glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0,
-		     format, type, NULL);
-	glBindTexture(GL_TEXTURE_2D, 0);
+	if (format == GL_BGRA8_EXT &&
+	    !gl_features_has(gr, FEATURE_SIZED_BGRA8_RENDERBUFFER))
+		format = GL_BGRA_EXT;
+
+	texture_init(gr, GL_TEXTURE_2D, 1, format, width, height, 1, &tex);
 	glGenFramebuffers(1, &fb);
 	glBindFramebuffer(GL_FRAMEBUFFER, fb);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,

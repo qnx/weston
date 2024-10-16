@@ -608,11 +608,10 @@ gl_fbo_image_init(struct gl_renderer *gr,
 		  GLuint *rb_out);
 
 bool
-gl_fbo_texture_init(GLenum internal_format,
+gl_fbo_texture_init(struct gl_renderer *gr,
+		    GLenum format,
 		    int width,
 		    int height,
-		    GLenum format,
-		    GLenum type,
 		    GLuint *fb_out,
 		    GLuint *tex_out);
 

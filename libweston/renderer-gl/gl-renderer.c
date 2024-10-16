@@ -4024,8 +4024,8 @@ gl_renderer_resize_output(struct weston_output *output,
 	if (shadow_exists(go))
 		gl_fbo_texture_fini(&go->shadow_fb, &go->shadow_tex);
 
-	ret = gl_fbo_texture_init(shfmt->gl_format, area->width, area->height,
-				  GL_RGBA, shfmt->gl_type, &go->shadow_fb,
+	ret = gl_fbo_texture_init(gr, shfmt->gl.internal, area->width,
+				  area->height, &go->shadow_fb,
 				  &go->shadow_tex);
 
 	return ret;
