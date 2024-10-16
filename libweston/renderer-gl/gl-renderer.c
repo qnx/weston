@@ -1936,8 +1936,8 @@ update_wireframe_tex(struct gl_renderer *gr,
 	uint8_t *buffer;
 
 	if (gr->debug_mode != DEBUG_MODE_WIREFRAME) {
-		if (gr->wireframe_size) {
-			glDeleteTextures(1, &gr->wireframe_tex);
+		if (gr->wireframe_tex) {
+			gl_texture_fini(&gr->wireframe_tex);
 			gr->wireframe_size = 0;
 		}
 		return;
@@ -1951,27 +1951,23 @@ update_wireframe_tex(struct gl_renderer *gr,
 	if (new_size <= gr->wireframe_size)
 		return;
 
+	if (gr->wireframe_tex)
+		gl_texture_fini(&gr->wireframe_tex);
+
 	glActiveTexture(GL_TEXTURE0 + TEX_UNIT_WIREFRAME);
-	if (gr->wireframe_size == 0) {
-		glGenTextures(1, &gr->wireframe_tex);
-		glBindTexture(GL_TEXTURE_2D, gr->wireframe_tex);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
-				GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,
-				GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-				GL_LINEAR_MIPMAP_LINEAR);
-	} else {
-		glBindTexture(GL_TEXTURE_2D, gr->wireframe_tex);
-	}
+	gl_texture_2d_init(gr, (int) log2(new_size) + 1, GL_R8, new_size, 1,
+			   &gr->wireframe_tex);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+			GL_LINEAR_MIPMAP_LINEAR);
 	gr->wireframe_size = new_size;
 
-	/* Generate mip chain with a wireframe thickness of 1.0. */
+	/* Store mip chain with a wireframe thickness of 1.0. */
 	buffer = xzalloc(new_size);
 	buffer[0] = 0xff;
 	for (i = 0; new_size; i++, new_size >>= 1)
-		glTexImage2D(GL_TEXTURE_2D, i, GL_LUMINANCE, new_size, 1, 0,
-			     GL_LUMINANCE, GL_UNSIGNED_BYTE, buffer);
+		gl_texture_2d_store(gr, i, 0, 0, new_size, 1, GL_RED,
+				    GL_UNSIGNED_BYTE, buffer);
 	free(buffer);
 
 	glActiveTexture(GL_TEXTURE0);
@@ -4376,8 +4372,8 @@ gl_renderer_destroy(struct weston_compositor *ec)
 	if (gr->fallback_shader)
 		gl_shader_destroy(gr, gr->fallback_shader);
 
-	if (gr->wireframe_size)
-		glDeleteTextures(1, &gr->wireframe_tex);
+	if (gr->wireframe_tex)
+		gl_texture_fini(&gr->wireframe_tex);
 
 	/* Work around crash in egl_dri2.c's dri2_make_current() - when does this apply? */
 	eglMakeCurrent(gr->egl_display,
