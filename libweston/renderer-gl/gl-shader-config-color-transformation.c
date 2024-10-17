@@ -80,7 +80,7 @@ gl_renderer_color_curve_fini(struct gl_renderer_color_curve *gl_curve)
 	case SHADER_COLOR_CURVE_POWLIN:
 		break;
 	case SHADER_COLOR_CURVE_LUT_3x1D:
-		glDeleteTextures(1, &gl_curve->u.lut_3x1d.tex);
+		gl_texture_fini(&gl_curve->u.lut_3x1d.tex);
 		break;
 	};
 }
@@ -90,7 +90,7 @@ gl_renderer_color_mapping_fini(struct gl_renderer_color_mapping *gl_mapping)
 {
 	if (gl_mapping->type == SHADER_COLOR_MAPPING_3DLUT &&
 	    gl_mapping->lut3d.tex3d)
-		glDeleteTextures(1, &gl_mapping->lut3d.tex3d);
+		gl_texture_fini(&gl_mapping->lut3d.tex3d);
 }
 
 static void
@@ -198,18 +198,17 @@ gl_color_curve_lut_3x1d(struct gl_renderer *gr,
 
 	curve->u.lut_3x1d.fill_in(xform, lut, lut_len);
 
-	glGenTextures(1, &tex);
-	glBindTexture(GL_TEXTURE_2D, tex);
+	gl_texture_2d_init(gr, 1, GL_R32F, lut_len, nr_rows, &tex);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, lut_len, nr_rows, 0,
-		     GL_RED_EXT, GL_FLOAT, lut);
+	gl_texture_2d_store(gr, 0, 0, 0, lut_len, nr_rows, GL_RED, GL_FLOAT,
+			    lut);
 
-	glBindTexture(GL_TEXTURE_2D, 0);
 	free(lut);
 
+	glBindTexture(GL_TEXTURE_2D, 0);
 	gl_curve->type = SHADER_COLOR_CURVE_LUT_3x1D;
 	gl_curve->u.lut_3x1d.tex = tex;
 	gl_curve->u.lut_3x1d.scale = (float)(lut_len - 1) / lut_len;
@@ -234,15 +233,15 @@ gl_3d_lut(struct gl_renderer *gr,
 
 	xform->mapping.u.lut3d.fill_in(xform, lut, dim_size);
 
-	glGenTextures(1, &tex3d);
-	glBindTexture(GL_TEXTURE_3D, tex3d);
+	gl_texture_3d_init(gr, 1, GL_RGB32F, dim_size, dim_size, dim_size,
+			   &tex3d);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	gr->tex_image_3d(GL_TEXTURE_3D, 0, GL_RGB32F, dim_size, dim_size, dim_size, 0,
-			 GL_RGB, GL_FLOAT, lut);
+	gl_texture_3d_store(gr, 0, 0, 0, 0, dim_size, dim_size, dim_size,
+			    GL_RGB, GL_FLOAT, lut);
 
 	glBindTexture(GL_TEXTURE_3D, 0);
 	gl_xform->mapping.type = SHADER_COLOR_MAPPING_3DLUT;
