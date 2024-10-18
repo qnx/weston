@@ -259,6 +259,11 @@ gl_fbo_image_init(struct gl_renderer *gr,
 	GLuint fb, rb;
 	GLenum status;
 
+	if (!gl_extensions_has(gr, EXTENSION_OES_EGL_IMAGE)) {
+		weston_log("Error: FBO from EGLImage not supported.\n");
+		return false;
+	}
+
 	glGenFramebuffers(1, &fb);
 	glBindFramebuffer(GL_FRAMEBUFFER, fb);
 	glGenRenderbuffers(1, &rb);
