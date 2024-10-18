@@ -1117,12 +1117,9 @@ weston_desktop_xdg_surface_protocol_get_popup(struct wl_client *wl_client,
 					      struct wl_resource *parent_resource,
 					      struct wl_resource *positioner_resource)
 {
-	struct weston_desktop_surface *dsurface =
-		wl_resource_get_user_data(resource);
-	struct weston_surface *wsurface =
-		weston_desktop_surface_get_surface(dsurface);
-	struct weston_desktop_xdg_popup *popup =
-		weston_desktop_surface_get_implementation_data(dsurface);
+	struct weston_desktop_surface *dsurface = NULL;
+	struct weston_surface *wsurface = NULL;
+	struct weston_desktop_xdg_popup *popup = NULL;
 	struct weston_desktop_surface *parent_surface =
 		wl_resource_get_user_data(parent_resource);
 	struct weston_desktop_xdg_surface *parent =
@@ -1130,6 +1127,17 @@ weston_desktop_xdg_surface_protocol_get_popup(struct wl_client *wl_client,
 	struct weston_desktop_xdg_positioner *positioner =
 		wl_resource_get_user_data(positioner_resource);
 	struct weston_coord_surface offset;
+
+	dsurface = wl_resource_get_user_data(resource);
+	if (!dsurface) {
+		wl_resource_post_error(resource,
+				       ZXDG_SURFACE_V6_ERROR_NOT_CONSTRUCTED,
+				       "xdg surface destroyed");
+		return;
+	}
+
+	wsurface = weston_desktop_surface_get_surface(dsurface);
+	popup = weston_desktop_surface_get_implementation_data(dsurface);
 
 	/* Checking whether the size and anchor rect both have a positive size
 	 * is enough to verify both have been correctly set */
