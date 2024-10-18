@@ -781,8 +781,16 @@ weston_desktop_xdg_toplevel_resource_destroy(struct wl_resource *resource)
 	struct weston_desktop_surface *dsurface =
 		wl_resource_get_user_data(resource);
 
-	if (dsurface != NULL)
-		weston_desktop_surface_resource_destroy(resource);
+	if (dsurface) {
+		struct weston_desktop_xdg_toplevel *toplevel =
+			weston_desktop_surface_get_implementation_data(dsurface);
+		struct weston_surface *wsurface =
+			weston_desktop_surface_get_surface(dsurface);
+
+		weston_surface_unmap(wsurface);
+		wl_list_remove(wl_resource_get_link(resource));
+		toplevel->resource = NULL;
+	}
 }
 
 static const struct zxdg_toplevel_v6_interface weston_desktop_xdg_toplevel_implementation = {
@@ -1072,12 +1080,20 @@ weston_desktop_xdg_surface_protocol_get_toplevel(struct wl_client *wl_client,
 						 struct wl_resource *resource,
 						 uint32_t id)
 {
-	struct weston_desktop_surface *dsurface =
-		wl_resource_get_user_data(resource);
-	struct weston_surface *wsurface =
-		weston_desktop_surface_get_surface(dsurface);
-	struct weston_desktop_xdg_toplevel *toplevel =
-		weston_desktop_surface_get_implementation_data(dsurface);
+	struct weston_desktop_surface *dsurface = NULL;
+	struct weston_surface *wsurface = NULL;
+	struct weston_desktop_xdg_toplevel *toplevel = NULL;
+
+	dsurface = wl_resource_get_user_data(resource);
+	if (!dsurface) {
+		wl_resource_post_error(resource,
+				ZXDG_SURFACE_V6_ERROR_NOT_CONSTRUCTED,
+				"xdg surface destroyed");
+		return;
+	}
+
+	wsurface = weston_desktop_surface_get_surface(dsurface);
+	toplevel = weston_desktop_surface_get_implementation_data(dsurface);
 
 	if (weston_surface_set_role(wsurface, weston_desktop_xdg_toplevel_role,
 				    resource, ZXDG_SHELL_V6_ERROR_ROLE) < 0)
