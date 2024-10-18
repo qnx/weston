@@ -1474,15 +1474,10 @@ main(int argc, char **argv)
 	create_surface(&window);
 
 	/* we already have wait_for_configure set after create_surface() */
-	while (running && ret != -1 && window.wait_for_configure) {
+	while (running && ret != -1 && window.wait_for_configure)
 		ret = wl_display_dispatch(display.display);
 
-		/* wait until xdg_surface::configure acks the new dimensions */
-		if (window.wait_for_configure)
-			continue;
-
-		init_gl(&window);
-	}
+	init_gl(&window);
 
 	display.cursor_surface =
 		wl_compositor_create_surface(display.compositor);
