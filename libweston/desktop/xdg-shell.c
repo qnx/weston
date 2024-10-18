@@ -1323,17 +1323,25 @@ weston_desktop_xdg_surface_protocol_get_popup(struct wl_client *wl_client,
 					      struct wl_resource *parent_resource,
 					      struct wl_resource *positioner_resource)
 {
-	struct weston_desktop_surface *dsurface =
-		wl_resource_get_user_data(resource);
-	struct weston_surface *wsurface =
-		weston_desktop_surface_get_surface(dsurface);
-	struct weston_desktop_xdg_popup *popup =
-		weston_desktop_surface_get_implementation_data(dsurface);
+	struct weston_desktop_surface *dsurface = NULL;
+	struct weston_surface *wsurface = NULL;
+	struct weston_desktop_xdg_popup *popup = NULL;
 	struct weston_desktop_surface *parent_surface;
 	struct weston_desktop_xdg_surface *parent;
 	struct weston_desktop_xdg_positioner *positioner =
 		wl_resource_get_user_data(positioner_resource);
 	struct weston_coord_surface offset;
+
+	dsurface = wl_resource_get_user_data(resource);
+	if (!dsurface) {
+		wl_resource_post_error(resource,
+				       XDG_SURFACE_ERROR_DEFUNCT_ROLE_OBJECT,
+				       "xdg surface destroyed");
+		return;
+	}
+
+	wsurface = weston_desktop_surface_get_surface(dsurface);
+	popup = weston_desktop_surface_get_implementation_data(dsurface);
 
 	/* Popup parents are allowed to be non-null, but only if a parent is
 	 * specified 'using some other protocol' before committing. Since we
