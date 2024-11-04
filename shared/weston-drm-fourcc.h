@@ -51,8 +51,16 @@
  * index 0 = Y plane, [39:0] Y3:Y2:Y1:Y0 little endian
  * index 1 = Cr:Cb plane, [39:0] Cr1:Cb1:Cr0:Cb0 little endian
  */
+#ifndef DRM_FORMAT_NV15
 #define DRM_FORMAT_NV15		fourcc_code('N', 'V', '1', '5') /* 2x2 subsampled Cr:Cb plane */
+#endif
+
+#ifndef DRM_FORMAT_NV20
 #define DRM_FORMAT_NV20		fourcc_code('N', 'V', '2', '0') /* 2x1 subsampled Cr:Cb plane */
+#endif
+
+#ifndef DRM_FORMAT_NV30
 #define DRM_FORMAT_NV30		fourcc_code('N', 'V', '3', '0') /* non-subsampled Cr:Cb plane */
+#endif
 
 #endif

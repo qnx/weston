@@ -134,10 +134,11 @@ rm -rf wayland-protocols
 # Build and install our own version of libdrm. Debian 11 (bullseye) provides
 # libdrm 2.4.104 which doesn't have the IN_FORMATS iterator api, and Mesa
 # depends on 2.4.109 as well.
-git clone --branch libdrm-2.4.109 --depth=1 https://gitlab.freedesktop.org/mesa/drm.git
+# Bump to 2.4.118 to include DRM_FORMAT_NV{15,20,30}
+git clone --branch libdrm-2.4.118 --depth=1 https://gitlab.freedesktop.org/mesa/drm.git
 cd drm
 meson build --wrap-mode=nofallback -Dauto_features=disabled \
-	-Dvc4=false -Dfreedreno=false -Detnaviv=false
+	-Dvc4=disabled -Dfreedreno=disabled -Detnaviv=disabled
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf drm
