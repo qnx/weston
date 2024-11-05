@@ -389,10 +389,14 @@ cmlcms_find_color_profile_by_params(const struct weston_color_manager_lcms *cm,
 			sizeof(params->primaries_info) +
 			sizeof(params->tf_info) +
 			sizeof(params->tf_params) +
+			sizeof(params->min_luminance) +
+			sizeof(params->max_luminance) +
+			sizeof(params->reference_white_luminance) +
 			sizeof(params->target_min_luminance) +
 			sizeof(params->target_max_luminance) +
 			sizeof(params->maxCLL) +
-			sizeof(params->maxFALL),
+			sizeof(params->maxFALL) +
+			sizeof(params->padding),
 		"struct weston_color_profile_params must not contain implicit padding");
 
 	wl_list_for_each(cprof, &cm->color_profile_list, link) {

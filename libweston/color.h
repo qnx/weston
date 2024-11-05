@@ -141,12 +141,18 @@ struct weston_color_profile_params {
 	/* Transfer characteristic's parameters; depends on tf_info. */
 	float tf_params[10];
 
+	/* Primary color volume luminance parameters cd/m²; always set. */
+	float min_luminance, max_luminance;
+	float reference_white_luminance;
+
 	/* Target color volume; always set. */
 	struct weston_color_gamut target_primaries;
 
 	/* Target luminance parameters cd/m²; negative when not set */
 	float target_min_luminance, target_max_luminance;
 	float maxCLL, maxFALL;
+
+	char padding[4];
 };
 
 /** Type or formula for a curve */

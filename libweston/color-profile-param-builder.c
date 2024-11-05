@@ -36,10 +36,11 @@
 enum weston_color_profile_params_set {
 	WESTON_COLOR_PROFILE_PARAMS_PRIMARIES = 0x01,
 	WESTON_COLOR_PROFILE_PARAMS_TF = 0x02,
-	WESTON_COLOR_PROFILE_PARAMS_TARGET_PRIMARIES = 0x04,
-	WESTON_COLOR_PROFILE_PARAMS_TARGET_LUMINANCE = 0x08,
-	WESTON_COLOR_PROFILE_PARAMS_MAXCLL = 0x10,
-	WESTON_COLOR_PROFILE_PARAMS_MAXFALL = 0x20,
+	WESTON_COLOR_PROFILE_PARAMS_PRIMARY_LUMINANCE = 0x04,
+	WESTON_COLOR_PROFILE_PARAMS_TARGET_PRIMARIES = 0x08,
+	WESTON_COLOR_PROFILE_PARAMS_TARGET_LUMINANCE = 0x10,
+	WESTON_COLOR_PROFILE_PARAMS_MAXCLL = 0x20,
+	WESTON_COLOR_PROFILE_PARAMS_MAXFALL = 0x40,
 };
 
 /** Builder object to create color profiles with parameters. */
@@ -376,6 +377,73 @@ weston_color_profile_param_builder_set_tf_power_exponent(struct weston_color_pro
 }
 
 /**
+ * Sets primary luminance for struct weston_color_profile_param_builder object.
+ *
+ * If the primary luminance is already set, this should fail. Setting a
+ * parameter twice is forbidden.
+ *
+ * If this fails, users can call weston_color_profile_param_builder_get_error()
+ * to get the error details.
+ *
+ * \param builder The builder object whose parameters will be set.
+ * \param ref_lum The white point reference luminance.
+ * \param min_lum The minimum luminance.
+ * \param max_lum The maximum luminance.
+ * \return true on success, false otherwise.
+ */
+bool
+weston_color_profile_param_builder_set_primary_luminance(struct weston_color_profile_param_builder *builder,
+							 float ref_lum, float min_lum, float max_lum)
+{
+	struct weston_color_manager *cm = builder->compositor->color_manager;
+	bool success = true;
+
+	if (!((cm->supported_color_features >> WESTON_COLOR_FEATURE_SET_LUMINANCES) & 1)) {
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_UNSUPPORTED,
+			    "set_primary_luminance not supported by the color manager");
+		success = false;
+	}
+
+	if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_PRIMARY_LUMINANCE) {
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_ALREADY_SET,
+			    "primary luminance was already set");
+		success = false;
+	}
+
+	if (max_lum < ref_lum) {
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
+			    "primary reference luminance %f shouldn't be greater than max %f",
+			    ref_lum, max_lum);
+		success = false;
+	}
+
+	if (min_lum >= ref_lum) {
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
+			    "primary reference luminance %f shouldn't be lesser than or equal to min %f",
+			    ref_lum, min_lum);
+		success = false;
+	}
+
+	if (min_lum >= max_lum) {
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
+			    "primary min luminance %f shouldn't be greater than or equal to max %f",
+			    min_lum, max_lum);
+		success = false;
+	}
+
+	if (!success)
+		return false;
+
+	builder->params.reference_white_luminance = ref_lum;
+	builder->params.min_luminance = min_lum;
+	builder->params.max_luminance = max_lum;
+
+	builder->group_mask |= WESTON_COLOR_PROFILE_PARAMS_PRIMARY_LUMINANCE;
+
+	return true;
+}
+
+/**
  * Sets target primaries for struct weston_color_profile_param_builder object
  * using raw values.
  *
@@ -666,6 +734,42 @@ builder_complete_params(struct weston_color_profile_param_builder *builder)
 	/* If no target primaries were set, it matches the primaries. */
 	if (!(builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TARGET_PRIMARIES))
 		builder->params.target_primaries = builder->params.primaries;
+
+	if (!(builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_PRIMARY_LUMINANCE)) {
+		/* If primary luminance is not set, set it to default values.
+		 * These values comes from the CM&HDR protocol. */
+		builder->params.reference_white_luminance = 80.0;
+		builder->params.min_luminance = 0.2;
+		builder->params.max_luminance = 80.0;
+
+		/* Some TF's override the default. Values comes from the CM&HDR
+		 * protocol as well. */
+		if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TF) {
+			switch(builder->params.tf_info->tf) {
+			case WESTON_TF_ST2084_PQ:
+				builder->params.reference_white_luminance = 203.0;
+				builder->params.min_luminance = 0.0;
+				builder->params.max_luminance = 10000.0;
+				break;
+			case WESTON_TF_HLG:
+				builder->params.reference_white_luminance = 203.0;
+				builder->params.min_luminance = 0.005;
+				builder->params.max_luminance = 1000.0;
+				break;
+			default:
+				break;
+			}
+		}
+	} else {
+		/* Primary luminance is set, but PQ TF override them anyway
+		 * (except reference white level). Also part of the CM&HDR
+		 * protocol. */
+		if ((builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TF) &&
+		    builder->params.tf_info->tf == WESTON_TF_ST2084_PQ) {
+			builder->params.min_luminance = 0.0;
+			builder->params.max_luminance = 10000.0;
+		}
+	}
 
 	/*
 	 * If target luminance is not set, set it to negative. Same applies to

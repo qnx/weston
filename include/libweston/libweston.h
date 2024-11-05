@@ -394,6 +394,10 @@ weston_color_profile_param_builder_set_tf_power_exponent(struct weston_color_pro
 							 float power_exponent);
 
 bool
+weston_color_profile_param_builder_set_primary_luminance(struct weston_color_profile_param_builder *builder,
+							 float ref_lum, float min_lum, float max_lum);
+
+bool
 weston_color_profile_param_builder_set_target_primaries(struct weston_color_profile_param_builder *builder,
 							const struct weston_color_gamut *target_primaries);
 
