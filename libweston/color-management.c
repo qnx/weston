@@ -27,6 +27,7 @@
 
 #include "color.h"
 #include "color-management.h"
+#include <libweston/libweston.h>
 #include "shared/string-helpers.h"
 #include "shared/weston-assert.h"
 #include "shared/xalloc.h"
@@ -85,6 +86,17 @@ struct cm_creator_icc {
 	int32_t icc_profile_fd;
 	size_t icc_data_length;
 	size_t icc_data_offset;
+};
+
+/**
+ * Backs protocol objects that are used to create parametric image descriptions.
+ */
+struct cm_creator_params {
+	struct wl_resource *owner;
+	struct weston_compositor *compositor;
+
+	/* This accumulates the parameters given by the clients. */
+	struct weston_color_profile_param_builder *builder;
 };
 
 /**
@@ -1130,16 +1142,388 @@ err:
 }
 
 /**
+ * Convert from param builder error to protocol error.
+ *
+ * If the error does not have a protocol counterpart, this returns -1.
+ */
+static int32_t
+cm_creator_params_error_to_protocol(struct weston_compositor *compositor,
+				    enum weston_color_profile_param_builder_error err)
+{
+	switch(err) {
+	case WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_TF:
+		return XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INVALID_TF;
+	case WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_PRIMARIES:
+		return XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INVALID_PRIMARIES;
+	case WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE:
+		return XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INVALID_LUMINANCE;
+	case WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INCOMPLETE_SET:
+		return XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INCOMPLETE_SET;
+	case WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_ALREADY_SET:
+		return XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_ALREADY_SET;
+	case WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_UNSUPPORTED:
+		return XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_UNSUPPORTED_FEATURE;
+	case WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_CREATE_FAILED:
+	case WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_CIE_XY_OUT_OF_RANGE:
+		/* These are not protocol errors, but should result in graceful
+		 * failures when creating the image description. */
+		return -1;
+	}
+
+	weston_assert_not_reached(compositor, "unknown params profile builder error");
+}
+
+/**
+ * Used by cm_creator_params setters to post protocol errors.
+ *
+ * Errors that should not result in a protocol error are not posted. These are
+ * graceful failures that we handle in cm_creator_params_create().
+ */
+static void
+cm_creator_params_post_protocol_error(struct cm_creator_params *cm_creator_params)
+{
+	struct weston_compositor *compositor = cm_creator_params->compositor;
+	enum weston_color_profile_param_builder_error err;
+	int32_t protocol_err;
+	char *err_msg;
+
+	if (!weston_color_profile_param_builder_get_error(cm_creator_params->builder,
+							  &err, &err_msg))
+		return;
+
+	protocol_err = cm_creator_params_error_to_protocol(compositor, err);
+	if (protocol_err >= 0)
+		wl_resource_post_error(cm_creator_params->owner,
+				       protocol_err, "%s", err_msg);
+
+	free(err_msg);
+}
+
+/**
+ * Set named primaries for parametric-based image description creator object.
+ */
+static void
+cm_creator_params_set_primaries_named(struct wl_client *client, struct wl_resource *resource,
+				      uint32_t primaries_named)
+{
+	struct cm_creator_params *cm_creator_params =
+		wl_resource_get_user_data(resource);
+	const struct weston_color_primaries_info *primaries_info;
+
+	primaries_info = weston_color_primaries_info_from_protocol(primaries_named);
+	if (!primaries_info) {
+		wl_resource_post_error(resource,
+				       XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INVALID_PRIMARIES,
+				       "invalid primaries named: %u", primaries_named);
+		return;
+	}
+
+	if (!weston_color_profile_param_builder_set_primaries_named(cm_creator_params->builder,
+								    primaries_info->primaries))
+		cm_creator_params_post_protocol_error(cm_creator_params);
+}
+
+/**
+ * Set primaries for parametric-based image description creator object.
+ *
+ * The primaries we receive from clients is multiplied by 10000.
+ */
+static void
+cm_creator_params_set_primaries(struct wl_client *client, struct wl_resource *resource,
+				int32_t r_x, int32_t r_y,
+				int32_t g_x, int32_t g_y,
+				int32_t b_x, int32_t b_y,
+				int32_t w_x, int32_t w_y)
+{
+	struct cm_creator_params *cm_creator_params =
+		wl_resource_get_user_data(resource);
+	struct weston_color_gamut primaries;
+
+	primaries.primary[0].x = r_x / 10000.0f;
+	primaries.primary[0].y = r_y / 10000.0f;
+	primaries.primary[1].x = g_x / 10000.0f;
+	primaries.primary[1].y = g_y / 10000.0f;
+	primaries.primary[2].x = b_x / 10000.0f;
+	primaries.primary[2].y = b_y / 10000.0f;
+	primaries.white_point.x = w_x / 10000.0f;
+	primaries.white_point.y = w_y / 10000.0f;
+
+	if (!weston_color_profile_param_builder_set_primaries(cm_creator_params->builder,
+							      &primaries))
+		cm_creator_params_post_protocol_error(cm_creator_params);
+}
+
+/**
+ * Set tf named for parametric-based image description creator object.
+ */
+static void
+cm_creator_params_set_tf_named(struct wl_client *client, struct wl_resource *resource,
+			       uint32_t tf_named)
+{
+	struct cm_creator_params *cm_creator_params =
+		wl_resource_get_user_data(resource);
+	const struct weston_color_tf_info *tf_info;
+
+	tf_info = weston_color_tf_info_from_protocol(tf_named);
+	if (!tf_info) {
+		wl_resource_post_error(resource,
+				       XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INVALID_TF,
+				       "invalid tf named: %u", tf_named);
+		return;
+	}
+
+	if (!weston_color_profile_param_builder_set_tf_named(cm_creator_params->builder,
+							     tf_info->tf))
+		cm_creator_params_post_protocol_error(cm_creator_params);
+}
+
+/**
+ * Set tf power for parametric-based image description creator object.
+ *
+ * The exponent we receive from clients is multiplied by 10000.
+ */
+static void
+cm_creator_params_set_tf_power(struct wl_client *client, struct wl_resource *resource,
+			       uint32_t exp)
+{
+	struct cm_creator_params *cm_creator_params =
+		wl_resource_get_user_data(resource);
+
+	if (!weston_color_profile_param_builder_set_tf_power_exponent(cm_creator_params->builder,
+								      exp / 10000.0f))
+		cm_creator_params_post_protocol_error(cm_creator_params);
+}
+
+/**
+ * Set primary luminance for parametric-based image description creator object.
+ *
+ * The min luminance we receive from clients is multiplied by 10000.
+ */
+static void
+cm_creator_params_set_luminances(struct wl_client *client, struct wl_resource *resource,
+				 uint32_t min_lum, uint32_t max_lum,
+				 uint32_t reference_lum)
+{
+	struct cm_creator_params *cm_creator_params =
+		wl_resource_get_user_data(resource);
+
+	if (!weston_color_profile_param_builder_set_primary_luminance(cm_creator_params->builder,
+								      reference_lum,
+								      min_lum / 10000.f, max_lum))
+		cm_creator_params_post_protocol_error(cm_creator_params);
+}
+
+/**
+ * Set mastering display primaries for parametric-based image description creator object.
+ *
+ * The primaries we receive from clients is multiplied by 10000.
+ */
+static void
+cm_creator_params_set_mastering_display_primaries(struct wl_client *client,
+						  struct wl_resource *resource,
+						  int32_t r_x, int32_t r_y,
+						  int32_t g_x, int32_t g_y,
+						  int32_t b_x, int32_t b_y,
+						  int32_t w_x, int32_t w_y)
+{
+	struct cm_creator_params *cm_creator_params =
+		wl_resource_get_user_data(resource);
+	struct weston_color_gamut primaries;
+
+	primaries.primary[0].x = r_x / 10000.0f;
+	primaries.primary[0].y = r_y / 10000.0f;
+	primaries.primary[1].x = g_x / 10000.0f;
+	primaries.primary[1].y = g_y / 10000.0f;
+	primaries.primary[2].x = b_x / 10000.0f;
+	primaries.primary[2].y = b_y / 10000.0f;
+	primaries.white_point.x = w_x / 10000.0f;
+	primaries.white_point.y = w_y / 10000.0f;
+
+	if (!weston_color_profile_param_builder_set_target_primaries(cm_creator_params->builder,
+								     &primaries))
+		cm_creator_params_post_protocol_error(cm_creator_params);
+}
+
+/**
+ * Set mastering display luminance for parametric-based image description creator object.
+ *
+ * The min luminance we receive from clients is multiplied by 10000.
+ */
+static void
+cm_creator_params_set_mastering_luminance(struct wl_client *client,
+					  struct wl_resource *resource,
+					  uint32_t min_lum, uint32_t max_lum)
+{
+	struct cm_creator_params *cm_creator_params =
+		wl_resource_get_user_data(resource);
+
+	if (!weston_color_profile_param_builder_set_target_luminance(cm_creator_params->builder,
+								     min_lum / 10000.0f, max_lum))
+		cm_creator_params_post_protocol_error(cm_creator_params);
+}
+
+/**
+ * Set max cll for parametric-based image description creator object.
+ */
+static void
+cm_creator_params_set_max_cll(struct wl_client *client, struct wl_resource *resource,
+			      uint32_t max_cll)
+{
+	struct cm_creator_params *cm_creator_params =
+		wl_resource_get_user_data(resource);
+
+	if (!weston_color_profile_param_builder_set_maxCLL(cm_creator_params->builder,
+							   max_cll))
+		cm_creator_params_post_protocol_error(cm_creator_params);
+}
+
+/**
+ * Set max fall for parametric-based image description creator object.
+ */
+static void
+cm_creator_params_set_max_fall(struct wl_client *client, struct wl_resource *resource,
+			       uint32_t max_fall)
+{
+	struct cm_creator_params *cm_creator_params =
+		wl_resource_get_user_data(resource);
+
+	if (!weston_color_profile_param_builder_set_maxFALL(cm_creator_params->builder,
+							    max_fall))
+		cm_creator_params_post_protocol_error(cm_creator_params);
+}
+
+/**
+ * Creates image description using the parametric-based image description
+ * creator object. This is a destructor type request, so the cm_creator_params
+ * resource gets destroyed after this.
+ */
+static void
+cm_creator_params_create(struct wl_client *client, struct wl_resource *resource,
+			 uint32_t protocol_object_id)
+{
+	struct cm_creator_params *cm_creator_params =
+		wl_resource_get_user_data(resource);
+	struct weston_compositor *compositor = cm_creator_params->compositor;
+	struct weston_color_manager *cm = compositor->color_manager;
+	uint32_t version = wl_resource_get_version(cm_creator_params->owner);
+	struct cm_image_desc *cm_image_desc;
+	enum weston_color_profile_param_builder_error err;
+	int32_t protocol_err;
+	char *err_msg;
+
+	/* Create the image description with cprof == NULL. */
+	cm_image_desc = cm_image_desc_create(cm, NULL, client, version,
+					     protocol_object_id, NO_GET_INFO);
+	if (!cm_image_desc) {
+		wl_resource_post_no_memory(resource);
+		return;
+	}
+
+	/* Create the color profile through the param builder. This will destroy
+	 * the builder object. */
+	cm_image_desc->cprof =
+		weston_color_profile_param_builder_create_color_profile(cm_creator_params->builder,
+									"client",
+									&err, &err_msg);
+	cm_creator_params->builder = NULL;
+
+	if (cm_image_desc->cprof) {
+		xx_image_description_v4_send_ready(cm_image_desc->owner,
+						   cm_image_desc->cprof->id);
+	} else {
+		protocol_err = cm_creator_params_error_to_protocol(compositor, err);
+		if (protocol_err >= 0)
+			wl_resource_post_error(cm_creator_params->owner,
+					       protocol_err, "%s", err_msg);
+		else
+			xx_image_description_v4_send_failed(cm_image_desc->owner,
+							    XX_IMAGE_DESCRIPTION_V4_CAUSE_UNSUPPORTED,
+							    err_msg);
+		free(err_msg);
+
+		/* Failed to create the cprof (and so the image description).
+		 * Let's set the image description resource userdata to NULL
+		 * (and other functions can tell that it is invalid through
+		 * that). */
+		wl_resource_set_user_data(cm_image_desc->owner, NULL);
+		cm_image_desc_destroy(cm_image_desc);
+	}
+
+	/* Destroy the cm_creator_params resource. This is a destructor request. */
+	wl_resource_destroy(cm_creator_params->owner);
+}
+
+/**
+ * Resource destruction function for the cm_creator_params.
+ * It should only destroy itself, but not the image description it creates.
+ */
+static void
+cm_creator_params_destructor(struct wl_resource *resource)
+{
+	struct cm_creator_params *cm_creator_params =
+		wl_resource_get_user_data(resource);
+
+	if (cm_creator_params->builder)
+		weston_color_profile_param_builder_destroy(cm_creator_params->builder);
+
+	free(cm_creator_params);
+}
+
+static const struct xx_image_description_creator_params_v4_interface
+cm_creator_params_implementation = {
+	.set_primaries_named = cm_creator_params_set_primaries_named,
+	.set_primaries = cm_creator_params_set_primaries,
+	.set_tf_named = cm_creator_params_set_tf_named,
+	.set_tf_power = cm_creator_params_set_tf_power,
+	.set_luminances = cm_creator_params_set_luminances,
+	.set_mastering_display_primaries = cm_creator_params_set_mastering_display_primaries,
+	.set_mastering_luminance = cm_creator_params_set_mastering_luminance,
+	.set_max_cll = cm_creator_params_set_max_cll,
+	.set_max_fall = cm_creator_params_set_max_fall,
+	.create = cm_creator_params_create,
+};
+
+/**
  * Creates a parametric image description creator for the client.
  */
 static void
 cm_new_image_description_creator_params(struct wl_client *client, struct wl_resource *cm_res,
 					uint32_t cm_creator_params_id)
 {
-	/* Still unsupported. */
-	wl_resource_post_error(cm_res, XX_COLOR_MANAGER_V4_ERROR_UNSUPPORTED_FEATURE,
-			       "creating parametric image description creator is " \
-			       "still unsupported");
+	struct cm_creator_params *cm_creator_params;
+	struct weston_compositor *compositor = wl_resource_get_user_data(cm_res);
+	struct weston_color_manager *cm = compositor->color_manager;
+	uint32_t version = wl_resource_get_version(cm_res);
+
+	if (!((cm->supported_color_features >> WESTON_COLOR_FEATURE_PARAMETRIC) & 1)) {
+		wl_resource_post_error(cm_res, XX_COLOR_MANAGER_V4_ERROR_UNSUPPORTED_FEATURE,
+				       "creating parametric image descriptions " \
+				       "is not supported");
+		return;
+	}
+
+	cm_creator_params = xzalloc(sizeof(*cm_creator_params));
+
+	cm_creator_params->compositor = compositor;
+
+	cm_creator_params->builder =
+		weston_color_profile_param_builder_create(compositor);
+
+	cm_creator_params->owner =
+		wl_resource_create(client, &xx_image_description_creator_params_v4_interface,
+				   version, cm_creator_params_id);
+	if (!cm_creator_params->owner)
+		goto err;
+
+	wl_resource_set_implementation(cm_creator_params->owner, &cm_creator_params_implementation,
+				       cm_creator_params, cm_creator_params_destructor);
+
+	return;
+
+err:
+	weston_color_profile_param_builder_destroy(cm_creator_params->builder);
+	free(cm_creator_params);
+	wl_resource_post_no_memory(cm_res);
 }
 
 /**
@@ -1174,6 +1558,8 @@ bind_color_management(struct wl_client *client, void *data, uint32_t version,
 	struct weston_color_manager *cm = compositor->color_manager;
 	const struct weston_color_feature_info *feature_info;
 	const struct weston_render_intent_info *render_intent;
+	const struct weston_color_primaries_info *primaries;
+	const struct weston_color_tf_info *tf;
 	unsigned int i;
 
 	resource = wl_resource_create(client, &xx_color_manager_v4_interface,
@@ -1202,6 +1588,24 @@ bind_color_management(struct wl_client *client, void *data, uint32_t version,
 		render_intent = weston_render_intent_info_from(compositor, i);
 		xx_color_manager_v4_send_supported_intent(resource,
 							  render_intent->protocol_intent);
+	}
+
+	/* Expose the supported primaries named to the client. */
+	for (i = 0; i < 32; i++) {
+		if (!((cm->supported_primaries_named >> i) & 1))
+			continue;
+		primaries = weston_color_primaries_info_from(compositor, i);
+		xx_color_manager_v4_send_supported_primaries_named(resource,
+								   primaries->protocol_primaries);
+	}
+
+	/* Expose the supported tf named to the client. */
+	for (i = 0; i < 32; i++) {
+		if (!((cm->supported_tf_named >> i) & 1))
+			continue;
+		tf = weston_color_tf_info_from(compositor, i);
+		xx_color_manager_v4_send_supported_tf_named(resource,
+							    tf->protocol_tf);
 	}
 }
 

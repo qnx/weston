@@ -497,8 +497,14 @@ weston_color_manager_create(struct weston_compositor *compositor)
 	cm->base.get_surface_color_transform = cmlcms_get_surface_color_transform;
 	cm->base.create_output_color_outcome = cmlcms_create_output_color_outcome;
 
-	/* We still do not support creating parametric color profiles. */
-	cm->base.supported_color_features = (1 << WESTON_COLOR_FEATURE_ICC);
+	/* We support all color features. */
+	cm->base.supported_color_features = (1 << WESTON_COLOR_FEATURE_ICC) |
+					    (1 << WESTON_COLOR_FEATURE_PARAMETRIC) |
+					    (1 << WESTON_COLOR_FEATURE_SET_PRIMARIES) |
+					    (1 << WESTON_COLOR_FEATURE_SET_TF_POWER) |
+					    (1 << WESTON_COLOR_FEATURE_SET_LUMINANCES) |
+					    (1 << WESTON_COLOR_FEATURE_SET_MASTERING_DISPLAY_PRIMARIES) |
+					    (1 << WESTON_COLOR_FEATURE_EXTENDED_TARGET_VOLUME);
 
 	/* We support all rendering intents. */
 	cm->base.supported_rendering_intents = (1 << WESTON_RENDER_INTENT_PERCEPTUAL) |

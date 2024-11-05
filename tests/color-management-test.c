@@ -495,16 +495,16 @@ static void
 cm_supported_tf_named(void *data, struct xx_color_manager_v4 *xx_color_manager_v4,
 		      uint32_t tf_code)
 {
-	/* only used to create image descriptions using parameters, which is
-	 * still unsupported by Weston. */
+	/* only used to create image descriptions using parameters, which we
+	 * won't do in this test file. */
 }
 
 static void
 cm_supported_primaries_named(void *data, struct xx_color_manager_v4 *xx_color_manager_v4,
 			     uint32_t primaries_code)
 {
-	/* only used to create image descriptions using parameters, which is
-	 * still unsupported by Weston. */
+	/* only used to create image descriptions using parameters, which we
+	 * won't do in this test file. */
 }
 
 static const struct xx_color_manager_v4_listener
@@ -539,9 +539,14 @@ color_manager_init(struct color_manager *cm, struct client *client)
 
 	client_roundtrip(client);
 
-	/* For now, Weston only supports the ICC image description creator. All
-	 * the parametric parts of the protocol are still unsupported. */
-	assert(cm->supported_features == (1 << XX_COLOR_MANAGER_V4_FEATURE_ICC_V2_V4));
+	/* Weston supports all color features. */
+	assert(cm->supported_features == ((1 << XX_COLOR_MANAGER_V4_FEATURE_ICC_V2_V4) |
+					  (1 << XX_COLOR_MANAGER_V4_FEATURE_PARAMETRIC) |
+					  (1 << XX_COLOR_MANAGER_V4_FEATURE_SET_PRIMARIES) |
+					  (1 << XX_COLOR_MANAGER_V4_FEATURE_SET_TF_POWER) |
+					  (1 << XX_COLOR_MANAGER_V4_FEATURE_SET_LUMINANCES) |
+					  (1 << XX_COLOR_MANAGER_V4_FEATURE_SET_MASTERING_DISPLAY_PRIMARIES) |
+					  (1 << XX_COLOR_MANAGER_V4_FEATURE_EXTENDED_TARGET_VOLUME)));
 
 	/* Weston supports all rendering intents. */
 	assert(cm->supported_rendering_intents == ((1 << XX_COLOR_MANAGER_V4_RENDER_INTENT_PERCEPTUAL) |
@@ -765,25 +770,6 @@ TEST(surface_get_preferred_image_description)
 	client_roundtrip(client);
 
 	image_descr_info_destroy(image_descr_info);
-	color_manager_fini(&cm);
-	client_destroy(client);
-}
-
-TEST(create_parametric_image_description_creator_object)
-{
-	struct client *client;
-	struct color_manager cm;
-	struct xx_image_description_creator_params_v4 *param_creator;
-
-	client = create_client_and_test_surface(100, 100, 100, 100);
-	color_manager_init(&cm, client);
-
-	/* Parametric image description creator is still unsupported */
-	param_creator = xx_color_manager_v4_new_parametric_creator(cm.manager);
-	expect_protocol_error(client, &xx_color_manager_v4_interface,
-			      XX_COLOR_MANAGER_V4_ERROR_UNSUPPORTED_FEATURE);
-
-	xx_image_description_creator_params_v4_destroy(param_creator);
 	color_manager_fini(&cm);
 	client_destroy(client);
 }
