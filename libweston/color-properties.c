@@ -71,6 +71,12 @@ static const struct weston_color_feature_info color_feature_info_table[] = {
 		.protocol_feature = XX_COLOR_MANAGER_V4_FEATURE_SET_TF_POWER,
 	},
 	{
+		.feature = WESTON_COLOR_FEATURE_SET_LUMINANCES,
+		.desc = "Allow clients to use the parametric set_luminances " \
+			"request from the CM&HDR protocol extension",
+		.protocol_feature = XX_COLOR_MANAGER_V4_FEATURE_SET_LUMINANCES,
+	},
+	{
 		.feature = WESTON_COLOR_FEATURE_SET_MASTERING_DISPLAY_PRIMARIES,
 		.desc = "Allow clients to use the parametric " \
 			"set_mastering_display_primaries request from the " \
