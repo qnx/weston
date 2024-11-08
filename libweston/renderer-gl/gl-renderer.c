@@ -235,8 +235,6 @@ struct gl_buffer_state {
 
 	/* Only needed between attach() and flush_damage() */
 	int pitch; /* plane 0 pitch in pixels */
-	GLenum gl_pixel_type;
-	GLenum gl_format[3];
 	enum gl_channel_order gl_channel_order;
 	int offset[3]; /* per-plane pitch in bytes */
 
@@ -244,6 +242,7 @@ struct gl_buffer_state {
 	int num_images;
 	enum gl_shader_texture_variant shader_variant;
 
+	struct gl_format_info texture_format[3];
 	GLuint textures[3];
 	int num_textures;
 
@@ -2592,27 +2591,11 @@ gl_renderer_read_pixels(struct weston_output *output,
 	return 0;
 }
 
-static GLenum
-gl_format_from_internal(GLenum internal_format)
-{
-	switch (internal_format) {
-	case GL_R8_EXT:
-		return GL_RED_EXT;
-	case GL_RG8_EXT:
-		return GL_RG_EXT;
-	case GL_RGBA16_EXT:
-	case GL_RGBA16F:
-	case GL_RGB10_A2:
-		return GL_RGBA;
-	default:
-		return internal_format;
-	}
-}
-
 static void
 gl_renderer_flush_damage(struct weston_paint_node *pnode)
 {
 	struct weston_surface *surface = pnode->surface;
+	struct gl_renderer *gr = get_renderer(surface->compositor);
 	const struct weston_testsuite_quirks *quirks =
 		&surface->compositor->test_data.test_quirks;
 	struct weston_buffer *buffer = surface->buffer_ref.buffer;
@@ -2652,14 +2635,11 @@ gl_renderer_flush_damage(struct weston_paint_node *pnode)
 			glBindTexture(GL_TEXTURE_2D, gb->textures[j]);
 			glPixelStorei(GL_UNPACK_ROW_LENGTH_EXT,
 				      gb->pitch / hsub);
-			glTexImage2D(GL_TEXTURE_2D, 0,
-				     gb->gl_format[j],
-				     buffer->width / hsub,
-				     buffer->height / vsub,
-				     0,
-				     gl_format_from_internal(gb->gl_format[j]),
-				     gb->gl_pixel_type,
-				     data + gb->offset[j]);
+			gl_texture_2d_store(gr, 0, 0, 0, buffer->width / hsub,
+					    buffer->height / vsub,
+					    gb->texture_format[j].external,
+					    gb->texture_format[j].type,
+					    data + gb->offset[j]);
 		}
 		wl_shm_buffer_end_access(buffer->shm_buffer);
 		goto done;
@@ -2681,14 +2661,12 @@ gl_renderer_flush_damage(struct weston_paint_node *pnode)
 				      gb->pitch / hsub);
 			glPixelStorei(GL_UNPACK_SKIP_PIXELS_EXT, r.x1 / hsub);
 			glPixelStorei(GL_UNPACK_SKIP_ROWS_EXT, r.y1 / vsub);
-			glTexSubImage2D(GL_TEXTURE_2D, 0,
-					r.x1 / hsub,
-					r.y1 / vsub,
-					(r.x2 - r.x1) / hsub,
-					(r.y2 - r.y1) / vsub,
-					gl_format_from_internal(gb->gl_format[j]),
-					gb->gl_pixel_type,
-					data + gb->offset[j]);
+			gl_texture_2d_store(gr, 0, r.x1 / hsub, r.y1 / vsub,
+					    (r.x2 - r.x1) / hsub,
+					    (r.y2 - r.y1) / vsub,
+					    gb->texture_format[j].external,
+					    gb->texture_format[j].type,
+					    data + gb->offset[j]);
 		}
 	}
 	wl_shm_buffer_end_access(buffer->shm_buffer);
@@ -2761,14 +2739,12 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 	struct gl_surface_state *gs = get_surface_state(es);
 	struct gl_buffer_state *gb;
 	struct weston_buffer *old_buffer = gs->buffer_ref.buffer;
-	GLenum gl_format[3] = {0, 0, 0};
-	GLenum gl_pixel_type;
 	enum gl_shader_texture_variant shader_variant;
-	int pitch;
+	struct gl_format_info texture_format[3];
+	int pitch, hsub, vsub;
 	int offset[3] = { 0, 0, 0 };
 	unsigned int num_planes;
 	unsigned int i;
-	bool using_glesv2 = gr->gl_version < gl_version(3, 0);
 	const struct yuv_format_descriptor *yuv = NULL;
 
 	/* When sampling YUV input textures and converting to RGB by hand, we
@@ -2799,8 +2775,6 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 			bpp = pixel_format_get_info(yuv->plane[0].format)->bpp;
 		pitch = buffer->stride / (bpp / 8);
 
-		/* well, they all are so far ... */
-		gl_pixel_type = GL_UNSIGNED_BYTE;
 		shader_variant = yuv->shader_variant;
 
 		/* pre-compute all plane offsets in shm buffer */
@@ -2817,13 +2791,14 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 
 		num_planes = yuv->output_planes;
 		for (out = 0; out < num_planes; out++) {
-			const struct pixel_format_info *sub_info =
-				pixel_format_get_info(yuv->plane[out].format);
+			const struct pixel_format_info *info;
 
-			assert(sub_info);
+			info = pixel_format_get_info(yuv->plane[out].format);
+			assert(info);
+			texture_format[out] = info->gl;
+
 			assert(yuv->plane[out].plane_index < (int) shm_plane_count);
 
-			gl_format[out] = sub_info->gl_format;
 			offset[out] = shm_offset[yuv->plane[out].plane_index];
 		}
 	} else {
@@ -2840,37 +2815,7 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 		assert(bpp > 0 && !(bpp & 7));
 		pitch = buffer->stride / (bpp / 8);
 
-		gl_format[0] = buffer->pixel_format->gl_format;
-		gl_pixel_type = buffer->pixel_format->gl_type;
-	}
-
-	for (i = 0; i < ARRAY_LENGTH(gb->gl_format); i++) {
-		/* Fall back to GL_RGBA for 10bpc formats on ES2 */
-		if (using_glesv2 && gl_format[i] == GL_RGB10_A2) {
-			assert(gl_pixel_type == GL_UNSIGNED_INT_2_10_10_10_REV_EXT);
-			gl_format[i] = GL_RGBA;
-		}
-
-		/* Fall back to old luminance-based formats if we don't have
-		 * GL_EXT_texture_rg, which requires different sampling for
-		 * two-component formats. */
-		if (using_glesv2 &&
-		    !gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG) &&
-		    gl_format[i] == GL_R8_EXT) {
-			assert(gl_pixel_type == GL_UNSIGNED_BYTE);
-			assert(shader_variant == SHADER_VARIANT_Y_U_V ||
-			       shader_variant == SHADER_VARIANT_Y_UV);
-			gl_format[i] = GL_LUMINANCE;
-		}
-		if (using_glesv2 &&
-		    !gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_RG) &&
-		    gl_format[i] == GL_RG8_EXT) {
-			assert(gl_pixel_type == GL_UNSIGNED_BYTE);
-			assert(shader_variant == SHADER_VARIANT_Y_UV ||
-			       shader_variant == SHADER_VARIANT_Y_XUXV);
-			shader_variant = SHADER_VARIANT_Y_XUXV;
-			gl_format[i] = GL_LUMINANCE_ALPHA;
-		}
+		texture_format[0] = buffer->pixel_format->gl;
 	}
 
 	/* If this surface previously had a SHM buffer, its gl_buffer_state will
@@ -2900,15 +2845,25 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 	gb->pitch = pitch;
 	gb->shader_variant = shader_variant;
 	ARRAY_COPY(gb->offset, offset);
-	ARRAY_COPY(gb->gl_format, gl_format);
 	gb->gl_channel_order = buffer->pixel_format->gl_channel_order;
-	gb->gl_pixel_type = gl_pixel_type;
+	ARRAY_COPY(gb->texture_format, texture_format);
 	gb->needs_full_upload = true;
+	gb->num_textures = num_planes;
 
 	gs->buffer = gb;
 	gs->surface = es;
 
-	ensure_textures(gb, GL_TEXTURE_2D, num_planes);
+	for (i = 0; i < num_planes; i++) {
+		hsub = pixel_format_hsub(buffer->pixel_format, i);
+		vsub = pixel_format_vsub(buffer->pixel_format, i);
+		gl_texture_2d_init(gr, 1, texture_format[i].internal,
+				   buffer->width / hsub, buffer->height / vsub,
+				   &gb->textures[i]);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
+				GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,
+				GL_CLAMP_TO_EDGE);
+	}
 }
 
 static bool

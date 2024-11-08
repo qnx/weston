@@ -37,6 +37,30 @@ enum gl_channel_order {
 };
 
 /**
+ * GL format information to create and manage texture and renderbuffer objects.
+ */
+struct gl_format_info {
+	/** Sized internal format to create texture and renderbuffer objects.
+	 *  See Table 1 of renderer-gl/gl-utils.c for a list a valid formats.
+	 *  Set to 0 if the format isn't supported by GL. */
+	unsigned int internal;
+
+	/** External format and type combination to store texture images from
+	 *  client memory and read back from renderbuffers. See Table 1 of
+	 *  renderer-gl/gl-utils.c for valid combinations.
+	 *
+	 *  DRM formats are little-endian unless explicitly specified (e.g.
+	 *  DRM_FORMAT_RGBA8888 is stored ABGR as sequential bytes in memory).
+	 *  GL uses sequential byte order for single component types (e.g.
+	 *  DRM_FORMAT_RGBA8888 maps to GL_RGBA / GL_UNSIGNED_BYTE). However, GL
+	 *  depends on CPU endianness for special types packing all components
+	 *  in a single type (e.g. DRM_FORMAT_RGBA4444 maps to GL_RGBA /
+	 *  GL_UNSIGNED_SHORT_4_4_4_4). */
+	unsigned int external;
+	unsigned int type;
+};
+
+/**
  * Contains information about pixel formats, mapping format codes from
  * wl_shm and drm_fourcc.h (which are deliberately identical, but for the
  * special cases of WL_SHM_ARGB8888 and WL_SHM_XRGB8888) into various
@@ -69,6 +93,9 @@ struct pixel_format_info {
 	 *  the alpha channel to 1.0 (or ignore it) if the format is
 	 *  opaque. */
 	uint32_t sampler_type;
+
+	/** GL format information. */
+	struct gl_format_info gl;
 
 	/** GL internal format; to be used when creating FBO renderbuffers */
 	int gl_internalformat;
