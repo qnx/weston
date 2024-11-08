@@ -633,6 +633,24 @@ are_valid_texture_parameters(struct gl_renderer *gr,
 		};
 	}
 
+	/* Swizzles. */
+	if (parameters->target != GL_TEXTURE_EXTERNAL_OES) {
+		for (i = 0; i < 4; i++) {
+			switch (parameters->swizzles.array[i]) {
+			case GL_RED:
+			case GL_GREEN:
+			case GL_BLUE:
+			case GL_ALPHA:
+			case GL_ZERO:
+			case GL_ONE:
+				break;
+
+			default:
+				return false;
+			};
+		}
+	}
+
 	return true;
 }
 
@@ -1274,13 +1292,16 @@ gl_texture_fini(GLuint *tex)
 /* Initialise texture parameters. 'target' is either a 2D, a 3D or an external
  * texture target. 'filters' points to an array of 2 values for respectively the
  * texture minification and magnification filters. 'wrap_modes' points to an
- * array of 3 values for the S, T and R texture wrap modes. The texture object
- * bound to the given texture target (of the active texture) is updated if
- * 'flush' is true, make sure it's properly bound in that case. The parameters
- * and the flags bitfield can then directly be set and flushed when needed.
+ * array of 3 values for the S, T and R texture wrap modes. 'swizzles' points to
+ * an array of 4 values for the R, G, B and A texture swizzles. The texture
+ * object bound to the given texture target (of the active texture) is updated
+ * if 'flush' is true, make sure it's properly bound in that case. The
+ * parameters and the flags bitfield can then directly be set and flushed when
+ * needed.
  *
- * filters are set to GL_NEAREST if 'filters' is NULL and wrap modes are set to
- * GL_CLAMP_TO_EDGE if 'wrap_modes' is NULL.
+ * filters are set to GL_NEAREST if 'filters' is NULL, wrap modes are set to
+ * GL_CLAMP_TO_EDGE if 'wrap_modes' is NULL and swizzles are set to their
+ * default components if 'swizzles' is NULL.
  *
  * See gl_texture_parameters_flush().
  */
@@ -1290,11 +1311,13 @@ gl_texture_parameters_init(struct gl_renderer *gr,
 			   GLenum target,
 			   const GLint *filters,
 			   const GLint *wrap_modes,
+			   const GLint *swizzles,
 			   bool flush)
 {
 	GLint default_filters[] = { GL_NEAREST, GL_NEAREST };
 	GLint default_wrap_modes[] = { GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE,
 				       GL_CLAMP_TO_EDGE };
+	GLint default_swizzles[] = { GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA };
 
 	assert(target == GL_TEXTURE_2D ||
 	       target == GL_TEXTURE_3D ||
@@ -1309,6 +1332,8 @@ gl_texture_parameters_init(struct gl_renderer *gr,
 	       sizeof default_filters);
 	memcpy(&parameters->wrap_modes, wrap_modes ? wrap_modes :
 	       default_wrap_modes, sizeof default_wrap_modes);
+	memcpy(&parameters->swizzles, swizzles ? swizzles : default_swizzles,
+	       sizeof default_swizzles);
 	parameters->flags = TEXTURE_ALL_DIRTY;
 
 	if (flush)
@@ -1341,6 +1366,19 @@ gl_texture_parameters_flush(struct gl_renderer *gr,
 		if (parameters->target == GL_TEXTURE_3D)
 			glTexParameteri(parameters->target, GL_TEXTURE_WRAP_R,
 					parameters->wrap_modes.r);
+	}
+
+	if (parameters->flags & TEXTURE_SWIZZLES_DIRTY &&
+	    parameters->target != GL_TEXTURE_EXTERNAL_OES &&
+	    gr->gl_version >= gl_version(3, 0)) {
+		glTexParameteri(parameters->target, GL_TEXTURE_SWIZZLE_R,
+				parameters->swizzles.r);
+		glTexParameteri(parameters->target, GL_TEXTURE_SWIZZLE_G,
+				parameters->swizzles.g);
+		glTexParameteri(parameters->target, GL_TEXTURE_SWIZZLE_B,
+				parameters->swizzles.b);
+		glTexParameteri(parameters->target, GL_TEXTURE_SWIZZLE_A,
+				parameters->swizzles.a);
 	}
 
 	parameters->flags = 0;

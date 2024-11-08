@@ -302,8 +302,10 @@ static_assert(sizeof(struct gl_shader_requirements) ==
 enum gl_texture_flag {
 	TEXTURE_FILTERS_DIRTY    = 1 << 0,
 	TEXTURE_WRAP_MODES_DIRTY = 1 << 1,
+	TEXTURE_SWIZZLES_DIRTY   = 1 << 2,
 	TEXTURE_ALL_DIRTY        = (TEXTURE_FILTERS_DIRTY |
-				    TEXTURE_WRAP_MODES_DIRTY),
+				    TEXTURE_WRAP_MODES_DIRTY |
+				    TEXTURE_SWIZZLES_DIRTY),
 };
 
 struct gl_texture_parameters {
@@ -316,6 +318,10 @@ struct gl_texture_parameters {
 		struct { GLint s, t, r; };
 		GLint array[3];
 	} wrap_modes;
+	union {
+		struct { GLint r, g, b, a; };
+		GLint array[4];
+	} swizzles;
 	uint32_t flags;
 };
 
@@ -618,6 +624,7 @@ gl_texture_parameters_init(struct gl_renderer *gr,
 			   GLenum target,
 			   const GLint *filters,
 			   const GLint *wrap_modes,
+			   const GLint *swizzles,
 			   bool flush);
 
 void

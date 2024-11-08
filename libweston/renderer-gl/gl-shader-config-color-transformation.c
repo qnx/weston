@@ -204,7 +204,7 @@ gl_color_curve_lut_3x1d(struct gl_renderer *gr,
 	gl_texture_2d_store(gr, 0, 0, 0, lut_len, nr_rows, GL_RED, GL_FLOAT,
 			    lut);
 	gl_texture_parameters_init(gr, &params, GL_TEXTURE_2D, filters, NULL,
-				   true);
+				   NULL, true);
 
 	free(lut);
 
@@ -239,7 +239,7 @@ gl_3d_lut(struct gl_renderer *gr,
 	gl_texture_3d_store(gr, 0, 0, 0, 0, dim_size, dim_size, dim_size,
 			    GL_RGB, GL_FLOAT, lut);
 	gl_texture_parameters_init(gr, &params, GL_TEXTURE_3D, filters, NULL,
-				   true);
+				   NULL, true);
 
 	glBindTexture(GL_TEXTURE_3D, 0);
 	gl_xform->mapping.type = SHADER_COLOR_MAPPING_3DLUT;

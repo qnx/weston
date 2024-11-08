@@ -1978,7 +1978,7 @@ update_wireframe_tex(struct gl_renderer *gr,
 	gl_texture_2d_init(gr, (int) log2(new_size) + 1, GL_R8, new_size, 1,
 			   &gr->wireframe_tex);
 	gl_texture_parameters_init(gr, &params, GL_TEXTURE_2D, filters, NULL,
-				   true);
+				   NULL, true);
 	gr->wireframe_size = new_size;
 
 	/* Store mip chain with a wireframe thickness of 1.0. */
@@ -2016,7 +2016,7 @@ update_borders_tex(struct gl_renderer *gr,
 					pending->height, &go->borders_tex[i]);
 				gl_texture_parameters_init(
 					gr, &go->borders_param[i],
-					GL_TEXTURE_2D, NULL, NULL, false);
+					GL_TEXTURE_2D, NULL, NULL, NULL, false);
 			}
 		}
 
@@ -2744,7 +2744,7 @@ ensure_textures(struct gl_buffer_state *gb, GLenum target, int num_textures)
 
 	for (i = 0; i < num_textures; i++)
 		gl_texture_parameters_init(gb->gr, &gb->parameters[i], target,
-					   NULL, NULL, false);
+					   NULL, NULL, NULL, false);
 }
 
 static void
@@ -2876,7 +2876,8 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 				   buffer->width / hsub, buffer->height / vsub,
 				   &gb->textures[i]);
 		gl_texture_parameters_init(gr, &gb->parameters[i],
-					   GL_TEXTURE_2D, NULL, NULL, false);
+					   GL_TEXTURE_2D, NULL, NULL, NULL,
+					   false);
 	}
 }
 
@@ -4035,7 +4036,7 @@ gl_renderer_resize_output(struct weston_output *output,
 				  area->height, &go->shadow_fb,
 				  &go->shadow_tex);
 	gl_texture_parameters_init(gr, &go->shadow_param, GL_TEXTURE_2D, NULL,
-				   NULL, false);
+				   NULL, NULL, false);
 
 	return ret;
 }
