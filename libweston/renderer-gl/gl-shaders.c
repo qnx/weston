@@ -657,11 +657,10 @@ gl_shader_texture_variant_get_target(enum gl_shader_texture_variant v)
 }
 
 static void
-gl_shader_load_config(struct gl_shader *shader,
+gl_shader_load_config(struct gl_renderer *gr,
+		      struct gl_shader *shader,
 		      const struct gl_shader_config *sconf)
 {
-	GLint in_filter = sconf->input_tex_filter;
-	GLenum in_tgt;
 	GLsizei n_params;
 	int i;
 
@@ -679,18 +678,15 @@ gl_shader_load_config(struct gl_shader *shader,
 
 	glUniform1f(shader->view_alpha_uniform, sconf->view_alpha);
 
-	in_tgt = gl_shader_texture_variant_get_target(sconf->req.variant);
-	for (i = 0; i < SHADER_INPUT_TEX_MAX; i++) {
-		if (sconf->input_tex[i] == 0)
-			continue;
-
+	assert(sconf->input_num <= SHADER_INPUT_TEX_MAX);
+	for (i = 0; i < sconf->input_num; i++) {
 		assert(shader->tex_uniforms[i] != -1);
 		glUniform1i(shader->tex_uniforms[i], TEX_UNIT_IMAGES + i);
 		glActiveTexture(GL_TEXTURE0 + TEX_UNIT_IMAGES + i);
-
-		glBindTexture(in_tgt, sconf->input_tex[i]);
-		glTexParameteri(in_tgt, GL_TEXTURE_MIN_FILTER, in_filter);
-		glTexParameteri(in_tgt, GL_TEXTURE_MAG_FILTER, in_filter);
+		glBindTexture(sconf->input_param[i].target,
+			      sconf->input_tex[i]);
+		if (sconf->input_tex[i])
+			gl_texture_parameters_flush(gr, &sconf->input_param[i]);
 	}
 
 	/* Fixed texture unit for color_pre_curve LUT if it is available */
@@ -809,7 +805,7 @@ gl_renderer_use_program(struct gl_renderer *gr,
 		gr->current_shader = shader;
 	}
 
-	gl_shader_load_config(shader, sconf);
+	gl_shader_load_config(gr, shader, sconf);
 
 	return true;
 }

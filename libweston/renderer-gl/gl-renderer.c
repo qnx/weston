@@ -145,6 +145,7 @@ struct gl_output_state {
 	struct gl_border_image borders_pending[4];
 	struct gl_border_image borders_current[4];
 	enum gl_border_status border_status;
+	struct gl_texture_parameters borders_param[4];
 	GLuint borders_tex[4];
 
 	struct weston_matrix output_matrix;
@@ -156,6 +157,7 @@ struct gl_output_state {
 	struct wl_list timeline_render_point_list;
 
 	const struct pixel_format_info *shadow_format;
+	struct gl_texture_parameters shadow_param;
 	GLuint shadow_tex;
 	GLuint shadow_fb;
 
@@ -243,6 +245,7 @@ struct gl_buffer_state {
 	enum gl_shader_texture_variant shader_variant;
 
 	struct gl_format_info texture_format[3];
+	struct gl_texture_parameters parameters[3];
 	GLuint textures[3];
 	int num_textures;
 
@@ -1338,13 +1341,11 @@ prepare_placeholder(struct gl_shader_config *sconf,
 
 	*sconf = alt;
 }
+
 static void
 gl_shader_config_set_input_textures(struct gl_shader_config *sconf,
-				    struct gl_surface_state *gs)
+				    struct gl_buffer_state *gb)
 {
-	struct gl_buffer_state *gb = gs->buffer;
-	int i;
-
 	sconf->req.variant = gb->shader_variant;
 	sconf->req.color_channel_order = gb->gl_channel_order;
 	sconf->req.input_is_premult =
@@ -1352,22 +1353,22 @@ gl_shader_config_set_input_textures(struct gl_shader_config *sconf,
 
 	copy_uniform4f(sconf->unicolor, gb->color);
 
-	assert(gb->num_textures <= SHADER_INPUT_TEX_MAX);
-	for (i = 0; i < gb->num_textures; i++)
-		sconf->input_tex[i] = gb->textures[i];
-	for (; i < SHADER_INPUT_TEX_MAX; i++)
-		sconf->input_tex[i] = 0;
+	sconf->input_param = gb->parameters;
+	sconf->input_tex = gb->textures;
+	sconf->input_num = gb->num_textures;
 }
 
 static bool
 gl_shader_config_init_for_paint_node(struct gl_shader_config *sconf,
-				     struct weston_paint_node *pnode,
-				     GLint filter)
+				     struct weston_paint_node *pnode)
 {
 	struct gl_renderer *gr = get_renderer(pnode->surface->compositor);
 	struct gl_surface_state *gs = get_surface_state(pnode->surface);
+	struct gl_buffer_state *gb = gs->buffer;
 	struct gl_output_state *go = get_output_state(pnode->output);
 	struct weston_buffer *buffer = gs->buffer_ref.buffer;
+	GLint filter;
+	int i;
 
 	if (!pnode->surf_xform_valid)
 		return false;
@@ -1378,7 +1379,6 @@ gl_shader_config_init_for_paint_node(struct gl_shader_config *sconf,
 		.surface_to_buffer =
 			pnode->view->surface->surface_to_buffer_matrix,
 		.view_alpha = pnode->view->alpha,
-		.input_tex_filter = filter,
 	};
 
 	weston_matrix_multiply(&sconf->projection, &go->output_matrix);
@@ -1394,7 +1394,16 @@ gl_shader_config_init_for_paint_node(struct gl_shader_config *sconf,
 		weston_matrix_translate(&sconf->surface_to_buffer, 0, 1, 0);
 	}
 
-	gl_shader_config_set_input_textures(sconf, gs);
+	gl_shader_config_set_input_textures(sconf, gb);
+
+	filter = pnode->needs_filtering ? GL_LINEAR : GL_NEAREST;
+	for (i = 0; i < gb->num_textures; i++) {
+		if (filter != gb->parameters[i].filters.min) {
+			gb->parameters[i].filters.min = filter;
+			gb->parameters[i].filters.mag = filter;
+			gb->parameters[i].flags |= TEXTURE_FILTERS_DIRTY;
+		}
+	}
 
 	if (!gl_shader_config_set_color_transform(gr, sconf, pnode->surf_xform.transform)) {
 		weston_log("GL-renderer: failed to generate a color transformation.\n");
@@ -1754,7 +1763,6 @@ draw_paint_node(struct weston_paint_node *pnode,
 	pixman_region32_t surface_opaque;
 	/* non-opaque region in surface coordinates: */
 	pixman_region32_t surface_blend;
-	GLint filter;
 	struct gl_shader_config sconf;
 	struct clipper_quad *quads = NULL;
 	int nquads;
@@ -1772,12 +1780,7 @@ draw_paint_node(struct weston_paint_node *pnode,
 	if (!pnode->draw_solid && ensure_surface_buffer_is_ready(gr, gs) < 0)
 		goto out;
 
-	if (pnode->needs_filtering)
-		filter = GL_LINEAR;
-	else
-		filter = GL_NEAREST;
-
-	if (!gl_shader_config_init_for_paint_node(&sconf, pnode, filter))
+	if (!gl_shader_config_init_for_paint_node(&sconf, pnode))
 		goto out;
 
 	/* XXX: Should we be using ev->transform.opaque here? */
@@ -1947,6 +1950,8 @@ static void
 update_wireframe_tex(struct gl_renderer *gr,
 		     const struct weston_geometry *area)
 {
+	GLint filters[] = { GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR };
+	struct gl_texture_parameters params;
 	int new_size, i;
 	uint8_t *buffer;
 
@@ -1972,9 +1977,8 @@ update_wireframe_tex(struct gl_renderer *gr,
 	glActiveTexture(GL_TEXTURE0 + TEX_UNIT_WIREFRAME);
 	gl_texture_2d_init(gr, (int) log2(new_size) + 1, GL_R8, new_size, 1,
 			   &gr->wireframe_tex);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-			GL_LINEAR_MIPMAP_LINEAR);
+	gl_texture_parameters_init(gr, &params, GL_TEXTURE_2D, filters, NULL,
+				   true);
 	gr->wireframe_size = new_size;
 
 	/* Store mip chain with a wireframe thickness of 1.0. */
@@ -2010,12 +2014,9 @@ update_borders_tex(struct gl_renderer *gr,
 				gl_texture_2d_init(
 					gr, 1, GL_BGRA8_EXT, pending->tex_width,
 					pending->height, &go->borders_tex[i]);
-				glTexParameteri(GL_TEXTURE_2D,
-						GL_TEXTURE_WRAP_S,
-						GL_CLAMP_TO_EDGE);
-				glTexParameteri(GL_TEXTURE_2D,
-						GL_TEXTURE_WRAP_T,
-						GL_CLAMP_TO_EDGE);
+				gl_texture_parameters_init(
+					gr, &go->borders_param[i],
+					GL_TEXTURE_2D, NULL, NULL, false);
 			}
 		}
 
@@ -2043,8 +2044,9 @@ draw_output_border_texture(struct gl_renderer *gr,
 	/* An empty border image (as allowed by output_set_borders) would use
 	 * the default (incomplete) OpenGL ES texture which, per spec, returns
 	 * (0, 0, 0, 1) in the fragment shader. */
-	sconf->input_tex_filter = GL_NEAREST;
-	sconf->input_tex[0] = go->borders_tex[side];
+	sconf->input_tex = &go->borders_tex[side];
+	sconf->input_param = &go->borders_param[side];
+	sconf->input_num = 1;
 	gl_renderer_use_program(gr, sconf);
 
 	GLfloat texcoord[] = {
@@ -2278,8 +2280,9 @@ blit_shadow_to_output(struct weston_output *output,
 				WESTON_MATRIX_TRANSFORM_TRANSLATE,
 		},
 		.view_alpha = 1.0f,
-		.input_tex_filter = GL_NEAREST,
-		.input_tex[0] = go->shadow_tex,
+		.input_tex = &go->shadow_tex,
+		.input_param = &go->shadow_param,
+		.input_num = 1,
 	};
 	struct gl_renderer *gr = get_renderer(output->compositor);
 	double width = go->area.width;
@@ -2736,14 +2739,12 @@ ensure_textures(struct gl_buffer_state *gb, GLenum target, int num_textures)
 
 	assert(gb->num_textures == 0);
 
-	for (i = 0; i < num_textures; i++) {
-		glGenTextures(1, &gb->textures[i]);
-		glBindTexture(target, gb->textures[i]);
-		glTexParameteri(target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	}
+	glGenTextures(num_textures, gb->textures);
 	gb->num_textures = num_textures;
-	glBindTexture(target, 0);
+
+	for (i = 0; i < num_textures; i++)
+		gl_texture_parameters_init(gb->gr, &gb->parameters[i], target,
+					   NULL, NULL, false);
 }
 
 static void
@@ -2874,10 +2875,8 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 		gl_texture_2d_init(gr, 1, texture_format[i].internal,
 				   buffer->width / hsub, buffer->height / vsub,
 				   &gb->textures[i]);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
-				GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,
-				GL_CLAMP_TO_EDGE);
+		gl_texture_parameters_init(gr, &gb->parameters[i],
+					   GL_TEXTURE_2D, NULL, NULL, false);
 	}
 }
 
@@ -3524,7 +3523,6 @@ gl_renderer_attach_buffer(struct weston_surface *surface,
 	struct gl_renderer *gr = get_renderer(surface->compositor);
 	struct gl_surface_state *gs = get_surface_state(surface);
 	struct gl_buffer_state *gb;
-	GLenum target;
 	int i;
 
 	assert(buffer->renderer_private);
@@ -3535,14 +3533,14 @@ gl_renderer_attach_buffer(struct weston_surface *surface,
 	if (gb->specified)
 		return;
 
-	target = gl_shader_texture_variant_get_target(gb->shader_variant);
 	for (i = 0; i < gb->num_images; ++i) {
-		glBindTexture(target, gb->textures[i]);
+		glBindTexture(gb->parameters[i].target, gb->textures[i]);
 		if (gl_extensions_has(gr, EXTENSION_EXT_EGL_IMAGE_STORAGE))
-			gr->image_target_tex_storage(target, gb->images[i],
-						     NULL);
+			gr->image_target_tex_storage(gb->parameters[i].target,
+						     gb->images[i], NULL);
 		else
-			gr->image_target_texture_2d(target, gb->images[i]);
+			gr->image_target_texture_2d(gb->parameters[i].target,
+						    gb->images[i]);
 	}
 
 	gb->specified = true;
@@ -3763,7 +3761,6 @@ gl_renderer_surface_copy_content(struct weston_surface *surface,
 	};
 	struct gl_shader_config sconf = {
 		.view_alpha = 1.0f,
-		.input_tex_filter = GL_NEAREST,
 	};
 	const pixman_format_code_t format = PIXMAN_a8b8g8r8;
 	struct gl_renderer *gr = get_renderer(surface->compositor);
@@ -3794,7 +3791,7 @@ gl_renderer_surface_copy_content(struct weston_surface *surface,
 		break;
 	}
 
-	gl_shader_config_set_input_textures(&sconf, gs);
+	gl_shader_config_set_input_textures(&sconf, gb);
 
 	if (!gl_fbo_init(gr, GL_RGBA8, cw, ch, &fbo, &rb)) {
 		weston_log("Failed to init FBO\n");
@@ -4037,6 +4034,8 @@ gl_renderer_resize_output(struct weston_output *output,
 	ret = gl_fbo_texture_init(gr, shfmt->gl.internal, area->width,
 				  area->height, &go->shadow_fb,
 				  &go->shadow_tex);
+	gl_texture_parameters_init(gr, &go->shadow_param, GL_TEXTURE_2D, NULL,
+				   NULL, false);
 
 	return ret;
 }

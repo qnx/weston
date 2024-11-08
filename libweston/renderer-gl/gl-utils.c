@@ -579,6 +579,63 @@ is_valid_combination_es2(struct gl_renderer *gr,
 	}
 }
 
+/* Validate texture parameters.
+ */
+static bool
+are_valid_texture_parameters(struct gl_renderer *gr,
+			     struct gl_texture_parameters *parameters)
+{
+	GLint tex = 0;
+	int i;
+
+	if (parameters->target == GL_TEXTURE_2D)
+		glGetIntegerv(GL_TEXTURE_BINDING_2D, &tex);
+	else if (parameters->target == GL_TEXTURE_3D)
+		glGetIntegerv(GL_TEXTURE_BINDING_3D, &tex);
+	else if (parameters->target == GL_TEXTURE_EXTERNAL_OES)
+		glGetIntegerv(GL_TEXTURE_BINDING_EXTERNAL_OES, &tex);
+	if (tex == 0)
+		return false;
+
+	/* Filters. */
+	for (i = 0; i < 2; i++) {
+		switch (parameters->filters.array[i]) {
+		case GL_NEAREST:
+		case GL_LINEAR:
+			break;
+
+		case GL_NEAREST_MIPMAP_NEAREST:
+		case GL_NEAREST_MIPMAP_LINEAR:
+		case GL_LINEAR_MIPMAP_NEAREST:
+		case GL_LINEAR_MIPMAP_LINEAR:
+			/* Minification filter only. */
+			if (parameters->target == GL_TEXTURE_EXTERNAL_OES ||
+			    &parameters->filters.array[i] == &parameters->filters.mag)
+				return false;
+			break;
+
+		default:
+			return false;
+		};
+	}
+
+	/* Wrap modes. OpenGL ES 3.2 (and extensions) has GL_CLAMP_TO_BORDER but
+	 * Weston doesn't need it. */
+	for (i = 0; i < 3; i++) {
+		switch (parameters->wrap_modes.array[i]) {
+		case GL_CLAMP_TO_EDGE:
+		case GL_REPEAT:
+		case GL_MIRRORED_REPEAT:
+			break;
+
+		default:
+			return false;
+		};
+	}
+
+	return true;
+}
+
 #endif /* !defined(NDEBUG) */
 
 /* Get the supported BGRA8 texture creation method. This is needed to correctly
@@ -1212,6 +1269,81 @@ gl_texture_fini(GLuint *tex)
 {
 	glDeleteTextures(1, tex);
 	*tex = 0;
+}
+
+/* Initialise texture parameters. 'target' is either a 2D, a 3D or an external
+ * texture target. 'filters' points to an array of 2 values for respectively the
+ * texture minification and magnification filters. 'wrap_modes' points to an
+ * array of 3 values for the S, T and R texture wrap modes. The texture object
+ * bound to the given texture target (of the active texture) is updated if
+ * 'flush' is true, make sure it's properly bound in that case. The parameters
+ * and the flags bitfield can then directly be set and flushed when needed.
+ *
+ * filters are set to GL_NEAREST if 'filters' is NULL and wrap modes are set to
+ * GL_CLAMP_TO_EDGE if 'wrap_modes' is NULL.
+ *
+ * See gl_texture_parameters_flush().
+ */
+void
+gl_texture_parameters_init(struct gl_renderer *gr,
+			   struct gl_texture_parameters *parameters,
+			   GLenum target,
+			   const GLint *filters,
+			   const GLint *wrap_modes,
+			   bool flush)
+{
+	GLint default_filters[] = { GL_NEAREST, GL_NEAREST };
+	GLint default_wrap_modes[] = { GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE,
+				       GL_CLAMP_TO_EDGE };
+
+	assert(target == GL_TEXTURE_2D ||
+	       target == GL_TEXTURE_3D ||
+	       target == GL_TEXTURE_EXTERNAL_OES);
+	assert(target != GL_TEXTURE_3D ||
+	       gl_features_has(gr, FEATURE_TEXTURE_3D));
+	assert(target != GL_TEXTURE_EXTERNAL_OES ||
+	       gl_extensions_has(gr, EXTENSION_OES_EGL_IMAGE_EXTERNAL));
+
+	parameters->target = target;
+	memcpy(&parameters->filters, filters ? filters : default_filters,
+	       sizeof default_filters);
+	memcpy(&parameters->wrap_modes, wrap_modes ? wrap_modes :
+	       default_wrap_modes, sizeof default_wrap_modes);
+	parameters->flags = TEXTURE_ALL_DIRTY;
+
+	if (flush)
+		gl_texture_parameters_flush(gr, parameters);
+}
+
+/* Flush texture parameters to the texture object currently bound to the texture
+ * target (of the active texture) set at initialisation.
+ *
+ * See gl_texture_parameters_init().
+ */
+void
+gl_texture_parameters_flush(struct gl_renderer *gr,
+			    struct gl_texture_parameters *parameters)
+{
+	assert(are_valid_texture_parameters(gr, parameters));
+
+	if (parameters->flags & TEXTURE_FILTERS_DIRTY) {
+		glTexParameteri(parameters->target, GL_TEXTURE_MIN_FILTER,
+				parameters->filters.min);
+		glTexParameteri(parameters->target, GL_TEXTURE_MAG_FILTER,
+				parameters->filters.mag);
+	}
+
+	if (parameters->flags & TEXTURE_WRAP_MODES_DIRTY) {
+		glTexParameteri(parameters->target, GL_TEXTURE_WRAP_S,
+				parameters->wrap_modes.s);
+		glTexParameteri(parameters->target, GL_TEXTURE_WRAP_T,
+				parameters->wrap_modes.t);
+		if (parameters->target == GL_TEXTURE_3D)
+			glTexParameteri(parameters->target, GL_TEXTURE_WRAP_R,
+					parameters->wrap_modes.r);
+	}
+
+	parameters->flags = 0;
 }
 
 /* Check whether gl_fbo_init() supports FBO creation for a given

@@ -299,6 +299,26 @@ static_assert(sizeof(struct gl_shader_requirements) ==
 	      4 /* total bitfield size in bytes */,
 	      "struct gl_shader_requirements must not contain implicit padding");
 
+enum gl_texture_flag {
+	TEXTURE_FILTERS_DIRTY    = 1 << 0,
+	TEXTURE_WRAP_MODES_DIRTY = 1 << 1,
+	TEXTURE_ALL_DIRTY        = (TEXTURE_FILTERS_DIRTY |
+				    TEXTURE_WRAP_MODES_DIRTY),
+};
+
+struct gl_texture_parameters {
+	GLenum target;
+	union {
+		struct { GLint min, mag; };
+		GLint array[2];
+	} filters;
+	union {
+		struct { GLint s, t, r; };
+		GLint array[3];
+	} wrap_modes;
+	uint32_t flags;
+};
+
 struct gl_shader;
 struct weston_color_transform;
 struct dmabuf_allocator;
@@ -311,8 +331,11 @@ struct gl_shader_config {
 	float view_alpha;
 	GLfloat unicolor[4];
 	GLfloat tint[4];
-	GLint input_tex_filter; /* GL_NEAREST or GL_LINEAR */
-	GLuint input_tex[SHADER_INPUT_TEX_MAX];
+
+	struct gl_texture_parameters *input_param;
+	GLuint *input_tex;
+	int input_num;
+
 	GLuint wireframe_tex;
 
 	union {
@@ -588,6 +611,18 @@ gl_texture_3d_store(struct gl_renderer *gr,
 
 void
 gl_texture_fini(GLuint *tex);
+
+void
+gl_texture_parameters_init(struct gl_renderer *gr,
+			   struct gl_texture_parameters *parameters,
+			   GLenum target,
+			   const GLint *filters,
+			   const GLint *wrap_modes,
+			   bool flush);
+
+void
+gl_texture_parameters_flush(struct gl_renderer *gr,
+			    struct gl_texture_parameters *parameters);
 
 bool
 gl_fbo_is_format_supported(struct gl_renderer *gr,

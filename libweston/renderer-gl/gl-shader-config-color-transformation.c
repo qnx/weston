@@ -181,8 +181,10 @@ gl_color_curve_lut_3x1d(struct gl_renderer *gr,
 			const struct weston_color_curve *curve,
 			struct weston_color_transform *xform)
 {
+	GLint filters[] = { GL_LINEAR, GL_LINEAR };
 	const unsigned lut_len = curve->u.lut_3x1d.optimal_len;
 	const unsigned nr_rows = 4;
+	struct gl_texture_parameters params;
 	GLuint tex;
 	float *lut;
 
@@ -199,12 +201,10 @@ gl_color_curve_lut_3x1d(struct gl_renderer *gr,
 	curve->u.lut_3x1d.fill_in(xform, lut, lut_len);
 
 	gl_texture_2d_init(gr, 1, GL_R32F, lut_len, nr_rows, &tex);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	gl_texture_2d_store(gr, 0, 0, 0, lut_len, nr_rows, GL_RED, GL_FLOAT,
 			    lut);
+	gl_texture_parameters_init(gr, &params, GL_TEXTURE_2D, filters, NULL,
+				   true);
 
 	free(lut);
 
@@ -222,7 +222,8 @@ gl_3d_lut(struct gl_renderer *gr,
 	  struct gl_renderer_color_transform *gl_xform,
 	  struct weston_color_transform *xform)
 {
-
+	GLint filters[] = { GL_LINEAR, GL_LINEAR };
+	struct gl_texture_parameters params;
 	GLuint tex3d;
 	float *lut;
 	const unsigned dim_size = xform->mapping.u.lut3d.optimal_len;
@@ -235,13 +236,10 @@ gl_3d_lut(struct gl_renderer *gr,
 
 	gl_texture_3d_init(gr, 1, GL_RGB32F, dim_size, dim_size, dim_size,
 			   &tex3d);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 	gl_texture_3d_store(gr, 0, 0, 0, 0, dim_size, dim_size, dim_size,
 			    GL_RGB, GL_FLOAT, lut);
+	gl_texture_parameters_init(gr, &params, GL_TEXTURE_3D, filters, NULL,
+				   true);
 
 	glBindTexture(GL_TEXTURE_3D, 0);
 	gl_xform->mapping.type = SHADER_COLOR_MAPPING_3DLUT;
