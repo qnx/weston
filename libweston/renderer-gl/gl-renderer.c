@@ -1646,7 +1646,21 @@ draw_mesh(struct gl_renderer *gr,
 	  int nidx,
 	  bool opaque)
 {
+	struct gl_surface_state *gs = get_surface_state(pnode->surface);
+	struct gl_buffer_state *gb = gs->buffer;
+	GLint swizzle_a;
+
 	assert(nidx > 0);
+
+	/* Prevent translucent surfaces from punching holes through the
+	 * renderbuffer. */
+	if (gb->shader_variant == SHADER_VARIANT_RGBA) {
+		swizzle_a = opaque ? GL_ONE : gb->texture_format[0].swizzles.a;
+		if (gb->parameters[0].swizzles.a != swizzle_a) {
+			gb->parameters[0].swizzles.a = swizzle_a;
+			gb->parameters[0].flags |= TEXTURE_SWIZZLES_DIRTY;
+		}
+	}
 
 	if (gr->debug_mode)
 		set_debug_mode(gr, sconf, barycentrics, opaque);
@@ -1809,25 +1823,14 @@ draw_paint_node(struct weston_paint_node *pnode,
 		prepare_placeholder(&sconf, pnode);
 
 	if (pixman_region32_not_empty(&surface_opaque)) {
-		struct gl_shader_config alt = sconf;
-
-		if (alt.req.variant == SHADER_VARIANT_RGBA) {
-			/* Special case for RGBA textures with possibly
-			 * bad data in alpha channel: use the shader
-			 * that forces texture alpha = 1.0.
-			 * Xwayland surfaces need this.
-			 */
-			alt.req.variant = SHADER_VARIANT_RGBX;
-		}
-
 		if (pnode->view->alpha < 1.0)
 			glEnable(GL_BLEND);
 		else
 			glDisable(GL_BLEND);
 
 		transform_damage(pnode, &repaint, &quads, &nquads);
-		repaint_region(gr, pnode, quads, nquads, &surface_opaque, &alt,
-			       true);
+		repaint_region(gr, pnode, quads, nquads, &surface_opaque,
+			       &sconf, true);
 		gs->used_in_output_repaint = true;
 	}
 
@@ -2833,10 +2836,7 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 		assert(pixel_format_get_plane_count(buffer->pixel_format) == 1);
 		num_planes = 1;
 
-		if (pixel_format_is_opaque(buffer->pixel_format))
-			shader_variant = SHADER_VARIANT_RGBX;
-		else
-			shader_variant = SHADER_VARIANT_RGBA;
+		shader_variant = SHADER_VARIANT_RGBA;
 
 		assert(bpp > 0 && !(bpp & 7));
 		pitch = buffer->stride / (bpp / 8);
@@ -2938,11 +2938,13 @@ gl_renderer_fill_buffer_info(struct weston_compositor *ec,
 		fourcc = DRM_FORMAT_XRGB8888;
 		gb->num_images = 1;
 		gb->shader_variant = SHADER_VARIANT_RGBA;
+		gb->texture_format[0].swizzles.a = GL_ONE;
 		break;
 	case EGL_TEXTURE_RGBA:
 		fourcc = DRM_FORMAT_ARGB8888;
 		gb->num_images = 1;
 		gb->shader_variant = SHADER_VARIANT_RGBA;
+		gb->texture_format[0].swizzles.a = GL_ALPHA;
 		break;
 	case EGL_TEXTURE_EXTERNAL_WL:
 		fourcc = DRM_FORMAT_ARGB8888;
@@ -3334,6 +3336,7 @@ import_dmabuf(struct gl_renderer *gr,
 		switch (target) {
 		case GL_TEXTURE_2D:
 			gb->shader_variant = SHADER_VARIANT_RGBA;
+			gb->texture_format[0].swizzles.a = GL_ALPHA;
 			break;
 		default:
 			gb->shader_variant = SHADER_VARIANT_EXTERNAL;

@@ -34,14 +34,13 @@
 /*
  * Enumeration of shader variants, must match enum gl_shader_texture_variant.
  */
-#define SHADER_VARIANT_RGBX     1
-#define SHADER_VARIANT_RGBA     2
-#define SHADER_VARIANT_Y_U_V    3
-#define SHADER_VARIANT_Y_UV     4
-#define SHADER_VARIANT_Y_XUXV   5
-#define SHADER_VARIANT_XYUV     6
-#define SHADER_VARIANT_SOLID    7
-#define SHADER_VARIANT_EXTERNAL 8
+#define SHADER_VARIANT_RGBA     1
+#define SHADER_VARIANT_Y_U_V    2
+#define SHADER_VARIANT_Y_UV     3
+#define SHADER_VARIANT_Y_XUXV   4
+#define SHADER_VARIANT_XYUV     5
+#define SHADER_VARIANT_SOLID    6
+#define SHADER_VARIANT_EXTERNAL 7
 
 /* enum gl_shader_color_curve */
 #define SHADER_COLOR_CURVE_IDENTITY 0
@@ -197,18 +196,9 @@ sample_input_texture()
 	if (c_variant == SHADER_VARIANT_SOLID)
 		return unicolor;
 
-	if (c_variant == SHADER_VARIANT_EXTERNAL)
+	if (c_variant == SHADER_VARIANT_EXTERNAL ||
+	    c_variant == SHADER_VARIANT_RGBA)
 		return texture2D_swizzle(tex, 0, v_texcoord);
-
-	if (c_variant == SHADER_VARIANT_RGBA ||
-	    c_variant == SHADER_VARIANT_RGBX) {
-		vec4 color = texture2D_swizzle(tex, 0, v_texcoord);
-
-		if (c_variant == SHADER_VARIANT_RGBX)
-			color.a = 1.0;
-
-		return color;
-	}
 
 	/* Requires conversion to RGBA */
 

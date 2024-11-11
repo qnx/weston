@@ -209,7 +209,6 @@ enum gl_shader_texcoord_input {
 enum gl_shader_texture_variant {
 	SHADER_VARIANT_NONE = 0,
 /* Keep the following in sync with fragment.glsl. */
-	SHADER_VARIANT_RGBX,
 	SHADER_VARIANT_RGBA,
 	SHADER_VARIANT_Y_U_V,
 	SHADER_VARIANT_Y_UV,
