@@ -4459,7 +4459,8 @@ gl_renderer_display_create(struct weston_compositor *ec,
 			   const struct gl_renderer_display_options *options)
 {
 	struct gl_renderer *gr;
-	int ret;
+	const struct pixel_format_info *info;
+	int ret, nformats, i;
 
 	gr = zalloc(sizeof *gr);
 	if (gr == NULL)
@@ -4574,15 +4575,26 @@ gl_renderer_display_create(struct weston_compositor *ec,
 
 	wl_signal_init(&gr->destroy_signal);
 
-	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XBGR8888);
-	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR8888);
-	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_RGBX8888);
-	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_RGBA8888);
-	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_BGRX8888);
-	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_BGRA8888);
-	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_RGB888);
-	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_BGR888);
-	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_RGB565);
+	/* Register supported wl_shm RGB formats. */
+	nformats = pixel_format_get_info_count();
+	for (i = 0; i < nformats; i++) {
+		info = pixel_format_get_info_by_index(i);
+
+		/* libwayland registers XRGB8888 and ARGB8888 by default. */
+		if (info->format == WL_SHM_FORMAT_XRGB8888 ||
+		    info->format == WL_SHM_FORMAT_ARGB8888)
+			continue;
+
+		if (info->hide_from_clients)
+			continue;
+
+		if (info->gl.internal == 0 ||
+		    !gl_texture_is_format_supported(gr, info->gl.internal))
+			continue;
+
+		wl_display_add_shm_format(ec->wl_display, info->format);
+	}
+
 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_YUV420);
 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_YUV444);
 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_NV12);
@@ -4590,22 +4602,7 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_NV24);
 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_YUYV);
 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XYUV8888);
-	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR8888);
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-	if (gr->gl_version >= gl_version(3, 0) ||
-	    gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_TYPE_2_10_10_10_REV)) {
-		wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR2101010);
-		wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XBGR2101010);
-	}
-	if (gl_features_has(gr, FEATURE_COLOR_TRANSFORMS)) {
-		wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR16161616F);
-		wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XBGR16161616F);
-	}
-	if (gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_NORM16)) {
-		wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR16161616);
-		wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XBGR16161616);
-	}
-#endif
+
 	return 0;
 
 fail_with_error:
