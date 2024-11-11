@@ -100,8 +100,9 @@ weston_windowed_output_get_api(struct weston_compositor *compositor,
 	if (type >= ARRAY_LENGTH(api_names))
 		return NULL;
 
-	return weston_plugin_api_get(compositor, api_names[type],
-				     sizeof(struct weston_windowed_output_api));
+	return (const struct weston_windowed_output_api *)
+		weston_plugin_api_get(compositor, api_names[type],
+				      sizeof(struct weston_windowed_output_api));
 }
 
 #ifdef  __cplusplus
