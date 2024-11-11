@@ -2262,6 +2262,7 @@ blit_shadow_to_output(struct weston_output *output,
 		      pixman_region32_t *output_damage)
 {
 	struct gl_output_state *go = get_output_state(output);
+	struct gl_renderer *gr = get_renderer(output->compositor);
 	struct gl_shader_config sconf = {
 		.req = {
 			.variant = SHADER_VARIANT_RGBA,
@@ -2282,7 +2283,6 @@ blit_shadow_to_output(struct weston_output *output,
 		.input_param = &go->shadow_param,
 		.input_num = 1,
 	};
-	struct gl_renderer *gr = get_renderer(output->compositor);
 	double width = go->area.width;
 	double height = go->area.height;
 	struct weston_color_transform *ctransf;
@@ -2805,14 +2805,24 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 
 		num_planes = yuv->output_planes;
 		for (out = 0; out < num_planes; out++) {
+			const GLint swizzles_rg[] = {
+				GL_RED, GL_ALPHA, GL_ZERO, GL_ONE
+			};
 			const struct pixel_format_info *info;
 
 			info = pixel_format_get_info(yuv->plane[out].format);
 			assert(info);
 			texture_format[out] = info->gl;
 
-			assert(yuv->plane[out].plane_index < (int) shm_plane_count);
+			/* Emulate red-green texture behaviour when
+			 * gl_texture_2d_init() implicitly falls back to a
+			 * luminance-alpha texture format. */
+			if (!gl_features_has(gr, FEATURE_TEXTURE_RG) &&
+			    texture_format[out].internal == GL_RG8)
+				ARRAY_COPY(texture_format[out].swizzles.array,
+					   swizzles_rg);
 
+			assert(yuv->plane[out].plane_index < (int) shm_plane_count);
 			offset[out] = shm_offset[yuv->plane[out].plane_index];
 		}
 	} else {

@@ -131,6 +131,9 @@ uniform sampler2D tex_wireframe;
 uniform float view_alpha;
 uniform vec4 unicolor;
 uniform vec4 tint;
+uniform ivec4 swizzle_idx[3];
+uniform vec4 swizzle_mask[3];
+uniform vec4 swizzle_sub[3];
 
 #define MAX_CURVE_PARAMS 10
 #define MAX_CURVESET_PARAMS (MAX_CURVE_PARAMS * 3)
@@ -151,6 +154,39 @@ uniform HIGHPRECISION vec2 color_mapping_lut_scale_offset;
 #endif
 uniform HIGHPRECISION mat3 color_mapping_matrix;
 
+/*
+ * 2D texture sampler abstracting away the lack of swizzles on OpenGL ES 2. This
+ * should only be used by code relying on swizzling. 'unit' is the texture unit
+ * used to index the swizzling uniforms, which must appropriately be set prior
+ * to draw call.
+ */
+vec4
+texture2D_swizzle(sampler2D sampler, int unit, vec2 coord)
+{
+#if GLES_API_MAJOR_VERSION == 3
+	return texture2D(sampler, coord);
+#else
+	vec4 color = texture2D(sampler, coord);
+
+	/* Swizzle components. */
+	color = vec4(color[swizzle_idx[unit].x],
+		     color[swizzle_idx[unit].y],
+		     color[swizzle_idx[unit].z],
+		     color[swizzle_idx[unit].w]);
+
+	/* Substitute with 0 or 1. */
+	return color * swizzle_mask[unit] + swizzle_sub[unit];
+#endif
+}
+
+#if DEF_VARIANT == SHADER_VARIANT_EXTERNAL
+vec4
+texture2D_swizzle(samplerExternalOES sampler, int unit, vec2 coord)
+{
+	return texture2D(sampler, coord);
+}
+#endif
+
 vec4
 sample_input_texture()
 {
@@ -162,11 +198,11 @@ sample_input_texture()
 		return unicolor;
 
 	if (c_variant == SHADER_VARIANT_EXTERNAL)
-		return texture2D(tex, v_texcoord);
+		return texture2D_swizzle(tex, 0, v_texcoord);
 
 	if (c_variant == SHADER_VARIANT_RGBA ||
 	    c_variant == SHADER_VARIANT_RGBX) {
-		vec4 color = texture2D(tex, v_texcoord);
+		vec4 color = texture2D_swizzle(tex, 0, v_texcoord);
 
 		if (c_variant == SHADER_VARIANT_RGBX)
 			color.a = 1.0;
@@ -177,20 +213,20 @@ sample_input_texture()
 	/* Requires conversion to RGBA */
 
 	if (c_variant == SHADER_VARIANT_Y_U_V) {
-		yuva.x = texture2D(tex, v_texcoord).x;
-		yuva.y = texture2D(tex1, v_texcoord).x;
-		yuva.z = texture2D(tex2, v_texcoord).x;
+		yuva.x = texture2D_swizzle(tex, 0, v_texcoord).x;
+		yuva.y = texture2D_swizzle(tex1, 1, v_texcoord).x;
+		yuva.z = texture2D_swizzle(tex2, 2, v_texcoord).x;
 
 	} else if (c_variant == SHADER_VARIANT_Y_UV) {
-		yuva.x = texture2D(tex, v_texcoord).x;
-		yuva.yz = texture2D(tex1, v_texcoord).rg;
+		yuva.x = texture2D_swizzle(tex, 0, v_texcoord).x;
+		yuva.yz = texture2D_swizzle(tex1, 1, v_texcoord).rg;
 
 	} else if (c_variant == SHADER_VARIANT_Y_XUXV) {
-		yuva.x = texture2D(tex, v_texcoord).x;
-		yuva.yz = texture2D(tex1, v_texcoord).ga;
+		yuva.x = texture2D_swizzle(tex, 0, v_texcoord).x;
+		yuva.yz = texture2D_swizzle(tex1, 1, v_texcoord).ga;
 
 	} else if (c_variant == SHADER_VARIANT_XYUV) {
-		yuva.xyz = texture2D(tex, v_texcoord).bgr;
+		yuva.xyz = texture2D_swizzle(tex, 0, v_texcoord).bgr;
 
 	} else {
 		/* Never reached, bad variant value. */
