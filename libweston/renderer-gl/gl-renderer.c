@@ -1637,6 +1637,20 @@ set_debug_mode(struct gl_renderer *gr,
 }
 
 static void
+set_blend_state(struct gl_renderer *gr,
+		bool state)
+{
+	if (gr->blend_state == state)
+		return;
+
+	if (state)
+		glEnable(GL_BLEND);
+	else
+		glDisable(GL_BLEND);
+	gr->blend_state = state;
+}
+
+static void
 draw_mesh(struct gl_renderer *gr,
 	  struct weston_paint_node *pnode,
 	  struct gl_shader_config *sconf,
@@ -1651,6 +1665,8 @@ draw_mesh(struct gl_renderer *gr,
 	GLint swizzle_a;
 
 	assert(nidx > 0);
+
+	set_blend_state(gr, !opaque || pnode->view->alpha < 1.0);
 
 	/* Prevent translucent surfaces from punching holes through the
 	 * renderbuffer. */
@@ -1823,11 +1839,6 @@ draw_paint_node(struct weston_paint_node *pnode,
 		prepare_placeholder(&sconf, pnode);
 
 	if (pixman_region32_not_empty(&surface_opaque)) {
-		if (pnode->view->alpha < 1.0)
-			glEnable(GL_BLEND);
-		else
-			glDisable(GL_BLEND);
-
 		transform_damage(pnode, &repaint, &quads, &nquads);
 		repaint_region(gr, pnode, quads, nquads, &surface_opaque,
 			       &sconf, true);
@@ -1835,7 +1846,6 @@ draw_paint_node(struct weston_paint_node *pnode,
 	}
 
 	if (pixman_region32_not_empty(&surface_blend)) {
-		glEnable(GL_BLEND);
 		transform_damage(pnode, &repaint, &quads, &nquads);
 		repaint_region(gr, pnode, quads, nquads, &surface_blend, &sconf,
 			       false);
@@ -2152,7 +2162,7 @@ draw_output_borders(struct weston_output *output,
 		return;
 	}
 
-	glDisable(GL_BLEND);
+	set_blend_state(gr, false);
 	glViewport(0, 0, fb->width, fb->height);
 
 	weston_matrix_init(&sconf.projection);
@@ -2307,7 +2317,7 @@ blit_shadow_to_output(struct weston_output *output,
 	pixman_region32_init(&translated_damage);
 
 	gl_renderer_use_program(gr, &sconf);
-	glDisable(GL_BLEND);
+	set_blend_state(gr, false);
 
 	/* output_damage is in global coordinates */
 	pixman_region32_intersect(&translated_damage, output_damage,
@@ -3813,7 +3823,7 @@ gl_renderer_surface_copy_content(struct weston_surface *surface,
 	}
 
 	glViewport(0, 0, cw, ch);
-	glDisable(GL_BLEND);
+	set_blend_state(gr, false);
 	if (buffer->buffer_origin == ORIGIN_TOP_LEFT)
 		ARRAY_COPY(sconf.projection.d, projmat_normal);
 	else

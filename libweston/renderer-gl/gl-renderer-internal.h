@@ -485,6 +485,8 @@ struct gl_renderer {
 	GLenum pbo_usage;
 	enum gl_bgra8_texture_support bgra8_texture_support;
 
+	bool blend_state;
+
 	struct wl_list dmabuf_images;
 	struct wl_list dmabuf_formats;
 	struct wl_list pending_capture_list;
