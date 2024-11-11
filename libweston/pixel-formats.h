@@ -28,14 +28,6 @@
 #include <stdbool.h>
 #include <pixman.h>
 
-/* Keep the following in sync with fragment.glsl. */
-enum gl_channel_order {
-	SHADER_CHANNEL_ORDER_RGBA = 0,
-	SHADER_CHANNEL_ORDER_BGRA,
-	SHADER_CHANNEL_ORDER_ARGB,
-	SHADER_CHANNEL_ORDER_ABGR,
-};
-
 /**
  * GL format information to create and manage texture and renderbuffer objects.
  */
@@ -55,9 +47,20 @@ struct gl_format_info {
 	 *  DRM_FORMAT_RGBA8888 maps to GL_RGBA / GL_UNSIGNED_BYTE). However, GL
 	 *  depends on CPU endianness for special types packing all components
 	 *  in a single type (e.g. DRM_FORMAT_RGBA4444 maps to GL_RGBA /
-	 *  GL_UNSIGNED_SHORT_4_4_4_4). */
+	 *  GL_UNSIGNED_SHORT_4_4_4_4). Different swizzles (see below) must be
+	 *  provided in that case in order to support the format on both
+	 *  little-endian and big-endian CPUs (e.g. RGBA on little-endian CPUs
+	 *  and BARG on big-endian CPUs for DRM_FORMAT_RGBA4444).*/
 	unsigned int external;
 	unsigned int type;
+
+	/** Swizzles to reorder color components of texture samples. Supported
+	 *  values are: GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA, GL_ZERO and
+	 * GL_ONE. */
+	union {
+		struct { int r, g, b, a; };
+		int array[4];
+	} swizzles;
 };
 
 /**
@@ -112,11 +115,6 @@ struct pixel_format_info {
 
 	/** GL data type, if data can be natively/directly uploaded. */
 	int gl_type;
-
-	/** This enumeration tells the resulting order of the color channels
-	 * when the DRM formatted pixel data is read with the given gl_format
-	 * and gl_type. */
-	enum gl_channel_order gl_channel_order;
 
 	/** Pixman data type, if it agrees exactly with the wl_shm format */
 	pixman_format_code_t pixman_format;

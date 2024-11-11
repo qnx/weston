@@ -237,7 +237,6 @@ struct gl_buffer_state {
 
 	/* Only needed between attach() and flush_damage() */
 	int pitch; /* plane 0 pitch in pixels */
-	enum gl_channel_order gl_channel_order;
 	int offset[3]; /* per-plane pitch in bytes */
 
 	EGLImageKHR images[3];
@@ -1347,7 +1346,6 @@ gl_shader_config_set_input_textures(struct gl_shader_config *sconf,
 				    struct gl_buffer_state *gb)
 {
 	sconf->req.variant = gb->shader_variant;
-	sconf->req.color_channel_order = gb->gl_channel_order;
 	sconf->req.input_is_premult =
 		gl_shader_texture_variant_can_be_premult(gb->shader_variant);
 
@@ -2861,7 +2859,6 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 	gb->pitch = pitch;
 	gb->shader_variant = shader_variant;
 	ARRAY_COPY(gb->offset, offset);
-	gb->gl_channel_order = buffer->pixel_format->gl_channel_order;
 	ARRAY_COPY(gb->texture_format, texture_format);
 	gb->needs_full_upload = true;
 	gb->num_textures = num_planes;
@@ -2876,7 +2873,8 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 				   buffer->width / hsub, buffer->height / vsub,
 				   &gb->textures[i]);
 		gl_texture_parameters_init(gr, &gb->parameters[i],
-					   GL_TEXTURE_2D, NULL, NULL, NULL,
+					   GL_TEXTURE_2D, NULL, NULL,
+					   texture_format[i].swizzles.array,
 					   false);
 	}
 }
