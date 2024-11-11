@@ -38,7 +38,7 @@
 #include <errno.h>
 
 #include <wayland-client.h>
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include <libweston/zalloc.h>
 #include "shared/timespec-util.h"
 #include "shared/os-compatibility.h"

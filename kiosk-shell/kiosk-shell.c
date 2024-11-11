@@ -29,14 +29,14 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <libweston/helpers.h>
+#include <libweston/shell-utils.h>
+#include <libweston/xwayland-api.h>
+
 #include "kiosk-shell.h"
 #include "kiosk-shell-grab.h"
 #include "frontend/weston.h"
 #include "libweston/libweston.h"
-#include "shared/helpers.h"
-#include <libweston/shell-utils.h>
-
-#include <libweston/xwayland-api.h>
 
 static struct kiosk_shell_surface *
 get_kiosk_shell_surface(struct weston_surface *surface)

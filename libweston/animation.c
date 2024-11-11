@@ -37,7 +37,7 @@
 
 #include <libweston/libweston.h>
 #include "libweston-internal.h"
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/timespec-util.h"
 
 WL_EXPORT void

@@ -37,7 +37,7 @@
 
 #include <xf86drm.h>
 
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/string-helpers.h"
 #include "shared/weston-drm-fourcc.h"
 #include "shared/xalloc.h"

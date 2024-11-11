@@ -49,7 +49,7 @@
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #include "shared/weston-egl-ext.h"  /* for PFN* stuff */
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 
 /* Max number of images per buffer. */
 #define SHADER_INPUT_TEX_MAX 3

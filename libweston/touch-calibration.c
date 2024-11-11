@@ -29,7 +29,7 @@
 #include <string.h>
 #include <wayland-server.h>
 
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/string-helpers.h"
 #include <libweston/zalloc.h>
 #include "shared/timespec-util.h"

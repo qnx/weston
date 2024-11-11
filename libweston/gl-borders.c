@@ -29,7 +29,7 @@
 #include "config.h"
 
 #include "gl-borders.h"
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 
 void
 weston_gl_borders_update(struct weston_gl_borders *borders,

@@ -36,13 +36,14 @@
 
 #include <time.h>
 
+#include <libweston/helpers.h>
+#include <libweston/zalloc.h>
+
 #include <wayland-client.h>
 #include "test-config.h"
 #include "shared/os-compatibility.h"
-#include "shared/helpers.h"
 #include "shared/xalloc.h"
 #include "shared/xcb-xwayland.h"
-#include <libweston/zalloc.h>
 #include "xcb-client-helper.h"
 
 #define DEBUG

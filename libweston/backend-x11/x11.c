@@ -52,7 +52,7 @@
 
 #include <libweston/libweston.h>
 #include <libweston/backend-x11.h>
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/image-loader.h"
 #include "shared/timespec-util.h"
 #include "shared/file-util.h"

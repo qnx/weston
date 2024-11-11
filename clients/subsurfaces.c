@@ -42,7 +42,7 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/xalloc.h"
 #include <libweston/zalloc.h>
 #include "window.h"

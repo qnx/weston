@@ -43,7 +43,7 @@
 
 #include "window.h"
 #include "shared/cairo-util.h"
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/image-loader.h"
 
 bool verbose;

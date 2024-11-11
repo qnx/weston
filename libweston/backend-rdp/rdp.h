@@ -51,12 +51,12 @@
 #include <libweston/libweston.h>
 #include <libweston/backend-rdp.h>
 #include <libweston/weston-log.h>
+#include <libweston/helpers.h>
 
 #include <winpr/string.h>
 
 #include "backend.h"
 
-#include "shared/helpers.h"
 #include "shared/string-helpers.h"
 
 #define MAX_FREERDP_FDS 32

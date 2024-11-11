@@ -29,11 +29,11 @@
 #include <assert.h>
 #include <string.h>
 #include <libweston/libweston.h>
+#include <libweston/helpers.h>
 
 #include "color.h"
 #include "color-lcms.h"
 #include "color-properties.h"
-#include "shared/helpers.h"
 #include "shared/xalloc.h"
 #include "shared/weston-assert.h"
 

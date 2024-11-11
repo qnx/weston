@@ -33,7 +33,7 @@
 #include <stdlib.h>
 
 #include <libweston/matrix.h>
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "color_util.h"
 #include "lcms_util.h"
 

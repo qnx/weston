@@ -51,9 +51,9 @@
 #include <libweston/libweston.h>
 #include <libweston/backend-drm.h>
 #include <libweston/weston-log.h>
+#include <libweston/helpers.h>
 #include "drm-internal.h"
 #include "shared/hash.h"
-#include "shared/helpers.h"
 #include "shared/timespec-util.h"
 #include "shared/string-helpers.h"
 #include "shared/weston-drm-fourcc.h"

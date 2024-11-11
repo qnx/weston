@@ -42,13 +42,14 @@
 #include <assert.h>
 #include <linux/input.h>
 
+#include <libweston/libweston.h>
+#include <libweston/helpers.h>
+
 #include "input-method-unstable-v1-server-protocol.h"
 #include "ivi-shell.h"
 #include "ivi-application-server-protocol.h"
 #include "ivi-layout-private.h"
 #include "ivi-layout-shell.h"
-#include "libweston/libweston.h"
-#include "shared/helpers.h"
 #include "shared/xalloc.h"
 #include "frontend/weston.h"
 

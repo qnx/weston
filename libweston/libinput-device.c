@@ -39,10 +39,10 @@
 #include <libinput.h>
 
 #include <libweston/libweston.h>
+#include <libweston/helpers.h>
 #include "backend.h"
 #include "libweston-internal.h"
 #include "libinput-device.h"
-#include "shared/helpers.h"
 #include "shared/timespec-util.h"
 
 #include "tablet-unstable-v2-server-protocol.h"

@@ -36,7 +36,7 @@
 #include "color.h"
 #include "pixel-formats.h"
 #include "output-capture.h"
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/weston-drm-fourcc.h"
 #include "shared/xalloc.h"
 

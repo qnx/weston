@@ -30,9 +30,9 @@
 #include <lcms2.h>
 #include <libweston/libweston.h>
 #include <libweston/weston-log.h>
+#include <libweston/helpers.h>
 
 #include "color.h"
-#include "shared/helpers.h"
 #include "shared/os-compatibility.h"
 
 /*

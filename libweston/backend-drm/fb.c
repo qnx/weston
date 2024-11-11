@@ -38,8 +38,8 @@
 #include <libweston/backend-drm.h>
 #include <libweston/pixel-formats.h>
 #include <libweston/linux-dmabuf.h>
+#include <libweston/helpers.h>
 #include "shared/hash.h"
-#include "shared/helpers.h"
 #include "shared/weston-drm-fourcc.h"
 #include "drm-internal.h"
 #include "linux-dmabuf.h"

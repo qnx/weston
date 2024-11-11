@@ -54,8 +54,8 @@
 #include <libweston/libweston.h>
 #include <libweston/backend-drm.h>
 #include <libweston/weston-log.h>
+#include <libweston/helpers.h>
 #include "output-capture.h"
-#include "shared/helpers.h"
 #include "shared/weston-drm-fourcc.h"
 #include "libinput-seat.h"
 #include "backend.h"

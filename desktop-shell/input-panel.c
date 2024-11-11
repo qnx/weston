@@ -30,9 +30,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <libweston/helpers.h>
+
 #include "shell.h"
 #include "input-method-unstable-v1-server-protocol.h"
-#include "shared/helpers.h"
 
 struct input_panel_surface {
 	struct wl_resource *resource;

@@ -40,7 +40,7 @@
 #include "id-number-allocator.h"
 #include "libweston-internal.h"
 #include <libweston/weston-log.h>
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/xalloc.h"
 
 /**

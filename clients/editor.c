@@ -39,7 +39,7 @@
 #include <pango/pangocairo.h>
 
 #include <libweston/config-parser.h>
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/xalloc.h"
 #include "window.h"
 #include "text-input-unstable-v1-client-protocol.h"

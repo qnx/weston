@@ -36,7 +36,7 @@
 #include <wayland-util.h>
 
 #include "shared/xalloc.h"
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "window.h"
 
 struct stacking_window {

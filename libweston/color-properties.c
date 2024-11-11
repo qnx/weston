@@ -35,7 +35,7 @@
 
 #include <libweston/libweston.h>
 #include <color-properties.h>
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/weston-assert.h"
 
 #include "color-management-v1-server-protocol.h"

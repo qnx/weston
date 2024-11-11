@@ -43,7 +43,7 @@
 #include <gbm.h>
 
 #include <wayland-client.h>
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/platform.h"
 #include "shared/weston-drm-fourcc.h"
 #include <libweston/zalloc.h>

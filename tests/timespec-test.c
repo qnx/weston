@@ -36,7 +36,7 @@
 
 #include "shared/timespec-util.h"
 
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "zunitc/zunitc.h"
 
 ZUC_TEST(timespec_test, timespec_sub)

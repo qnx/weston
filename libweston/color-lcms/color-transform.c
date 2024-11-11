@@ -34,7 +34,7 @@
 #include "color-curve-segments.h"
 #include "color-lcms.h"
 #include "color-properties.h"
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/string-helpers.h"
 #include "shared/weston-assert.h"
 #include "shared/xalloc.h"

@@ -34,10 +34,11 @@
 #include <assert.h>
 
 #include <libweston/libweston.h>
+#include <libweston/helpers.h>
+#include <libweston/shell-utils.h>
+
 #include "frontend/weston.h"
 #include "fullscreen-shell-unstable-v1-server-protocol.h"
-#include "shared/helpers.h"
-#include <libweston/shell-utils.h>
 
 struct fullscreen_shell {
 	struct wl_client *client;

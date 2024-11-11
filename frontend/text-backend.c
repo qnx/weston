@@ -34,10 +34,11 @@
 #include <time.h>
 
 #include <libweston/libweston.h>
+#include <libweston/helpers.h>
+
 #include "weston.h"
 #include "text-input-unstable-v1-server-protocol.h"
 #include "input-method-unstable-v1-server-protocol.h"
-#include "shared/helpers.h"
 #include "shared/timespec-util.h"
 #include "shared/xalloc.h"
 

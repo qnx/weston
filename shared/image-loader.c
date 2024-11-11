@@ -36,7 +36,7 @@
 #include <png.h>
 #include <pixman.h>
 
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/os-compatibility.h"
 #include "shared/xalloc.h"
 #include "image-loader.h"

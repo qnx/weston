@@ -35,8 +35,8 @@
 #include <math.h>
 
 #include <libweston/config-parser.h>
+#include <libweston/helpers.h>
 
-#include "shared/helpers.h"
 #include "zunitc/zunitc.h"
 
 struct fixture_data {

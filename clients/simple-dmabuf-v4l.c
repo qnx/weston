@@ -46,13 +46,14 @@
 
 #include <wayland-client.h>
 #include <wayland-cursor.h>
+
 #include <libweston/zalloc.h>
+#include <libweston/helpers.h>
+
 #include "xdg-shell-client-protocol.h"
 #include "linux-dmabuf-unstable-v1-client-protocol.h"
 #include "weston-direct-display-client-protocol.h"
 #include "viewporter-client-protocol.h"
-
-#include "shared/helpers.h"
 #include "shared/weston-drm-fourcc.h"
 
 #define CLEAR(x) memset(&(x), 0, sizeof(x))

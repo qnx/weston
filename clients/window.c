@@ -52,7 +52,7 @@
 #include <linux/input.h>
 #include <wayland-client.h>
 #include "shared/cairo-util.h"
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/xalloc.h"
 #include <libweston/zalloc.h>
 #include "xdg-shell-client-protocol.h"

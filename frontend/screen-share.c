@@ -41,14 +41,14 @@
 #include <wayland-client.h>
 
 #include <libweston/libweston.h>
+#include <libweston/helpers.h>
+#include <libweston/shell-utils.h>
 #include "backend.h"
 #include "libweston-internal.h"
 #include "pixel-formats.h"
 #include "weston.h"
-#include "shared/helpers.h"
 #include "shared/os-compatibility.h"
 #include "shared/timespec-util.h"
-#include <libweston/shell-utils.h>
 #include "fullscreen-shell-unstable-v1-client-protocol.h"
 
 struct shared_output {

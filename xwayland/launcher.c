@@ -38,7 +38,7 @@
 
 #include "xwayland.h"
 #include <libweston/xwayland-api.h>
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/string-helpers.h"
 
 static void

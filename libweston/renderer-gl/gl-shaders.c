@@ -36,6 +36,7 @@
 
 #include <libweston/libweston.h>
 #include <libweston/weston-log.h>
+#include <libweston/helpers.h>
 #include <GLES2/gl2.h>
 
 #include <string.h>
@@ -43,7 +44,6 @@
 #include "gl-renderer.h"
 #include "gl-renderer-internal.h"
 #include "pixel-formats.h"
-#include "shared/helpers.h"
 #include "shared/timespec-util.h"
 
 /* static const char vertex_shader[]; vertex.glsl */

@@ -58,6 +58,7 @@
 
 #include <libweston/libweston.h>
 #include <libweston/weston-log.h>
+#include <libweston/helpers.h>
 #include "linux-dmabuf.h"
 #include "linux-dmabuf-unstable-v1-server-protocol.h"
 #include "viewporter-server-protocol.h"
@@ -67,7 +68,6 @@
 #include "linux-explicit-synchronization.h"
 #include "single-pixel-buffer-v1-server-protocol.h"
 #include "shared/fd-util.h"
-#include "shared/helpers.h"
 #include "shared/os-compatibility.h"
 #include "shared/string-helpers.h"
 #include "shared/timespec-util.h"

@@ -32,7 +32,7 @@
 #include "libweston-internal.h"
 #include "output-capture.h"
 #include "pixel-formats.h"
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/weston-drm-fourcc.h"
 #include "shared/xalloc.h"
 #include "weston-output-capture-server-protocol.h"

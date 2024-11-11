@@ -56,7 +56,7 @@
 
 #include "libweston/matrix.h"
 #include "libweston/vertex-clipping.h"
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/xalloc.h"
 #include "window.h"
 

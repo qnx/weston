@@ -36,7 +36,7 @@
 
 #include <libweston/libweston.h>
 #include <libweston/backend-drm.h>
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/weston-drm-fourcc.h"
 #include "drm-internal.h"
 #include "pixel-formats.h"

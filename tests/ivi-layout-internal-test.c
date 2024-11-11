@@ -33,10 +33,11 @@
 #include <stdint.h>
 
 #include <libweston/libweston.h>
+#include <libweston/helpers.h>
+
 #include "ivi-shell/ivi-layout-export.h"
 #include "ivi-shell/ivi-layout-private.h"
 #include "ivi-test.h"
-#include "shared/helpers.h"
 #include "weston-test-runner.h"
 #include "weston-test-fixture-compositor.h"
 

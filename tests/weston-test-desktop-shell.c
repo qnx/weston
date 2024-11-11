@@ -38,7 +38,7 @@
 
 #include "frontend/weston.h"
 #include <libweston/config-parser.h>
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include <libweston/shell-utils.h>
 #include <libweston/desktop.h>
 

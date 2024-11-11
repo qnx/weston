@@ -40,7 +40,7 @@
 #include <wayland-client-protocol.h>
 #include "shared/cairo-util.h"
 #include <libweston/config-parser.h>
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/os-compatibility.h"
 #include "shared/xalloc.h"
 #include <libweston/zalloc.h>

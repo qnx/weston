@@ -51,7 +51,7 @@
 #include <unistd.h>
 
 #include <libweston/matrix.h>
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/platform.h"
 #include "shared/weston-egl-ext.h"
 #include "shared/xalloc.h"

@@ -42,12 +42,12 @@
 #include <linux/input.h>
 
 #include <libweston/libweston.h>
+#include <libweston/helpers.h>
 #include "xwayland.h"
 #include "xwayland-internal-interface.h"
 
 #include "shared/cairo-util.h"
 #include "shared/hash.h"
-#include "shared/helpers.h"
 #include "shared/xcb-xwayland.h"
 #include "xwayland-shell-v1-server-protocol.h"
 

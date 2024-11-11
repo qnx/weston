@@ -31,9 +31,8 @@
 #include <stdbool.h>
 
 #include <libweston/weston-log.h>
+#include <libweston/helpers.h>
 #include <wayland-server-core.h>
-
-#include "shared/helpers.h"
 
 enum timeline_type {
 	TLT_END = 0,

@@ -29,7 +29,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/xalloc.h"
 #include "weston-test-client-helper.h"
 #include "ivi-application-client-protocol.h"

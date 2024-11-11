@@ -31,7 +31,7 @@
 #include <assert.h>
 #include <time.h>
 
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/xalloc.h"
 #include "weston-test-client-helper.h"
 #include "weston-test-fixture-compositor.h"

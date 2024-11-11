@@ -44,7 +44,7 @@
 
 #include <libweston/remoting-plugin.h>
 #include <libweston/backend-drm.h>
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/timespec-util.h"
 #include "shared/weston-drm-fourcc.h"
 #include "shared/string-helpers.h"

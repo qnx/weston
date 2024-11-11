@@ -47,12 +47,13 @@
 #include <neatvnc.h>
 #include <drm_fourcc.h>
 
-#include "shared/helpers.h"
-#include "shared/xalloc.h"
-#include "shared/timespec-util.h"
 #include <libweston/libweston.h>
 #include <libweston/backend-vnc.h>
 #include <libweston/weston-log.h>
+#include <libweston/helpers.h>
+
+#include "shared/xalloc.h"
+#include "shared/timespec-util.h"
 #include "pixel-formats.h"
 #include "pixman-renderer.h"
 #include "renderer-gl/gl-renderer.h"

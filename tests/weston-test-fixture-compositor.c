@@ -37,7 +37,7 @@
 #include <errno.h>
 #include <fcntl.h>
 
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/string-helpers.h"
 #include "weston-test-fixture-compositor.h"
 #include "weston.h"

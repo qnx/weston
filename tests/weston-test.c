@@ -45,7 +45,7 @@
 #include "weston.h"
 #include "weston-testsuite-data.h"
 
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/timespec-util.h"
 #include "shared/xalloc.h"
 

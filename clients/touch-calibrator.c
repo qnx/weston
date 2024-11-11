@@ -39,7 +39,7 @@
 #include <wayland-client.h>
 
 #include "clients/window.h"
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include <libweston/matrix.h>
 
 #include "weston-touch-calibration-client-protocol.h"

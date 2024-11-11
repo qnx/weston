@@ -30,8 +30,8 @@
 #include <linux/input.h>
 
 #include <libweston/libweston.h>
+#include <libweston/helpers.h>
 #include "weston.h"
-#include "shared/helpers.h"
 
 struct screenshooter {
 	struct weston_compositor *ec;

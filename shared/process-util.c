@@ -35,7 +35,7 @@
 
 #include <wayland-util.h>
 
-#include "helpers.h"
+#include <libweston/helpers.h>
 #include "os-compatibility.h"
 #include "process-util.h"
 #include "string-helpers.h"

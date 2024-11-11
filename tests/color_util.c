@@ -33,9 +33,9 @@
 #include <stddef.h>
 
 #include <libweston/matrix.h>
+#include <libweston/helpers.h>
 #include "color_util.h"
 #include "weston-test-runner.h"
-#include "shared/helpers.h"
 
 static_assert(sizeof(struct color_float) == 4 * sizeof(float),
 	      "unexpected padding in struct color_float");

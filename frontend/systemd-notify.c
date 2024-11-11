@@ -30,10 +30,11 @@
 #include <sys/socket.h>
 #include <wayland-server.h>
 
-#include "shared/helpers.h"
-#include "shared/string-helpers.h"
-#include <libweston/zalloc.h>
 #include <libweston/libweston.h>
+#include <libweston/zalloc.h>
+#include <libweston/helpers.h>
+
+#include "shared/string-helpers.h"
 #include "weston.h"
 
 struct systemd_notifier {

@@ -47,15 +47,16 @@
 #include <sys/time.h>
 #include <linux/limits.h>
 
-#include "weston.h"
 #include <libweston/libweston.h>
+#include <libweston/helpers.h>
+#include <libweston/version.h>
+
+#include "weston.h"
 #include "shared/os-compatibility.h"
-#include "shared/helpers.h"
 #include "shared/process-util.h"
 #include "shared/string-helpers.h"
 #include "shared/xalloc.h"
 #include "git-version.h"
-#include <libweston/version.h>
 #include "weston.h"
 #include "weston-private.h"
 

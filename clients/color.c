@@ -27,7 +27,7 @@
 #include <errno.h>
 
 #include "color-management-v1-client-protocol.h"
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/xalloc.h"
 #include "single-pixel-buffer-v1-client-protocol.h"
 #include "viewporter-client-protocol.h"

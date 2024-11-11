@@ -34,7 +34,7 @@
 #include <libweston/weston-log.h>
 #include "libweston-internal.h"
 #include "weston-content-protection-server-protocol.h"
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/timespec-util.h"
 
 #define content_protection_log(cp, ...) \

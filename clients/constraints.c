@@ -30,7 +30,7 @@
 #include <linux/input.h>
 #include <wayland-cursor.h>
 
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/xalloc.h"
 #include "shared/os-compatibility.h"
 #include "shared/cairo-util.h"

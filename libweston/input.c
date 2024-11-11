@@ -40,7 +40,7 @@
 #include <errno.h>
 #include <linux/input.h>
 
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/os-compatibility.h"
 #include "shared/timespec-util.h"
 #include <libweston/libweston.h>

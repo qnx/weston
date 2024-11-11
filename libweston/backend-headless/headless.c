@@ -37,7 +37,7 @@
 
 #include <libweston/libweston.h>
 #include <libweston/backend-headless.h>
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "linux-explicit-synchronization.h"
 #include "pixel-formats.h"
 #include "pixman-renderer.h"

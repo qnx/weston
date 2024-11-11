@@ -35,13 +35,13 @@
 #include <libudev.h>
 
 #include <libweston/libweston.h>
+#include <libweston/helpers.h>
 #include "backend.h"
 #include "libweston-internal.h"
 #include "weston-log-internal.h"
 #include "launcher-util.h"
 #include "libinput-seat.h"
 #include "libinput-device.h"
-#include "shared/helpers.h"
 
 static void
 process_events(struct udev_input *input);

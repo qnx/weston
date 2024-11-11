@@ -49,13 +49,14 @@
 #include <spa/utils/defs.h>
 #include <spa/utils/result.h>
 
-#include "shared/helpers.h"
-#include "shared/timespec-util.h"
-#include "shared/xalloc.h"
 #include <libweston/libweston.h>
 #include <libweston/backend-pipewire.h>
 #include <libweston/linux-dmabuf.h>
 #include <libweston/weston-log.h>
+#include <libweston/helpers.h>
+
+#include "shared/timespec-util.h"
+#include "shared/xalloc.h"
 #include "pixel-formats.h"
 #include "pixman-renderer.h"
 #include "renderer-gl/gl-renderer.h"

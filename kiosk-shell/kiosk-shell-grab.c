@@ -24,7 +24,7 @@
  */
 
 #include "kiosk-shell-grab.h"
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 
 struct kiosk_shell_grab {
 	struct kiosk_shell_surface *shsurf;

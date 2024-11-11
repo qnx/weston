@@ -68,7 +68,7 @@
 #include "ivi-layout-private.h"
 #include "ivi-layout-shell.h"
 
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include "shared/os-compatibility.h"
 #include "shared/xalloc.h"
 

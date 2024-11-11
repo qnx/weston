@@ -38,7 +38,7 @@
 #include <wayland-client.h>
 
 #include "window.h"
-#include "shared/helpers.h"
+#include <libweston/helpers.h>
 #include <libweston/matrix.h>
 
 /* Our points for the calibration must be not be on a line */
