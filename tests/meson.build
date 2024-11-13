@@ -260,7 +260,7 @@ tests = [
 	{	'name': 'viewporter', },
 	{	'name': 'viewporter-shot', },
 	{
-		'name': 'yuv-buffer',
+		'name': 'shm-buffer',
 		'dep_objs': [
 			dep_libdrm_headers,
 			dep_libm,

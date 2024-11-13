@@ -60,7 +60,7 @@ fixture_setup(struct weston_test_harness *harness)
 }
 DECLARE_FIXTURE_SETUP(fixture_setup);
 
-struct yuv_buffer {
+struct shm_buffer {
 	void *data;
 	size_t bytes;
 	struct wl_buffer *proxy;
@@ -68,17 +68,17 @@ struct yuv_buffer {
 	int height;
 };
 
-struct yuv_case {
+struct shm_case {
 	uint32_t drm_format;
 	const char *drm_format_name;
 	int ref_seq_no;
-	struct yuv_buffer *(*create_buffer)(struct client *client,
+	struct shm_buffer *(*create_buffer)(struct client *client,
 					    uint32_t drm_format,
 					    pixman_image_t *rgb_image);
 };
 
-static struct yuv_buffer *
-yuv_buffer_create(struct client *client,
+static struct shm_buffer *
+shm_buffer_create(struct client *client,
 		  size_t bytes,
 		  int width,
 		  int height,
@@ -86,7 +86,7 @@ yuv_buffer_create(struct client *client,
 		  uint32_t drm_format)
 {
 	struct wl_shm_pool *pool;
-	struct yuv_buffer *buf;
+	struct shm_buffer *buf;
 	int fd;
 
 	/* wl_shm format codes match DRM format codes except argb8888 and
@@ -119,7 +119,7 @@ yuv_buffer_create(struct client *client,
 }
 
 static void
-yuv_buffer_destroy(struct yuv_buffer *buf)
+shm_buffer_destroy(struct shm_buffer *buf)
 {
 	wl_buffer_destroy(buf->proxy);
 	assert(munmap(buf->data, buf->bytes) == 0);
@@ -213,13 +213,13 @@ x8r8g8b8_to_ycbcr16_bt709(uint32_t xrgb, int depth,
 
  * YVU444: no subsampling Cr (1) and Cb (2) planes
  */
-static struct yuv_buffer *
+static struct shm_buffer *
 y_u_v_create_buffer(struct client *client,
 		    uint32_t drm_format,
 		    pixman_image_t *rgb_image)
 {
 	struct image_header rgb = image_header_from(rgb_image);
-	struct yuv_buffer *buf;
+	struct shm_buffer *buf;
 	size_t bytes;
 	int x, y;
 	uint32_t *rgb_row;
@@ -241,7 +241,7 @@ y_u_v_create_buffer(struct client *client,
 	/* Full size Y plus quarter U and V */
 	bytes = rgb.width * rgb.height +
 		(rgb.width / sub) * (rgb.height / sub) * 2;
-	buf = yuv_buffer_create(client, bytes, rgb.width, rgb.height,
+	buf = shm_buffer_create(client, bytes, rgb.width, rgb.height,
 				rgb.width, drm_format);
 
 	y_base = buf->data;
@@ -301,7 +301,7 @@ y_u_v_create_buffer(struct client *client,
  *       plane 1 = Cb:Cr plane, [15:0] Cb:Cr little endian
  *       2x2 subsampled Cb:Cr plane
  */
-static struct yuv_buffer *
+static struct shm_buffer *
 nv12_create_buffer(struct client *client,
 		   uint32_t drm_format,
 		   pixman_image_t *rgb_image)
@@ -312,7 +312,7 @@ nv12_create_buffer(struct client *client,
 	};
 
 	struct image_header rgb = image_header_from(rgb_image);
-	struct yuv_buffer *buf;
+	struct shm_buffer *buf;
 	size_t bytes;
 	int idx, x, y;
 	uint32_t *rgb_row;
@@ -338,7 +338,7 @@ nv12_create_buffer(struct client *client,
 	/* Full size Y, quarter UV */
 	bytes = rgb.width * rgb.height +
 		(rgb.width / 2) * (rgb.height / 2) * sizeof(uint16_t);
-	buf = yuv_buffer_create(client, bytes, rgb.width, rgb.height,
+	buf = shm_buffer_create(client, bytes, rgb.width, rgb.height,
 				rgb.width, drm_format);
 
 	y_base = buf->data;
@@ -388,7 +388,7 @@ nv12_create_buffer(struct client *client,
  *       plane 1 = Cb:Cr plane, [15:0] Cb:Cr little endian
  *       2x1 subsampled Cb:Cr plane
  */
-static struct yuv_buffer *
+static struct shm_buffer *
 nv16_create_buffer(struct client *client,
 		   uint32_t drm_format,
 		   pixman_image_t *rgb_image)
@@ -399,7 +399,7 @@ nv16_create_buffer(struct client *client,
 	};
 
 	struct image_header rgb = image_header_from(rgb_image);
-	struct yuv_buffer *buf;
+	struct shm_buffer *buf;
 	size_t bytes;
 	int idx, x, y;
 	uint32_t *rgb_row;
@@ -425,7 +425,7 @@ nv16_create_buffer(struct client *client,
 	/* Full size Y, horizontally subsampled UV */
 	bytes = rgb.width * rgb.height +
 		(rgb.width / 2) * rgb.height * sizeof(uint16_t);
-	buf = yuv_buffer_create(client, bytes, rgb.width, rgb.height,
+	buf = shm_buffer_create(client, bytes, rgb.width, rgb.height,
 				rgb.width, drm_format);
 
 	y_base = buf->data;
@@ -475,7 +475,7 @@ nv16_create_buffer(struct client *client,
  *       plane 1 = Cb:Cr plane, [15:0] Cb:Cr little endian
  *       non-subsampled Cb:Cr plane
  */
-static struct yuv_buffer *
+static struct shm_buffer *
 nv24_create_buffer(struct client *client,
 		   uint32_t drm_format,
 		   pixman_image_t *rgb_image)
@@ -486,7 +486,7 @@ nv24_create_buffer(struct client *client,
 	};
 
 	struct image_header rgb = image_header_from(rgb_image);
-	struct yuv_buffer *buf;
+	struct shm_buffer *buf;
 	size_t bytes;
 	int idx, x, y;
 	uint32_t *rgb_row;
@@ -512,7 +512,7 @@ nv24_create_buffer(struct client *client,
 	/* Full size Y, non-subsampled UV */
 	bytes = rgb.width * rgb.height +
 		rgb.width * rgb.height * sizeof(uint16_t);
-	buf = yuv_buffer_create(client, bytes, rgb.width, rgb.height,
+	buf = shm_buffer_create(client, bytes, rgb.width, rgb.height,
 				rgb.width, drm_format);
 
 	y_base = buf->data;
@@ -557,7 +557,7 @@ nv24_create_buffer(struct client *client,
  * VYUY: [31:0] Y1:Cb0:Y0:Cr0 8:8:8:8 little endian
  *       2x1 subsampled Cb:Cr plane
  */
-static struct yuv_buffer *
+static struct shm_buffer *
 yuyv_create_buffer(struct client *client,
 		   uint32_t drm_format,
 		   pixman_image_t *rgb_image)
@@ -570,7 +570,7 @@ yuyv_create_buffer(struct client *client,
 	};
 
 	struct image_header rgb = image_header_from(rgb_image);
-	struct yuv_buffer *buf;
+	struct shm_buffer *buf;
 	size_t bytes;
 	int idx, x, y;
 	uint32_t *rgb_row;
@@ -599,7 +599,7 @@ yuyv_create_buffer(struct client *client,
 
 	/* Full size Y, horizontally subsampled UV, 2 pixels in 32 bits */
 	bytes = rgb.width / 2 * rgb.height * sizeof(uint32_t);
-	buf = yuv_buffer_create(client, bytes, rgb.width, rgb.height,
+	buf = shm_buffer_create(client, bytes, rgb.width, rgb.height,
 				rgb.width / 2 * sizeof(uint32_t), drm_format);
 
 	yuv_base = buf->data;
@@ -632,13 +632,13 @@ yuyv_create_buffer(struct client *client,
  * XYUV8888: [31:0] X:Y:Cb:Cr 8:8:8:8 little endian
  *           full resolution chroma
  */
-static struct yuv_buffer *
+static struct shm_buffer *
 xyuv8888_create_buffer(struct client *client,
 		       uint32_t drm_format,
 		       pixman_image_t *rgb_image)
 {
 	struct image_header rgb = image_header_from(rgb_image);
-	struct yuv_buffer *buf;
+	struct shm_buffer *buf;
 	size_t bytes;
 	int x, y;
 	uint32_t *rgb_row;
@@ -652,7 +652,7 @@ xyuv8888_create_buffer(struct client *client,
 
 	/* Full size, 32 bits per pixel */
 	bytes = rgb.width * rgb.height * sizeof(uint32_t);
-	buf = yuv_buffer_create(client, bytes, rgb.width, rgb.height,
+	buf = shm_buffer_create(client, bytes, rgb.width, rgb.height,
 				rgb.width * sizeof(uint32_t), drm_format);
 
 	yuv_base = buf->data;
@@ -698,13 +698,13 @@ xyuv8888_create_buffer(struct client *client,
  *       index 1 = Cr:Cb plane, [31:0] Cr:x:Cb:x [10:6:10:6] little endian
  *       2x2 subsampled Cr:Cb plane 10 bits per channel
  */
-static struct yuv_buffer *
+static struct shm_buffer *
 p016_create_buffer(struct client *client,
 		   uint32_t drm_format,
 		   pixman_image_t *rgb_image)
 {
 	struct image_header rgb = image_header_from(rgb_image);
-	struct yuv_buffer *buf;
+	struct shm_buffer *buf;
 	size_t bytes;
 	int depth, x, y;
 	uint32_t *rgb_row;
@@ -733,7 +733,7 @@ p016_create_buffer(struct client *client,
 	/* Full size Y, quarter UV */
 	bytes = rgb.width * rgb.height * sizeof(uint16_t) +
 		(rgb.width / 2) * (rgb.height / 2) * sizeof(uint32_t);
-	buf = yuv_buffer_create(client, bytes, rgb.width, rgb.height,
+	buf = shm_buffer_create(client, bytes, rgb.width, rgb.height,
 				rgb.width * sizeof(uint16_t), drm_format);
 
 	y_base = buf->data;
@@ -773,7 +773,7 @@ p016_create_buffer(struct client *client,
 }
 
 static void
-show_window_with_yuv(struct client *client, struct yuv_buffer *buf)
+show_window_with_shm(struct client *client, struct shm_buffer *buf)
 {
 	struct surface *surface = client->surface;
 	int done;
@@ -788,7 +788,7 @@ show_window_with_yuv(struct client *client, struct yuv_buffer *buf)
 	frame_callback_wait(client, &done);
 }
 
-static const struct yuv_case yuv_cases[] = {
+static const struct shm_case shm_cases[] = {
 #define FMT(x) DRM_FORMAT_ ##x, #x
 	{ FMT(YUV420), 0, y_u_v_create_buffer },
 	{ FMT(YVU420), 0, y_u_v_create_buffer },
@@ -812,15 +812,15 @@ static const struct yuv_case yuv_cases[] = {
 };
 
 /*
- * Test that various YUV pixel formats result in correct coloring on screen.
+ * Test that various sl_shm pixel formats result in correct coloring on screen.
  */
-TEST_P(yuv_buffer_shm, yuv_cases)
+TEST_P(shm_buffer, shm_cases)
 {
-	const struct yuv_case *my_case = data;
+	const struct shm_case *my_case = data;
 	char *fname;
 	pixman_image_t *img;
 	struct client *client;
-	struct yuv_buffer *buf;
+	struct shm_buffer *buf;
 	bool match;
 
 	testlog("%s: format %s\n", get_test_name(), my_case->drm_format_name);
@@ -857,13 +857,13 @@ TEST_P(yuv_buffer_shm, yuv_cases)
 			get_test_name(), my_case->drm_format_name);
 		goto format_not_supported;
 	}
-	show_window_with_yuv(client, buf);
+	show_window_with_shm(client, buf);
 
-	match = verify_screen_content(client, "yuv-buffer", my_case->ref_seq_no,
+	match = verify_screen_content(client, "shm-buffer", my_case->ref_seq_no,
 				      NULL, 0, NULL);
 	assert(match);
 
-	yuv_buffer_destroy(buf);
+	shm_buffer_destroy(buf);
 
  format_not_supported:
 	pixman_image_unref(img);
