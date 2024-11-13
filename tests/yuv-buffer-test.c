@@ -157,8 +157,14 @@ x8r8g8b8_to_ycbcr8_bt709(uint32_t xrgb,
  * plane 0: Y plane, [7:0] Y
  * plane 1: Cb plane, [7:0] Cb
  * plane 2: Cr plane, [7:0] Cr
+ *
  * YUV420: 2x2 subsampled Cb (1) and Cr (2) planes
- * YUV444: no subsampling
+ *
+ * YVU420: 2x2 subsampled Cr (1) and Cb (2) planes
+ *
+ * YUV444: no subsampling Cb (1) and Cr (2) planes
+
+ * YVU444: no subsampling Cr (1) and Cb (2) planes
  */
 static struct yuv_buffer *
 y_u_v_create_buffer(struct client *client,
@@ -177,10 +183,13 @@ y_u_v_create_buffer(struct client *client,
 	uint8_t *u_row;
 	uint8_t *v_row;
 	uint32_t argb;
-	int sub = (drm_format == DRM_FORMAT_YUV420) ? 2 : 1;
+	int sub = (drm_format == DRM_FORMAT_YUV420 ||
+		   drm_format == DRM_FORMAT_YVU420) ? 2 : 1;
 
 	assert(drm_format == DRM_FORMAT_YUV420 ||
-	       drm_format == DRM_FORMAT_YUV444);
+	       drm_format == DRM_FORMAT_YVU420 ||
+	       drm_format == DRM_FORMAT_YUV444 ||
+	       drm_format == DRM_FORMAT_YVU444);
 
 	/* Full size Y plus quarter U and V */
 	bytes = rgb.width * rgb.height +
@@ -189,8 +198,17 @@ y_u_v_create_buffer(struct client *client,
 				rgb.width, drm_format);
 
 	y_base = buf->data;
-	u_base = y_base + rgb.width * rgb.height;
-	v_base = u_base + (rgb.width / sub) * (rgb.height / sub);
+	if (drm_format == DRM_FORMAT_YUV420 ||
+	    drm_format == DRM_FORMAT_YUV444) {
+		u_base = y_base + rgb.width * rgb.height;
+		v_base = u_base + (rgb.width / sub) * (rgb.height / sub);
+	} else if (drm_format == DRM_FORMAT_YVU420 ||
+		   drm_format == DRM_FORMAT_YVU444) {
+		v_base = y_base + rgb.width * rgb.height;
+		u_base = v_base + (rgb.width / sub) * (rgb.height / sub);
+	} else {
+		assert(0 && "Invalid format!");
+	}
 
 	for (y = 0; y < rgb.height; y++) {
 		rgb_row = image_header_get_row_u32(&rgb, y / 2 * 2);
@@ -227,19 +245,29 @@ y_u_v_create_buffer(struct client *client,
 
 /*
  * 2 plane YCbCr
- * plane 0 = Y plane, [7:0] Y
- * plane 1 = Cr:Cb plane, [15:0] Cr:Cb little endian
- * 2x2 subsampled Cr:Cb plane
+ *
+ * NV12: plane 0 = Y plane, [7:0] Y
+ *       plane 1 = Cr:Cb plane, [15:0] Cr:Cb little endian
+ *       2x2 subsampled Cr:Cb plane
+ *
+ * NV21: plane 0 = Y plane, [7:0] Y
+ *       plane 1 = Cb:Cr plane, [15:0] Cb:Cr little endian
+ *       2x2 subsampled Cb:Cr plane
  */
 static struct yuv_buffer *
 nv12_create_buffer(struct client *client,
 		   uint32_t drm_format,
 		   pixman_image_t *rgb_image)
 {
+	static const int swizzles[][2] = {
+		{ 0, 1 }, /* NV12 */
+		{ 1, 0 }  /* NV21 */
+	};
+
 	struct image_header rgb = image_header_from(rgb_image);
 	struct yuv_buffer *buf;
 	size_t bytes;
-	int x, y;
+	int idx, x, y;
 	uint32_t *rgb_row;
 	uint8_t *y_base;
 	uint16_t *uv_base;
@@ -249,7 +277,16 @@ nv12_create_buffer(struct client *client,
 	uint8_t cr;
 	uint8_t cb;
 
-	assert(drm_format == DRM_FORMAT_NV12);
+	switch (drm_format) {
+	case DRM_FORMAT_NV12:
+		idx = 0;
+		break;
+	case DRM_FORMAT_NV21:
+		idx = 1;
+		break;
+	default:
+		assert(0 && "Invalid format!");
+	};
 
 	/* Full size Y, quarter UV */
 	bytes = rgb.width * rgb.height +
@@ -280,7 +317,9 @@ nv12_create_buffer(struct client *client,
 			if ((y & 1) == 0 && (x & 1) == 0) {
 				x8r8g8b8_to_ycbcr8_bt709(argb, y_row + x,
 							 &cb, &cr);
-				*(uv_row + x / 2) = ((uint16_t)cr << 8) | cb;
+				*(uv_row + x / 2) =
+					((uint16_t) cr << (swizzles[idx][1] * 8)) |
+					((uint16_t) cb << (swizzles[idx][0] * 8));
 			} else {
 				x8r8g8b8_to_ycbcr8_bt709(argb, y_row + x,
 							 NULL, NULL);
@@ -293,19 +332,29 @@ nv12_create_buffer(struct client *client,
 
 /*
  * 2 plane YCbCr
- * plane 0 = Y plane, [7:0] Y
- * plane 1 = Cr:Cb plane, [15:0] Cr:Cb little endian
- * 2x1 subsampled Cr:Cb plane
+ *
+ * NV16: plane 0 = Y plane, [7:0] Y
+ *       plane 1 = Cr:Cb plane, [15:0] Cr:Cb little endian
+ *       2x1 subsampled Cr:Cb plane
+ *
+ * NV61: plane 0 = Y plane, [7:0] Y
+ *       plane 1 = Cb:Cr plane, [15:0] Cb:Cr little endian
+ *       2x1 subsampled Cb:Cr plane
  */
 static struct yuv_buffer *
 nv16_create_buffer(struct client *client,
 		   uint32_t drm_format,
 		   pixman_image_t *rgb_image)
 {
+	static const int swizzles[][2] = {
+		{ 0, 1 }, /* NV16 */
+		{ 1, 0 }  /* NV61 */
+	};
+
 	struct image_header rgb = image_header_from(rgb_image);
 	struct yuv_buffer *buf;
 	size_t bytes;
-	int x, y;
+	int idx, x, y;
 	uint32_t *rgb_row;
 	uint8_t *y_base;
 	uint16_t *uv_base;
@@ -315,7 +364,16 @@ nv16_create_buffer(struct client *client,
 	uint8_t cr;
 	uint8_t cb;
 
-	assert(drm_format == DRM_FORMAT_NV16);
+	switch (drm_format) {
+	case DRM_FORMAT_NV16:
+		idx = 0;
+		break;
+	case DRM_FORMAT_NV61:
+		idx = 1;
+		break;
+	default:
+		assert(0 && "Invalid format!");
+	};
 
 	/* Full size Y, horizontally subsampled UV */
 	bytes = rgb.width * rgb.height +
@@ -346,7 +404,9 @@ nv16_create_buffer(struct client *client,
 			if ((x & 1) == 0) {
 				x8r8g8b8_to_ycbcr8_bt709(argb, y_row + x,
 							 &cb, &cr);
-				*(uv_row + x / 2) = ((uint16_t)cr << 8) | cb;
+				*(uv_row + x / 2) =
+					((uint16_t) cr << (swizzles[idx][1] * 8)) |
+					((uint16_t) cb << (swizzles[idx][0] * 8));
 			} else {
 				x8r8g8b8_to_ycbcr8_bt709(argb, y_row + x,
 							 NULL, NULL);
@@ -359,19 +419,29 @@ nv16_create_buffer(struct client *client,
 
 /*
  * 2 plane YCbCr
- * plane 0 = Y plane, [7:0] Y
- * plane 1 = Cr:Cb plane, [15:0] Cr:Cb little endian
- * non-subsampled Cr:Cb plane
+ *
+ * NV24: plane 0 = Y plane, [7:0] Y
+ *       plane 1 = Cr:Cb plane, [15:0] Cr:Cb little endian
+ *       non-subsampled Cr:Cb plane
+ *
+ * NV42: plane 0 = Y plane, [7:0] Y
+ *       plane 1 = Cb:Cr plane, [15:0] Cb:Cr little endian
+ *       non-subsampled Cb:Cr plane
  */
 static struct yuv_buffer *
 nv24_create_buffer(struct client *client,
 		   uint32_t drm_format,
 		   pixman_image_t *rgb_image)
 {
+	static const int swizzles[][2] = {
+		{ 0, 1 }, /* NV24 */
+		{ 1, 0 }  /* NV42 */
+	};
+
 	struct image_header rgb = image_header_from(rgb_image);
 	struct yuv_buffer *buf;
 	size_t bytes;
-	int x, y;
+	int idx, x, y;
 	uint32_t *rgb_row;
 	uint8_t *y_base;
 	uint16_t *uv_base;
@@ -381,7 +451,16 @@ nv24_create_buffer(struct client *client,
 	uint8_t cr;
 	uint8_t cb;
 
-	assert(drm_format == DRM_FORMAT_NV24);
+	switch (drm_format) {
+	case DRM_FORMAT_NV24:
+		idx = 0;
+		break;
+	case DRM_FORMAT_NV42:
+		idx = 1;
+		break;
+	default:
+		assert(0 && "Invalid format!");
+	};
 
 	/* Full size Y, non-subsampled UV */
 	bytes = rgb.width * rgb.height +
@@ -407,7 +486,9 @@ nv24_create_buffer(struct client *client,
 
 			x8r8g8b8_to_ycbcr8_bt709(argb, y_row + x,
 						 &cb, &cr);
-			*(uv_row + x) = ((uint16_t)cr << 8) | cb;
+			*(uv_row + x) =
+				((uint16_t) cr << (swizzles[idx][1] * 8)) |
+				((uint16_t) cb << (swizzles[idx][0] * 8));
 		}
 	}
 
@@ -417,18 +498,34 @@ nv24_create_buffer(struct client *client,
 /*
  * Packed YCbCr
  *
- * [31:0] Cr0:Y1:Cb0:Y0 8:8:8:8 little endian
- * 2x1 subsampled Cr:Cb plane
+ * YUYV: [31:0] Cr0:Y1:Cb0:Y0 8:8:8:8 little endian
+ *       2x1 subsampled Cr:Cb plane
+ *
+ * YVYU: [31:0] Cb0:Y1:Cr0:Y0 8:8:8:8 little endian
+ *       2x1 subsampled Cb:Cr plane
+ *
+ * UYVY: [31:0] Y1:Cr0:Y0:Cb0 8:8:8:8 little endian
+ *       2x1 subsampled Cr:Cb plane
+ *
+ * VYUY: [31:0] Y1:Cb0:Y0:Cr0 8:8:8:8 little endian
+ *       2x1 subsampled Cb:Cr plane
  */
 static struct yuv_buffer *
 yuyv_create_buffer(struct client *client,
 		   uint32_t drm_format,
 		   pixman_image_t *rgb_image)
 {
+	static const int swizzles[][4] = {
+		{ 0, 1, 2, 3 }, /* YUYV */
+		{ 0, 3, 2, 1 }, /* YVYU */
+		{ 1, 0, 3, 2 }, /* UYVY */
+		{ 1, 2, 3, 0 }  /* VYUY */
+	};
+
 	struct image_header rgb = image_header_from(rgb_image);
 	struct yuv_buffer *buf;
 	size_t bytes;
-	int x, y;
+	int idx, x, y;
 	uint32_t *rgb_row;
 	uint32_t *yuv_base;
 	uint32_t *yuv_row;
@@ -436,7 +533,22 @@ yuyv_create_buffer(struct client *client,
 	uint8_t cb;
 	uint8_t y0;
 
-	assert(drm_format == DRM_FORMAT_YUYV);
+	switch (drm_format) {
+	case DRM_FORMAT_YUYV:
+		idx = 0;
+		break;
+	case DRM_FORMAT_YVYU:
+		idx = 1;
+		break;
+	case DRM_FORMAT_UYVY:
+		idx = 2;
+		break;
+	case DRM_FORMAT_VYUY:
+		idx = 3;
+		break;
+	default:
+		assert(0 && "Invalid format!");
+	};
 
 	/* Full size Y, horizontally subsampled UV, 2 pixels in 32 bits */
 	bytes = rgb.width / 2 * rgb.height * sizeof(uint32_t);
@@ -457,10 +569,10 @@ yuyv_create_buffer(struct client *client,
 			 */
 			x8r8g8b8_to_ycbcr8_bt709(*(rgb_row + x), &y0, &cb, &cr);
 			*(yuv_row + x / 2) =
-				((uint32_t)cr << 24) |
-				((uint32_t)y0 << 16) |
-				((uint32_t)cb << 8) |
-				((uint32_t)y0 << 0);
+				((uint32_t)cr << (swizzles[idx][3] * 8)) |
+				((uint32_t)y0 << (swizzles[idx][2] * 8)) |
+				((uint32_t)cb << (swizzles[idx][1] * 8)) |
+				((uint32_t)y0 << (swizzles[idx][0] * 8));
 		}
 	}
 
@@ -470,8 +582,8 @@ yuyv_create_buffer(struct client *client,
 /*
  * Packed YCbCr
  *
- * [31:0] X:Y:Cb:Cr 8:8:8:8 little endian
- * full resolution chroma
+ * XYUV8888: [31:0] X:Y:Cb:Cr 8:8:8:8 little endian
+ *           full resolution chroma
  */
 static struct yuv_buffer *
 xyuv8888_create_buffer(struct client *client,
@@ -543,11 +655,19 @@ show_window_with_yuv(struct client *client, struct yuv_buffer *buf)
 static const struct yuv_case yuv_cases[] = {
 #define FMT(x) DRM_FORMAT_ ##x, #x
 	{ FMT(YUV420), y_u_v_create_buffer },
+	{ FMT(YVU420), y_u_v_create_buffer },
 	{ FMT(YUV444), y_u_v_create_buffer },
+	{ FMT(YVU444), y_u_v_create_buffer },
 	{ FMT(NV12), nv12_create_buffer },
+	{ FMT(NV21), nv12_create_buffer },
 	{ FMT(NV16), nv16_create_buffer },
+	{ FMT(NV61), nv16_create_buffer },
 	{ FMT(NV24), nv24_create_buffer },
+	{ FMT(NV42), nv24_create_buffer },
 	{ FMT(YUYV), yuyv_create_buffer },
+	{ FMT(YVYU), yuyv_create_buffer },
+	{ FMT(UYVY), yuyv_create_buffer },
+	{ FMT(VYUY), yuyv_create_buffer },
 	{ FMT(XYUV8888), xyuv8888_create_buffer },
 #undef FMT
 };
