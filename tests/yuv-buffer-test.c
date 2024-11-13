@@ -83,6 +83,11 @@ yuv_buffer_create(struct client *client,
 	struct yuv_buffer *buf;
 	int fd;
 
+	/* wl_shm format codes match DRM format codes except argb8888 and
+	 * xrgb8888 but we don't mind because we're testing YUV formats here. */
+	if (!support_shm_format(client, drm_format))
+	    return NULL;
+
 	buf = xzalloc(sizeof *buf);
 	buf->bytes = bytes;
 	buf->width = width;
@@ -588,12 +593,19 @@ TEST_P(yuv_buffer_shm, yuv_cases)
 	client = create_client();
 	client->surface = create_test_surface(client);
 	buf = my_case->create_buffer(client, my_case->drm_format, img);
+	if (!buf) {
+		testlog("%s: Skipped: format %s not supported by compositor\n",
+			get_test_name(), my_case->drm_format_name);
+		goto format_not_supported;
+	}
 	show_window_with_yuv(client, buf);
 
 	match = verify_screen_content(client, "yuv-buffer", 0, NULL, 0, NULL);
 	assert(match);
 
 	yuv_buffer_destroy(buf);
+
+ format_not_supported:
 	pixman_image_unref(img);
 	client_destroy(client);
 }

@@ -472,6 +472,18 @@ static const struct wl_surface_listener surface_listener = {
 	surface_leave
 };
 
+bool
+support_shm_format(struct client *client, uint32_t shm_format)
+{
+	uint32_t *p;
+
+	wl_array_for_each(p, &client->shm_formats)
+		if (*p == shm_format)
+			return true;
+
+	return false;
+}
+
 struct buffer *
 create_shm_buffer(struct client *client, int width, int height,
 		  uint32_t drm_format)
@@ -484,6 +496,7 @@ create_shm_buffer(struct client *client, int width, int height,
 	int fd;
 	void *data;
 	size_t bytes_pp;
+	uint32_t shm_format;
 
 	assert(width > 0);
 	assert(height > 0);
@@ -491,6 +504,10 @@ create_shm_buffer(struct client *client, int width, int height,
 	pfmt = pixel_format_get_info(drm_format);
 	assert(pfmt);
 	assert(pixel_format_get_plane_count(pfmt) == 1);
+	shm_format = pixel_format_get_shm_format(pfmt);
+
+	if (!support_shm_format(client, shm_format))
+	    return NULL;
 
 	buf = xzalloc(sizeof *buf);
 
@@ -532,8 +549,6 @@ create_shm_buffer(struct client *client, int width, int height,
 struct buffer *
 create_shm_buffer_a8r8g8b8(struct client *client, int width, int height)
 {
-	assert(client->has_argb);
-
 	return create_shm_buffer(client, width, height, DRM_FORMAT_ARGB8888);
 }
 
@@ -574,9 +589,11 @@ static void
 shm_format(void *data, struct wl_shm *wl_shm, uint32_t format)
 {
 	struct client *client = data;
+	uint32_t *p;
 
-	if (format == WL_SHM_FORMAT_ARGB8888)
-		client->has_argb = 1;
+	p = wl_array_add(&client->shm_formats, sizeof *p);
+	assert(p);
+	*p = format;
 }
 
 struct wl_shm_listener shm_listener = {
@@ -1014,6 +1031,7 @@ create_client(void)
 	client = xzalloc(sizeof *client);
 	client->wl_display = wl_display_connect(NULL);
 	assert(client->wl_display);
+	wl_array_init(&client->shm_formats);
 	wl_list_init(&client->global_list);
 	wl_list_init(&client->inputs);
 	wl_list_init(&client->output_list);
@@ -1029,8 +1047,9 @@ create_client(void)
 	 * events */
 	client_roundtrip(client);
 
-	/* must have WL_SHM_FORMAT_ARGB32 */
-	assert(client->has_argb);
+	/* must have WL_SHM_FORMAT_*RGB8888 */
+	assert(support_shm_format(client, WL_SHM_FORMAT_ARGB8888));
+	assert(support_shm_format(client, WL_SHM_FORMAT_XRGB8888));
 
 	/* must have weston_test interface */
 	assert(client->test);
@@ -1129,6 +1148,8 @@ client_destroy(struct client *client)
 
 	if (client->surface)
 		surface_destroy(client->surface);
+
+	wl_array_release(&client->shm_formats);
 
 	while (!wl_list_empty(&client->inputs)) {
 		input_destroy(container_of(client->inputs.next,

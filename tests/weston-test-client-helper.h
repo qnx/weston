@@ -65,7 +65,7 @@ struct client {
 	struct wl_list inputs;
 	struct output *output;
 	struct surface *surface;
-	int has_argb;
+	struct wl_array shm_formats;
 	struct wl_list global_list;
 	struct wl_list output_list; /* struct output::link */
 };
@@ -214,6 +214,9 @@ surface_set_opaque_rect(struct surface *surface, const struct rectangle *rect);
 
 struct client *
 create_client_and_test_surface(int x, int y, int width, int height);
+
+bool
+support_shm_format(struct client *client, uint32_t shm_format);
 
 struct buffer *
 create_shm_buffer(struct client *client, int width, int height,
