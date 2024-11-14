@@ -87,11 +87,17 @@ shm_buffer_create(struct client *client,
 {
 	struct wl_shm_pool *pool;
 	struct shm_buffer *buf;
+	uint32_t shm_format;
 	int fd;
 
-	/* wl_shm format codes match DRM format codes except argb8888 and
-	 * xrgb8888 but we don't mind because we're testing YUV formats here. */
-	if (!support_shm_format(client, drm_format))
+	if (drm_format == DRM_FORMAT_ARGB8888)
+		shm_format = WL_SHM_FORMAT_ARGB8888;
+	else if (drm_format == DRM_FORMAT_XRGB8888)
+		shm_format = WL_SHM_FORMAT_XRGB8888;
+	else
+		shm_format = drm_format;
+
+	if (!support_shm_format(client, shm_format))
 	    return NULL;
 
 	buf = xzalloc(sizeof *buf);
@@ -111,7 +117,7 @@ shm_buffer_create(struct client *client,
 
 	pool = wl_shm_create_pool(client->wl_shm, fd, buf->bytes);
 	buf->proxy = wl_shm_pool_create_buffer(pool, 0, buf->width, buf->height,
-					       stride_bytes, drm_format);
+					       stride_bytes, shm_format);
 	wl_shm_pool_destroy(pool);
 	close(fd);
 
@@ -124,6 +130,563 @@ shm_buffer_destroy(struct shm_buffer *buf)
 	wl_buffer_destroy(buf->proxy);
 	assert(munmap(buf->data, buf->bytes) == 0);
 	free(buf);
+}
+
+/*
+ * 16 bpp RGB
+ *
+ * RGBX4444: [15:0] R:G:B:x 4:4:4:4 little endian
+ * RGBA4444: [15:0] R:G:B:A 4:4:4:4 little endian
+ *
+ * BGRX4444: [15:0] B:G:R:x 4:4:4:4 little endian
+ * BGRA4444: [15:0] B:G:R:A 4:4:4:4 little endian
+ *
+ * XRGB4444: [15:0] x:R:G:B 4:4:4:4 little endian
+ * ARGB4444: [15:0] A:R:G:B 4:4:4:4 little endian
+ *
+ * XBGR4444: [15:0] x:B:G:R 4:4:4:4 little endian
+ * ABGR4444: [15:0] A:B:G:R 4:4:4:4 little endian
+ */
+static struct shm_buffer *
+rgba4444_create_buffer(struct client *client,
+		       uint32_t drm_format,
+		       pixman_image_t *rgb_image)
+{
+	static const int swizzles[][4] = {
+		{ 3, 2, 1, 0 }, /* RGBX4444, RGBA4444 */
+		{ 1, 2, 3, 0 }, /* BGRX4444, BGRA4444 */
+		{ 2, 1, 0, 3 }, /* XRGB4444, ARGB4444 */
+		{ 0, 1, 2, 3 }, /* XBGR4444, ABGR4444 */
+	};
+
+	struct image_header src = image_header_from(rgb_image);
+	struct shm_buffer *buf;
+	bool is_opaque;
+	int idx, x, y;
+	uint16_t a;
+
+	switch (drm_format) {
+	case DRM_FORMAT_RGBX4444:
+		is_opaque = true;
+		idx = 0;
+		break;
+	case DRM_FORMAT_RGBA4444:
+		is_opaque = false;
+		idx = 0;
+		break;
+	case DRM_FORMAT_BGRX4444:
+		is_opaque = true;
+		idx = 1;
+		break;
+	case DRM_FORMAT_BGRA4444:
+		is_opaque = false;
+		idx = 1;
+		break;
+	case DRM_FORMAT_XRGB4444:
+		is_opaque = true;
+		idx = 2;
+		break;
+	case DRM_FORMAT_ARGB4444:
+		is_opaque = false;
+		idx = 2;
+		break;
+	case DRM_FORMAT_XBGR4444:
+		is_opaque = true;
+		idx = 3;
+		break;
+	case DRM_FORMAT_ABGR4444:
+		is_opaque = false;
+		idx = 3;
+		break;
+	default:
+		assert(0 && "Invalid format!");
+	};
+
+	buf = shm_buffer_create(client, src.width * src.height * 2, src.width,
+				src.height, src.width * 2, drm_format);
+
+	/* Store alpha as 0x0 to ensure the compositor correctly replaces it
+	 * with 0xf. */
+	a = is_opaque ? 0x0 : 0xf;
+
+	for (y = 0; y < src.height; y++) {
+		uint16_t *dst_row = (uint16_t*) buf->data + src.width * y;
+		uint32_t *src_row = image_header_get_row_u32(&src, y);
+
+		for (x = 0; x < src.width; x++) {
+			uint16_t r = (src_row[x] >> 20) & 0xf;
+			uint16_t g = (src_row[x] >> 12) & 0xf;
+			uint16_t b = (src_row[x] >> 4) & 0xf;
+
+			dst_row[x] =
+				r << (swizzles[idx][0] * 4) |
+				g << (swizzles[idx][1] * 4) |
+				b << (swizzles[idx][2] * 4) |
+				a << (swizzles[idx][3] * 4);
+		}
+	}
+
+	return buf;
+}
+
+/*
+ * 16 bpp RGB
+ *
+ * RGBX5551: [15:0] R:G:B:x 5:5:5:1 little endian
+ * RGBA5551: [15:0] R:G:B:A 5:5:5:1 little endian
+ *
+ * BGRX5551: [15:0] B:G:R:x 5:5:5:1 little endian
+ * BGRA5551: [15:0] B:G:R:A 5:5:5:1 little endian
+ */
+static struct shm_buffer *
+rgba5551_create_buffer(struct client *client,
+		       uint32_t drm_format,
+		       pixman_image_t *rgb_image)
+{
+	struct image_header src = image_header_from(rgb_image);
+	struct shm_buffer *buf;
+	int x, y;
+	uint16_t a;
+
+	assert(drm_format == DRM_FORMAT_RGBX5551 ||
+	       drm_format == DRM_FORMAT_RGBA5551 ||
+	       drm_format == DRM_FORMAT_BGRX5551 ||
+	       drm_format == DRM_FORMAT_BGRA5551);
+
+	buf = shm_buffer_create(client, src.width * src.height * 2, src.width,
+				src.height, src.width * 2, drm_format);
+
+	/* Store alpha as 0x0 to ensure the compositor correctly replaces it
+	 * with 0x1. */
+	a = drm_format == DRM_FORMAT_RGBX5551 ||
+		drm_format == DRM_FORMAT_RGBX5551 ? 0x0 : 0x1;
+
+	for (y = 0; y < src.height; y++) {
+		uint16_t *dst_row = (uint16_t*) buf->data + src.width * y;
+		uint32_t *src_row = image_header_get_row_u32(&src, y);
+
+		for (x = 0; x < src.width; x++) {
+			uint16_t r = (src_row[x] >> 19) & 0x1f;
+			uint16_t g = (src_row[x] >> 11) & 0x1f;
+			uint16_t b = (src_row[x] >> 3) & 0x1f;
+
+			if (drm_format == DRM_FORMAT_RGBX5551 ||
+			    drm_format == DRM_FORMAT_RGBA5551)
+				dst_row[x] = r << 11 | g << 6 | b << 1 | a;
+			else
+				dst_row[x] = b << 11 | g << 6 | r << 1 | a;
+		}
+	}
+
+	return buf;
+}
+
+/*
+ * 16 bpp RGB
+ *
+ * RGB565: [15:0] R:G:B 5:6:5 little endian
+ * BGR565: [15:0] B:G:R 5:6:5 little endian
+ */
+static struct shm_buffer *
+rgb565_create_buffer(struct client *client,
+		     uint32_t drm_format,
+		     pixman_image_t *rgb_image)
+{
+	struct image_header src = image_header_from(rgb_image);
+	struct shm_buffer *buf;
+	int x, y;
+
+	assert(drm_format == DRM_FORMAT_RGB565 ||
+	       drm_format == DRM_FORMAT_BGR565);
+
+	buf = shm_buffer_create(client, src.width * src.height * 2, src.width,
+				src.height, src.width * 2, drm_format);
+
+	for (y = 0; y < src.height; y++) {
+		uint16_t *dst_row = (uint16_t*) buf->data + src.width * y;
+		uint32_t *src_row = image_header_get_row_u32(&src, y);
+
+		for (x = 0; x < src.width; x++) {
+			uint16_t r = (src_row[x] >> 19) & 0x1f;
+			uint16_t g = (src_row[x] >> 10) & 0x3f;
+			uint16_t b = (src_row[x] >> 3) & 0x1f;
+
+			if (drm_format == DRM_FORMAT_RGB565)
+				dst_row[x] = r << 11 | g << 5 | b;
+			else
+				dst_row[x] = b << 11 | g << 5 | r;
+		}
+	}
+
+	return buf;
+}
+
+/*
+ * 24 bpp RGB
+ *
+ * RGB888: [23:0] R:G:B 8:8:8 little endian
+ * BGR888: [23:0] B:G:R 8:8:8 little endian
+ */
+static struct shm_buffer *
+rgb888_create_buffer(struct client *client,
+		     uint32_t drm_format,
+		     pixman_image_t *rgb_image)
+{
+	struct image_header src = image_header_from(rgb_image);
+	struct shm_buffer *buf;
+	int x, y;
+
+	assert(drm_format == DRM_FORMAT_RGB888 ||
+	       drm_format == DRM_FORMAT_BGR888);
+
+	buf = shm_buffer_create(client, src.width * src.height * 3, src.width,
+				src.height, src.width * 3, drm_format);
+
+	for (y = 0; y < src.height; y++) {
+		uint8_t *dst_row = (uint8_t*) buf->data + src.width * 3 * y;
+		uint32_t *src_row = image_header_get_row_u32(&src, y);
+
+		for (x = 0; x < src.width; x++) {
+			uint8_t r = src_row[x] >> 16;
+			uint8_t g = src_row[x] >> 8;
+			uint8_t b = src_row[x];
+
+			if (drm_format == DRM_FORMAT_RGB888) {
+				dst_row[x * 3 + 2] = b;
+				dst_row[x * 3 + 1] = g;
+				dst_row[x * 3 + 0] = r;
+			} else {
+				dst_row[x * 3 + 2] = r;
+				dst_row[x * 3 + 1] = g;
+				dst_row[x * 3 + 0] = b;
+			}
+		}
+	}
+
+	return buf;
+}
+
+/*
+ * 32 bpp RGB
+ *
+ * RGBX8888: [31:0] R:G:B:x 8:8:8:8 little endian
+ * RGBA8888: [31:0] R:G:B:A 8:8:8:8 little endian
+ *
+ * BGRX8888: [31:0] B:G:R:x 8:8:8:8 little endian
+ * BGRA8888: [31:0] B:G:R:A 8:8:8:8 little endian
+ *
+ * XRGB8888: [31:0] x:R:G:B 8:8:8:8 little endian
+ * ARGB8888: [31:0] A:R:G:B 8:8:8:8 little endian
+ *
+ * XBGR8888: [31:0] x:B:G:R 8:8:8:8 little endian
+ * ABGR8888: [31:0] A:B:G:R 8:8:8:8 little endian
+ */
+static struct shm_buffer *
+rgba8888_create_buffer(struct client *client,
+		       uint32_t drm_format,
+		       pixman_image_t *rgb_image)
+{
+	static const int swizzles[][4] = {
+		{ 3, 2, 1, 0 }, /* RGBX8888, RGBA8888 */
+		{ 1, 2, 3, 0 }, /* BGRX8888, BGRA8888 */
+		{ 2, 1, 0, 3 }, /* XRGB8888, ARGB8888 */
+		{ 0, 1, 2, 3 }, /* XBGR8888, ABGR8888 */
+	};
+
+	struct image_header src = image_header_from(rgb_image);
+	struct shm_buffer *buf;
+	bool is_opaque;
+	int idx, x, y;
+	uint32_t a;
+
+	switch (drm_format) {
+	case DRM_FORMAT_RGBX8888:
+		is_opaque = true;
+		idx = 0;
+		break;
+	case DRM_FORMAT_RGBA8888:
+		is_opaque = false;
+		idx = 0;
+		break;
+	case DRM_FORMAT_BGRX8888:
+		is_opaque = true;
+		idx = 1;
+		break;
+	case DRM_FORMAT_BGRA8888:
+		is_opaque = false;
+		idx = 1;
+		break;
+	case DRM_FORMAT_XRGB8888:
+		is_opaque = true;
+		idx = 2;
+		break;
+	case DRM_FORMAT_ARGB8888:
+		is_opaque = false;
+		idx = 2;
+		break;
+	case DRM_FORMAT_XBGR8888:
+		is_opaque = true;
+		idx = 3;
+		break;
+	case DRM_FORMAT_ABGR8888:
+		is_opaque = false;
+		idx = 3;
+		break;
+	default:
+		assert(0 && "Invalid format!");
+	};
+
+	buf = shm_buffer_create(client, src.width * src.height * 4, src.width,
+				src.height, src.width * 4, drm_format);
+
+	/* Store alpha as 0x00 to ensure the compositor correctly replaces it
+	 * with 0xff. */
+	a = is_opaque ? 0x00 : 0xff;
+
+	for (y = 0; y < src.height; y++) {
+		uint32_t *dst_row = (uint32_t*) buf->data + src.width * y;
+		uint32_t *src_row = image_header_get_row_u32(&src, y);
+
+		for (x = 0; x < src.width; x++) {
+			uint32_t r = (src_row[x] >> 16) & 0xff;
+			uint32_t g = (src_row[x] >> 8) & 0xff;
+			uint32_t b = (src_row[x] >> 0) & 0xff;
+
+			dst_row[x] =
+				r << (swizzles[idx][0] * 8) |
+				g << (swizzles[idx][1] * 8) |
+				b << (swizzles[idx][2] * 8) |
+				a << (swizzles[idx][3] * 8);
+		}
+	}
+
+	return buf;
+}
+
+/*
+ * 32 bpp RGB
+ *
+ * XRGB2101010: [31:0] x:R:G:B 2:10:10:10 little endian
+ * ARGB2101010: [31:0] A:R:G:B 2:10:10:10 little endian
+ *
+ * XBGR2101010: [31:0] x:B:G:R 2:10:10:10 little endian
+ * ABGR2101010: [31:0] A:B:G:R 2:10:10:10 little endian
+ */
+static struct shm_buffer *
+rgba2101010_create_buffer(struct client *client,
+			  uint32_t drm_format,
+			  pixman_image_t *rgb_image)
+{
+	struct image_header src = image_header_from(rgb_image);
+	struct shm_buffer *buf;
+	int x, y;
+	uint32_t a;
+
+	assert(drm_format == DRM_FORMAT_XRGB2101010 ||
+	       drm_format == DRM_FORMAT_ARGB2101010 ||
+	       drm_format == DRM_FORMAT_XBGR2101010 ||
+	       drm_format == DRM_FORMAT_ABGR2101010);
+
+	buf = shm_buffer_create(client, src.width * src.height * 4, src.width,
+				src.height, src.width * 4, drm_format);
+
+	/* Store alpha as 0x0 to ensure the compositor correctly replaces it
+	 * with 0x3. */
+	a = drm_format == DRM_FORMAT_XRGB2101010 ||
+		drm_format == DRM_FORMAT_XRGB2101010 ? 0x0 : 0x3;
+
+	for (y = 0; y < src.height; y++) {
+		uint32_t *dst_row = (uint32_t*) buf->data + src.width * y;
+		uint32_t *src_row = image_header_get_row_u32(&src, y);
+
+		for (x = 0; x < src.width; x++) {
+			uint32_t r = ((src_row[x] >> 16) & 0xff) << 2;
+			uint32_t g = ((src_row[x] >> 8) & 0xff) << 2;
+			uint32_t b = ((src_row[x] >> 0) & 0xff) << 2;
+
+			if (drm_format == DRM_FORMAT_XRGB2101010 ||
+			    drm_format == DRM_FORMAT_ARGB2101010)
+				dst_row[x] = a << 30 | r << 20 | g << 10 | b;
+			else
+				dst_row[x] = a << 30 | b << 20 | g << 10 | r;
+		}
+	}
+
+	return buf;
+}
+
+/*
+ * 64 bpp RGB
+ *
+ * XRGB16161616: [63:0] x:R:G:B 16:16:16:16 little endian
+ * ARGB16161616: [63:0] A:R:G:B 16:16:16:16 little endian
+ *
+ * XBGR16161616: [63:0] x:B:G:R 16:16:16:16 little endian
+ * ABGR16161616: [63:0] A:B:G:R 16:16:16:16 little endian
+ */
+static struct shm_buffer *
+rgba16161616_create_buffer(struct client *client,
+			   uint32_t drm_format,
+			   pixman_image_t *rgb_image)
+{
+	static const int swizzles[][4] = {
+		{ 2, 1, 0, 3 }, /* XRGB16161616, ARGB16161616 */
+		{ 0, 1, 2, 3 }, /* XBGR16161616, ABGR16161616 */
+	};
+
+	struct image_header src = image_header_from(rgb_image);
+	struct shm_buffer *buf;
+	bool is_opaque;
+	int idx, x, y;
+	uint64_t a;
+
+	switch (drm_format) {
+	case DRM_FORMAT_XRGB16161616:
+		is_opaque = true;
+		idx = 0;
+		break;
+	case DRM_FORMAT_ARGB16161616:
+		is_opaque = false;
+		idx = 0;
+		break;
+	case DRM_FORMAT_XBGR16161616:
+		is_opaque = true;
+		idx = 1;
+		break;
+	case DRM_FORMAT_ABGR16161616:
+		is_opaque = false;
+		idx = 1;
+		break;
+	default:
+		assert(0 && "Invalid format!");
+	};
+
+	buf = shm_buffer_create(client, src.width * src.height * 8, src.width,
+				src.height, src.width * 8, drm_format);
+
+	/* Store alpha as 0x0000 to ensure the compositor correctly replaces it
+	 * with 0xffff. */
+	a = is_opaque ? 0x0000 : 0xffff;
+
+	for (y = 0; y < src.height; y++) {
+		uint64_t *dst_row = (uint64_t*) buf->data + src.width * y;
+		uint32_t *src_row = image_header_get_row_u32(&src, y);
+
+		for (x = 0; x < src.width; x++) {
+			uint64_t r = ((src_row[x] >> 16) & 0xff) << 8;
+			uint64_t g = ((src_row[x] >> 8) & 0xff) << 8;
+			uint64_t b = ((src_row[x] >> 0) & 0xff) << 8;
+
+			dst_row[x] =
+				r << (swizzles[idx][0] * 16) |
+				g << (swizzles[idx][1] * 16) |
+				b << (swizzles[idx][2] * 16) |
+				a << (swizzles[idx][3] * 16);
+		}
+	}
+
+	return buf;
+}
+
+/* Convert an IEEE 754-2008 binary32 value to binary16 bits. Doesn't bother
+ * supporting Inf, Nan or subnormal numbers. Simply return signed 0 if there's
+ * an underflow due to the loss of precision. */
+static uint16_t
+binary16_from_binary32(float binary32)
+{
+	uint32_t bits;
+	uint16_t sign, significand, exponent;
+
+	memcpy(&bits, &binary32, 4);
+
+	sign = bits >> 31;
+	exponent = (bits >> 23) & 0xff;
+	significand = (bits >> 13) & 0x3ff;
+
+	if (exponent >= 103)
+		return sign << 15 | (exponent - 112) << 10 | significand;
+	else
+		return sign << 15;
+}
+
+/*
+ * Floating point 64bpp RGB
+ * IEEE 754-2008 binary16 half-precision float
+ * [15:0] sign:exponent:mantissa 1:5:10
+ *
+ * XRGB16161616F: [63:0] x:R:G:B 16:16:16:16 little endian
+ * ARGB16161616F: [63:0] A:R:G:B 16:16:16:16 little endian
+ *
+ * XBGR16161616F: [63:0] x:B:G:R 16:16:16:16 little endian
+ * ABGR16161616F: [63:0] A:B:G:R 16:16:16:16 little endian
+ */
+static struct shm_buffer *
+rgba16161616f_create_buffer(struct client *client,
+			    uint32_t drm_format,
+			    pixman_image_t *rgb_image)
+{
+	static const int swizzles[][4] = {
+		{ 2, 1, 0, 3 }, /* XRGB16161616F, ARGB16161616F */
+		{ 0, 1, 2, 3 }, /* XBGR16161616F, ABGR16161616F */
+	};
+
+	struct image_header src = image_header_from(rgb_image);
+	struct shm_buffer *buf;
+	bool is_opaque;
+	int idx, x, y;
+	uint64_t a;
+
+	switch (drm_format) {
+	case DRM_FORMAT_XRGB16161616F:
+		is_opaque = true;
+		idx = 0;
+		break;
+	case DRM_FORMAT_ARGB16161616F:
+		is_opaque = false;
+		idx = 0;
+		break;
+	case DRM_FORMAT_XBGR16161616F:
+		is_opaque = true;
+		idx = 1;
+		break;
+	case DRM_FORMAT_ABGR16161616F:
+		is_opaque = false;
+		idx = 1;
+		break;
+	default:
+		assert(0 && "Invalid format!");
+	};
+
+	buf = shm_buffer_create(client, src.width * src.height * 8, src.width,
+				src.height, src.width * 8, drm_format);
+
+	/* Store alpha as 0.0 to ensure the compositor correctly replaces it
+	 * with 1.0. */
+	a = is_opaque ?
+		binary16_from_binary32(0.0f) :
+		binary16_from_binary32(1.0f);
+
+	for (y = 0; y < src.height; y++) {
+		uint64_t *dst_row = (uint64_t*) buf->data + src.width * y;
+		uint32_t *src_row = image_header_get_row_u32(&src, y);
+
+		for (x = 0; x < src.width; x++) {
+			uint64_t r = ((src_row[x] >> 16) & 0xff) << 8;
+			uint64_t g = ((src_row[x] >> 8) & 0xff) << 8;
+			uint64_t b = ((src_row[x] >> 0) & 0xff) << 8;
+			r = binary16_from_binary32(r / 65535.0f);
+			g = binary16_from_binary32(g / 65535.0f);
+			b = binary16_from_binary32(b / 65535.0f);
+
+			dst_row[x] =
+				r << (swizzles[idx][0] * 16) |
+				g << (swizzles[idx][1] * 16) |
+				b << (swizzles[idx][2] * 16) |
+				a << (swizzles[idx][3] * 16);
+		}
+	}
+
+	return buf;
 }
 
 /*
@@ -790,24 +1353,62 @@ show_window_with_shm(struct client *client, struct shm_buffer *buf)
 
 static const struct shm_case shm_cases[] = {
 #define FMT(x) DRM_FORMAT_ ##x, #x
-	{ FMT(YUV420), 0, y_u_v_create_buffer },
-	{ FMT(YVU420), 0, y_u_v_create_buffer },
-	{ FMT(YUV444), 0, y_u_v_create_buffer },
-	{ FMT(YVU444), 0, y_u_v_create_buffer },
-	{ FMT(NV12), 0, nv12_create_buffer },
-	{ FMT(NV21), 0, nv12_create_buffer },
-	{ FMT(NV16), 0, nv16_create_buffer },
-	{ FMT(NV61), 0, nv16_create_buffer },
-	{ FMT(NV24), 0, nv24_create_buffer },
-	{ FMT(NV42), 0, nv24_create_buffer },
-	{ FMT(YUYV), 0, yuyv_create_buffer },
-	{ FMT(YVYU), 0, yuyv_create_buffer },
-	{ FMT(UYVY), 0, yuyv_create_buffer },
-	{ FMT(VYUY), 0, yuyv_create_buffer },
-	{ FMT(XYUV8888), 0, xyuv8888_create_buffer },
-	{ FMT(P016), 1, p016_create_buffer },
-	{ FMT(P012), 1, p016_create_buffer },
-	{ FMT(P010), 1, p016_create_buffer },
+	/* RGB */
+	{ FMT(RGBX4444), 0, rgba4444_create_buffer },
+	{ FMT(RGBA4444), 0, rgba4444_create_buffer },
+	{ FMT(BGRX4444), 0, rgba4444_create_buffer },
+	{ FMT(BGRA4444), 0, rgba4444_create_buffer },
+	{ FMT(XRGB4444), 0, rgba4444_create_buffer },
+	{ FMT(ARGB4444), 0, rgba4444_create_buffer },
+	{ FMT(XBGR4444), 0, rgba4444_create_buffer },
+	{ FMT(ABGR4444), 0, rgba4444_create_buffer },
+	{ FMT(RGBX5551), 1, rgba5551_create_buffer },
+	{ FMT(RGBA5551), 1, rgba5551_create_buffer },
+	{ FMT(BGRX5551), 1, rgba5551_create_buffer },
+	{ FMT(BGRA5551), 1, rgba5551_create_buffer },
+	{ FMT(RGB565), 2, rgb565_create_buffer },
+	{ FMT(BGR565), 2, rgb565_create_buffer },
+	{ FMT(RGB888), 3, rgb888_create_buffer },
+	{ FMT(BGR888), 3, rgb888_create_buffer },
+	{ FMT(RGBX8888), 3, rgba8888_create_buffer },
+	{ FMT(RGBA8888), 3, rgba8888_create_buffer },
+	{ FMT(BGRX8888), 3, rgba8888_create_buffer },
+	{ FMT(BGRA8888), 3, rgba8888_create_buffer },
+	{ FMT(XRGB8888), 3, rgba8888_create_buffer },
+	{ FMT(ARGB8888), 3, rgba8888_create_buffer },
+	{ FMT(XBGR8888), 3, rgba8888_create_buffer },
+	{ FMT(ABGR8888), 3, rgba8888_create_buffer },
+	{ FMT(XRGB2101010), 3, rgba2101010_create_buffer },
+	{ FMT(ARGB2101010), 3, rgba2101010_create_buffer },
+	{ FMT(XBGR2101010), 3, rgba2101010_create_buffer },
+	{ FMT(ABGR2101010), 3, rgba2101010_create_buffer },
+	{ FMT(XRGB16161616), 3, rgba16161616_create_buffer },
+	{ FMT(ARGB16161616), 3, rgba16161616_create_buffer },
+	{ FMT(XBGR16161616), 3, rgba16161616_create_buffer },
+	{ FMT(ABGR16161616), 3, rgba16161616_create_buffer },
+	{ FMT(XRGB16161616F), 3, rgba16161616f_create_buffer },
+	{ FMT(ARGB16161616F), 3, rgba16161616f_create_buffer },
+	{ FMT(XBGR16161616F), 3, rgba16161616f_create_buffer },
+	{ FMT(ABGR16161616F), 3, rgba16161616f_create_buffer },
+	/* YUV */
+	{ FMT(YUV420), 4, y_u_v_create_buffer },
+	{ FMT(YVU420), 4, y_u_v_create_buffer },
+	{ FMT(YUV444), 4, y_u_v_create_buffer },
+	{ FMT(YVU444), 4, y_u_v_create_buffer },
+	{ FMT(NV12), 4, nv12_create_buffer },
+	{ FMT(NV21), 4, nv12_create_buffer },
+	{ FMT(NV16), 4, nv16_create_buffer },
+	{ FMT(NV61), 4, nv16_create_buffer },
+	{ FMT(NV24), 4, nv24_create_buffer },
+	{ FMT(NV42), 4, nv24_create_buffer },
+	{ FMT(YUYV), 4, yuyv_create_buffer },
+	{ FMT(YVYU), 4, yuyv_create_buffer },
+	{ FMT(UYVY), 4, yuyv_create_buffer },
+	{ FMT(VYUY), 4, yuyv_create_buffer },
+	{ FMT(XYUV8888), 4, xyuv8888_create_buffer },
+	{ FMT(P016), 5, p016_create_buffer },
+	{ FMT(P012), 5, p016_create_buffer },
+	{ FMT(P010), 5, p016_create_buffer },
 #undef FMT
 };
 
@@ -826,6 +1427,8 @@ TEST_P(shm_buffer, shm_cases)
 	testlog("%s: format %s\n", get_test_name(), my_case->drm_format_name);
 
 	/*
+	 * Note for YUV formats:
+	 *
 	 * This test image is 256 x 256 pixels.
 	 *
 	 * Therefore this test does NOT exercise:
