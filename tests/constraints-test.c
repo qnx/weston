@@ -25,7 +25,6 @@
 
 #include "config.h"
 
-#include <linux/input-event-codes.h>
 #include <linux/input.h>
 #include <wayland-client-protocol.h>
 
