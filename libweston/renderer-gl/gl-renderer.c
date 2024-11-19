@@ -43,7 +43,9 @@
 #include <linux/input.h>
 #include <unistd.h>
 
+#ifdef HAVE_GBM
 #include <gbm.h>
+#endif
 
 #include "linux-sync-file.h"
 #include "timeline.h"
@@ -151,6 +153,11 @@ struct gl_capture_task {
 	EGLSyncKHR sync;
 	int fd;
 };
+
+#ifndef HAVE_GBM
+struct gbm_device;
+struct gbm_bo;
+#endif
 
 struct dmabuf_allocator {
 	struct gbm_device *gbm_device;
@@ -4207,6 +4214,7 @@ gl_renderer_remove_renderbuffer_dmabuf(struct weston_output *output,
 	gl_renderer_remove_renderbuffer(gl_renderbuffer);
 }
 
+#ifdef HAVE_GBM
 static void
 gl_renderer_dmabuf_destroy(struct linux_dmabuf_memory *dmabuf)
 {
@@ -4224,6 +4232,7 @@ gl_renderer_dmabuf_destroy(struct linux_dmabuf_memory *dmabuf)
 	gbm_bo_destroy(gl_renderer_dmabuf->bo);
 	free(gl_renderer_dmabuf);
 }
+#endif
 
 static struct linux_dmabuf_memory *
 gl_renderer_dmabuf_alloc(struct weston_renderer *renderer,
@@ -4233,15 +4242,16 @@ gl_renderer_dmabuf_alloc(struct weston_renderer *renderer,
 {
 	struct gl_renderer *gr = (struct gl_renderer *)renderer;
 	struct dmabuf_allocator *allocator = gr->allocator;
-	struct gl_renderer_dmabuf_memory *gl_renderer_dmabuf;
-	struct linux_dmabuf_memory *dmabuf;
-	struct dmabuf_attributes *attributes;
-	struct gbm_bo *bo;
-	int i;
+	struct linux_dmabuf_memory *dmabuf = NULL;
 
 	if (!allocator)
 		return NULL;
 
+#ifdef HAVE_GBM
+	struct gl_renderer_dmabuf_memory *gl_renderer_dmabuf;
+	struct dmabuf_attributes *attributes;
+	struct gbm_bo *bo;
+	int i;
 #ifdef HAVE_GBM_BO_CREATE_WITH_MODIFIERS2
 	bo = gbm_bo_create_with_modifiers2(allocator->gbm_device,
 					   width, height, format,
@@ -4280,6 +4290,7 @@ gl_renderer_dmabuf_alloc(struct weston_renderer *renderer,
 	dmabuf = &gl_renderer_dmabuf->base;
 	dmabuf->attributes = attributes;
 	dmabuf->destroy = gl_renderer_dmabuf_destroy;
+#endif
 
 	return dmabuf;
 }
@@ -4340,8 +4351,13 @@ gl_renderer_allocator_destroy(struct dmabuf_allocator *allocator)
 	if (!allocator)
 		return;
 
+#ifdef HAVE_GBM
 	if (allocator->gbm_device && allocator->has_own_device)
 		gbm_device_destroy(allocator->gbm_device);
+
+#else
+	assert(!allocator->has_own_device);
+#endif
 
 	free(allocator);
 }
@@ -4356,11 +4372,13 @@ gl_renderer_allocator_create(struct gl_renderer *gr,
 
 	if (options->egl_platform == EGL_PLATFORM_GBM_KHR)
 		gbm = options->egl_native_display;
+#ifdef HAVE_GBM
 	if (!gbm && gr->drm_device) {
 		int fd = open(gr->drm_device, O_RDWR);
 		gbm = gbm_create_device(fd);
 		has_own_device = true;
 	}
+#endif
 	if (!gbm)
 		return NULL;
 

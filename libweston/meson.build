@@ -88,6 +88,9 @@ subdir('desktop')
 subdir('shell-utils')
 
 dep_gbm = dependency('gbm', required: false, version: '>= 21.1.1')
+if dep_gbm.found()
+	config_h.set('HAVE_GBM', '1')
+endif
 
 if get_option('backend-vnc')
 	dep_pam = dependency('pam', required: false)

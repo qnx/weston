@@ -30,13 +30,16 @@ srcs_renderer_gl = [
 ]
 
 deps_renderer_gl = [
-	dep_gbm,
 	dep_libm,
 	dep_pixman,
 	dep_libweston_private,
 	dep_libdrm_headers,
 	dep_vertex_clipping
 ]
+
+if dep_gbm.found()
+	deps_renderer_gl += dep_gbm
+endif
 
 foreach name : [ 'egl', 'glesv2' ]
 	d = dependency(name, required: false)
