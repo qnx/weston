@@ -108,6 +108,7 @@ prog_args_fini(struct prog_args *p)
 	prog_args_init(p);
 }
 
+#ifdef BUILD_DRM_COMPOSITOR
 static char *
 get_lock_path(void)
 {
@@ -173,6 +174,7 @@ err_open:
 err_path:
 	return -1;
 }
+#endif
 
 /** Initialize part of compositor setup
  *
@@ -278,7 +280,9 @@ execute_compositor(const struct compositor_setup *setup,
 	struct weston_testsuite_data test_data;
 	struct prog_args args;
 	char *tmp;
+#ifdef BUILD_DRM_COMPOSITOR
 	const char *drm_device;
+#endif
 	int lock_fd = -1;
 	int ret = RESULT_OK;
 
