@@ -600,7 +600,7 @@ weston_config_get_binding_modifier(struct weston_config *config,
 		weston_config_section_get_string(shell_section,
 				"binding-modifier", &mod_string, "super");
 
-	if (!mod_string || !strcmp(mod_string, "none"))
+	if (!mod_string)
 		mod = default_mod;
 	else if (!strcmp(mod_string, "super"))
 		mod = MODIFIER_SUPER;
@@ -610,6 +610,8 @@ weston_config_get_binding_modifier(struct weston_config *config,
 		mod = MODIFIER_CTRL;
 	else if (!strcmp(mod_string, "shift"))
 		mod = MODIFIER_SHIFT;
+	else if (!strcmp(mod_string, "none"))
+		mod = 0;
 
 	free(mod_string);
 
