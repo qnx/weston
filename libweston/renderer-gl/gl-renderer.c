@@ -2947,10 +2947,6 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 		int shm_offset[3] = { 0 };
 		int bpp = buffer->pixel_format->bpp;
 
-		/* XXX: Pitch here is given in pixel units, whereas offset is
-		 * given in byte units. This is fragile and will break with
-		 * new formats.
-		 */
 		if (!bpp)
 			bpp = pixel_format_get_info(yuv->plane[0].format)->bpp;
 		pitch = buffer->stride / (bpp / 8);
@@ -2963,10 +2959,12 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 		for (i = 1; i < shm_plane_count; i++) {
 			int hsub, vsub;
 
+			bpp = pixel_format_get_info(yuv->plane[i - 1].format)->bpp;
 			hsub = pixel_format_hsub(buffer->pixel_format, i - 1);
 			vsub = pixel_format_vsub(buffer->pixel_format, i - 1);
 			shm_offset[i] = shm_offset[i - 1] +
-				((pitch / hsub) * (buffer->height / vsub));
+				(buffer->stride / hsub) *
+				(buffer->height / vsub);
 		}
 
 		num_planes = yuv->output_planes;

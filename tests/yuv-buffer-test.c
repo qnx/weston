@@ -38,6 +38,11 @@
 #include "shared/weston-drm-fourcc.h"
 #include "shared/xalloc.h"
 
+/* XXX For formats with more than 8 bit pre component, we should ideally load a
+ * 16-bit (or 32-bit) per component image and store into a 16-bit (or 32-bit)
+ * per component renderbuffer so that we can ensure the additional precision is
+ * correctly handled. */
+
 static enum test_result_code
 fixture_setup(struct weston_test_harness *harness)
 {
@@ -66,6 +71,7 @@ struct yuv_buffer {
 struct yuv_case {
 	uint32_t drm_format;
 	const char *drm_format_name;
+	int ref_seq_no;
 	struct yuv_buffer *(*create_buffer)(struct client *client,
 					    uint32_t drm_format,
 					    pixman_image_t *rgb_image);
@@ -150,6 +156,47 @@ x8r8g8b8_to_ycbcr8_bt709(uint32_t xrgb,
 		*cr_out = round(224.0 * cr + 128.0);
 	if (cb_out)
 		*cb_out = round(224.0 * cb + 128.0);
+}
+
+/*
+ * Same as above but for conversion to 16-bit Y'CbCr formats. 'depth' can be set
+ * to any value in the range [9, 16]. If 'depth' is less than 16, components are
+ * aligned to the most significant bit with the least significant bits set to 0.
+ */
+static void
+x8r8g8b8_to_ycbcr16_bt709(uint32_t xrgb, int depth,
+			  uint16_t *y_out, uint16_t *cb_out, uint16_t *cr_out)
+{
+	uint16_t d;
+	double y, cb, cr;
+	double r = (xrgb >> 16) & 0xff;
+	double g = (xrgb >> 8) & 0xff;
+	double b = (xrgb >> 0) & 0xff;
+
+	/* Rec. ITU-R BT.709-6 defines D as 1 or 4 for 8-bit or 10-bit
+	 * quantization respectively. We extrapolate here to [9, 16]-bit depths
+	 * by setting D to 2^(depth - 8). */
+	assert(depth >= 9 && depth <= 16);
+	d = 1 << (depth - 8);
+
+	/* normalize to [0.0, 1.0] */
+	r /= 255.0;
+	g /= 255.0;
+	b /= 255.0;
+
+	/* Y normalized to [0.0, 1.0], Cb and Cr [-0.5, 0.5] */
+	y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+	cr = (r - y) / 1.5748;
+	cb = (b - y) / 1.8556;
+
+	/* limited range quantization to [9, 16]-bit aligned to the MSB */
+	*y_out = (uint16_t) round((219.0 * y + 16.0) * d) << (16 - depth);
+	if (cr_out)
+		*cr_out = (uint16_t)
+			round((224.0 * cr + 128.0) * d) << (16 - depth);
+	if (cb_out)
+		*cb_out = (uint16_t)
+			round((224.0 * cb + 128.0) * d) << (16 - depth);
 }
 
 /*
@@ -636,6 +683,95 @@ xyuv8888_create_buffer(struct client *client,
 	return buf;
 }
 
+/*
+ * 2 plane YCbCr MSB aligned
+ *
+ * P016: index 0 = Y plane, [15:0] Y little endian
+ *       index 1 = Cr:Cb plane, [31:0] Cr:Cb [16:16] little endian
+ *       2x2 subsampled Cr:Cb plane 16 bits per channel
+ *
+ * P012: index 0 = Y plane, [15:0] Y:x [12:4] little endian
+ *       index 1 = Cr:Cb plane, [31:0] Cr:x:Cb:x [12:4:12:4] little endian
+ *       2x2 subsampled Cr:Cb plane 12 bits per channel
+ *
+ * P010: index 0 = Y plane, [15:0] Y:x [10:6] little endian
+ *       index 1 = Cr:Cb plane, [31:0] Cr:x:Cb:x [10:6:10:6] little endian
+ *       2x2 subsampled Cr:Cb plane 10 bits per channel
+ */
+static struct yuv_buffer *
+p016_create_buffer(struct client *client,
+		   uint32_t drm_format,
+		   pixman_image_t *rgb_image)
+{
+	struct image_header rgb = image_header_from(rgb_image);
+	struct yuv_buffer *buf;
+	size_t bytes;
+	int depth, x, y;
+	uint32_t *rgb_row;
+	uint16_t *y_base;
+	uint32_t *uv_base;
+	uint16_t *y_row;
+	uint32_t *uv_row;
+	uint32_t argb;
+	uint16_t cr;
+	uint16_t cb;
+
+	switch (drm_format) {
+	case DRM_FORMAT_P016:
+		depth = 16;
+		break;
+	case DRM_FORMAT_P012:
+		depth = 12;
+		break;
+	case DRM_FORMAT_P010:
+		depth = 10;
+		break;
+	default:
+		assert(0 && "Invalid format!");
+	};
+
+	/* Full size Y, quarter UV */
+	bytes = rgb.width * rgb.height * sizeof(uint16_t) +
+		(rgb.width / 2) * (rgb.height / 2) * sizeof(uint32_t);
+	buf = yuv_buffer_create(client, bytes, rgb.width, rgb.height,
+				rgb.width * sizeof(uint16_t), drm_format);
+
+	y_base = buf->data;
+	uv_base = (uint32_t *)(y_base + rgb.width * rgb.height);
+
+	for (y = 0; y < rgb.height; y++) {
+		rgb_row = image_header_get_row_u32(&rgb, y / 2 * 2);
+		y_row = y_base + y * rgb.width;
+		uv_row = uv_base + (y / 2) * (rgb.width / 2);
+
+		for (x = 0; x < rgb.width; x++) {
+			/*
+			 * Sub-sample the source image instead, so that U and V
+			 * sub-sampling does not require proper
+			 * filtering/averaging/siting.
+			 */
+			argb = *(rgb_row + x / 2 * 2);
+
+			/*
+			 * A stupid way of "sub-sampling" chroma. This does not
+			 * do the necessary filtering/averaging/siting.
+			 */
+			if ((x & 1) == 0 && (y & 1) == 0) {
+				x8r8g8b8_to_ycbcr16_bt709(argb, depth,
+							  y_row + x,  &cb, &cr);
+				*(uv_row + x / 2) =
+					((uint32_t) cr << 16) |
+					((uint32_t) cb << 0);
+			} else {
+				x8r8g8b8_to_ycbcr16_bt709(argb, depth,
+							  y_row + x, NULL, NULL);
+			}
+		}
+	}
+
+	return buf;
+}
+
 static void
 show_window_with_yuv(struct client *client, struct yuv_buffer *buf)
 {
@@ -654,21 +790,24 @@ show_window_with_yuv(struct client *client, struct yuv_buffer *buf)
 
 static const struct yuv_case yuv_cases[] = {
 #define FMT(x) DRM_FORMAT_ ##x, #x
-	{ FMT(YUV420), y_u_v_create_buffer },
-	{ FMT(YVU420), y_u_v_create_buffer },
-	{ FMT(YUV444), y_u_v_create_buffer },
-	{ FMT(YVU444), y_u_v_create_buffer },
-	{ FMT(NV12), nv12_create_buffer },
-	{ FMT(NV21), nv12_create_buffer },
-	{ FMT(NV16), nv16_create_buffer },
-	{ FMT(NV61), nv16_create_buffer },
-	{ FMT(NV24), nv24_create_buffer },
-	{ FMT(NV42), nv24_create_buffer },
-	{ FMT(YUYV), yuyv_create_buffer },
-	{ FMT(YVYU), yuyv_create_buffer },
-	{ FMT(UYVY), yuyv_create_buffer },
-	{ FMT(VYUY), yuyv_create_buffer },
-	{ FMT(XYUV8888), xyuv8888_create_buffer },
+	{ FMT(YUV420), 0, y_u_v_create_buffer },
+	{ FMT(YVU420), 0, y_u_v_create_buffer },
+	{ FMT(YUV444), 0, y_u_v_create_buffer },
+	{ FMT(YVU444), 0, y_u_v_create_buffer },
+	{ FMT(NV12), 0, nv12_create_buffer },
+	{ FMT(NV21), 0, nv12_create_buffer },
+	{ FMT(NV16), 0, nv16_create_buffer },
+	{ FMT(NV61), 0, nv16_create_buffer },
+	{ FMT(NV24), 0, nv24_create_buffer },
+	{ FMT(NV42), 0, nv24_create_buffer },
+	{ FMT(YUYV), 0, yuyv_create_buffer },
+	{ FMT(YVYU), 0, yuyv_create_buffer },
+	{ FMT(UYVY), 0, yuyv_create_buffer },
+	{ FMT(VYUY), 0, yuyv_create_buffer },
+	{ FMT(XYUV8888), 0, xyuv8888_create_buffer },
+	{ FMT(P016), 1, p016_create_buffer },
+	{ FMT(P012), 1, p016_create_buffer },
+	{ FMT(P010), 1, p016_create_buffer },
 #undef FMT
 };
 
@@ -720,7 +859,8 @@ TEST_P(yuv_buffer_shm, yuv_cases)
 	}
 	show_window_with_yuv(client, buf);
 
-	match = verify_screen_content(client, "yuv-buffer", 0, NULL, 0, NULL);
+	match = verify_screen_content(client, "yuv-buffer", my_case->ref_seq_no,
+				      NULL, 0, NULL);
 	assert(match);
 
 	yuv_buffer_destroy(buf);
