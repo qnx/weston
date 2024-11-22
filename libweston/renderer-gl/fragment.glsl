@@ -37,10 +37,9 @@
 #define SHADER_VARIANT_RGBA     1
 #define SHADER_VARIANT_Y_U_V    2
 #define SHADER_VARIANT_Y_UV     3
-#define SHADER_VARIANT_Y_XUXV   4
-#define SHADER_VARIANT_XYUV     5
-#define SHADER_VARIANT_SOLID    6
-#define SHADER_VARIANT_EXTERNAL 7
+#define SHADER_VARIANT_XYUV     4
+#define SHADER_VARIANT_SOLID    5
+#define SHADER_VARIANT_EXTERNAL 6
 
 /* enum gl_shader_color_curve */
 #define SHADER_COLOR_CURVE_IDENTITY 0
@@ -210,10 +209,6 @@ sample_input_texture()
 	} else if (c_variant == SHADER_VARIANT_Y_UV) {
 		yuva.x = texture2D_swizzle(tex, 0, v_texcoord).x;
 		yuva.yz = texture2D_swizzle(tex1, 1, v_texcoord).rg;
-
-	} else if (c_variant == SHADER_VARIANT_Y_XUXV) {
-		yuva.x = texture2D_swizzle(tex, 0, v_texcoord).x;
-		yuva.yz = texture2D_swizzle(tex1, 1, v_texcoord).ga;
 
 	} else if (c_variant == SHADER_VARIANT_XYUV) {
 		yuva.xyz = texture2D_swizzle(tex, 0, v_texcoord).bgr;

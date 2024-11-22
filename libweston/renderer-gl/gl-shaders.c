@@ -118,7 +118,6 @@ gl_shader_texture_variant_to_string(enum gl_shader_texture_variant v)
 	CASERET(SHADER_VARIANT_RGBA)
 	CASERET(SHADER_VARIANT_Y_U_V)
 	CASERET(SHADER_VARIANT_Y_UV)
-	CASERET(SHADER_VARIANT_Y_XUXV)
 	CASERET(SHADER_VARIANT_XYUV)
 	CASERET(SHADER_VARIANT_SOLID)
 	CASERET(SHADER_VARIANT_EXTERNAL)
@@ -636,7 +635,6 @@ gl_shader_texture_variant_can_be_premult(enum gl_shader_texture_variant v)
 	case SHADER_VARIANT_NONE:
 	case SHADER_VARIANT_Y_U_V:
 	case SHADER_VARIANT_Y_UV:
-	case SHADER_VARIANT_Y_XUXV:
 	case SHADER_VARIANT_XYUV:
 		return false;
 	}
