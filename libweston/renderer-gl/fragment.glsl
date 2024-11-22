@@ -202,12 +202,12 @@ sample_input_texture()
 	/* Requires conversion to RGBA */
 
 	if (c_variant == SHADER_VARIANT_Y_U_V) {
-		yuva.x = texture2D_swizzle(tex, 0, v_texcoord).x;
-		yuva.y = texture2D_swizzle(tex1, 1, v_texcoord).x;
-		yuva.z = texture2D_swizzle(tex2, 2, v_texcoord).x;
+		yuva.x = texture2D_swizzle(tex, 0, v_texcoord).r;
+		yuva.y = texture2D_swizzle(tex1, 1, v_texcoord).r;
+		yuva.z = texture2D_swizzle(tex2, 2, v_texcoord).r;
 
 	} else if (c_variant == SHADER_VARIANT_Y_UV) {
-		yuva.x = texture2D_swizzle(tex, 0, v_texcoord).x;
+		yuva.x = texture2D_swizzle(tex, 0, v_texcoord).r;
 		yuva.yz = texture2D_swizzle(tex1, 1, v_texcoord).rg;
 
 	} else if (c_variant == SHADER_VARIANT_XYUV) {
