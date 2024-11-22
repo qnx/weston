@@ -2908,7 +2908,9 @@ ensure_textures(struct gl_buffer_state *gb, GLenum target, int num_textures)
 
 	for (i = 0; i < num_textures; i++)
 		gl_texture_parameters_init(gb->gr, &gb->parameters[i], target,
-					   NULL, NULL, NULL, false);
+					   NULL, NULL,
+					   gb->texture_format[i].swizzles.array,
+					   false);
 }
 
 static void
@@ -3071,10 +3073,10 @@ gl_renderer_fill_buffer_info(struct weston_compositor *ec,
 	struct gl_renderer *gr = get_renderer(ec);
 	struct gl_buffer_state *gb;
 	EGLint format;
-	uint32_t fourcc = DRM_FORMAT_INVALID;
+	uint32_t fourcc;
 	GLenum target;
 	EGLint y_inverted;
-	bool ret = true;
+	bool rgb, ret = true;
 	int i;
 
 	/* Ensure that EGL_WL_bind_wayland_display (and EGL_KHR_image_base) is
@@ -3108,36 +3110,25 @@ gl_renderer_fill_buffer_info(struct weston_compositor *ec,
 	 * TEXTURE_EXTERNAL_OES. */
 	switch (format) {
 	case EGL_TEXTURE_RGB:
-		fourcc = DRM_FORMAT_XRGB8888;
-		gb->num_images = 1;
-		gb->shader_variant = SHADER_VARIANT_RGBA;
-		gb->texture_format[0].swizzles.a = GL_ONE;
+		fourcc = DRM_FORMAT_XBGR8888;
+		rgb = true;
 		break;
 	case EGL_TEXTURE_RGBA:
-		fourcc = DRM_FORMAT_ARGB8888;
-		gb->num_images = 1;
-		gb->shader_variant = SHADER_VARIANT_RGBA;
-		gb->texture_format[0].swizzles.a = GL_ALPHA;
-		break;
 	case EGL_TEXTURE_EXTERNAL_WL:
-		fourcc = DRM_FORMAT_ARGB8888;
-		gb->num_images = 1;
-		gb->shader_variant = SHADER_VARIANT_EXTERNAL;
+		fourcc = DRM_FORMAT_ABGR8888;
+		rgb = true;
 		break;
 	case EGL_TEXTURE_Y_XUXV_WL:
 		fourcc = DRM_FORMAT_YUYV;
-		gb->num_images = 2;
-		gb->shader_variant = SHADER_VARIANT_Y_XUXV;
+		rgb = false;
 		break;
 	case EGL_TEXTURE_Y_UV_WL:
 		fourcc = DRM_FORMAT_NV12;
-		gb->num_images = 2;
-		gb->shader_variant = SHADER_VARIANT_Y_UV;
+		rgb = false;
 		break;
 	case EGL_TEXTURE_Y_U_V_WL:
 		fourcc = DRM_FORMAT_YUV420;
-		gb->num_images = 3;
-		gb->shader_variant = SHADER_VARIANT_Y_U_V;
+		rgb = false;
 		break;
 	default:
 		assert(0 && "not reached");
@@ -3146,6 +3137,33 @@ gl_renderer_fill_buffer_info(struct weston_compositor *ec,
 	buffer->pixel_format = pixel_format_get_info(fourcc);
 	assert(buffer->pixel_format);
 	buffer->format_modifier = DRM_FORMAT_MOD_INVALID;
+
+	/* Initialise buffer state. No need to fill format and type info since
+	 * textures are wrapped by EGL images. Swizzles must be set for correct
+	 * sampling though. */
+	if (rgb) {
+		ARRAY_COPY(gb->texture_format[0].swizzles.array,
+			   buffer->pixel_format->gl.swizzles.array);
+		gb->shader_variant = format == EGL_TEXTURE_EXTERNAL_WL ?
+			SHADER_VARIANT_EXTERNAL : SHADER_VARIANT_RGBA;
+		gb->num_images = 1;
+	} else {
+		struct yuv_format_descriptor *desc = NULL;
+
+		for (i = 0; i < (int) ARRAY_LENGTH(yuv_formats); i++) {
+			if (fourcc == yuv_formats[i].format) {
+				desc = &yuv_formats[i];
+				break;
+			}
+		}
+		assert(desc);
+
+		for (i = 0; i < desc->output_planes; i++)
+			ARRAY_COPY(gb->texture_format[i].swizzles.array,
+				   desc->plane[i].swizzles.array);
+		gb->shader_variant = desc->shader_variant;
+		gb->num_images = desc->output_planes;
+	}
 
 	/* Assume scanout co-ordinate space i.e. (0,0) is top-left
 	 * if the query fails */
@@ -3378,6 +3396,11 @@ import_yuv_dmabuf(struct gl_renderer *gr, struct gl_buffer_state *gb,
 	}
 
 	for (j = 0; j < format->output_planes; ++j) {
+		/* Swizzles must be set for correct sampling in YUV dma-buf
+		 * fallback mode. */
+		ARRAY_COPY(gb->texture_format[j].swizzles.array,
+			   format->plane[j].swizzles.array);
+
 		gb->images[j] = import_dmabuf_single_plane(gr, info, j, attributes,
 		                                           &format->plane[j]);
 		if (gb->images[j] == EGL_NO_IMAGE_KHR) {
@@ -3501,15 +3524,19 @@ import_dmabuf(struct gl_renderer *gr,
 
 	egl_image = import_simple_dmabuf(gr, &dmabuf->attributes);
 	if (egl_image != EGL_NO_IMAGE_KHR) {
+		const GLint swizzles[] = { GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA };
 		GLenum target = choose_texture_target(gr, &dmabuf->attributes);
 
 		gb->num_images = 1;
 		gb->images[0] = egl_image;
 
+		/* The driver defines its own swizzles internally in the case of
+		 * a successful dma-buf import so just set default values. */
+		ARRAY_COPY(gb->texture_format[0].swizzles.array, swizzles);
+
 		switch (target) {
 		case GL_TEXTURE_2D:
 			gb->shader_variant = SHADER_VARIANT_RGBA;
-			gb->texture_format[0].swizzles.a = GL_ALPHA;
 			break;
 		default:
 			gb->shader_variant = SHADER_VARIANT_EXTERNAL;
