@@ -75,7 +75,7 @@
 #define SWIZZLES_R000 { GL_RED,   GL_ZERO,  GL_ZERO, GL_ZERO }
 #define SWIZZLES_RB00 { GL_RED,   GL_BLUE,  GL_ZERO, GL_ZERO }
 #define SWIZZLES_RG00 { GL_RED,   GL_GREEN, GL_ZERO, GL_ZERO }
-#define SWIZZLES_RGB0 { GL_RED,   GL_GREEN, GL_BLUE, GL_ZERO }
+#define SWIZZLES_BGR0 { GL_BLUE,  GL_GREEN, GL_RED,  GL_ZERO }
 
 enum gl_debug_mode {
 	DEBUG_MODE_NONE = 0,
@@ -623,7 +623,7 @@ struct yuv_format_descriptor yuv_formats[] = {
 		{{
 			.format = DRM_FORMAT_ABGR8888,
 			.plane_index = 0,
-			.swizzles.array = SWIZZLES_RGB0,
+			.swizzles.array = SWIZZLES_BGR0,
 		}}
 	}
 };
