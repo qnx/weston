@@ -77,6 +77,13 @@
 #define SWIZZLES_RG00 { GL_RED,   GL_GREEN, GL_ZERO, GL_ZERO }
 #define SWIZZLES_BGR0 { GL_BLUE,  GL_GREEN, GL_RED,  GL_ZERO }
 
+#define YUV_PLANE(format_, plane_index_, swizzles_) \
+	{ \
+		.format = DRM_FORMAT_ ## format_, \
+		.plane_index = plane_index_, \
+		.swizzles.array = SWIZZLES_ ## swizzles_, \
+	}
+
 enum gl_debug_mode {
 	DEBUG_MODE_NONE = 0,
 	DEBUG_MODE_WIREFRAME,
@@ -379,252 +386,153 @@ struct yuv_format_descriptor yuv_formats[] = {
 		.format = DRM_FORMAT_YUYV,
 		.output_planes = 2,
 		.shader_variant = SHADER_VARIANT_Y_UV,
-		{{
-			.format = DRM_FORMAT_GR88,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_R000,
-		}, {
-			.format = DRM_FORMAT_ABGR8888,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_GA00,
-		}}
+		{
+			YUV_PLANE(GR88, 0, R000),
+			YUV_PLANE(ABGR8888, 0, GA00)
+		}
 	}, {
 		.format = DRM_FORMAT_YVYU,
 		.output_planes = 2,
 		.shader_variant = SHADER_VARIANT_Y_UV,
-		{{
-			.format = DRM_FORMAT_GR88,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_R000,
-		}, {
-			.format = DRM_FORMAT_ABGR8888,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_AG00,
-		}}
+		{
+			YUV_PLANE(GR88, 0, R000),
+			YUV_PLANE(ABGR8888, 0, AG00)
+		}
 	}, {
 		.format = DRM_FORMAT_UYVY,
 		.output_planes = 2,
 		.shader_variant = SHADER_VARIANT_Y_UV,
-		{{
-			.format = DRM_FORMAT_GR88,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_G000,
-		}, {
-			.format = DRM_FORMAT_ABGR8888,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_RB00,
-		}}
+		{
+			YUV_PLANE(GR88, 0, G000),
+			YUV_PLANE(ABGR8888, 0, RB00)
+		}
 	}, {
 		.format = DRM_FORMAT_VYUY,
 		.output_planes = 2,
 		.shader_variant = SHADER_VARIANT_Y_UV,
-		{{
-			.format = DRM_FORMAT_GR88,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_G000,
-		}, {
-			.format = DRM_FORMAT_ABGR8888,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_BR00,
-		}}
+		{
+			YUV_PLANE(GR88, 0, G000),
+			YUV_PLANE(ABGR8888, 0, BR00)
+		}
 	}, {
 		.format = DRM_FORMAT_NV12,
 		.output_planes = 2,
 		.shader_variant = SHADER_VARIANT_Y_UV,
-		{{
-			.format = DRM_FORMAT_R8,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_R000,
-		}, {
-			.format = DRM_FORMAT_GR88,
-			.plane_index = 1,
-			.swizzles.array = SWIZZLES_RG00,
-		}}
+		{
+			YUV_PLANE(R8, 0, R000),
+			YUV_PLANE(GR88, 1, RG00)
+		}
 	}, {
 		.format = DRM_FORMAT_NV21,
 		.output_planes = 2,
 		.shader_variant = SHADER_VARIANT_Y_UV,
-		{{
-			.format = DRM_FORMAT_R8,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_R000,
-		}, {
-			.format = DRM_FORMAT_GR88,
-			.plane_index = 1,
-			.swizzles.array = SWIZZLES_GR00,
-		}}
+		{
+			YUV_PLANE(R8, 0, R000),
+			YUV_PLANE(GR88, 1, GR00)
+		}
 	}, {
 		.format = DRM_FORMAT_NV16,
 		.output_planes = 2,
 		.shader_variant = SHADER_VARIANT_Y_UV,
-		{{
-			.format = DRM_FORMAT_R8,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_R000,
-		}, {
-			.format = DRM_FORMAT_GR88,
-			.plane_index = 1,
-			.swizzles.array = SWIZZLES_RG00,
-		}}
+		{
+			YUV_PLANE(R8, 0, R000),
+			YUV_PLANE(GR88, 1, RG00)
+		}
 	}, {
 		.format = DRM_FORMAT_NV61,
 		.output_planes = 2,
 		.shader_variant = SHADER_VARIANT_Y_UV,
-		{{
-			.format = DRM_FORMAT_R8,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_R000,
-		}, {
-			.format = DRM_FORMAT_GR88,
-			.plane_index = 1,
-			.swizzles.array = SWIZZLES_GR00,
-		}}
+		{
+			YUV_PLANE(R8, 0, R000),
+			YUV_PLANE(GR88, 1, GR00)
+		}
 	}, {
 		.format = DRM_FORMAT_NV24,
 		.output_planes = 2,
 		.shader_variant = SHADER_VARIANT_Y_UV,
-		{{
-			.format = DRM_FORMAT_R8,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_R000,
-		}, {
-			.format = DRM_FORMAT_GR88,
-			.plane_index = 1,
-			.swizzles.array = SWIZZLES_RG00,
-		}}
+		{
+			YUV_PLANE(R8, 0, R000),
+			YUV_PLANE(GR88, 1, RG00)
+		}
 	}, {
 		.format = DRM_FORMAT_NV42,
 		.output_planes = 2,
 		.shader_variant = SHADER_VARIANT_Y_UV,
-		{{
-			.format = DRM_FORMAT_R8,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_R000,
-		}, {
-			.format = DRM_FORMAT_GR88,
-			.plane_index = 1,
-			.swizzles.array = SWIZZLES_GR00,
-		}}
+		{
+			YUV_PLANE(R8, 0, R000),
+			YUV_PLANE(GR88, 1, GR00)
+		}
 	}, {
 		/* XXX The 6 lsb per component aren't masked out. Add a new
 		 * sampling variant? or maybe a new post-sampling step? */
 		.format = DRM_FORMAT_P010,
 		.output_planes = 2,
 		.shader_variant = SHADER_VARIANT_Y_UV,
-		{{
-			.format = DRM_FORMAT_R16,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_R000
-		}, {
-			.format = DRM_FORMAT_GR1616,
-			.plane_index = 1,
-			.swizzles.array = SWIZZLES_RG00
-		}}
+		{
+			YUV_PLANE(R16, 0, R000),
+			YUV_PLANE(GR1616, 1, RG00)
+		}
 	}, {
 		/* XXX The 4 lsb per component aren't masked out. Add a new
 		 * sampling variant?  or maybe a new post-sampling step? */
 		.format = DRM_FORMAT_P012,
 		.output_planes = 2,
 		.shader_variant = SHADER_VARIANT_Y_UV,
-		{{
-			.format = DRM_FORMAT_R16,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_R000
-		}, {
-			.format = DRM_FORMAT_GR1616,
-			.plane_index = 1,
-			.swizzles.array = SWIZZLES_RG00
-		}}
+		{
+			YUV_PLANE(R16, 0, R000),
+			YUV_PLANE(GR1616, 1, RG00)
+		}
 	}, {
 		.format = DRM_FORMAT_P016,
 		.output_planes = 2,
 		.shader_variant = SHADER_VARIANT_Y_UV,
-		{{
-			.format = DRM_FORMAT_R16,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_R000
-		}, {
-			.format = DRM_FORMAT_GR1616,
-			.plane_index = 1,
-			.swizzles.array = SWIZZLES_RG00
-		}}
+		{
+			YUV_PLANE(R16, 0, R000),
+			YUV_PLANE(GR1616, 1, RG00)
+		}
 	}, {
 		.format = DRM_FORMAT_YUV420,
 		.output_planes = 3,
 		.shader_variant = SHADER_VARIANT_Y_U_V,
-		{{
-			.format = DRM_FORMAT_R8,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_R000,
-		}, {
-			.format = DRM_FORMAT_R8,
-			.plane_index = 1,
-			.swizzles.array = SWIZZLES_R000,
-		}, {
-			.format = DRM_FORMAT_R8,
-			.plane_index = 2,
-			.swizzles.array = SWIZZLES_R000,
-		}}
+		{
+			YUV_PLANE(R8, 0, R000),
+			YUV_PLANE(R8, 1, R000),
+			YUV_PLANE(R8, 2, R000)
+		}
 	}, {
 		.format = DRM_FORMAT_YVU420,
 		.output_planes = 3,
 		.shader_variant = SHADER_VARIANT_Y_U_V,
-		{{
-			.format = DRM_FORMAT_R8,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_R000,
-		}, {
-			.format = DRM_FORMAT_R8,
-			.plane_index = 2,
-			.swizzles.array = SWIZZLES_R000,
-		}, {
-			.format = DRM_FORMAT_R8,
-			.plane_index = 1,
-			.swizzles.array = SWIZZLES_R000,
-		}}
+		{
+			YUV_PLANE(R8, 0, R000),
+			YUV_PLANE(R8, 2, R000),
+			YUV_PLANE(R8, 1, R000)
+		}
 	}, {
 		.format = DRM_FORMAT_YUV444,
 		.output_planes = 3,
 		.shader_variant = SHADER_VARIANT_Y_U_V,
-		{{
-			.format = DRM_FORMAT_R8,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_R000,
-		}, {
-			.format = DRM_FORMAT_R8,
-			.plane_index = 1,
-			.swizzles.array = SWIZZLES_R000,
-		}, {
-			.format = DRM_FORMAT_R8,
-			.plane_index = 2,
-			.swizzles.array = SWIZZLES_R000,
-		}}
+		{
+			YUV_PLANE(R8, 0, R000),
+			YUV_PLANE(R8, 1, R000),
+			YUV_PLANE(R8, 2, R000)
+		}
 	}, {
 		.format = DRM_FORMAT_YVU444,
 		.output_planes = 3,
 		.shader_variant = SHADER_VARIANT_Y_U_V,
-		{{
-			.format = DRM_FORMAT_R8,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_R000,
-		}, {
-			.format = DRM_FORMAT_R8,
-			.plane_index = 2,
-			.swizzles.array = SWIZZLES_R000,
-		}, {
-			.format = DRM_FORMAT_R8,
-			.plane_index = 1,
-			.swizzles.array = SWIZZLES_R000,
-		}}
+		{
+			YUV_PLANE(R8, 0, R000),
+			YUV_PLANE(R8, 2, R000),
+			YUV_PLANE(R8, 1, R000)
+		}
 	}, {
 		.format = DRM_FORMAT_XYUV8888,
 		.output_planes = 1,
 		.shader_variant = SHADER_VARIANT_XYUV,
-		{{
-			.format = DRM_FORMAT_ABGR8888,
-			.plane_index = 0,
-			.swizzles.array = SWIZZLES_BGR0,
-		}}
+		{
+			YUV_PLANE(ABGR8888, 0, BGR0)
+		}
 	}
 };
 
