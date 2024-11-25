@@ -126,6 +126,7 @@ enum gl_extension_flag {
 	EXTENSION_EXT_COLOR_BUFFER_FLOAT          = 1ull << 5,
 	EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT     = 1ull << 6,
 	EXTENSION_EXT_DISJOINT_TIMER_QUERY        = 1ull << 7,
+	EXTENSION_EXT_EGL_IMAGE_STORAGE           = 1ull << 8,
 	EXTENSION_EXT_MAP_BUFFER_RANGE            = 1ull << 9,
 	EXTENSION_EXT_READ_FORMAT_BGRA            = 1ull << 10,
 	EXTENSION_EXT_TEXTURE_FORMAT_BGRA8888     = 1ull << 11,
@@ -424,6 +425,9 @@ struct gl_renderer {
 	/* GL_OES_EGL_image */
 	PFNGLEGLIMAGETARGETTEXTURE2DOESPROC image_target_texture_2d;
 	PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC image_target_renderbuffer_storage;
+
+	/* GL_EXT_EGL_image_storage */
+	PFNGLEGLIMAGETARGETTEXTURESTORAGEEXTPROC image_target_tex_storage;
 
 	/* GL_OES_mapbuffer */
 	PFNGLUNMAPBUFFEROESPROC unmap_buffer;

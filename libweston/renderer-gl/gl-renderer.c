@@ -246,6 +246,8 @@ struct gl_buffer_state {
 	GLuint textures[3];
 	int num_textures;
 
+	bool specified;
+
 	struct wl_listener destroy_listener;
 };
 
@@ -284,6 +286,7 @@ static const struct gl_extension_table extension_table[] = {
 	EXT("GL_EXT_color_buffer_float", EXTENSION_EXT_COLOR_BUFFER_FLOAT),
 	EXT("GL_EXT_color_buffer_half_float", EXTENSION_EXT_COLOR_BUFFER_HALF_FLOAT),
 	EXT("GL_EXT_disjoint_timer_query", EXTENSION_EXT_DISJOINT_TIMER_QUERY),
+	EXT("GL_EXT_EGL_image_storage", EXTENSION_EXT_EGL_IMAGE_STORAGE),
 	EXT("GL_EXT_map_buffer_range", EXTENSION_EXT_MAP_BUFFER_RANGE),
 	EXT("GL_EXT_read_format_bgra", EXTENSION_EXT_READ_FORMAT_BGRA),
 	EXT("GL_EXT_texture_format_BGRA8888", EXTENSION_EXT_TEXTURE_FORMAT_BGRA8888),
@@ -3529,13 +3532,20 @@ gl_renderer_attach_buffer(struct weston_surface *surface,
 
 	gs->buffer = gb;
 
+	if (gb->specified)
+		return;
+
 	target = gl_shader_texture_variant_get_target(gb->shader_variant);
 	for (i = 0; i < gb->num_images; ++i) {
-		glActiveTexture(GL_TEXTURE0 + i);
 		glBindTexture(target, gb->textures[i]);
-		gr->image_target_texture_2d(target, gb->images[i]);
+		if (gl_extensions_has(gr, EXTENSION_EXT_EGL_IMAGE_STORAGE))
+			gr->image_target_tex_storage(target, gb->images[i],
+						     NULL);
+		else
+			gr->image_target_texture_2d(target, gb->images[i]);
 	}
-	glActiveTexture(GL_TEXTURE0);
+
+	gb->specified = true;
 }
 
 static const struct weston_drm_format_array *
@@ -4731,10 +4741,9 @@ gl_renderer_setup(struct weston_compositor *ec)
 				 "glEGLImageTargetRenderbufferStorageOES");
 	}
 
-	if (!gl_extensions_has(gr, EXTENSION_EXT_TEXTURE_FORMAT_BGRA8888)) {
-		weston_log("GL_EXT_texture_format_BGRA8888 not available\n");
-		return -1;
-	}
+	if (gl_extensions_has(gr, EXTENSION_EXT_EGL_IMAGE_STORAGE))
+		GET_PROC_ADDRESS(gr->image_target_tex_storage,
+				 "glEGLImageTargetTexStorageEXT");
 
 	if (gl_extensions_has(gr, EXTENSION_EXT_READ_FORMAT_BGRA))
 		ec->read_format = pixel_format_get_info(DRM_FORMAT_ARGB8888);
