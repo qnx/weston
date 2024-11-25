@@ -139,7 +139,7 @@ drm_output_try_paint_node_on_plane(struct drm_plane *plane,
 	state->fb = drm_fb_ref(fb);
 	state->in_fence_fd = ev->surface->acquire_fence_fd;
 
-	if (fb->format && pixel_format_is_yuv(fb->format)) {
+	if (fb->format && fb->format->color_model == COLOR_MODEL_YUV) {
 		enum wdrm_plane_color_encoding color_encoding;
 		enum wdrm_plane_color_range color_range;
 

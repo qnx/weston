@@ -81,7 +81,6 @@
 #define GL_INTERNALFORMAT(fmt) .gl_internalformat = (fmt)
 #define GL_FORMAT(fmt) .gl_format = (fmt)
 #define GL_TYPE(type) .gl_type = (type)
-#define SAMPLER_TYPE(type) .sampler_type = (type)
 #else
 #define GL_FORMAT_INFO(internal_, external_, type_, swizzles_) \
 	.gl = { \
@@ -93,7 +92,6 @@
 #define GL_INTERNALFORMAT(fmt) .gl_internalformat = 0
 #define GL_FORMAT(fmt) .gl_format = 0
 #define GL_TYPE(type) .gl_type = 0
-#define SAMPLER_TYPE(type) .sampler_type = 0
 #endif
 
 #define DRM_FORMAT(f) .format = DRM_FORMAT_ ## f, .drm_format_name = #f
@@ -110,6 +108,7 @@
 	.bits.a = a_, \
 	.component_type = PIXEL_COMPONENT_TYPE_FLOAT
 
+#define COLOR_MODEL(model) .color_model = (COLOR_MODEL_ ## model)
 #define PIXMAN_FMT(fmt) .pixman_format = (PIXMAN_ ## fmt)
 
 #include "shared/weston-egl-ext.h"
@@ -122,6 +121,7 @@
 static const struct pixel_format_info pixel_format_table[] = {
 	{
 		DRM_FORMAT(R8),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(8, 0, 0, 0),
 		.bpp = 8,
 		.hide_from_clients = true,
@@ -131,6 +131,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(R16),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(16, 0, 0, 0),
 		.bpp = 16,
 		.hide_from_clients = true,
@@ -138,6 +139,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(GR88),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(8, 8, 0, 0),
 		.bpp = 16,
 		.hide_from_clients = true,
@@ -147,6 +149,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(RG88),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(8, 8, 0, 0),
 		.bpp = 16,
 		.hide_from_clients = true,
@@ -154,6 +157,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(GR1616),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(16, 16, 0, 0),
 		.bpp = 32,
 		.hide_from_clients = true,
@@ -161,6 +165,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(RG1616),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(16, 16, 0, 0),
 		.bpp = 32,
 		.hide_from_clients = true,
@@ -168,6 +173,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(XRGB4444),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(4, 4, 4, 0),
 		.bpp = 16,
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -178,6 +184,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(ARGB4444),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(4, 4, 4, 4),
 		.bpp = 16,
 		.opaque_substitute = DRM_FORMAT_XRGB4444,
@@ -189,6 +196,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(XBGR4444),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(4, 4, 4, 0),
 		.bpp = 16,
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -199,6 +207,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(ABGR4444),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(4, 4, 4, 4),
 		.bpp = 16,
 		.opaque_substitute = DRM_FORMAT_XBGR4444,
@@ -210,6 +219,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(RGBX4444),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(4, 4, 4, 0),
 		.bpp = 16,
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -222,6 +232,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(RGBA4444),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(4, 4, 4, 4),
 		.bpp = 16,
 		.opaque_substitute = DRM_FORMAT_RGBX4444,
@@ -235,6 +246,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(BGRX4444),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(4, 4, 4, 0),
 		.bpp = 16,
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -245,6 +257,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(BGRA4444),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(4, 4, 4, 4),
 		.bpp = 16,
 		.opaque_substitute = DRM_FORMAT_BGRX4444,
@@ -256,29 +269,34 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(XRGB1555),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(5, 5, 5, 0),
 		.addfb_legacy_depth = 15,
 		.bpp = 16,
 	},
 	{
 		DRM_FORMAT(ARGB1555),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(5, 5, 5, 1),
 		.bpp = 16,
 		.opaque_substitute = DRM_FORMAT_XRGB1555,
 	},
 	{
 		DRM_FORMAT(XBGR1555),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(5, 5, 5, 0),
 		.bpp = 16,
 	},
 	{
 		DRM_FORMAT(ABGR1555),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(5, 5, 5, 1),
 		.bpp = 16,
 		.opaque_substitute = DRM_FORMAT_XBGR1555,
 	},
 	{
 		DRM_FORMAT(RGBX5551),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(5, 5, 5, 0),
 		.bpp = 16,
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -289,6 +307,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(RGBA5551),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(5, 5, 5, 1),
 		.bpp = 16,
 		.opaque_substitute = DRM_FORMAT_RGBX5551,
@@ -300,6 +319,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(BGRX5551),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(5, 5, 5, 0),
 		.bpp = 16,
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -308,6 +328,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(BGRA5551),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(5, 5, 5, 1),
 		.bpp = 16,
 		.opaque_substitute = DRM_FORMAT_BGRX5551,
@@ -317,6 +338,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(RGB565),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(5, 6, 5, 0),
 		.addfb_legacy_depth = 16,
 		.bpp = 16,
@@ -329,6 +351,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(BGR565),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(5, 6, 5, 0),
 		.bpp = 16,
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -337,6 +360,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(RGB888),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(8, 8, 8, 0),
 		.bpp = 24,
 		GL_FORMAT_INFO(GL_RGB8, GL_RGB, GL_UNSIGNED_BYTE, RGB1),
@@ -345,6 +369,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(BGR888),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(8, 8, 8, 0),
 		.bpp = 24,
 		GL_FORMAT_INFO(GL_RGB8, GL_RGB, GL_UNSIGNED_BYTE, BGR1),
@@ -353,6 +378,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(XRGB8888),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(8, 8, 8, 0),
 		.addfb_legacy_depth = 24,
 		.bpp = 32,
@@ -368,6 +394,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(ARGB8888),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(8, 8, 8, 8),
 		.opaque_substitute = DRM_FORMAT_XRGB8888,
 		.addfb_legacy_depth = 32,
@@ -384,6 +411,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(XBGR8888),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(8, 8, 8, 0),
 		.bpp = 32,
 		GL_FORMAT_INFO(GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, RGB1),
@@ -397,6 +425,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(ABGR8888),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(8, 8, 8, 8),
 		.bpp = 32,
 		.opaque_substitute = DRM_FORMAT_XBGR8888,
@@ -411,6 +440,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(RGBX8888),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(8, 8, 8, 0),
 		.bpp = 32,
 		GL_FORMAT_INFO(GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, ABG1),
@@ -424,6 +454,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(RGBA8888),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(8, 8, 8, 8),
 		.bpp = 32,
 		.opaque_substitute = DRM_FORMAT_RGBX8888,
@@ -438,6 +469,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(BGRX8888),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(8, 8, 8, 0),
 		.bpp = 32,
 		GL_FORMAT_INFO(GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, GBA1),
@@ -451,6 +483,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(BGRA8888),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(8, 8, 8, 8),
 		.bpp = 32,
 		.opaque_substitute = DRM_FORMAT_BGRX8888,
@@ -465,6 +498,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(XRGB2101010),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(10, 10, 10, 0),
 		.addfb_legacy_depth = 30,
 		.bpp = 32,
@@ -476,6 +510,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(ARGB2101010),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(10, 10, 10, 2),
 		.bpp = 32,
 		.opaque_substitute = DRM_FORMAT_XRGB2101010,
@@ -487,6 +522,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(XBGR2101010),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(10, 10, 10, 0),
 		.bpp = 32,
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -498,6 +534,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(ABGR2101010),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(10, 10, 10, 2),
 		.bpp = 32,
 		.opaque_substitute = DRM_FORMAT_XBGR2101010,
@@ -510,28 +547,33 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(RGBX1010102),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(10, 10, 10, 0),
 		.bpp = 32,
 	},
 	{
 		DRM_FORMAT(RGBA1010102),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(10, 10, 10, 2),
 		.bpp = 32,
 		.opaque_substitute = DRM_FORMAT_RGBX1010102,
 	},
 	{
 		DRM_FORMAT(BGRX1010102),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(10, 10, 10, 0),
 		.bpp = 32,
 	},
 	{
 		DRM_FORMAT(BGRA1010102),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(10, 10, 10, 2),
 		.bpp = 32,
 		.opaque_substitute = DRM_FORMAT_BGRX1010102,
 	},
 	{
 		DRM_FORMAT(XBGR16161616),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(16, 16, 16, 0),
 		.bpp = 64,
 		GL_FORMAT_INFO(GL_RGBA16_EXT, GL_RGBA, GL_UNSIGNED_SHORT, RGB1),
@@ -542,6 +584,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(ABGR16161616),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(16, 16, 16, 16),
 		.bpp = 64,
 		.opaque_substitute = DRM_FORMAT_XBGR16161616,
@@ -553,12 +596,14 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(XRGB16161616),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(16, 16, 16, 0),
 		.bpp = 64,
 		GL_FORMAT_INFO(GL_RGBA16_EXT, GL_RGBA, GL_UNSIGNED_SHORT, BGR1),
 	},
 	{
 		DRM_FORMAT(ARGB16161616),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FIXED(16, 16, 16, 16),
 		.bpp = 64,
 		.opaque_substitute = DRM_FORMAT_XRGB16161616,
@@ -566,6 +611,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(XBGR16161616F),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FLOAT(16, 16, 16, 0),
 		.bpp = 64,
 		GL_FORMAT_INFO(GL_RGBA16F, GL_RGBA, GL_HALF_FLOAT, RGB1),
@@ -576,6 +622,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(ABGR16161616F),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FLOAT(16, 16, 16, 16),
 		.bpp = 64,
 		.opaque_substitute = DRM_FORMAT_XBGR16161616F,
@@ -587,12 +634,14 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(XRGB16161616F),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FLOAT(16, 16, 16, 0),
 		.bpp = 64,
 		GL_FORMAT_INFO(GL_RGBA16F, GL_RGBA, GL_HALF_FLOAT, BGR1),
 	},
 	{
 		DRM_FORMAT(ARGB16161616F),
+		COLOR_MODEL(RGB),
 		BITS_RGBA_FLOAT(16, 16, 16, 16),
 		.bpp = 64,
 		.opaque_substitute = DRM_FORMAT_XRGB16161616F,
@@ -600,27 +649,27 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(YUYV),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_XUXV_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 1,
 		.hsub = 2,
 	},
 	{
 		DRM_FORMAT(YVYU),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_XUXV_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 1,
 		.chroma_order = ORDER_VU,
 		.hsub = 2,
 	},
 	{
 		DRM_FORMAT(UYVY),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_XUXV_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 1,
 		.luma_chroma_order = ORDER_CHROMA_LUMA,
 		.hsub = 2,
 	},
 	{
 		DRM_FORMAT(VYUY),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_XUXV_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 1,
 		.luma_chroma_order = ORDER_CHROMA_LUMA,
 		.chroma_order = ORDER_VU,
@@ -628,35 +677,35 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(NV12),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_UV_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 2,
 		.hsub = 2,
 		.vsub = 2,
 	},
 	{
 		DRM_FORMAT(NV15),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_UV_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 2,
 		.hsub = 2,
 		.vsub = 2,
 	},
 	{
 		DRM_FORMAT(NV20),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_UV_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 2,
 		.hsub = 2,
 		.vsub = 1,
 	},
 	{
 		DRM_FORMAT(NV30),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_UV_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 2,
 		.hsub = 1,
 		.vsub = 1,
 	},
 	{
 		DRM_FORMAT(NV21),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_UV_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 2,
 		.chroma_order = ORDER_VU,
 		.hsub = 2,
@@ -664,14 +713,14 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(NV16),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_UV_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 2,
 		.hsub = 2,
 		.vsub = 1,
 	},
 	{
 		DRM_FORMAT(NV61),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_UV_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 2,
 		.chroma_order = ORDER_VU,
 		.hsub = 2,
@@ -679,53 +728,53 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(NV24),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_UV_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 2,
 	},
 	{
 		DRM_FORMAT(NV42),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_UV_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 2,
 		.chroma_order = ORDER_VU,
 	},
 	{
 		DRM_FORMAT(P010),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_UV_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 2,
 		.hsub = 2,
 		.vsub = 2,
 	},
 	{
 		DRM_FORMAT(P012),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_UV_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 2,
 		.hsub = 2,
 		.vsub = 2,
 	},
 	{
 		DRM_FORMAT(P016),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_UV_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 2,
 		.hsub = 2,
 		.vsub = 2,
 	},
 	{
 		DRM_FORMAT(P030),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_UV_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 2,
 		.hsub = 2,
 		.vsub = 2,
 	},
 	{
 		DRM_FORMAT(YUV410),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_U_V_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 3,
 		.hsub = 4,
 		.vsub = 4,
 	},
 	{
 		DRM_FORMAT(YVU410),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_U_V_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 3,
 		.chroma_order = ORDER_VU,
 		.hsub = 4,
@@ -733,14 +782,14 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(YUV411),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_U_V_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 3,
 		.hsub = 4,
 		.vsub = 1,
 	},
 	{
 		DRM_FORMAT(YVU411),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_U_V_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 3,
 		.chroma_order = ORDER_VU,
 		.hsub = 4,
@@ -748,14 +797,14 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(YUV420),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_U_V_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 3,
 		.hsub = 2,
 		.vsub = 2,
 	},
 	{
 		DRM_FORMAT(YVU420),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_U_V_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 3,
 		.chroma_order = ORDER_VU,
 		.hsub = 2,
@@ -763,14 +812,14 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(YUV422),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_U_V_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 3,
 		.hsub = 2,
 		.vsub = 1,
 	},
 	{
 		DRM_FORMAT(YVU422),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_U_V_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 3,
 		.chroma_order = ORDER_VU,
 		.hsub = 2,
@@ -778,17 +827,18 @@ static const struct pixel_format_info pixel_format_table[] = {
 	},
 	{
 		DRM_FORMAT(YUV444),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_U_V_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 3,
 	},
 	{
 		DRM_FORMAT(YVU444),
-		SAMPLER_TYPE(EGL_TEXTURE_Y_U_V_WL),
+		COLOR_MODEL(YUV),
 		.num_planes = 3,
 		.chroma_order = ORDER_VU,
 	},
 	{
 		DRM_FORMAT(XYUV8888),
+		COLOR_MODEL(YUV),
 		.bpp = 32,
 	},
 };
@@ -1005,10 +1055,4 @@ pixel_format_get_array(const uint32_t *drm_formats, unsigned int formats_count)
 	}
 
 	return formats;
-}
-
-WL_EXPORT bool
-pixel_format_is_yuv(const struct pixel_format_info *info)
-{
-	return !!info->sampler_type;
 }
