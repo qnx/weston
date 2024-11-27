@@ -79,6 +79,27 @@ struct drm_property_enum_info plane_rotation_enums[] = {
 	},
 };
 
+struct drm_property_enum_info plane_color_encoding_enums[] = {
+	[WDRM_PLANE_COLOR_ENCODING_BT601] = {
+		.name = "ITU-R BT.601 YCbCr",
+	},
+	[WDRM_PLANE_COLOR_ENCODING_BT709] = {
+		.name = "ITU-R BT.709 YCbCr",
+	},
+	[WDRM_PLANE_COLOR_ENCODING_BT2020] = {
+		.name = "ITU-R BT.2020 YCbCr",
+	},
+};
+
+struct drm_property_enum_info plane_color_range_enums[] = {
+	[WDRM_PLANE_COLOR_RANGE_LIMITED] = {
+		.name = "YCbCr limited range",
+	},
+	[WDRM_PLANE_COLOR_RANGE_FULL] = {
+		.name = "YCbCr full range",
+	},
+};
+
 const struct drm_property_info plane_props[] = {
 	[WDRM_PLANE_TYPE] = {
 		.name = "type",
@@ -103,8 +124,18 @@ const struct drm_property_info plane_props[] = {
 		.name = "rotation",
 		.enum_values = plane_rotation_enums,
 		.num_enum_values = WDRM_PLANE_ROTATION__COUNT,
-	 },
+	},
 	[WDRM_PLANE_ALPHA] = { .name = "alpha" },
+	[WDRM_PLANE_COLOR_ENCODING] = {
+		.name = "COLOR_ENCODING",
+		.enum_values = plane_color_encoding_enums,
+		.num_enum_values = WDRM_PLANE_COLOR_ENCODING__COUNT,
+	},
+	[WDRM_PLANE_COLOR_RANGE] = {
+		.name = "COLOR_RANGE",
+		.enum_values = plane_color_range_enums,
+		.num_enum_values = WDRM_PLANE_COLOR_RANGE__COUNT,
+	},
 };
 
 struct drm_property_enum_info dpms_state_enums[] = {
