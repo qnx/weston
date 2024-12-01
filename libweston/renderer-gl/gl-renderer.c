@@ -3617,7 +3617,8 @@ gl_renderer_buffer_init(struct weston_compositor *etc,
 {
 	struct gl_buffer_state *gb;
 
-	if (buffer->type != WESTON_BUFFER_DMABUF)
+	if (buffer->type != WESTON_BUFFER_DMABUF ||
+	   (buffer->type == WESTON_BUFFER_DMABUF && buffer->direct_display))
 		return;
 
 	/* Thanks to linux-dmabuf being totally independent of libweston,
