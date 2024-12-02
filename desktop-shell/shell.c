@@ -2795,6 +2795,11 @@ background_committed(struct weston_surface *es,
 		sh_output->background_view = weston_view_create(es);
 	}
 
+	if (sh_output->temporary_curtain) {
+		weston_shell_utils_curtain_destroy(sh_output->temporary_curtain);
+		sh_output->temporary_curtain = NULL;
+	}
+
 	assert(sh_output->background_view);
 	weston_view_set_position(sh_output->background_view,
 				 sh_output->output->pos);
@@ -4573,6 +4578,10 @@ shell_output_destroy(struct shell_output *shell_output)
 		wl_list_remove(&shell_output->background_surface_listener.link);
 		shell_output->background_surface->committed_private = NULL;
 	}
+	if (shell_output->temporary_curtain) {
+		weston_shell_utils_curtain_destroy(shell_output->temporary_curtain);
+		shell_output->temporary_curtain = NULL;
+	}
 	wl_list_remove(&shell_output->destroy_listener.link);
 	wl_list_remove(&shell_output->link);
 	free(shell_output);
@@ -4640,11 +4649,19 @@ handle_output_resized(struct wl_listener *listener, void *data)
 	shell_resize_surface_to_output(shell, sh_output->panel_surface, output);
 }
 
+static int
+desktop_shell_temporary_curtain_get_label(struct weston_surface *surface,
+					  char *buf, size_t len)
+{
+	return snprintf(buf, len, "desktop shell background placeholder");
+}
+
 static void
 create_shell_output(struct desktop_shell *shell,
 					struct weston_output *output)
 {
 	struct shell_output *shell_output;
+	struct weston_curtain_params curtain_params = {};
 
 	shell_output = zalloc(sizeof *shell_output);
 	if (shell_output == NULL)
@@ -4660,6 +4677,22 @@ create_shell_output(struct desktop_shell *shell,
 	if (wl_list_length(&shell->output_list) == 1)
 		shell_for_each_layer(shell,
 				     shell_output_changed_move_layer, NULL);
+
+	curtain_params.a = 1.0;
+	curtain_params.pos = output->pos;
+	curtain_params.width = output->width;
+	curtain_params.height = output->height;
+	curtain_params.capture_input = true;
+	curtain_params.get_label = desktop_shell_temporary_curtain_get_label;
+	shell_output->temporary_curtain =
+		weston_shell_utils_curtain_create(output->compositor,
+						  &curtain_params);
+	weston_surface_set_role(shell_output->temporary_curtain->view->surface,
+				"desktop-shell-background-placeholder", NULL, 0);
+	shell_output->temporary_curtain->view->surface->output = output;
+	weston_view_move_to_layer(shell_output->temporary_curtain->view,
+				  &shell->background_layer.view_list);
+	weston_view_set_output(shell_output->temporary_curtain->view, output);
 }
 
 static void
