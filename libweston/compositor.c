@@ -3749,6 +3749,15 @@ weston_output_repaint(struct weston_output *output, struct timespec *now)
 	if (ec->view_list_needs_rebuild)
 		weston_compositor_build_view_list(ec);
 
+	/* If the scene graph is empty, we could end up passing a buffer
+	 * we've never drawn into to a hardware plane later. If that hardware
+	 * plane uses compression, the results can be very messy.
+	 *
+	 * Ensure we have scene graph contents here.
+	 */
+	assert(!wl_list_empty(&output->paint_node_z_order_list) &&
+	       "empty scene graph at repaint");
+
 	wl_list_for_each(pnode, &output->paint_node_z_order_list,
 			 z_order_link) {
 		assert(pnode->view->output_mask & (1u << pnode->output->id));
