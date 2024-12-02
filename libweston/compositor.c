@@ -8762,7 +8762,7 @@ xdg_output_manager_get_xdg_output(struct wl_client *client,
 {
 	int version = wl_resource_get_version(manager);
 	struct weston_head *head = wl_resource_get_user_data(output_resource);
-	struct weston_output *output = head->output;
+	struct weston_output *output;
 	struct wl_resource *resource;
 
 	resource = wl_resource_create(client, &zxdg_output_v1_interface,
@@ -8772,11 +8772,22 @@ xdg_output_manager_get_xdg_output(struct wl_client *client,
 		return;
 	}
 
+	if (!head) {
+		/* No destroy callback, because the resource is not added to the
+		 * heads resource list
+		 */
+		wl_resource_set_implementation(resource, &xdg_output_interface,
+					       NULL, NULL);
+		return;
+	}
+
 	wl_list_insert(&head->xdg_output_resource_list,
 		       wl_resource_get_link(resource));
 
 	wl_resource_set_implementation(resource, &xdg_output_interface,
 				       NULL, xdg_output_unlist);
+
+	output = head->output;
 
 	zxdg_output_v1_send_logical_position(resource,
 					     output->pos.c.x,
