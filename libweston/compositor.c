@@ -217,14 +217,22 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 
 	pnode->draw_solid = false;
 	pnode->is_direct = false;
-	if (buffer->direct_display) {
+	/* Check for content protection first, as we should always prevent
+	 * the rendering of protected content.
+	 */
+	if (surface->protection_mode ==
+	    WESTON_SURFACE_PROTECTION_MODE_ENFORCED &&
+	    (recording_censor || unprotected_censor)) {
 		pnode->draw_solid = true;
-		pnode->is_direct = true;
 		pnode->is_fully_opaque = true;
 		pnode->is_fully_blended = false;
 		pnode->solid = placeholder_color;
 		return;
 	}
+	/* Check if we need a hole before we check direct-display, otherwise
+	 * we'll end up drawing an opaque placeholder over direct_display
+	 * paint nodes when we place them on underlays.
+	 */
 	if (pnode->need_hole) {
 		pnode->draw_solid = true;
 		pnode->is_fully_opaque = true;
@@ -234,15 +242,13 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 		               };
 		return;
 	}
-	if (surface->protection_mode !=
-	    WESTON_SURFACE_PROTECTION_MODE_ENFORCED)
-		return;
-
-	if (recording_censor || unprotected_censor) {
+	if (buffer->direct_display) {
 		pnode->draw_solid = true;
+		pnode->is_direct = true;
 		pnode->is_fully_opaque = true;
 		pnode->is_fully_blended = false;
 		pnode->solid = placeholder_color;
+		return;
 	}
 }
 
