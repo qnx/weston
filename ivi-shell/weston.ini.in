@@ -96,3 +96,9 @@ workspace-id=3
 icon-id=4010
 icon=@westondatadir@/icon_ivi_smoke.png
 path=@bindir@/weston-smoke
+
+[ivi-launcher]
+workspace-id=3
+icon-id=4011
+icon=@westondatadir@/icon_ivi_simple-egl-vertical.png
+command=@bindir@/weston-simple-egl -v

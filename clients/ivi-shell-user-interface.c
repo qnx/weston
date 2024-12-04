@@ -143,6 +143,8 @@ hmi_homescreen_launcher {
 	uint32_t	workspace_id;
 	char		*icon;
 	char		*path;
+	char		**argv;
+
 	struct wl_list	link;
 };
 
@@ -308,12 +310,10 @@ launcher_button(uint32_t surfaceId, struct wl_list *launcher_list)
 	struct hmi_homescreen_launcher *launcher = NULL;
 
 	wl_list_for_each(launcher, launcher_list, link) {
-		char *argv[] = { NULL };
-
 		if (surfaceId != launcher->icon_surface_id)
 			continue;
 
-		execute_process(launcher->path, argv);
+		execute_process(launcher->path, launcher->argv);
 
 		return 1;
 	}
@@ -1065,6 +1065,32 @@ create_launchers(struct wlContextCommon *cmm, struct wl_list *launcher_list)
 	free(launchers);
 }
 
+static char **
+parse_command(char *str)
+{
+	char **argv;
+	char *saveptr;
+	char *token;
+	int i;
+	int count = 1;
+
+	for (i = 1; str[i]; i++)
+		if (str[i] == ' ' && str[i-1] != ' ')
+			count++;
+
+	argv = xcalloc(count + 1, sizeof(char*));
+
+	i = 0;
+	token = strtok_r(str, " ", &saveptr);
+	while (token != NULL) {
+		argv[i++] = token;
+
+		token = strtok_r(NULL, " ", &saveptr);
+	}
+
+	return argv;
+}
+
 /**
  * Internal method to read out weston.ini to get configuration
  */
@@ -1177,6 +1203,7 @@ hmi_homescreen_setting_create(void)
 
 	while (weston_config_next_section(config, &section, &name)) {
 		struct hmi_homescreen_launcher *launcher;
+		char *command;
 
 		if (strcmp(name, "ivi-launcher") != 0)
 			continue;
@@ -1186,8 +1213,18 @@ hmi_homescreen_setting_create(void)
 
 		weston_config_section_get_string(section, "icon",
 						 &launcher->icon, NULL);
-		weston_config_section_get_string(section, "path",
-						 &launcher->path, NULL);
+
+		weston_config_section_get_string(section, "command",
+						&command, NULL);
+		if (command == NULL) {
+			weston_config_section_get_string(section, "path",
+							&launcher->path, NULL);
+			launcher->argv = NULL;
+		} else {
+			launcher->argv = parse_command(command);
+			launcher->path = launcher->argv[0];
+		}
+
 		weston_config_section_get_uint(section, "workspace-id",
 					       &launcher->workspace_id, 0);
 		weston_config_section_get_uint(section, "icon-id",

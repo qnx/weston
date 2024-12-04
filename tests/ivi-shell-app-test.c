@@ -133,7 +133,13 @@ fixture_setup(struct weston_test_harness *harness)
 			 cfgln("workspace-id=%d", 3),
 			 cfgln("icon-id=%d", 4010),
 			 cfgln("icon=%s", WESTON_DATA_DIR "/icon_ivi_smoke.png"),
-			 cfgln("path=%s", BINDIR "/weston-smoke")
+			 cfgln("path=%s", BINDIR "/weston-smoke"),
+
+			 cfgln("[ivi-launcher]"),
+			 cfgln("workspace-id=%d", 3),
+			 cfgln("icon-id=%d", 4011),
+			 cfgln("icon=%s", WESTON_DATA_DIR "/icon_ivi_simple-egl-vertical.png"),
+			 cfgln("command=%s", BINDIR "/weston-simple-egl -v")
 			);
 
 	return weston_test_harness_execute_as_client(harness, &setup);
