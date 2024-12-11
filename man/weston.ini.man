@@ -401,9 +401,9 @@ enough to cover the output, and centers it. The image ends up cropped from
 left and right, or top and bottom, if the aspect ratio does not match the
 output. Tile repeats the background image to fill the output.
 .TP 7
-.BI "background-color=" 0xAARRGGBB
+.BI "background-color=" 0xRRGGBB
 sets the color of the background (unsigned integer). The hexadecimal
-digit pairs are in order alpha, red, green, and blue.
+digit pairs are in order red, green, and blue.
 .TP 7
 .BI "clock-format=" format
 sets the panel clock format (string). Can be
