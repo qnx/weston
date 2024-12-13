@@ -535,15 +535,6 @@ builder_validate_params_set(struct weston_color_profile_param_builder *builder)
 	if (!(builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TF))
 		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INCOMPLETE_SET,
 			    "transfer function not set");
-
-	/* If target luminance values were given, tf must be PQ. */
-	if (builder->params.tf_info->tf != WESTON_TF_ST2084_PQ &&
-	    (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TARGET_LUMINANCE ||
-	     builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_MAXCLL ||
-	     builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_MAXFALL))
-		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INCONSISTENT_SET,
-			    "luminance values were given but transfer function " \
-			    "is not Rec. ITU-R BT.2100-2 (PQ)");
 }
 
 static float

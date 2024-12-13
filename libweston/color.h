@@ -146,7 +146,7 @@ struct weston_color_profile_params {
 
 	/* Target luminance parameters cd/m²; negative when not set */
 	float target_min_luminance, target_max_luminance;
-	float maxCLL, maxFALL; /* only for PQ transfer function */
+	float maxCLL, maxFALL;
 };
 
 /** Type or formula for a curve */
