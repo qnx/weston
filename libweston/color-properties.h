@@ -112,7 +112,7 @@ struct weston_color_tf_info {
 	/* The protocol also has support for parameterized functions, i.e.
 	 * certain known functions that clients can define passing arbitrary
 	 * parameters. */
-	bool has_parameters;
+	bool count_parameters;
 };
 
 const struct weston_color_feature_info *
