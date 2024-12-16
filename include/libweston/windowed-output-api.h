@@ -32,6 +32,10 @@ extern "C" {
 
 #include <libweston/plugin-registry.h>
 
+#ifndef ARRAY_LENGTH
+#define ARRAY_LENGTH(a) (sizeof (a) / sizeof (a)[0])
+#endif
+
 struct weston_compositor;
 struct weston_output;
 
