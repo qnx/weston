@@ -713,6 +713,12 @@ validate_maxfall(struct weston_color_profile_param_builder *builder)
 static void
 builder_validate_params(struct weston_color_profile_param_builder *builder)
 {
+	if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_MAXCLL)
+		validate_maxcll(builder);
+
+	if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_MAXFALL)
+		validate_maxfall(builder);
+
 	if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_PRIMARIES)
 		validate_color_gamut(builder, &builder->params.primaries,
 				     "primaries");
@@ -720,12 +726,6 @@ builder_validate_params(struct weston_color_profile_param_builder *builder)
 	if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TARGET_PRIMARIES)
 		validate_color_gamut(builder, &builder->params.target_primaries,
 				     "target primaries");
-
-	if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_MAXCLL)
-		validate_maxcll(builder);
-
-	if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_MAXFALL)
-		validate_maxfall(builder);
 }
 
 static void
