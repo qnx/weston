@@ -198,7 +198,7 @@ weston_color_profile_param_builder_set_primaries(struct weston_color_profile_par
 	bool success = true;
 
 	if (!((cm->supported_color_features >> WESTON_COLOR_FEATURE_SET_PRIMARIES) & 1)) {
-		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_PRIMARIES,
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_UNSUPPORTED,
 			    "set_primaries not supported by the color manager");
 		success = false;
 	}
@@ -346,7 +346,7 @@ weston_color_profile_param_builder_set_tf_power_exponent(struct weston_color_pro
 	bool success = true;
 
 	if (!((cm->supported_color_features >> WESTON_COLOR_FEATURE_SET_TF_POWER) & 1)) {
-		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_TF,
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_UNSUPPORTED,
 			    "set_tf_power not supported by the color manager");
 		success = false;
 	}
@@ -465,7 +465,7 @@ weston_color_profile_param_builder_set_target_primaries(struct weston_color_prof
 	bool success = true;
 
 	if (!((cm->supported_color_features >> WESTON_COLOR_FEATURE_SET_MASTERING_DISPLAY_PRIMARIES) & 1)) {
-		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_TARGET_PRIMARIES,
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_UNSUPPORTED,
 			    "set_mastering_display_primaries not supported by " \
 			    "the color manager");
 		success = false;
@@ -683,12 +683,12 @@ validate_maxcll(struct weston_color_profile_param_builder *builder)
 		return;
 
 	if (builder->params.target_min_luminance >= builder->params.maxCLL)
-		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INCONSISTENT_LUMINANCES,
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
 			    "maxCLL (%f) should be greater or equal to target min luminance (%f)",
 			    builder->params.maxCLL, builder->params.target_min_luminance);
 
 	if (builder->params.target_max_luminance < builder->params.maxCLL)
-		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INCONSISTENT_LUMINANCES,
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
 			    "maxCLL (%f) should not be greater than target max luminance (%f)",
 			    builder->params.maxCLL, builder->params.target_max_luminance);
 }
@@ -700,12 +700,12 @@ validate_maxfall(struct weston_color_profile_param_builder *builder)
 		return;
 
 	if (builder->params.target_min_luminance >= builder->params.maxFALL)
-		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INCONSISTENT_LUMINANCES,
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
 			    "maxFALL (%f) should be greater or equal to min luminance (%f)",
 			    builder->params.maxFALL, builder->params.target_min_luminance);
 
 	if (builder->params.target_max_luminance < builder->params.maxFALL)
-		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INCONSISTENT_LUMINANCES,
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
 			    "maxFALL (%f) should not be greater than target max luminance (%f)",
 			    builder->params.maxFALL, builder->params.target_max_luminance);
 }
@@ -843,7 +843,7 @@ weston_color_profile_param_builder_create_color_profile(struct weston_color_prof
 	ret = cm->get_color_profile_from_params(cm, params, name_part,
 						&cprof, err_msg);
 	if (!ret)
-		*err = WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_UNSUPPORTED;
+		*err = WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_CREATE_FAILED;
 
 out:
 	weston_color_profile_param_builder_destroy(builder);
