@@ -35,7 +35,7 @@
 
 #include <libweston/libweston.h>
 #include "xwayland.h"
-#include <libweston/helpers.h>
+#include "shared/helpers.h"
 
 #ifdef WM_DEBUG
 #define wm_log(...) weston_log(__VA_ARGS__)

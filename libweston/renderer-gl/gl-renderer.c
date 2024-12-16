@@ -60,9 +60,8 @@
 #include "output-capture.h"
 #include "pixel-formats.h"
 
-#include <libweston/helpers.h>
-
 #include "shared/fd-util.h"
+#include "shared/helpers.h"
 #include "shared/platform.h"
 #include "shared/string-helpers.h"
 #include "shared/timespec-util.h"

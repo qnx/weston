@@ -42,7 +42,7 @@
 
 #include <cairo.h>
 
-#include <libweston/helpers.h>
+#include "shared/helpers.h"
 #include "window.h"
 
 /** window title */

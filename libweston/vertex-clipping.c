@@ -27,7 +27,7 @@
 #include <math.h>
 #include <string.h>
 
-#include <libweston/helpers.h>
+#include "shared/helpers.h"
 #include "vertex-clipping.h"
 
 struct clip_context {

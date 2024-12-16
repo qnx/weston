@@ -42,7 +42,7 @@
 
 #include "window.h"
 #include "shared/cairo-util.h"
-#include <libweston/helpers.h>
+#include "shared/helpers.h"
 #include "shared/xalloc.h"
 
 struct dnd_drag;

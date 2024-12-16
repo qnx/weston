@@ -36,7 +36,7 @@
 #include <sys/mman.h>
 
 #include <wayland-client.h>
-#include <libweston/helpers.h>
+#include "shared/helpers.h"
 #include "shared/xalloc.h"
 #include "shared/os-compatibility.h"
 

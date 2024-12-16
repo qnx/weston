@@ -25,9 +25,8 @@
 
 #include "config.h"
 
-#include <libweston/helpers.h>
-
 #include "id-number-allocator.h"
+#include "shared/helpers.h"
 #include "shared/xalloc.h"
 #include "shared/weston-assert.h"
 

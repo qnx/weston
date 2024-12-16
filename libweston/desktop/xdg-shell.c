@@ -37,7 +37,7 @@
 
 #include <libweston/desktop.h>
 #include "internal.h"
-#include <libweston/helpers.h>
+#include "shared/helpers.h"
 
 /************************************************************************************
  * WARNING: This file implements the stable xdg shell protocol.

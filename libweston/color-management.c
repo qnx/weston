@@ -25,13 +25,12 @@
 
 #include "config.h"
 
-#include <libweston/helpers.h>
-
 #include "color.h"
 #include "color-management.h"
 #include "shared/string-helpers.h"
 #include "shared/weston-assert.h"
 #include "shared/xalloc.h"
+#include "shared/helpers.h"
 
 #include <fcntl.h>
 

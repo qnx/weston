@@ -19,8 +19,10 @@
  * SOFTWARE.
  */
 
-#ifndef LIBWESTON_HELPERS_H
-#define LIBWESTON_HELPERS_H
+#ifndef WESTON_HELPERS_H
+#define WESTON_HELPERS_H
+
+#include "config.h"
 
 #include <stdint.h>
 

@@ -36,7 +36,7 @@
 
 #include "window.h"
 #include "input-method-unstable-v1-client-protocol.h"
-#include <libweston/helpers.h>
+#include "shared/helpers.h"
 
 enum compose_state {
 	state_normal,

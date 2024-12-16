@@ -40,7 +40,7 @@
 #include "weston-test-server-protocol.h"
 #include "ivi-test.h"
 #include "ivi-shell/ivi-layout-export.h"
-#include <libweston/helpers.h>
+#include "shared/helpers.h"
 
 struct test_context;
 

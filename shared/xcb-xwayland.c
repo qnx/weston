@@ -32,7 +32,7 @@
 #include <stddef.h>
 #include <assert.h>
 
-#include <libweston/helpers.h>
+#include "shared/helpers.h"
 #include "xcb-xwayland.h"
 
 const char *

@@ -41,7 +41,7 @@
 
 #include <wayland-client.h>
 
-#include <libweston/helpers.h>
+#include "shared/helpers.h"
 #include <libweston/zalloc.h>
 #include "weston-debug-client-protocol.h"
 

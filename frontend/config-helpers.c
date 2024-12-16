@@ -30,7 +30,7 @@
 #include <libweston/libweston.h>
 #include <libweston/config-parser.h>
 
-#include <libweston/helpers.h>
+#include "shared/helpers.h"
 #include "weston-private.h"
 
 struct {

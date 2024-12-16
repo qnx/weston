@@ -30,7 +30,7 @@
 #include <assert.h>
 #include <time.h>
 #include <stdbool.h>
-#include <libweston/helpers.h>
+#include <shared/helpers.h>
 
 #define NSEC_PER_SEC 1000000000
 

@@ -31,7 +31,7 @@
 
 #include <libweston/libweston.h>
 #include "libweston-internal.h"
-#include <libweston/helpers.h>
+#include "shared/helpers.h"
 #include "shared/timespec-util.h"
 #include "tablet-unstable-v2-server-protocol.h"
 

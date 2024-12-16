@@ -10,7 +10,6 @@ install_headers(
 	'remoting-plugin.h',
 	'pipewire-plugin.h',
 	'shell-utils.h',
-	'helpers.h',
 	subdir: dir_include_libweston_install
 )
 

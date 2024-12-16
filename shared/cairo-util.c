@@ -35,10 +35,10 @@
 #include <cairo.h>
 #include "cairo-util.h"
 
-#include <libweston/helpers.h>
-#include <libweston/config-parser.h>
+#include "shared/helpers.h"
 #include "image-loader.h"
 #include "shared/xalloc.h"
+#include <libweston/config-parser.h>
 
 #ifdef HAVE_PANGO
 #include <fontconfig/fontconfig.h>

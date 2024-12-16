@@ -29,7 +29,7 @@
 
 #include <assert.h>
 
-#include <libweston/helpers.h>
+#include "shared/helpers.h"
 #include "shared/platform.h"
 #include "shared/string-helpers.h"
 
