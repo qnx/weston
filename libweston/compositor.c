@@ -6241,7 +6241,7 @@ bind_output(struct wl_client *client,
 	    void *data, uint32_t version, uint32_t id)
 {
 	struct weston_head *head = data;
-	struct weston_output *output = head->output;
+	struct weston_output *output = NULL;
 	struct weston_mode *mode;
 	struct wl_resource *resource;
 
@@ -6251,6 +6251,9 @@ bind_output(struct wl_client *client,
 		wl_client_post_no_memory(client);
 		return;
 	}
+
+	if (head)
+		output = head->output;
 
 	if (!output) {
 		wl_resource_set_implementation(resource, &output_interface,
@@ -6371,6 +6374,9 @@ weston_head_remove_global(struct weston_head *head)
 
 	if (head->global)
 		weston_global_destroy_save(head->compositor, head->global);
+
+	wl_global_set_user_data(head->global, NULL);
+
 	head->global = NULL;
 
 	wl_resource_for_each_safe(resource, tmp, &head->resource_list) {
