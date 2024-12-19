@@ -78,6 +78,10 @@
 #define DRM_PLANE_ALPHA_OPAQUE	0xffffUL
 #endif
 
+#ifndef MAX_DMABUF_PLANES
+#define MAX_DMABUF_PLANES 4
+#endif
+
 /**
  * A small wrapper to print information into the 'drm-backend' debug scope.
  *
@@ -294,9 +298,9 @@ struct drm_fb {
 	int refcnt;
 
 	uint32_t fb_id, size;
-	uint32_t handles[4];
-	uint32_t strides[4];
-	uint32_t offsets[4];
+	uint32_t handles[MAX_DMABUF_PLANES];
+	uint32_t strides[MAX_DMABUF_PLANES];
+	uint32_t offsets[MAX_DMABUF_PLANES];
 	int num_planes;
 	const struct pixel_format_info *format;
 	uint64_t modifier;
@@ -308,6 +312,12 @@ struct drm_fb {
 	/* Used by gbm fbs */
 	struct gbm_bo *bo;
 	struct gbm_surface *gbm_surface;
+
+	/* Used when direct-display extension is turned on for that dmabuf */
+	bool direct_display;
+	int fds[MAX_DMABUF_PLANES];
+	 /* tracks how many fds we've dup'ed */
+	int num_duped_fds;
 
 	/* Used by dumb fbs */
 	void *map;

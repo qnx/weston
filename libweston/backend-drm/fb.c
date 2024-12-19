@@ -118,9 +118,17 @@ drm_fb_import_plane(struct drm_device *device, struct drm_fb *fb, int plane)
 	uint32_t handle;
 	int ret;
 
-	bo_fd = gbm_bo_get_fd_for_plane(fb->bo, plane);
-	if (bo_fd < 0)
-		return bo_fd;
+	/* neither a BO nor a direct-display means we shouldn't be calling this */
+	assert(!!fb->bo ^ fb->direct_display);
+
+	if (fb->bo) {
+		bo_fd = gbm_bo_get_fd_for_plane(fb->bo, plane);
+		if (bo_fd < 0)
+			return bo_fd;
+	}
+
+	if (fb->direct_display)
+		bo_fd = fb->fds[plane];
 
 	/*
 	 * drmPrimeFDToHandle is dangerous, because the GEM handles are
@@ -147,7 +155,10 @@ drm_fb_import_plane(struct drm_device *device, struct drm_fb *fb, int plane)
 	fb->handles[plane] = gem_handle_get(device, handle);
 
 out:
-	close(bo_fd);
+	/* on the direct-display path the dup'ed fds will be closed by
+	 * drm_fb_destroy_dmabuf */
+	if (fb->bo)
+		close(bo_fd);
 	return ret;
 }
 #endif
@@ -171,23 +182,32 @@ drm_fb_maybe_import(struct drm_device *device, struct drm_fb *fb)
 	struct gbm_device *gbm_device;
 	int ret = 0;
 	int plane;
+	int num_planes;
 
-	/* No import possible, if there is no gbm bo */
-	if (!fb->bo)
+	/* No import possible, if there is no gbm bo or fb is not using
+	 * direct-display */
+	if (!fb->bo && !fb->direct_display)
 		return 0;
 
-	/* No import necessary, if the gbm bo and the fb use the same device */
-	gbm_device = gbm_bo_get_device(fb->bo);
-	if (gbm_device_get_fd(gbm_device) == fb->fd)
-		return 0;
+	if (fb->bo) {
+		/* No import necessary, if the gbm bo and the fb use the same device */
+		gbm_device = gbm_bo_get_device(fb->bo);
+		if (gbm_device_get_fd(gbm_device) == fb->fd)
+			return 0;
 
-	if (fb->fd != device->drm.fd) {
-		weston_log("fb was not allocated for scanout device %s\n",
-			   device->drm.filename);
-		return -1;
+		if (fb->fd != device->drm.fd) {
+			weston_log("fb was not allocated for scanout device %s\n",
+				   device->drm.filename);
+			return -1;
+		}
+
+		num_planes = gbm_bo_get_plane_count(fb->bo);
 	}
 
-	for (plane = 0; plane < gbm_bo_get_plane_count(fb->bo); plane++) {
+	if (fb->direct_display)
+		num_planes = fb->num_planes;
+
+	for (plane = 0; plane < num_planes; plane++) {
 		ret = drm_fb_import_plane(device, fb, plane);
 		if (ret)
 			goto err;
@@ -367,6 +387,12 @@ drm_fb_destroy_dmabuf(struct drm_fb *fb)
 	for (i = 0; i < 4; i++)
 		if (fb->scanout_device && fb->handles[i] != 0)
 			gem_handle_put(fb->scanout_device, fb->handles[i]);
+		}
+
+	}
+
+	for (i = 0; i < fb->num_duped_fds; i++)
+		close(fb->fds[i]);
 
 	drm_fb_destroy(fb);
 }
@@ -425,6 +451,24 @@ drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf,
 	ARRAY_COPY(import_mod.strides, dmabuf->attributes.stride);
 	ARRAY_COPY(import_mod.offsets, dmabuf->attributes.offset);
 
+	/* skip bo import if dmabuf is using direct-display extension */
+	if (dmabuf->direct_display) {
+		fb->direct_display = true;
+		/* we're making a dup of the fds from dmabuf->attributes.fd as
+		 * opposed to just copying the fds with ARRAY_COPY() */
+		for (i = 0; i < dmabuf->attributes.n_planes; i++) {
+			fb->fds[i] = dup(dmabuf->attributes.fd[i]);
+			if (fb->fds[i] == -1) {
+				weston_log("failed to dup dmabuf attribute fd: %s\n",
+					   strerror(errno));
+				goto err_free;
+			}
+			fb->num_duped_fds++;
+		}
+
+		goto bo_import_skip;
+	}
+
 	fb->bo = gbm_bo_import(backend->gbm, GBM_BO_IMPORT_FD_MODIFIER,
 			       &import_mod, GBM_BO_USE_SCANOUT);
 	if (!fb->bo) {
@@ -434,6 +478,7 @@ drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf,
 		goto err_free;
 	}
 
+bo_import_skip:
 	fb->width = dmabuf->attributes.width;
 	fb->height = dmabuf->attributes.height;
 	fb->modifier = dmabuf->attributes.modifier;
@@ -462,7 +507,7 @@ drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf,
 	}
 
 	fb->num_planes = dmabuf->attributes.n_planes;
-	for (i = 0; i < dmabuf->attributes.n_planes; i++) {
+	for (i = 0; fb->bo && i < dmabuf->attributes.n_planes; i++) {
 		union gbm_bo_handle handle;
 
 	        handle = gbm_bo_get_handle_for_plane(fb->bo, i);
