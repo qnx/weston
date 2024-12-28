@@ -211,6 +211,48 @@ if dep_vulkan.found() and prog_glslang.found()
 		'deps': [ 'vulkan', 'wayland-cursor' ],
 		'options': [ 'renderer-gl' ]
 	}
+
+	srcs_simple_dmabuf_vulkan_shaders = [
+		'simple_dmabuf_vulkan_vertex_shader.vert',
+		'simple_dmabuf_vulkan_fragment_shader.frag',
+	]
+
+	simple_dmabuf_vulkan_shaders = []
+	foreach s : srcs_simple_dmabuf_vulkan_shaders
+		simple_dmabuf_vulkan_shaders += custom_target(s + '.spv.h',
+			command: [ prog_glslang, '@INPUT@', '--quiet', '--variable-name', '@BASENAME@', '-V', '-x', '-o', '@OUTPUT@' ],
+			input: s,
+			output: '@BASENAME@.spv.h',
+		)
+	endforeach
+
+	simple_clients += {
+		'name': 'dmabuf-vulkan',
+		'sources': [
+			'simple-dmabuf-vulkan.c',
+			simple_dmabuf_vulkan_shaders,
+			linux_dmabuf_unstable_v1_client_protocol_h,
+			linux_dmabuf_unstable_v1_protocol_c,
+			linux_explicit_synchronization_unstable_v1_client_protocol_h,
+			linux_explicit_synchronization_unstable_v1_protocol_c,
+			xdg_shell_client_protocol_h,
+			xdg_shell_protocol_c,
+			weston_direct_display_client_protocol_h,
+			weston_direct_display_protocol_c,
+		],
+		'dep_objs': [
+			dep_vulkan,
+                        dep_libdrm_headers,
+			dep_libm,
+			dep_libdrm,
+			dep_libshared,
+			dep_matrix_c,
+			dep_wayland_client,
+			dep_libweston_private, # for pixel-formats.h
+		],
+		'deps': [ 'vulkan', 'wayland-cursor', 'gbm' ],
+		'options': [ 'renderer-gl' ]
+	}
 endif
 
 foreach t : simple_clients
