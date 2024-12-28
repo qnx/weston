@@ -208,6 +208,7 @@ struct weston_renderer {
 
 	enum weston_renderer_type type;
 	const struct gl_renderer_interface *gl;
+	const struct vulkan_renderer_interface *vulkan;
 	const struct pixman_renderer_interface *pixman;
 
 	/* Sets the output border.

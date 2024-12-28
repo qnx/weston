@@ -33,6 +33,10 @@ if get_option('renderer-gl')
 	deps_wlwl += dep_egl # for gl-renderer.h
 endif
 
+if get_option('renderer-vulkan')
+	deps_wlwl += dep_vulkan # for vulkan-renderer.h
+endif
+
 plugin_wlwl = shared_library(
 	'wayland-backend',
 	srcs_wlwl,

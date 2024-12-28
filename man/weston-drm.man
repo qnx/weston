@@ -18,11 +18,11 @@ runs without any underlying windowing system. The backend uses the
 Linux KMS API to detect connected monitors. Monitor hot-plugging is
 supported. Input devices are found automatically by
 .BR udev (7).
-Compositing happens mainly in GL\ ES\ 2, initialized through EGL. It
+Compositing happens mainly in GL\ ES\ 2, initialized through EGL, or Vulkan. It
 is also possible to take advantage of hardware cursors and overlays,
 when they exist and are functional. Full-screen surfaces will be
 scanned out directly without compositing, when possible.
-Hardware accelerated clients are supported via EGL.
+Hardware accelerated clients are supported via EGL or Vulkan.
 
 The backend chooses the DRM graphics device first based on seat id.
 If seat identifiers are not set, it looks for the graphics device
@@ -57,7 +57,7 @@ The actually supported pixel formats depend on the DRM driver and hardware,
 and the renderer used. Using Pixman-renderer, DRM-backend supports
 .BR xrgb8888 ", " xrgb2101010 ", " rgb565
 and some of their permutations.
-The formats supported with GL-renderer depend on the EGL and OpenGL ES 2 or 3
+The formats supported with GL-renderer or vulkan-renderer depend on the driver
 implementations. The names are case-insensitive. This setting applies only to
 .RB "outputs in SDR mode, see " eotf-mode " in " weston.ini (5).
 If the hardware platform supports hardware planes placed under the DRM primary plane

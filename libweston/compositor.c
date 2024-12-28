@@ -88,6 +88,7 @@
 #include "pixman-renderer.h"
 #include "renderer-gl/gl-renderer.h"
 #include "weston-trace.h"
+#include "renderer-vulkan/vulkan-renderer.h"
 
 #include "weston-log-internal.h"
 
@@ -10514,6 +10515,8 @@ weston_compositor_init_renderer(struct weston_compositor *compositor,
 {
 	const struct gl_renderer_interface *gl_renderer;
 	const struct gl_renderer_display_options *gl_options;
+	const struct vulkan_renderer_interface *vulkan_renderer;
+	const struct vulkan_renderer_display_options *vulkan_options;
 	int ret;
 
 	switch (renderer_type) {
@@ -10533,6 +10536,28 @@ weston_compositor_init_renderer(struct weston_compositor *compositor,
 
 		compositor->renderer->gl = gl_renderer;
 		weston_log("Using GL renderer\n");
+		break;
+	case WESTON_RENDERER_VULKAN:
+		vulkan_renderer = weston_load_module("vulkan-renderer.so",
+						 "vulkan_renderer_interface",
+						 LIBWESTON_MODULEDIR);
+		if (!vulkan_renderer)
+			return -1;
+
+		vulkan_options = container_of(options,
+					  struct vulkan_renderer_display_options,
+					  base);
+		ret = vulkan_renderer->display_create(compositor, vulkan_options);
+		if (ret < 0)
+			return ret;
+
+		compositor->renderer->vulkan = vulkan_renderer;
+		weston_log("Using Vulkan renderer\n");
+		weston_log_continue(STAMP_SPACE "Note: This version of Vulkan renderer "
+				    "is still experimental and not expected to be ready "
+				    "for production use\n");
+		weston_log("Run with VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation "
+			   "to enable the Vulkan validation layers\n");
 		break;
 	case WESTON_RENDERER_PIXMAN:
 		ret = pixman_renderer_init(compositor);

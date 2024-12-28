@@ -7,6 +7,7 @@ deps_libweston = [
 	dep_xkbcommon,
 	dep_matrix_c,
 	dep_egl,
+	dep_vulkan,
 ]
 srcs_libweston = [
 	git_version_h,
@@ -242,6 +243,7 @@ dep_lib_renderer_borders = declare_dependency(
 
 subdir('color-lcms')
 subdir('renderer-gl')
+subdir('renderer-vulkan')
 subdir('backend-drm')
 subdir('backend-headless')
 subdir('backend-pipewire')

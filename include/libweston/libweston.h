@@ -201,7 +201,7 @@ enum weston_hdcp_protection {
  * \ingroup testharness
  */
 struct weston_testsuite_quirks {
-	/** Force GL-renderer to do a full upload of wl_shm buffers. */
+	/** Force GL/Vulkan-renderer to do a full upload of wl_shm buffers. */
 	bool force_full_upload;
 	/** Ensure GL shadow fb is used, and always repaint it fully. */
 	bool gl_force_full_redraw_of_shadow_fb;
@@ -2278,6 +2278,7 @@ enum weston_renderer_type {
 	WESTON_RENDERER_NOOP = 1,
 	WESTON_RENDERER_PIXMAN = 2,
 	WESTON_RENDERER_GL = 3,
+	WESTON_RENDERER_VULKAN = 4,
 };
 
 struct weston_backend *

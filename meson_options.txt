@@ -72,6 +72,13 @@ option(
 )
 
 option(
+	'renderer-vulkan',
+	type: 'boolean',
+	value: true,
+	description: 'Weston renderer: Vulkan'
+)
+
+option(
 	'xwayland',
 	type: 'boolean',
 	value: true,

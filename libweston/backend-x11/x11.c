@@ -57,6 +57,7 @@
 #include "shared/timespec-util.h"
 #include "shared/file-util.h"
 #include "renderer-gl/gl-renderer.h"
+#include "renderer-vulkan/vulkan-renderer.h"
 #include "shared/weston-drm-fourcc.h"
 #include "shared/weston-egl-ext.h"
 #include "shared/xalloc.h"
@@ -434,6 +435,29 @@ x11_output_start_repaint_loop(struct weston_output *output)
 
 static int
 x11_output_repaint_gl(struct weston_output *output_base)
+{
+	struct x11_output *output = to_x11_output(output_base);
+	struct weston_compositor *ec;
+	pixman_region32_t damage;
+
+	assert(output);
+
+	ec = output->base.compositor;
+
+	pixman_region32_init(&damage);
+
+	weston_output_flush_damage_for_primary_plane(output_base, &damage);
+
+	ec->renderer->repaint_output(output_base, &damage, NULL);
+
+	pixman_region32_fini(&damage);
+
+	weston_output_arm_frame_timer(output_base, output->finish_frame_timer);
+	return 0;
+}
+
+static int
+x11_output_repaint_vulkan(struct weston_output *output_base)
 {
 	struct x11_output *output = to_x11_output(output_base);
 	struct weston_compositor *ec;
@@ -929,6 +953,9 @@ x11_output_disable(struct weston_output *base)
 	case WESTON_RENDERER_GL:
 		renderer->gl->output_destroy(&output->base);
 		break;
+	case WESTON_RENDERER_VULKAN:
+		renderer->vulkan->output_destroy(&output->base);
+		break;
 	default:
 		unreachable("invalid renderer");
 	}
@@ -1108,6 +1135,29 @@ x11_output_enable(struct weston_output *base)
 			goto err;
 
 		output->base.repaint = x11_output_repaint_gl;
+		break;
+	}
+	case WESTON_RENDERER_VULKAN: {
+		struct vulkan_renderer_output_options options = {
+			.formats = b->formats,
+			.formats_count = b->formats_count,
+			.area.x = 0,
+			.area.y = 0,
+			.area.width = mode->width,
+			.area.height = mode->height,
+			.fb_size.width = mode->width,
+			.fb_size.height = mode->height,
+		};
+
+		options.xcb_connection = b->conn;
+		options.xcb_visualid = screen->root_visual;
+		options.xcb_window = output->window;
+
+		ret = renderer->vulkan->output_window_create(base, &options);
+		if (ret < 0)
+			goto err;
+
+		output->base.repaint = x11_output_repaint_vulkan;
 		break;
 	}
 	default:
@@ -1956,6 +2006,17 @@ x11_backend_create(struct weston_compositor *compositor,
 		};
 		if (weston_compositor_init_renderer(compositor,
 						    WESTON_RENDERER_GL,
+						    &options.base) < 0)
+			goto err_xdisplay;
+		break;
+	}
+	case WESTON_RENDERER_VULKAN: {
+		const struct vulkan_renderer_display_options options = {
+			.formats = b->formats,
+			.formats_count = b->formats_count,
+		};
+		if (weston_compositor_init_renderer(compositor,
+						    WESTON_RENDERER_VULKAN,
 						    &options.base) < 0)
 			goto err_xdisplay;
 		break;

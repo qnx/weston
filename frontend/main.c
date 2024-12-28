@@ -711,6 +711,9 @@ usage(int error_code)
 #if defined(ENABLE_EGL)
 			"\t\t\t\tgl\tOpenGL ES\n"
 #endif
+#if defined(ENABLE_VULKAN)
+			"\t\t\t\tvulkan\tVulkan\n"
+#endif
 			"\t\t\t\tnoop\tNo-op renderer for testing only\n"
 			"\t\t\t\tpixman\tPixman software renderer\n"
 		"  --shell=NAME\tShell to load, defaults to desktop\n"
@@ -755,6 +758,7 @@ usage(int error_code)
 		"\tflipped-rotate-270\n"
 		"  --use-pixman\t\tUse the pixman (CPU) renderer (deprecated alias for --renderer=pixman)\n"
 		"  --use-gl\t\tUse the GL renderer (deprecated alias for --renderer=gl)\n"
+		"  --use-vulkan\t\tUse the Vulkan renderer (deprecated alias for --renderer=vulkan)\n"
 		"  --no-outputs\t\tDo not create any virtual outputs\n"
 		"  --refresh-rate=RATE\tThe output refresh rate (in mHz)\n"
 		"\n");
@@ -3532,6 +3536,7 @@ load_headless_backend(struct weston_compositor *c,
 	struct wet_backend *wb;
 	bool force_pixman;
 	bool force_gl;
+	bool force_vulkan;
 	bool no_outputs = false;
 	char *transform = NULL;
 
@@ -3544,6 +3549,8 @@ load_headless_backend(struct weston_compositor *c,
 				       false);
 	weston_config_section_get_bool(section, "use-gl", &force_gl,
 				       false);
+	weston_config_section_get_bool(section, "use-vulkan", &force_vulkan,
+				       false);
 	weston_config_section_get_bool(section, "output-decorations", &config.decorate,
 				       false);
 
@@ -3553,6 +3560,7 @@ load_headless_backend(struct weston_compositor *c,
 		{ WESTON_OPTION_INTEGER, "scale", 0, &parsed_options->scale },
 		{ WESTON_OPTION_BOOLEAN, "use-pixman", 0, &force_pixman },
 		{ WESTON_OPTION_BOOLEAN, "use-gl", 0, &force_gl },
+		{ WESTON_OPTION_BOOLEAN, "use-vulkan", 0, &force_vulkan },
 		{ WESTON_OPTION_STRING, "transform", 0, &transform },
 		{ WESTON_OPTION_BOOLEAN, "no-outputs", 0, &no_outputs },
 		{ WESTON_OPTION_INTEGER, "refresh-rate", 0, &config.refresh },
@@ -3562,13 +3570,17 @@ load_headless_backend(struct weston_compositor *c,
 	parse_options(options, ARRAY_LENGTH(options), argc, argv);
 
 	if ((force_pixman && force_gl) ||
-	    (renderer != WESTON_RENDERER_AUTO && (force_pixman || force_gl))) {
+	    (force_pixman && force_vulkan) ||
+	    (force_gl && force_vulkan) ||
+	    (renderer != WESTON_RENDERER_AUTO && (force_pixman || force_gl || force_vulkan))) {
 		weston_log("Conflicting renderer specifications\n");
 		return -1;
 	} else if (force_pixman) {
 		config.renderer = WESTON_RENDERER_PIXMAN;
 	} else if (force_gl) {
 		config.renderer = WESTON_RENDERER_GL;
+	} else if (force_vulkan) {
+		config.renderer = WESTON_RENDERER_VULKAN;
 	} else {
 		config.renderer = renderer;
 	}

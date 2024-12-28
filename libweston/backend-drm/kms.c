@@ -1791,6 +1791,9 @@ drm_pending_state_apply(struct drm_pending_state *pending_state)
 			if (b->compositor->renderer->type == WESTON_RENDERER_GL) {
 				drm_output_fini_egl(output);
 				drm_output_init_egl(output, b);
+			} else if (b->compositor->renderer->type == WESTON_RENDERER_VULKAN) {
+				drm_output_fini_vulkan(output);
+				drm_output_init_vulkan(output, b);
 			}
 		}
 	}

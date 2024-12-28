@@ -366,7 +366,7 @@ drm_fb_destroy_gbm(struct gbm_bo *bo, void *data)
 	struct drm_fb *fb = data;
 
 	assert(fb->type == BUFFER_GBM_SURFACE || fb->type == BUFFER_CLIENT ||
-	       fb->type == BUFFER_CURSOR);
+	       fb->type == BUFFER_CURSOR || fb->type == BUFFER_GBM_BO);
 	drm_fb_destroy(fb);
 }
 
@@ -622,6 +622,7 @@ drm_fb_unref(struct drm_fb *fb)
 #ifdef BUILD_DRM_GBM
 	case BUFFER_CURSOR:
 	case BUFFER_CLIENT:
+	case BUFFER_GBM_BO:
 		gbm_bo_destroy(fb->bo);
 		break;
 	case BUFFER_GBM_SURFACE:

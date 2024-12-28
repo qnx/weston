@@ -34,6 +34,7 @@ srcs_drm = [
 
 deps_drm = [
 	dep_egl, # optional
+	dep_vulkan, # optional
 	dep_libm,
 	dep_libdl,
 	dep_libshared,
@@ -49,6 +50,15 @@ deps_drm = [
 if get_option('renderer-gl')
 	if not dep_gbm.found()
 		error('drm-backend with GL renderer requires gbm which was not found. Or, you can use \'-Drenderer-gl=false\'.')
+	endif
+	deps_drm += dep_gbm
+	srcs_drm += 'drm-gbm.c'
+	config_h.set('BUILD_DRM_GBM', '1')
+endif
+
+if get_option('renderer-vulkan')
+	if not dep_gbm.found()
+		error('drm-backend with Vulkan renderer requires gbm which was not found. Or, you can use \'-Drenderer-vulkan=false\'.')
 	endif
 	deps_drm += dep_gbm
 	srcs_drm += 'drm-gbm.c'

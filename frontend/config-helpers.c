@@ -70,6 +70,7 @@ struct {
 } renderer_name_map[] = {
 	{ "auto", WESTON_RENDERER_AUTO },
 	{ "gl", WESTON_RENDERER_GL },
+	{ "vulkan", WESTON_RENDERER_VULKAN },
 	{ "noop", WESTON_RENDERER_NOOP },
 	{ "pixman", WESTON_RENDERER_PIXMAN },
 };

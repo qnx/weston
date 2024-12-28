@@ -35,12 +35,15 @@ stitching them together is performed by a *renderer*. By doing so, it is
 compositing all surfaces into a single image, which is being handed out to a
 back-end, and finally, displayed on the screen.
 
-libweston provides two useful renderers. One uses
-`OpenGL ES <https://www.khronos.org/opengles/>`_, which will often be accelerated
-by your GPU when suitable drivers are installed. The other uses the
-`Pixman <http://www.pixman.org>`_ library which is entirely CPU (software)
-rendered. You can select between these with the ``--renderer=gl`` and
-``--renderer=pixman`` arguments when starting Weston.
+libweston provides multiple useful renderers. There are
+`OpenGL ES <https://www.khronos.org/opengles/>`_ and
+`Vulkan <https://www.vulkan.org/>`_ renderers, which will often be accelerated
+by your GPU when suitable drivers are installed.
+Another uses the `Pixman <http://www.pixman.org>`_ library which is entirely
+CPU (software) rendered.
+
+You can select between these with the ``--renderer=gl``, ``--renderer=vulkan``
+and ``--renderer=pixman`` arguments when starting Weston.
 
 Multi-back-end support
 ----------------------

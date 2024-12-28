@@ -123,6 +123,10 @@ config_h.set('EGL_NO_X11', '1')
 config_h.set('MESA_EGL_NO_X11_HEADERS', '1')
 config_h.set('EGL_NO_PLATFORM_SPECIFIC_TYPES', '1')
 
+config_h.set('VULKAN_NO_X11', '1')
+config_h.set('MESA_VULKAN_NO_X11_HEADERS', '1')
+config_h.set('VULKAN_NO_PLATFORM_SPECIFIC_TYPES', '1')
+
 config_h.set_quoted('PACKAGE_STRING', 'weston @0@'.format(version_weston))
 config_h.set_quoted('PACKAGE_VERSION', version_weston)
 config_h.set_quoted('VERSION', version_weston)
@@ -199,6 +203,21 @@ if get_option('renderer-gl')
 	endif
 else
 	dep_egl = dependency('', required: false)
+endif
+
+if get_option('renderer-vulkan')
+	dep_vulkan = dependency('vulkan', required: false)
+	if not dep_vulkan.found()
+		error('libweston + vulkan-renderer requires vulkan which was not found. Or, you can use \'-Drenderer-vulkan=false\'.')
+	endif
+
+	prog_glslang = find_program('glslangValidator', required : false)
+	if not prog_glslang.found()
+		error('libweston + vulkan-renderer requires glslangValidator which was not found. Or, you can use \'-Drenderer-vulkan=false\'.')
+	endif
+else
+	dep_vulkan = dependency('', required: false)
+	prog_glslang = find_program('', required : false)
 endif
 
 

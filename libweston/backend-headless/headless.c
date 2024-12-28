@@ -42,6 +42,7 @@
 #include "pixel-formats.h"
 #include "pixman-renderer.h"
 #include "renderer-gl/gl-renderer.h"
+#include "renderer-vulkan/vulkan-renderer.h"
 #include "renderer-borders.h"
 #include "shared/weston-drm-fourcc.h"
 #include "shared/weston-egl-ext.h"
@@ -199,6 +200,24 @@ headless_output_disable_gl(struct headless_output *output)
 }
 
 static void
+headless_output_disable_vulkan(struct headless_output *output)
+{
+	struct weston_compositor *compositor = output->base.compositor;
+	const struct weston_renderer *renderer = compositor->renderer;
+
+	weston_renderer_borders_fini(&output->borders, &output->base);
+
+	renderer->destroy_renderbuffer(output->renderbuffer);
+	output->renderbuffer = NULL;
+	renderer->vulkan->output_destroy(&output->base);
+
+	if (output->frame) {
+		frame_destroy(output->frame);
+		output->frame = NULL;
+	}
+}
+
+static void
 headless_output_disable_pixman(struct headless_output *output)
 {
 	struct weston_renderer *renderer = output->base.compositor->renderer;
@@ -226,6 +245,9 @@ headless_output_disable(struct weston_output *base)
 	switch (b->compositor->renderer->type) {
 	case WESTON_RENDERER_GL:
 		headless_output_disable_gl(output);
+		break;
+	case WESTON_RENDERER_VULKAN:
+		headless_output_disable_vulkan(output);
 		break;
 	case WESTON_RENDERER_PIXMAN:
 		headless_output_disable_pixman(output);
@@ -311,6 +333,63 @@ err_renderbuffer:
 }
 
 static int
+headless_output_enable_vulkan(struct headless_output *output)
+{
+	struct headless_backend *b = output->backend;
+	const struct weston_renderer *renderer = b->compositor->renderer;
+	const struct weston_mode *mode = output->base.current_mode;
+	struct vulkan_renderer_fbo_options options = { 0 };
+
+	if (b->decorate) {
+		/*
+		 * Start with a dummy exterior size and then resize, because
+		 * there is no frame_create() with interior size.
+		 */
+		output->frame = frame_create(b->theme, 100, 100,
+					     FRAME_BUTTON_CLOSE, NULL, NULL);
+		if (!output->frame) {
+			weston_log("failed to create frame for output\n");
+			return -1;
+		}
+		frame_resize_inside(output->frame, mode->width, mode->height);
+
+		options.fb_size.width = frame_width(output->frame);
+		options.fb_size.height = frame_height(output->frame);
+		frame_interior(output->frame, &options.area.x, &options.area.y,
+			       &options.area.width, &options.area.height);
+	} else {
+		options.area.x = 0;
+		options.area.y = 0;
+		options.area.width = mode->width;
+		options.area.height = mode->height;
+		options.fb_size.width = mode->width;
+		options.fb_size.height = mode->height;
+	}
+
+	if (renderer->vulkan->output_fbo_create(&output->base, &options) < 0) {
+		weston_log("failed to create vulkan renderer output state\n");
+		if (output->frame) {
+			frame_destroy(output->frame);
+			output->frame = NULL;
+		}
+		return -1;
+	}
+
+	output->renderbuffer =
+		renderer->create_renderbuffer(&output->base, b->formats[0],
+					      NULL, 0, NULL, NULL);
+	if (!output->renderbuffer)
+		goto err_renderbuffer;
+
+	return 0;
+
+err_renderbuffer:
+	renderer->vulkan->output_destroy(&output->base);
+
+	return -1;
+}
+
+static int
 headless_output_enable_pixman(struct headless_output *output)
 {
 	struct weston_renderer *renderer = output->base.compositor->renderer;
@@ -364,6 +443,9 @@ headless_output_enable(struct weston_output *base)
 	switch (b->compositor->renderer->type) {
 	case WESTON_RENDERER_GL:
 		ret = headless_output_enable_gl(output);
+		break;
+	case WESTON_RENDERER_VULKAN:
+		ret = headless_output_enable_vulkan(output);
 		break;
 	case WESTON_RENDERER_PIXMAN:
 		ret = headless_output_enable_pixman(output);
@@ -589,6 +671,16 @@ headless_backend_create(struct weston_compositor *compositor,
 			};
 			ret = weston_compositor_init_renderer(compositor,
 							      WESTON_RENDERER_GL,
+							      &options.base);
+			break;
+		}
+		case WESTON_RENDERER_VULKAN: {
+			const struct vulkan_renderer_display_options options = {
+				.formats = b->formats,
+				.formats_count = b->formats_count,
+			};
+			ret = weston_compositor_init_renderer(compositor,
+							      WESTON_RENDERER_VULKAN,
 							      &options.base);
 			break;
 		}

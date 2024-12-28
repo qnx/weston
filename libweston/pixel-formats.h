@@ -107,6 +107,9 @@ struct pixel_format_info {
 	/** GL data type, if data can be natively/directly uploaded. */
 	int gl_type;
 
+	/** Vulkan format, if data can be natively/directly uploaded. */
+	int vulkan_format;
+
 	/** Pixman data type, if it agrees exactly with the wl_shm format */
 	pixman_format_code_t pixman_format;
 

@@ -48,6 +48,7 @@
 #include <libweston/libweston.h>
 #include <libweston/backend-wayland.h>
 #include "renderer-gl/gl-renderer.h"
+#include "renderer-vulkan/vulkan-renderer.h"
 #include "renderer-borders.h"
 #include "shared/weston-drm-fourcc.h"
 #include "shared/weston-egl-ext.h"
@@ -456,7 +457,11 @@ static const struct wl_callback_listener frame_listener = {
 static void
 draw_initial_frame(struct wayland_output *output)
 {
+	struct wayland_backend *b = output->backend;
 	struct wayland_shm_buffer *sb;
+
+	assert(b->compositor);
+	assert(b->compositor->renderer);
 
 	sb = wayland_output_get_shm_buffer(output);
 
@@ -465,12 +470,15 @@ draw_initial_frame(struct wayland_output *output)
 	if (output->gl.egl_window)
 		sb->output = NULL;
 
+	if (b->compositor->renderer->type == WESTON_RENDERER_VULKAN)
+		sb->output = NULL;
+
 	wl_surface_attach(output->parent.surface, sb->buffer, 0, 0);
 	wl_surface_damage(output->parent.surface, 0, 0,
 			  sb->width, sb->height);
 }
 
-#ifdef ENABLE_EGL
+#if defined(ENABLE_EGL) || defined(ENABLE_VULKAN)
 static void
 wayland_output_update_renderer_border(struct wayland_output *output)
 {
@@ -504,6 +512,35 @@ wayland_output_start_repaint_loop(struct weston_output *output_base)
 #ifdef ENABLE_EGL
 static int
 wayland_output_repaint_gl(struct weston_output *output_base)
+{
+	struct wayland_output *output = to_wayland_output(output_base);
+	struct weston_compositor *ec;
+	pixman_region32_t damage;
+
+	assert(output);
+
+	ec = output->base.compositor;
+
+	pixman_region32_init(&damage);
+
+	weston_output_flush_damage_for_primary_plane(output_base, &damage);
+
+	output->frame_cb = wl_surface_frame(output->parent.surface);
+	wl_callback_add_listener(output->frame_cb, &frame_listener, output);
+
+	wayland_output_update_renderer_border(output);
+
+	ec->renderer->repaint_output(&output->base, &damage, NULL);
+
+	pixman_region32_fini(&damage);
+
+	return 0;
+}
+#endif
+
+#ifdef ENABLE_VULKAN
+static int
+wayland_output_repaint_vulkan(struct weston_output *output_base)
 {
 	struct wayland_output *output = to_wayland_output(output_base);
 	struct weston_compositor *ec;
@@ -710,6 +747,13 @@ wayland_output_disable(struct weston_output *base)
 		wl_egl_window_destroy(output->gl.egl_window);
 		break;
 #endif
+#ifdef ENABLE_VULKAN
+	case WESTON_RENDERER_VULKAN:
+		weston_renderer_borders_fini(&output->borders, &output->base);
+
+		renderer->vulkan->output_destroy(&output->base);
+		break;
+#endif
 	default:
 		unreachable("invalid renderer");
 	}
@@ -790,6 +834,47 @@ cleanup_window:
 }
 #endif
 
+#ifdef ENABLE_VULKAN
+static int
+wayland_output_init_vulkan_renderer(struct wayland_output *output)
+{
+	const struct weston_mode *mode = output->base.current_mode;
+	struct wayland_backend *b = output->backend;
+	const struct weston_renderer *renderer;
+	struct vulkan_renderer_output_options options = {
+		.formats = b->formats,
+		.formats_count = b->formats_count,
+	};
+
+	if (output->frame) {
+		frame_interior(output->frame, &options.area.x, &options.area.y,
+			       &options.area.width, &options.area.height);
+		options.fb_size.width = frame_width(output->frame);
+		options.fb_size.height = frame_height(output->frame);
+	} else {
+		options.area.x = 0;
+		options.area.y = 0;
+		options.area.width = mode->width;
+		options.area.height = mode->height;
+		options.fb_size.width = mode->width;
+		options.fb_size.height = mode->height;
+	}
+
+	options.wayland_display = b->parent.wl_display;
+	options.wayland_surface = output->parent.surface;
+
+	renderer = output->base.compositor->renderer;
+
+	if (renderer->vulkan->output_window_create(&output->base, &options) < 0)
+		goto cleanup_window;
+
+	return 0;
+
+cleanup_window:
+	return -1;
+}
+#endif
+
 static int
 wayland_output_init_pixman_renderer(struct wayland_output *output)
 {
@@ -824,6 +909,9 @@ wayland_output_resize_surface(struct wayland_output *output)
 	struct weston_geometry opa = area;
 	struct wl_region *region;
 
+	assert(b->compositor);
+	assert(b->compositor->renderer);
+
 	if (output->frame) {
 		frame_resize_inside(output->frame, area.width, area.height);
 		frame_interior(output->frame, &area.x, &area.y, NULL, NULL);
@@ -856,6 +944,14 @@ wayland_output_resize_surface(struct wayland_output *output)
 	if (output->gl.egl_window) {
 		wl_egl_window_resize(output->gl.egl_window,
 				     fb_size.width, fb_size.height, 0, 0);
+		weston_renderer_resize_output(&output->base, &fb_size, &area);
+
+		/* These will need to be re-created due to the resize */
+		weston_renderer_borders_fini(&output->borders, &output->base);
+	} else
+#endif
+#ifdef ENABLE_VULKAN
+	if (b->compositor->renderer->type == WESTON_RENDERER_VULKAN) {
 		weston_renderer_resize_output(&output->base, &fb_size, &area);
 
 		/* These will need to be re-created due to the resize */
@@ -1041,6 +1137,13 @@ wayland_output_switch_mode_finish(struct wayland_output *output)
 		renderer->gl->output_destroy(&output->base);
 		wl_egl_window_destroy(output->gl.egl_window);
 		if (wayland_output_init_gl_renderer(output) < 0)
+			return -1;
+		break;
+#endif
+#ifdef ENABLE_VULKAN
+	case WESTON_RENDERER_VULKAN:
+		renderer->vulkan->output_destroy(&output->base);
+		if (wayland_output_init_vulkan_renderer(output) < 0)
 			return -1;
 		break;
 #endif
@@ -1302,6 +1405,14 @@ wayland_output_enable(struct weston_output *base)
 			goto err_output;
 
 		output->base.repaint = wayland_output_repaint_gl;
+		break;
+#endif
+#ifdef ENABLE_VULKAN
+	case WESTON_RENDERER_VULKAN:
+		if (wayland_output_init_vulkan_renderer(output) < 0)
+			goto err_output;
+
+		output->base.repaint = wayland_output_repaint_vulkan;
 		break;
 #endif
 	default:
@@ -2961,6 +3072,22 @@ wayland_backend_create(struct weston_compositor *compositor,
 			goto err_display;
 		}
 		break;
+	case WESTON_RENDERER_VULKAN: {
+		const struct vulkan_renderer_display_options options = {
+			.formats = b->formats,
+			.formats_count = b->formats_count,
+		};
+
+		if (weston_compositor_init_renderer(compositor,
+						    WESTON_RENDERER_VULKAN,
+						    &options.base) < 0) {
+			weston_log("Failed to initialize the Vulkan renderer\n");
+			goto err_display;
+		}
+		/* For now Vulkan does not fall back to anything automatically,
+		 * like GL renderer does. */
+		break;
+	}
 	default:
 		weston_log("Unsupported renderer requested\n");
 		goto err_display;

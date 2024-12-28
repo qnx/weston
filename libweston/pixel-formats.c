@@ -94,6 +94,13 @@
 #define GL_TYPE(type) .gl_type = 0
 #endif
 
+#ifdef ENABLE_VULKAN
+#include <vulkan/vulkan.h>
+#define VULKAN_FORMAT(fmt) .vulkan_format = (fmt)
+#else
+#define VULKAN_FORMAT(fmt) .vulkan_format = 0
+#endif
+
 #define DRM_FORMAT(f) .format = DRM_FORMAT_ ## f, .drm_format_name = #f
 #define BITS_RGBA_FIXED(r_, g_, b_, a_) \
 	.bits.r = r_, \
@@ -128,6 +135,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		GL_FORMAT_INFO(GL_R8, GL_RED, GL_UNSIGNED_BYTE, R001),
 		GL_FORMAT(GL_R8_EXT),
 		GL_TYPE(GL_UNSIGNED_BYTE),
+		VULKAN_FORMAT(VK_FORMAT_R8_UNORM),
 	},
 	{
 		DRM_FORMAT(R16),
@@ -146,6 +154,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		GL_FORMAT_INFO(GL_RG8, GL_RG, GL_UNSIGNED_BYTE, RG01),
 		GL_FORMAT(GL_RG8_EXT),
 		GL_TYPE(GL_UNSIGNED_BYTE),
+		VULKAN_FORMAT(VK_FORMAT_R8G8_UNORM),
 	},
 	{
 		DRM_FORMAT(RG88),
@@ -366,6 +375,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		GL_FORMAT_INFO(GL_RGB8, GL_RGB, GL_UNSIGNED_BYTE, BGR1),
 		GL_FORMAT(GL_RGB),
 		GL_TYPE(GL_UNSIGNED_BYTE),
+		VULKAN_FORMAT(VK_FORMAT_B8G8R8_UNORM),
 	},
 	{
 		DRM_FORMAT(BGR888),
@@ -375,6 +385,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		GL_FORMAT_INFO(GL_RGB8, GL_RGB, GL_UNSIGNED_BYTE, RGB1),
 		GL_FORMAT(GL_RGB),
 		GL_TYPE(GL_UNSIGNED_BYTE),
+		VULKAN_FORMAT(VK_FORMAT_R8G8B8_UNORM),
 	},
 	{
 		DRM_FORMAT(XRGB8888),
@@ -386,6 +397,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		GL_INTERNALFORMAT(GL_RGB8),
 		GL_FORMAT(GL_BGRA_EXT),
 		GL_TYPE(GL_UNSIGNED_BYTE),
+		VULKAN_FORMAT(VK_FORMAT_B8G8R8A8_UNORM),
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 		PIXMAN_FMT(x8r8g8b8),
 #else
@@ -403,6 +415,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		GL_INTERNALFORMAT(GL_RGBA8),
 		GL_FORMAT(GL_BGRA_EXT),
 		GL_TYPE(GL_UNSIGNED_BYTE),
+		VULKAN_FORMAT(VK_FORMAT_B8G8R8A8_UNORM),
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 		PIXMAN_FMT(a8r8g8b8),
 #else
@@ -417,6 +430,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		GL_FORMAT_INFO(GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, RGB1),
 		GL_FORMAT(GL_RGBA),
 		GL_TYPE(GL_UNSIGNED_BYTE),
+		VULKAN_FORMAT(VK_FORMAT_R8G8B8A8_UNORM),
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 		PIXMAN_FMT(x8b8g8r8),
 #else
@@ -432,6 +446,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		GL_FORMAT_INFO(GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, RGBA),
 		GL_FORMAT(GL_RGBA),
 		GL_TYPE(GL_UNSIGNED_BYTE),
+		VULKAN_FORMAT(VK_FORMAT_R8G8B8A8_UNORM),
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 		PIXMAN_FMT(a8b8g8r8),
 #else
@@ -538,6 +553,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		BITS_RGBA_FIXED(10, 10, 10, 2),
 		.bpp = 32,
 		.opaque_substitute = DRM_FORMAT_XBGR2101010,
+		VULKAN_FORMAT(VK_FORMAT_A2B10G10R10_UNORM_PACK32),
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 		GL_FORMAT_INFO(GL_RGB10_A2, GL_RGBA, GL_UNSIGNED_INT_2_10_10_10_REV, RGBA),
 		GL_FORMAT(GL_RGBA),
@@ -580,6 +596,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 #if __BYTE_ORDER__ == __LITTLE_ENDIAN
 		GL_FORMAT(GL_RGBA16_EXT),
 		GL_TYPE(GL_UNSIGNED_SHORT),
+		VULKAN_FORMAT(VK_FORMAT_R16G16B16A16_UNORM),
 #endif
 	},
 	{
@@ -592,6 +609,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 #if __BYTE_ORDER__ == __LITTLE_ENDIAN
 		GL_FORMAT(GL_RGBA16_EXT),
 		GL_TYPE(GL_UNSIGNED_SHORT),
+		VULKAN_FORMAT(VK_FORMAT_R16G16B16A16_UNORM),
 #endif
 	},
 	{
@@ -618,6 +636,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 #if __BYTE_ORDER__ == __LITTLE_ENDIAN
 		GL_FORMAT(GL_RGBA16F),
 		GL_TYPE(GL_HALF_FLOAT),
+		VULKAN_FORMAT(VK_FORMAT_R16G16B16A16_SFLOAT),
 #endif
 	},
 	{
@@ -630,6 +649,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 #if __BYTE_ORDER__ == __LITTLE_ENDIAN
 		GL_FORMAT(GL_RGBA16F),
 		GL_TYPE(GL_HALF_FLOAT),
+		VULKAN_FORMAT(VK_FORMAT_R16G16B16A16_SFLOAT),
 #endif
 	},
 	{

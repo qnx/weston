@@ -520,13 +520,16 @@ drm_output_render(struct drm_output_state *state)
 	    !weston_output_has_renderer_capture_tasks(&output->base) &&
 	    scanout_plane->state_cur->fb &&
 	    (scanout_plane->state_cur->fb->type == BUFFER_GBM_SURFACE ||
+	     scanout_plane->state_cur->fb->type == BUFFER_GBM_BO ||
 	     scanout_plane->state_cur->fb->type == BUFFER_PIXMAN_DUMB)) {
 		fb = drm_fb_ref(scanout_plane->state_cur->fb);
 	} else if (c->renderer->type == WESTON_RENDERER_PIXMAN) {
 		fb = drm_output_render_pixman(state, &damage);
-	} else {
+	} else if (c->renderer->type == WESTON_RENDERER_GL) {
 		fb = drm_output_render_gl(state, &damage);
-	}
+	} else if (c->renderer->type == WESTON_RENDERER_VULKAN) {
+		fb = drm_output_render_vulkan(state, &damage);
+	} else assert(0);
 
 	if (!fb) {
 		drm_plane_state_put_back(scanout_state);
@@ -1192,6 +1195,13 @@ drm_output_apply_mode(struct drm_output *output)
 		drm_output_fini_egl(output);
 		if (drm_output_init_egl(output, b) < 0) {
 			weston_log("failed to init output egl state with "
+				   "new mode");
+			return -1;
+		}
+	} else if (b->compositor->renderer->type == WESTON_RENDERER_VULKAN) {
+		drm_output_fini_vulkan(output);
+		if (drm_output_init_vulkan(output, b) < 0) {
+			weston_log("failed to init output vulkan state with "
 				   "new mode");
 			return -1;
 		}
@@ -2482,6 +2492,11 @@ drm_output_enable(struct weston_output *base)
 			weston_log("Failed to init output pixman state\n");
 			goto err_planes;
 		}
+	} else if (b->compositor->renderer->type == WESTON_RENDERER_VULKAN) {
+		if (drm_output_init_vulkan(output, b) < 0) {
+			weston_log("Failed to init output vulkan state\n");
+			goto err_planes;
+		}
 	} else if (drm_output_init_egl(output, b) < 0) {
 		weston_log("Failed to init output gl state\n");
 		goto err_planes;
@@ -2532,6 +2547,8 @@ drm_output_deinit(struct weston_output *base)
 
 	if (b->compositor->renderer->type == WESTON_RENDERER_PIXMAN)
 		drm_output_fini_pixman(output);
+	else if (b->compositor->renderer->type == WESTON_RENDERER_VULKAN)
+		drm_output_fini_vulkan(output);
 	else
 		drm_output_fini_egl(output);
 
@@ -4218,9 +4235,14 @@ drm_backend_create(struct weston_compositor *compositor,
 	if (config->additional_devices)
 		open_additional_devices(b, config->additional_devices);
 
+	/* GL renderer is the default whenever it is enabled.
+	 * Only on a build without GL but with Vulkan, Vulkan is picked
+	 * as the default. Otherwise, pick pixman as the default */
 	if (config->renderer == WESTON_RENDERER_AUTO) {
-#ifdef BUILD_DRM_GBM
+#if defined(ENABLE_EGL)
 		config->renderer = WESTON_RENDERER_GL;
+#elif defined(ENABLE_VULKAN)
+		config->renderer = WESTON_RENDERER_VULKAN;
 #else
 		config->renderer = WESTON_RENDERER_PIXMAN;
 #endif
@@ -4236,6 +4258,12 @@ drm_backend_create(struct weston_compositor *compositor,
 	case WESTON_RENDERER_GL:
 		if (init_egl(b) < 0) {
 			weston_log("failed to initialize egl\n");
+			goto err_udev_dev;
+		}
+		break;
+	case WESTON_RENDERER_VULKAN:
+		if (init_vulkan(b) < 0) {
+			weston_log("failed to initialize vulkan\n");
 			goto err_udev_dev;
 		}
 		break;

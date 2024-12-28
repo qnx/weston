@@ -293,6 +293,7 @@ enum drm_fb_type {
 	BUFFER_PIXMAN_DUMB, /**< internal Pixman rendering */
 	BUFFER_GBM_SURFACE, /**< internal EGL rendering */
 	BUFFER_CURSOR, /**< internal cursor buffer */
+	BUFFER_GBM_BO, /**< internal Vulkan rendering */
 };
 
 struct drm_fb {
@@ -574,6 +575,8 @@ struct drm_output {
 	int current_cursor;
 
 	struct gbm_surface *gbm_surface;
+	struct gbm_bo *gbm_bos[2];
+	int current_bo;
 	const struct pixel_format_info *format;
 	uint32_t gbm_bo_flags;
 
@@ -946,6 +949,18 @@ drm_output_fini_egl(struct drm_output *output);
 struct drm_fb *
 drm_output_render_gl(struct drm_output_state *state, pixman_region32_t *damage);
 
+int
+init_vulkan(struct drm_backend *b);
+
+int
+drm_output_init_vulkan(struct drm_output *output, struct drm_backend *b);
+
+void
+drm_output_fini_vulkan(struct drm_output *output);
+
+struct drm_fb *
+drm_output_render_vulkan(struct drm_output_state *state, pixman_region32_t *damage);
+
 #else
 inline static int
 init_egl(struct drm_backend *b)
@@ -970,4 +985,29 @@ drm_output_render_gl(struct drm_output_state *state, pixman_region32_t *damage)
 {
 	return NULL;
 }
+
+inline static int
+init_vulkan(struct drm_backend *b)
+{
+	weston_log("Compiled without GBM support\n");
+	return -1;
+}
+
+inline static int
+drm_output_init_vulkan(struct drm_output *output, struct drm_backend *b)
+{
+	return -1;
+}
+
+inline static void
+drm_output_fini_vulkan(struct drm_output *output)
+{
+}
+
+inline static struct drm_fb *
+drm_output_render_vulkan(struct drm_output_state *state, pixman_region32_t *damage)
+{
+	return NULL;
+}
+
 #endif
