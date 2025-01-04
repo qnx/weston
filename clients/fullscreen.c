@@ -346,6 +346,7 @@ usage(int error_code)
 	fprintf(stderr, "Usage: fullscreen [OPTIONS]\n\n"
 		"   -w <width>\tSet window width to <width>\n"
 		"   -h <height>\tSet window height to <height>\n"
+		"   -f\t\tMap window as fullscreen\n"
 		"   --help\tShow this help text\n\n");
 
 	exit(error_code);
@@ -394,6 +395,8 @@ int main(int argc, char *argv[])
 				usage(EXIT_FAILURE);
 
 			fullscreen.height = atol(argv[i]);
+		} else if (strcmp(argv[i], "-f") == 0) {
+			fullscreen.fullscreen = 1;
 		} else if (strcmp(argv[i], "--help") == 0)
 			usage(EXIT_SUCCESS);
 		else
@@ -434,6 +437,8 @@ int main(int argc, char *argv[])
 	window_set_fullscreen_handler(fullscreen.window, fullscreen_handler);
 
 	window_set_user_data(fullscreen.window, &fullscreen);
+	if (fullscreen.fullscreen)
+		window_set_fullscreen(fullscreen.window, fullscreen.fullscreen);
 	/* Hack to set minimum allocation so we can shrink later */
 	window_schedule_resize(fullscreen.window,
 			       1, 1);
