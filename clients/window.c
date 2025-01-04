@@ -4494,6 +4494,14 @@ xdg_toplevel_handle_configure(void *data, struct xdg_toplevel *xdg_toplevel,
 		}
 	}
 
+	/* If the window is being mapped fullscreen,
+	 * save the last pending allocation */
+	if (window->fullscreen &&
+	    (window->saved_allocation.width == 0 ||
+	     window->saved_allocation.height == 0)) {
+		window->saved_allocation = window->pending_allocation;
+	}
+
 	if (window->frame) {
 		if (window->maximized) {
 			frame_set_flag(window->frame->frame, FRAME_FLAG_MAXIMIZED);
