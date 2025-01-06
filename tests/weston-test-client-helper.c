@@ -1966,7 +1966,7 @@ verify_image(pixman_image_t *shot,
 	     const struct rectangle *clip,
 	     int seq_no)
 {
-	const struct range gl_fuzz = { -3, 4 };
+	const struct range gl_fuzz = { -5, 4 };
 	pixman_image_t *ref = NULL;
 	char *ref_fname = NULL;
 	char *shot_fname;

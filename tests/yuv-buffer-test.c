@@ -116,12 +116,12 @@ yuv_buffer_destroy(struct yuv_buffer *buf)
 }
 
 /*
- * Based on Rec. ITU-R BT.601-7
+ * Based on Rec. ITU-R BT.709-6
  *
  * This is intended to be obvious and accurate, not fast.
  */
 static void
-x8r8g8b8_to_ycbcr8_bt601(uint32_t xrgb,
+x8r8g8b8_to_ycbcr8_bt709(uint32_t xrgb,
 			 uint8_t *y_out, uint8_t *cb_out, uint8_t *cr_out)
 {
 	double y, cb, cr;
@@ -135,9 +135,9 @@ x8r8g8b8_to_ycbcr8_bt601(uint32_t xrgb,
 	b /= 255.0;
 
 	/* Y normalized to [0.0, 1.0], Cb and Cr [-0.5, 0.5] */
-	y = 0.299 * r + 0.587 * g + 0.114 * b;
-	cr = (r - y) / 1.402;
-	cb = (b - y) / 1.772;
+	y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+	cr = (r - y) / 1.5748;
+	cb = (b - y) / 1.8556;
 
 	/* limited range quantization to 8 bit */
 	*y_out = round(219.0 * y + 16.0);
@@ -207,11 +207,11 @@ y_u_v_create_buffer(struct client *client,
 			 * alternate Cb/Cr rows.
 			 */
 			if ((y & (sub - 1)) == 0 && (x & (sub - 1)) == 0) {
-				x8r8g8b8_to_ycbcr8_bt601(argb, y_row + x,
+				x8r8g8b8_to_ycbcr8_bt709(argb, y_row + x,
 							 u_row + x / sub,
 							 v_row + x / sub);
 			} else {
-				x8r8g8b8_to_ycbcr8_bt601(argb, y_row + x,
+				x8r8g8b8_to_ycbcr8_bt709(argb, y_row + x,
 							 NULL, NULL);
 			}
 		}
@@ -273,11 +273,11 @@ nv12_create_buffer(struct client *client,
 			 * do the necessary filtering/averaging/siting.
 			 */
 			if ((y & 1) == 0 && (x & 1) == 0) {
-				x8r8g8b8_to_ycbcr8_bt601(argb, y_row + x,
+				x8r8g8b8_to_ycbcr8_bt709(argb, y_row + x,
 							 &cb, &cr);
 				*(uv_row + x / 2) = ((uint16_t)cr << 8) | cb;
 			} else {
-				x8r8g8b8_to_ycbcr8_bt601(argb, y_row + x,
+				x8r8g8b8_to_ycbcr8_bt709(argb, y_row + x,
 							 NULL, NULL);
 			}
 		}
@@ -339,11 +339,11 @@ nv16_create_buffer(struct client *client,
 			 * do the necessary filtering/averaging/siting.
 			 */
 			if ((x & 1) == 0) {
-				x8r8g8b8_to_ycbcr8_bt601(argb, y_row + x,
+				x8r8g8b8_to_ycbcr8_bt709(argb, y_row + x,
 							 &cb, &cr);
 				*(uv_row + x / 2) = ((uint16_t)cr << 8) | cb;
 			} else {
-				x8r8g8b8_to_ycbcr8_bt601(argb, y_row + x,
+				x8r8g8b8_to_ycbcr8_bt709(argb, y_row + x,
 							 NULL, NULL);
 			}
 		}
@@ -400,7 +400,7 @@ nv24_create_buffer(struct client *client,
 			 */
 			argb = *(rgb_row + x / 2 * 2);
 
-			x8r8g8b8_to_ycbcr8_bt601(argb, y_row + x,
+			x8r8g8b8_to_ycbcr8_bt709(argb, y_row + x,
 						 &cb, &cr);
 			*(uv_row + x) = ((uint16_t)cr << 8) | cb;
 		}
@@ -450,7 +450,7 @@ yuyv_create_buffer(struct client *client,
 			 * sub-sampling does not require proper
 			 * filtering/averaging/siting.
 			 */
-			x8r8g8b8_to_ycbcr8_bt601(*(rgb_row + x), &y0, &cb, &cr);
+			x8r8g8b8_to_ycbcr8_bt709(*(rgb_row + x), &y0, &cb, &cr);
 			*(yuv_row + x / 2) =
 				((uint32_t)cr << 24) |
 				((uint32_t)y0 << 16) |
@@ -503,7 +503,7 @@ xyuv8888_create_buffer(struct client *client,
 			 * result as the other YUV variants, so we can use the
 			 * same reference image for checking.
 			 */
-			x8r8g8b8_to_ycbcr8_bt601(*(rgb_row + x / 2 * 2), &y0, &cb, &cr);
+			x8r8g8b8_to_ycbcr8_bt709(*(rgb_row + x / 2 * 2), &y0, &cb, &cr);
 			/*
 			 * The unused byte is intentionally set to "garbage"
 			 * to catch any accidental use of it in the compositor.

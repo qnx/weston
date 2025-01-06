@@ -3309,7 +3309,7 @@ import_simple_dmabuf(struct gl_renderer *gr,
 	}
 
 	attribs[atti++] = EGL_YUV_COLOR_SPACE_HINT_EXT;
-	attribs[atti++] = EGL_ITU_REC601_EXT;
+	attribs[atti++] = EGL_ITU_REC709_EXT;
 
 	attribs[atti++] = EGL_SAMPLE_RANGE_HINT_EXT;
 	attribs[atti++] = EGL_YUV_NARROW_RANGE_EXT;

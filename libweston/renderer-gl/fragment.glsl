@@ -109,13 +109,13 @@ yuva2rgba(vec4 yuva)
 	sv = yuva.z - 128.0/255.0;
 
 	/*
-	 * ITU-R BT.601 encoding coefficients (inverse), with the
+	 * ITU-R BT.709 encoding coefficients (inverse), with the
 	 * 255/224 limited range multiplier already included in the
 	 * factors for su (Cb) and sv (Cr).
 	 */
-	color_out.r = Y                   + 1.59602678 * sv;
-	color_out.g = Y - 0.39176229 * su - 0.81296764 * sv;
-	color_out.b = Y + 2.01723214 * su;
+	color_out.r = Y                   + 1.79274107 * sv;
+	color_out.g = Y - 0.21324861 * su - 0.53290933 * sv;
+	color_out.b = Y + 2.11240179 * su;
 
 	color_out.a = yuva.w;
 
