@@ -139,6 +139,49 @@ drm_output_try_paint_node_on_plane(struct drm_plane *plane,
 	state->fb = drm_fb_ref(fb);
 	state->in_fence_fd = ev->surface->acquire_fence_fd;
 
+	if (fb->format && pixel_format_is_yuv(fb->format)) {
+		enum wdrm_plane_color_encoding color_encoding;
+		enum wdrm_plane_color_range color_range;
+
+		/* These values will become dynamic once we implement the
+		 * color-representation protocol. */
+		color_encoding = WDRM_PLANE_COLOR_ENCODING_DEFAULT;
+		color_range = WDRM_PLANE_COLOR_RANGE_DEFAULT;
+
+		if (plane->props[WDRM_PLANE_COLOR_ENCODING].prop_id == 0) {
+			if (color_encoding != WDRM_PLANE_COLOR_ENCODING_DEFAULT) {
+				drm_debug(b, "\t\t\t[view] not placing view %p on plane %lu: "
+					  "non-default color encoding not supported\n",
+					  ev, (unsigned long) plane->plane_id);
+				goto out;
+			}
+		} else if (!drm_plane_supports_color_encoding(plane,
+							      color_encoding)) {
+			drm_debug(b, "\t\t\t[view] not placing view %p on plane %lu: "
+				  "color encoding not supported\n", ev,
+				  (unsigned long) plane->plane_id);
+			goto out;
+		}
+
+		if (plane->props[WDRM_PLANE_COLOR_RANGE].prop_id == 0) {
+			if (color_range != WDRM_PLANE_COLOR_RANGE_DEFAULT) {
+				drm_debug(b, "\t\t\t[view] not placing view %p on plane %lu: "
+					  "non-default color range not supported\n",
+					  ev, (unsigned long) plane->plane_id);
+				goto out;
+			}
+		} else if (!drm_plane_supports_color_range(plane,
+							   color_range)) {
+			drm_debug(b, "\t\t\t[view] not placing view %p on plane %lu: "
+				  "color range not supported\n", ev,
+				  (unsigned long) plane->plane_id);
+			goto out;
+		}
+
+		state->color_encoding = color_encoding;
+		state->color_range = color_range;
+	}
+
 	/* In planes-only mode, we don't have an incremental state to
 	 * test against, so we just hope it'll work. */
 	if (mode != DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY &&

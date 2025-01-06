@@ -55,6 +55,9 @@ drm_plane_state_alloc(struct drm_output_state *state_output,
 	state->alpha = (plane->alpha_max < DRM_PLANE_ALPHA_OPAQUE) ?
 		       plane->alpha_max : DRM_PLANE_ALPHA_OPAQUE;
 
+	state->color_encoding = WDRM_PLANE_COLOR_ENCODING__COUNT;
+	state->color_range = WDRM_PLANE_COLOR_RANGE__COUNT;
+
 	/* Here we only add the plane state to the desired link, and not
 	 * set the member. Having an output pointer set means that the
 	 * plane will be displayed on the output; this won't be the case

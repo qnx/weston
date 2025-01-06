@@ -386,6 +386,9 @@ struct drm_plane_state {
 	uint64_t zpos;
 	uint16_t alpha;
 
+	enum wdrm_plane_color_encoding color_encoding;
+	enum wdrm_plane_color_range color_range;
+
 	bool complete;
 
 	/* We don't own the fd, so we shouldn't close it */
@@ -881,6 +884,14 @@ drm_assign_planes(struct weston_output *output_base);
 
 bool
 drm_plane_is_available(struct drm_plane *plane, struct drm_output *output);
+
+bool
+drm_plane_supports_color_encoding(struct drm_plane *plane,
+				  enum wdrm_plane_color_encoding encoding);
+
+bool
+drm_plane_supports_color_range(struct drm_plane *plane,
+			       enum wdrm_plane_color_range range);
 
 void
 drm_output_render(struct drm_output_state *state);

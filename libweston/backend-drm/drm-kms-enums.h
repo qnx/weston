@@ -93,6 +93,7 @@ enum wdrm_plane_color_encoding {
 	WDRM_PLANE_COLOR_ENCODING_BT2020,
 	WDRM_PLANE_COLOR_ENCODING__COUNT
 };
+#define WDRM_PLANE_COLOR_ENCODING_DEFAULT WDRM_PLANE_COLOR_ENCODING_BT601
 
 /**
  * Possible values for the WDRM_PLANE_COLOR_RANGE property.
@@ -102,6 +103,7 @@ enum wdrm_plane_color_range {
 	WDRM_PLANE_COLOR_RANGE_FULL,
 	WDRM_PLANE_COLOR_RANGE__COUNT
 };
+#define WDRM_PLANE_COLOR_RANGE_DEFAULT WDRM_PLANE_COLOR_RANGE_LIMITED
 
 /**
  * List of properties attached to a DRM connector

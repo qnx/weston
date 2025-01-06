@@ -657,6 +657,38 @@ fallback:
 	return 0;
 }
 
+bool
+drm_plane_supports_color_encoding(struct drm_plane *plane,
+				  enum wdrm_plane_color_encoding encoding)
+{
+	const struct drm_property_info *info;
+	const struct drm_property_enum_info *enum_info;
+
+	assert(encoding >= 0);
+	assert(encoding < WDRM_PLANE_COLOR_ENCODING__COUNT);
+
+	info = &plane->props[WDRM_PLANE_COLOR_ENCODING];
+	enum_info = &info->enum_values[encoding];
+
+	return enum_info->valid;
+}
+
+bool
+drm_plane_supports_color_range(struct drm_plane *plane,
+			       enum wdrm_plane_color_range range)
+{
+	const struct drm_property_info *info;
+	const struct drm_property_enum_info *enum_info;
+
+	assert(range >= 0);
+	assert(range < WDRM_PLANE_COLOR_RANGE__COUNT);
+
+	info = &plane->props[WDRM_PLANE_COLOR_RANGE];
+	enum_info = &info->enum_values[range];
+
+	return enum_info->valid;
+}
+
 void
 drm_output_set_gamma(struct weston_output *output_base,
 		     uint16_t size, uint16_t *r, uint16_t *g, uint16_t *b)
@@ -1229,6 +1261,47 @@ drm_connector_set_colorspace(struct drm_connector *connector,
 }
 
 static int
+drm_plane_set_color_encoding(struct drm_plane *plane,
+			     enum wdrm_plane_color_encoding color_encoding,
+			     drmModeAtomicReq *req)
+{
+	if (color_encoding == WDRM_PLANE_COLOR_ENCODING__COUNT)
+		return 0;
+
+	if (plane->props[WDRM_PLANE_COLOR_ENCODING].prop_id == 0) {
+		if (color_encoding == WDRM_PLANE_COLOR_ENCODING_DEFAULT)
+			return 0;
+
+		return -1;
+	}
+
+	assert(drm_plane_supports_color_encoding(plane, color_encoding));
+
+	return plane_add_prop(req, plane, WDRM_PLANE_COLOR_ENCODING,
+			      color_encoding);
+}
+
+static int
+drm_plane_set_color_range(struct drm_plane *plane,
+			  enum wdrm_plane_color_range color_range,
+			  drmModeAtomicReq *req)
+{
+	if (color_range == WDRM_PLANE_COLOR_RANGE__COUNT)
+		return 0;
+
+	if (plane->props[WDRM_PLANE_COLOR_RANGE].prop_id == 0) {
+		if (color_range == WDRM_PLANE_COLOR_RANGE_DEFAULT)
+			return 0;
+
+		return -1;
+	}
+
+	assert(drm_plane_supports_color_range(plane, color_range));
+
+	return plane_add_prop(req, plane, WDRM_PLANE_COLOR_RANGE, color_range);
+}
+
+static int
 drm_output_apply_state_atomic(struct drm_output_state *state,
 			      drmModeAtomicReq *req,
 			      uint32_t *flags)
@@ -1403,6 +1476,13 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
 			ret |= plane_add_prop(req, plane,
 					      WDRM_PLANE_ALPHA,
 					      plane_state->alpha);
+
+		ret |= drm_plane_set_color_encoding(plane,
+						    plane_state->color_encoding,
+						    req);
+
+		ret |= drm_plane_set_color_range(plane,
+						 plane_state->color_range, req);
 
 		if (ret != 0) {
 			weston_log("couldn't set plane state\n");
