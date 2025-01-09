@@ -3391,7 +3391,7 @@ paint_node_flush_surface_damage(struct weston_paint_node *pnode)
 	if (!pixman_region32_not_empty(&surface->damage))
 		return;
 
-	TL_POINT(surface->compositor, "core_flush_damage",
+	TL_POINT(surface->compositor, TLP_CORE_FLUSH_DAMAGE,
 		 TLP_SURFACE(surface), TLP_OUTPUT(output), TLP_END);
 
 	wl_list_for_each(walk_node, &surface->paint_node_list, surface_link) {
@@ -3727,7 +3727,7 @@ weston_output_schedule_repaint_reset(struct weston_output *output)
 {
 	weston_output_put_back_feedback_list(output);
 	output->repaint_status = REPAINT_NOT_SCHEDULED;
-	TL_POINT(output->compositor, "core_repaint_exit_loop",
+	TL_POINT(output->compositor, TLP_CORE_REPAINT_EXIT_LOOP,
 		 TLP_OUTPUT(output), TLP_END);
 }
 
@@ -3743,7 +3743,7 @@ weston_output_repaint(struct weston_output *output, struct timespec *now)
 	uint32_t frame_time_msec;
 	enum weston_hdcp_protection highest_requested = WESTON_HDCP_DISABLE;
 
-	TL_POINT(ec, "core_repaint_begin", TLP_OUTPUT(output), TLP_END);
+	TL_POINT(ec, TLP_CORE_REPAINT_BEGIN, TLP_OUTPUT(output), TLP_END);
 
 	/* Rebuild the surface list and update surface transforms up front. */
 	if (ec->view_list_needs_rebuild)
@@ -3850,7 +3850,7 @@ weston_output_repaint(struct weston_output *output, struct timespec *now)
 
 	weston_output_capture_info_repaint_done(output->capture_info);
 
-	TL_POINT(ec, "core_repaint_posted", TLP_OUTPUT(output), TLP_END);
+	TL_POINT(ec, TLP_CORE_REPAINT_POSTED, TLP_OUTPUT(output), TLP_END);
 
 	/* If repaint fails, we aren't going to get weston_output_finish_frame
 	 * to trigger a new repaint, so drop it from repaint and hope
@@ -3953,7 +3953,7 @@ weston_output_schedule_repaint_restart(struct weston_output *output)
 	timespec_add_nsec(&output->next_repaint, &output->next_repaint,
 			  millihz_to_nsec(output->current_mode->refresh));
 	output->repaint_status = REPAINT_SCHEDULED;
-	TL_POINT(output->compositor, "core_repaint_restart",
+	TL_POINT(output->compositor, TLP_CORE_REPAINT_RESTART,
 		 TLP_OUTPUT(output), TLP_END);
 	output_repaint_timer_arm(output->compositor);
 	weston_output_damage(output);
@@ -4100,7 +4100,7 @@ weston_output_finish_frame(struct weston_output *output,
 	vblank_monotonic = convert_presentation_time_now(compositor,
 							 stamp, &now,
 							 CLOCK_MONOTONIC);
-	TL_POINT(compositor, "core_repaint_finished", TLP_OUTPUT(output),
+	TL_POINT(compositor, TLP_CORE_REPAINT_FINISHED, TLP_OUTPUT(output),
 		 TLP_VBLANK(&vblank_monotonic), TLP_END);
 
 	refresh_nsec = millihz_to_nsec(output->current_mode->refresh);
@@ -4385,7 +4385,7 @@ weston_output_schedule_repaint(struct weston_output *output)
 		return;
 
 	if (!output->repaint_needed)
-		TL_POINT(compositor, "core_repaint_req", TLP_OUTPUT(output), TLP_END);
+		TL_POINT(compositor, TLP_CORE_REPAINT_REQ, TLP_OUTPUT(output), TLP_END);
 
 	loop = wl_display_get_event_loop(compositor->wl_display);
 	output->repaint_needed = true;
@@ -4401,7 +4401,7 @@ weston_output_schedule_repaint(struct weston_output *output)
 	assert(!output->idle_repaint_source);
 	output->idle_repaint_source = wl_event_loop_add_idle(loop, idle_repaint,
 							     output);
-	TL_POINT(compositor, "core_repaint_enter_loop", TLP_OUTPUT(output), TLP_END);
+	TL_POINT(compositor, TLP_CORE_REPAINT_ENTER_LOOP, TLP_OUTPUT(output), TLP_END);
 }
 
 /** weston_compositor_schedule_repaint
@@ -4842,7 +4842,7 @@ weston_surface_commit_state(struct weston_surface *surface,
 	/* wl_surface.damage and wl_surface.damage_buffer; only valid
 	 * in the same cycle as wl_surface.commit */
 	if (status & WESTON_SURFACE_DIRTY_BUFFER) {
-		TL_POINT(surface->compositor, "core_commit_damage",
+		TL_POINT(surface->compositor, TLP_CORE_COMMIT_DAMAGE,
 			TLP_SURFACE(surface), TLP_END);
 
 		pixman_region32_union(&surface->damage, &surface->damage,

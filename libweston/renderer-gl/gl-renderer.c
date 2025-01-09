@@ -573,9 +573,9 @@ timeline_render_point_handler(int fd, uint32_t mask, void *data)
 					   &elapsed);
 		timespec_add_nsec(&begin, &end, -elapsed);
 
-		TL_POINT(trp->output->compositor, "renderer_gpu_begin",
+		TL_POINT(trp->output->compositor, TLP_RENDERER_GPU_BEGIN,
 			 TLP_GPU(&begin), TLP_OUTPUT(trp->output), TLP_END);
-		TL_POINT(trp->output->compositor, "renderer_gpu_end",
+		TL_POINT(trp->output->compositor, TLP_RENDERER_GPU_END,
 			 TLP_GPU(&end), TLP_OUTPUT(trp->output), TLP_END);
 	}
 

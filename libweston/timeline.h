@@ -43,6 +43,20 @@ enum timeline_type {
 	TLT_GPU,
 };
 
+enum timeline_point_name {
+	TLP_CORE_FLUSH_DAMAGE,
+	TLP_CORE_REPAINT_EXIT_LOOP,
+	TLP_CORE_REPAINT_BEGIN,
+	TLP_CORE_REPAINT_POSTED,
+	TLP_CORE_REPAINT_RESTART,
+	TLP_CORE_REPAINT_FINISHED,
+	TLP_CORE_REPAINT_REQ,
+	TLP_CORE_REPAINT_ENTER_LOOP,
+	TLP_CORE_COMMIT_DAMAGE,
+	TLP_RENDERER_GPU_BEGIN,
+	TLP_RENDERER_GPU_END
+};
+
 /** Timeline subscription created for each subscription
  *
  * Created automatically by weston_log_scope::new_subscription and
@@ -95,6 +109,6 @@ struct weston_timeline_subscription_object {
 
 void
 weston_timeline_point(struct weston_log_scope *timeline_scope,
-		      const char *name, ...);
+		      enum timeline_point_name tlp_name, ...);
 
 #endif /* WESTON_TIMELINE_H */
