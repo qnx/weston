@@ -3731,6 +3731,22 @@ weston_output_schedule_repaint_reset(struct weston_output *output)
 		 TLP_OUTPUT(output), TLP_END);
 }
 
+static void
+output_assign_planes(struct weston_output *output)
+{
+	struct weston_paint_node *pnode;
+
+	if (output->assign_planes && !output->disable_planes) {
+		output->assign_planes(output);
+	} else {
+		wl_list_for_each(pnode, &output->paint_node_z_order_list,
+				 z_order_link) {
+			weston_paint_node_move_to_plane(pnode, &output->primary_plane);
+			pnode->psf_flags = 0;
+		}
+	}
+}
+
 static int
 weston_output_repaint(struct weston_output *output, struct timespec *now)
 {
@@ -3783,15 +3799,7 @@ weston_output_repaint(struct weston_output *output, struct timespec *now)
 			 z_order_link)
 		paint_node_update_early(pnode);
 
-	if (output->assign_planes && !output->disable_planes) {
-		output->assign_planes(output);
-	} else {
-		wl_list_for_each(pnode, &output->paint_node_z_order_list,
-				 z_order_link) {
-			weston_paint_node_move_to_plane(pnode, &output->primary_plane);
-			pnode->psf_flags = 0;
-		}
-	}
+	output_assign_planes(output);
 
 	output_update_visibility(output);
 
