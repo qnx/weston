@@ -214,3 +214,9 @@ option(
 	value: false,
 	description: 'Generate documentation'
 )
+option(
+	'perfetto',
+	type : 'boolean',
+	value : false,
+	description : 'Enable performance analysis with Perfetto.'
+)

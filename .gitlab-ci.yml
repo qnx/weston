@@ -271,6 +271,8 @@ aarch64-debian-container_prep:
   variables:
     CC: clang-$LLVM_VERSION
     CC_LD: lld-$LLVM_VERSION
+    CXX: clang++-$LLVM_VERSION
+    CXX_LD: lld-$LLVM_VERSION
     MESON_TOOLCHAIN_OPTIONS: "$MESON_OPTIONS -Db_lundef=false" # clang+ASan+undef=boom
 
 # Extends the core build templates to also provide for running our testing. We
@@ -430,6 +432,9 @@ aarch64-debian-container_prep:
     MESON_OPTIONS: >
       -Doptimization=0
       -Db_coverage=true
+      --force-fallback-for=perfetto
+      -Dperfetto=true
+      -Dperfetto:werror=false
       -Dwerror=true
       -Dtest-skip-is-failure=true
   after_script:

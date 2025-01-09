@@ -11,3 +11,6 @@ leak:wl_shm_buffer_begin_access
 leak:g_malloc0
 leak:sysprof_collector_get
 leak:/ld-*.so*
+
+# Add all of perfetto, since it's not easy to clean up after it
+leak:perfetto

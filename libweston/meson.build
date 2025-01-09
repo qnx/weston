@@ -104,11 +104,22 @@ if get_option('backend-vnc')
 	deps_libweston += dep_pam
 endif
 
+if get_option('perfetto')
+	srcs_libweston += [
+		'perfetto/u_perfetto.cc',
+		'perfetto/u_perfetto.h',
+	]
+	dep_perfetto = dependency('perfetto', fallback: ['perfetto', 'dep_perfetto'])
+	deps_libweston += dep_perfetto
+	config_h.set('HAVE_PERFETTO', '1')
+endif
+
 lib_weston = shared_library(
 	'weston-@0@'.format(libweston_major),
 	srcs_libweston,
 	include_directories: common_inc,
 	install: true,
+	cpp_args: '-std=c++17',
 	version: '0.0.@0@'.format(libweston_revision),
 	link_whole: lib_libshared,
 	dependencies: deps_libweston

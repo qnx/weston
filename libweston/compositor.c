@@ -86,6 +86,7 @@
 #include "output-capture.h"
 #include "pixman-renderer.h"
 #include "renderer-gl/gl-renderer.h"
+#include "weston-trace.h"
 
 #include "weston-log-internal.h"
 
@@ -9563,6 +9564,8 @@ weston_compositor_create(struct wl_display *display,
 	ec = zalloc(sizeof *ec);
 	if (!ec)
 		return NULL;
+
+	util_perfetto_init();
 
 	if (test_data)
 		ec->test_data = *test_data;

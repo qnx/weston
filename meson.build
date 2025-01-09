@@ -1,5 +1,5 @@
 project('weston',
-	'c',
+	['c', 'cpp'],
 	version: '14.0.90',
 	default_options: [
 		'warning_level=3',
@@ -74,6 +74,16 @@ if cc.has_header_symbol('sys/sysmacros.h', 'major')
 elif cc.has_header_symbol('sys/mkdev.h', 'major')
 	config_h.set('MAJOR_IN_MKDEV', 1)
 endif
+
+add_project_arguments(global_args, language: 'c')
+
+cpp = meson.get_compiler('cpp')
+
+global_cpp_args = cpp.get_supported_arguments(
+	'-Wno-unused-parameter',
+)
+
+add_project_arguments(global_cpp_args, language: 'cpp')
 
 optional_libc_funcs = [
 	'mkostemp', 'strchrnul', 'initgroups', 'posix_fallocate',
