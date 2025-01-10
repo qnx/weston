@@ -3401,15 +3401,15 @@ paint_node_flush_surface_damage(struct weston_paint_node *pnode)
 	if (!pixman_region32_not_empty(&surface->damage))
 		return;
 
-	TL_POINT(surface->compositor, TLP_CORE_FLUSH_DAMAGE,
-		 TLP_SURFACE(surface), TLP_OUTPUT(output), TLP_END);
-
 	wl_list_for_each(walk_node, &surface->paint_node_list, surface_link) {
 		assert(walk_node->surface == surface);
 
 		paint_node_add_damage(walk_node);
 	}
 	pixman_region32_clear(&surface->damage);
+
+	TL_POINT(surface->compositor, TLP_CORE_FLUSH_DAMAGE,
+		 TLP_SURFACE(surface), TLP_OUTPUT(output), TLP_END);
 }
 
 static void
