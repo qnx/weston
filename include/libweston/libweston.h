@@ -2078,6 +2078,7 @@ struct weston_surface {
         struct wl_resource *cm_surface;
 
 	uint64_t damage_track_id;
+	uint64_t flow_id;
 };
 
 struct weston_subsurface {

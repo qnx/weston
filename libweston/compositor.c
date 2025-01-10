@@ -263,7 +263,7 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 static void
 paint_node_update_early(struct weston_paint_node *pnode)
 {
-	WESTON_TRACE_FUNC();
+	WESTON_TRACE_FUNC_FLOW(&pnode->surface->flow_id);
 	struct weston_matrix *mat = &pnode->buffer_to_output_matrix;
 	bool view_dirty = pnode->status & PAINT_NODE_VIEW_DIRTY;
 	bool output_dirty = pnode->status & PAINT_NODE_OUTPUT_DIRTY;
@@ -291,7 +291,7 @@ paint_node_update_early(struct weston_paint_node *pnode)
 static void
 paint_node_update_late(struct weston_paint_node *pnode)
 {
-	WESTON_TRACE_FUNC();
+	WESTON_TRACE_FUNC_FLOW(&pnode->surface->flow_id);
 	struct weston_surface *surf = pnode->surface;
 	bool vis_dirty = pnode->status & PAINT_NODE_VISIBILITY_DIRTY;
 	bool plane_dirty = pnode->status & PAINT_NODE_PLANE_DIRTY;
@@ -1905,7 +1905,7 @@ weston_view_update_transform_enable(struct weston_view *view)
 WL_EXPORT void
 weston_view_update_transform(struct weston_view *view)
 {
-	WESTON_TRACE_FUNC();
+	WESTON_TRACE_FUNC_FLOW(&view->surface->flow_id);
 	struct weston_view *parent = view->geometry.parent;
 	struct weston_view *child;
 	struct weston_layer *layer;
@@ -3267,7 +3267,7 @@ weston_surface_attach(struct weston_surface *surface,
 		      struct weston_surface_state *state,
 		      enum weston_surface_status status)
 {
-	WESTON_TRACE_FUNC();
+	WESTON_TRACE_FUNC_FLOW(&surface->flow_id);
 	struct weston_buffer *buffer = state->buffer;
 	struct weston_buffer *old_buffer = surface->buffer_ref.buffer;
 
@@ -3356,7 +3356,7 @@ weston_output_damage(struct weston_output *output)
 static void
 paint_node_add_damage(struct weston_paint_node *node)
 {
-	WESTON_TRACE_FUNC();
+	WESTON_TRACE_FUNC_FLOW(&node->surface->flow_id);
 	struct weston_view *view = node->view;
 	pixman_region32_t damage;
 
@@ -3385,7 +3385,7 @@ paint_node_add_damage(struct weston_paint_node *node)
 static void
 paint_node_flush_surface_damage(struct weston_paint_node *pnode)
 {
-	WESTON_TRACE_FUNC();
+	WESTON_TRACE_FUNC_FLOW(&pnode->surface->flow_id);
 	struct weston_output *output = pnode->output;
 	struct weston_surface *surface = pnode->surface;
 	struct weston_buffer *buffer = surface->buffer_ref.buffer;
@@ -3393,13 +3393,13 @@ paint_node_flush_surface_damage(struct weston_paint_node *pnode)
 
 	if (buffer->type == WESTON_BUFFER_SHM) {
 		if (pnode->draw_solid)
-			return;
+			goto out;
 
 		surface->compositor->renderer->flush_damage(pnode);
 	}
 
 	if (!pixman_region32_not_empty(&surface->damage))
-		return;
+		goto out;
 
 	wl_list_for_each(walk_node, &surface->paint_node_list, surface_link) {
 		assert(walk_node->surface == surface);
@@ -3410,6 +3410,9 @@ paint_node_flush_surface_damage(struct weston_paint_node *pnode)
 
 	TL_POINT(surface->compositor, TLP_CORE_FLUSH_DAMAGE,
 		 TLP_SURFACE(surface), TLP_OUTPUT(output), TLP_END);
+
+out:
+	surface->flow_id = 0;
 }
 
 static void
@@ -3490,7 +3493,7 @@ output_accumulate_damage(struct weston_output *output)
 static struct weston_paint_node *
 view_ensure_paint_node(struct weston_view *view, struct weston_output *output)
 {
-	WESTON_TRACE_FUNC();
+	WESTON_TRACE_FUNC_FLOW(&view->surface->flow_id);
 	struct weston_paint_node *pnode;
 
 	if (!output)
@@ -3568,7 +3571,7 @@ static void
 view_list_add(struct weston_compositor *compositor,
 	      struct weston_view *view)
 {
-	WESTON_TRACE_FUNC();
+	WESTON_TRACE_FUNC_FLOW(&view->surface->flow_id);
 	struct weston_subsurface *sub;
 
 	weston_view_update_transform(view);
@@ -4820,7 +4823,7 @@ static enum weston_surface_status
 weston_surface_commit_state(struct weston_surface *surface,
 			    struct weston_surface_state *state)
 {
-	WESTON_TRACE_FUNC();
+	WESTON_TRACE_FUNC_FLOW(&surface->flow_id);
 	struct weston_view *view;
 	pixman_region32_t opaque;
 	enum weston_surface_status status = state->status;
@@ -4950,7 +4953,7 @@ weston_surface_commit_state(struct weston_surface *surface,
 static enum weston_surface_status
 weston_surface_commit(struct weston_surface *surface)
 {
-	WESTON_TRACE_FUNC();
+	WESTON_TRACE_FUNC_FLOW(&surface->flow_id);
 	enum weston_surface_status status;
 
 	status = weston_surface_commit_state(surface, &surface->pending);
@@ -4973,8 +4976,8 @@ weston_subsurface_parent_commit(struct weston_subsurface *sub,
 static void
 surface_commit(struct wl_client *client, struct wl_resource *resource)
 {
-	WESTON_TRACE_FUNC();
 	struct weston_surface *surface = wl_resource_get_user_data(resource);
+	WESTON_TRACE_FUNC_FLOW(&surface->flow_id);
 	struct weston_subsurface *sub = weston_surface_to_subsurface(surface);
 	enum weston_surface_status status;
 
