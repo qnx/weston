@@ -27,6 +27,8 @@
 #ifndef WESTON_TIMELINE_H
 #define WESTON_TIMELINE_H
 
+#include "config.h"
+
 #include <wayland-util.h>
 #include <stdbool.h>
 
@@ -99,17 +101,31 @@ struct weston_timeline_subscription_object {
  *
  * Use TLP_END when done for the vargs.
  *
+ * Timeline points are fed to the timeline log scope, and
+ * to perfetto if it was enabled at build time.
+ *
  * @param ec weston_compositor instance
  *
  * @ingroup log
  */
+#ifdef HAVE_PERFETTO
+#define TL_POINT(ec, ...) do { \
+	weston_timeline_perfetto(ec->timeline, __VA_ARGS__); \
+	weston_timeline_point(ec->timeline, __VA_ARGS__); \
+} while (0)
+#else
 #define TL_POINT(ec, ...) do { \
 	weston_timeline_point(ec->timeline, __VA_ARGS__); \
 } while (0)
+#endif /* HAVE_PERFETTO */
 
 void
 weston_timeline_point(struct weston_log_scope *timeline_scope,
 		      enum timeline_point_name tlp_name, ...);
+
+void
+weston_timeline_perfetto(struct weston_log_scope *timeline_scope,
+			 enum timeline_point_name tlp_name, ...);
 
 bool
 weston_timeline_profiling(struct weston_log_scope *timeline_scope);

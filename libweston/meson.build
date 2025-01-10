@@ -108,6 +108,7 @@ if get_option('perfetto')
 	srcs_libweston += [
 		'perfetto/u_perfetto.cc',
 		'perfetto/u_perfetto.h',
+		'timeline-perfetto.c'
 	]
 	dep_perfetto = dependency('perfetto', fallback: ['perfetto', 'dep_perfetto'])
 	deps_libweston += dep_perfetto

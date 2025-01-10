@@ -567,6 +567,10 @@ struct weston_output {
 	struct weston_coord_global pos;
 	int32_t width, height;
 
+	uint64_t gpu_track_id;
+	uint64_t paint_track_id;
+	uint64_t presentation_track_id;
+
 	/** List of paint nodes in z-order, from top to bottom, maybe pruned
 	 *
 	 *  struct weston_paint_node::z_order_link
@@ -2072,6 +2076,8 @@ struct weston_surface {
 	 * this list. */
         struct wl_list cm_feedback_surface_resource_list;
         struct wl_resource *cm_surface;
+
+	uint64_t damage_track_id;
 };
 
 struct weston_subsurface {
