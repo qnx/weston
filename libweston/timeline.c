@@ -36,6 +36,7 @@
 #include <libweston/weston-log.h>
 #include "timeline.h"
 #include "weston-log-internal.h"
+#include "weston-trace.h"
 
 /**
  * Timeline itself is not a subscriber but a scope (a producer of data), and it
@@ -493,4 +494,25 @@ weston_timeline_point(struct weston_log_scope *timeline_scope,
 		fclose(ctx.cur);
 
 	}
+}
+
+/** Check if weston is tracing performance events
+ *
+ * @param timeline_scope the timeline scope
+ *
+ * Returns true if weston is generating performance events for either perfetto
+ * or the timeline log scope.
+ *
+ * @ingroup log
+ */
+WL_EXPORT bool
+weston_timeline_profiling(struct weston_log_scope *timeline_scope)
+{
+	if (weston_log_scope_is_enabled(timeline_scope))
+		return true;
+
+	if (util_perfetto_is_tracing_enabled())
+		return true;
+
+	return false;
 }

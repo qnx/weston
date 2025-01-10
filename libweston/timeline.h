@@ -111,4 +111,7 @@ void
 weston_timeline_point(struct weston_log_scope *timeline_scope,
 		      enum timeline_point_name tlp_name, ...);
 
+bool
+weston_timeline_profiling(struct weston_log_scope *timeline_scope);
+
 #endif /* WESTON_TIMELINE_H */

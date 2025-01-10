@@ -525,7 +525,7 @@ static void
 timeline_begin_render_query(struct gl_renderer *gr, GLuint query)
 {
 	if (gl_features_has(gr, FEATURE_GPU_TIMELINE) &&
-	    weston_log_scope_is_enabled(gr->compositor->timeline))
+	    weston_timeline_profiling(gr->compositor->timeline))
 		gr->begin_query(GL_TIME_ELAPSED_EXT, query);
 }
 
@@ -533,7 +533,7 @@ static void
 timeline_end_render_query(struct gl_renderer *gr)
 {
 	if (gl_features_has(gr, FEATURE_GPU_TIMELINE) &&
-	    weston_log_scope_is_enabled(gr->compositor->timeline))
+	    weston_timeline_profiling(gr->compositor->timeline))
 		gr->end_query(GL_TIME_ELAPSED_EXT);
 }
 
@@ -608,7 +608,7 @@ timeline_submit_render_sync(struct gl_renderer *gr,
 	struct timeline_render_point *trp;
 
 	if (!gl_features_has(gr, FEATURE_GPU_TIMELINE) ||
-	    !weston_log_scope_is_enabled(gr->compositor->timeline) ||
+	    !weston_timeline_profiling(gr->compositor->timeline) ||
 	    sync == EGL_NO_SYNC_KHR)
 		return;
 
