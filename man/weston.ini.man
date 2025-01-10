@@ -467,6 +467,10 @@ By default, no animation is used.
 whether the shell should quit when the Ctrl-Alt-Backspace key combination is
 pressed
 .TP 7
+.BI "disallow-output-changed-move=" false
+whether the shell should move client's window to a different/another output than the one
+assigned initially and is no longer available/enabled/plugged in.
+.TP 7
 .BI "binding-modifier=" ctrl
 sets the modifier key used for common bindings (string), such as moving
 surfaces, resizing, rotating, switching, closing and setting the transparency

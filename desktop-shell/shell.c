@@ -524,6 +524,7 @@ shell_configuration(struct desktop_shell *shell)
 	struct weston_config *config;
 	char *s, *client;
 	bool allow_zap;
+	bool disallow_output_changed_move;
 
 	config = wet_get_config(shell->compositor);
 	section = weston_config_get_section(config, "shell", NULL, NULL);
@@ -535,6 +536,11 @@ shell_configuration(struct desktop_shell *shell)
 	weston_config_section_get_bool(section,
 				       "allow-zap", &allow_zap, true);
 	shell->allow_zap = allow_zap;
+
+	weston_config_section_get_bool(section,
+				       "disallow-output-changed-move",
+					   &disallow_output_changed_move, false);
+	shell->disallow_output_changed_move = disallow_output_changed_move;
 
 	shell->binding_modifier = weston_config_get_binding_modifier(config, MODIFIER_SUPER);
 
@@ -4568,7 +4574,9 @@ shell_output_destroy(struct shell_output *shell_output)
 {
 	struct desktop_shell *shell = shell_output->shell;
 
-	shell_for_each_layer(shell, shell_output_changed_move_layer, NULL);
+	if (!shell->disallow_output_changed_move) {
+		shell_for_each_layer(shell, shell_output_changed_move_layer, NULL);
+	}
 
 	if (shell_output->panel_surface) {
 		wl_list_remove(&shell_output->panel_surface_listener.link);
@@ -4674,7 +4682,7 @@ create_shell_output(struct desktop_shell *shell,
 		      &shell_output->destroy_listener);
 	wl_list_insert(shell->output_list.prev, &shell_output->link);
 
-	if (wl_list_length(&shell->output_list) == 1)
+	if (!shell->disallow_output_changed_move && wl_list_length(&shell->output_list) == 1)
 		shell_for_each_layer(shell,
 				     shell_output_changed_move_layer, NULL);
 

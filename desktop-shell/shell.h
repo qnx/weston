@@ -142,6 +142,7 @@ struct desktop_shell {
 	} fade;
 
 	bool allow_zap;
+	bool disallow_output_changed_move;
 	uint32_t binding_modifier;
 	enum animation_type win_animation_type;
 	enum animation_type win_close_animation_type;
