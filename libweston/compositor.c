@@ -55,6 +55,7 @@
 #include <drm_fourcc.h>
 
 #include "timeline.h"
+#include "weston-trace.h"
 
 #include <libweston/libweston.h>
 #include <libweston/weston-log.h>
@@ -262,6 +263,7 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 static void
 paint_node_update_early(struct weston_paint_node *pnode)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_matrix *mat = &pnode->buffer_to_output_matrix;
 	bool view_dirty = pnode->status & PAINT_NODE_VIEW_DIRTY;
 	bool output_dirty = pnode->status & PAINT_NODE_OUTPUT_DIRTY;
@@ -289,6 +291,7 @@ paint_node_update_early(struct weston_paint_node *pnode)
 static void
 paint_node_update_late(struct weston_paint_node *pnode)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_surface *surf = pnode->surface;
 	bool vis_dirty = pnode->status & PAINT_NODE_VISIBILITY_DIRTY;
 	bool plane_dirty = pnode->status & PAINT_NODE_PLANE_DIRTY;
@@ -1902,6 +1905,7 @@ weston_view_update_transform_enable(struct weston_view *view)
 WL_EXPORT void
 weston_view_update_transform(struct weston_view *view)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_view *parent = view->geometry.parent;
 	struct weston_view *child;
 	struct weston_layer *layer;
@@ -2573,6 +2577,7 @@ WL_EXPORT struct weston_view *
 weston_compositor_pick_view(struct weston_compositor *compositor,
 			    struct weston_coord_global pos)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_view *view;
 
 	/* Can't use paint node list: occlusion by input regions, not opaque. */
@@ -2597,6 +2602,7 @@ weston_compositor_pick_view(struct weston_compositor *compositor,
 static void
 weston_compositor_repick(struct weston_compositor *compositor)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_seat *seat;
 
 	if (!compositor->session_active)
@@ -3261,6 +3267,7 @@ weston_surface_attach(struct weston_surface *surface,
 		      struct weston_surface_state *state,
 		      enum weston_surface_status status)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_buffer *buffer = state->buffer;
 	struct weston_buffer *old_buffer = surface->buffer_ref.buffer;
 
@@ -3349,6 +3356,7 @@ weston_output_damage(struct weston_output *output)
 static void
 paint_node_add_damage(struct weston_paint_node *node)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_view *view = node->view;
 	pixman_region32_t damage;
 
@@ -3377,6 +3385,7 @@ paint_node_add_damage(struct weston_paint_node *node)
 static void
 paint_node_flush_surface_damage(struct weston_paint_node *pnode)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_output *output = pnode->output;
 	struct weston_surface *surface = pnode->surface;
 	struct weston_buffer *buffer = surface->buffer_ref.buffer;
@@ -3418,6 +3427,7 @@ view_update_visible(struct weston_view *view,
 static void
 output_update_visibility(struct weston_output *output)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_paint_node *pnode;
 	pixman_region32_t opaque, clip;
 
@@ -3439,6 +3449,7 @@ output_update_visibility(struct weston_output *output)
 static void
 output_accumulate_damage(struct weston_output *output)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_paint_node *pnode;
 
 	wl_list_for_each(pnode, &output->paint_node_z_order_list,
@@ -3479,6 +3490,7 @@ output_accumulate_damage(struct weston_output *output)
 static struct weston_paint_node *
 view_ensure_paint_node(struct weston_view *view, struct weston_output *output)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_paint_node *pnode;
 
 	if (!output)
@@ -3556,6 +3568,7 @@ static void
 view_list_add(struct weston_compositor *compositor,
 	      struct weston_view *view)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_subsurface *sub;
 
 	weston_view_update_transform(view);
@@ -3614,6 +3627,7 @@ weston_output_build_z_order_list(struct weston_compositor *compositor,
 static void
 weston_compositor_build_view_list(struct weston_compositor *compositor)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_output *output;
 	struct weston_view *view, *tmp;
 	struct weston_layer *layer;
@@ -3735,6 +3749,7 @@ weston_output_schedule_repaint_reset(struct weston_output *output)
 static void
 output_assign_planes(struct weston_output *output)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_paint_node *pnode;
 
 	if (output->assign_planes && !output->disable_planes) {
@@ -3751,6 +3766,7 @@ output_assign_planes(struct weston_output *output)
 static int
 weston_output_repaint(struct weston_output *output, struct timespec *now)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_compositor *ec = output->compositor;
 	struct weston_paint_node *pnode;
 	struct weston_animation *animation, *next;
@@ -3971,6 +3987,7 @@ weston_output_schedule_repaint_restart(struct weston_output *output)
 static int
 output_repaint_timer_handler(void *data)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_compositor *compositor = data;
 	struct weston_backend *backend;
 	struct weston_output *output;
@@ -4803,6 +4820,7 @@ static enum weston_surface_status
 weston_surface_commit_state(struct weston_surface *surface,
 			    struct weston_surface_state *state)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_view *view;
 	pixman_region32_t opaque;
 	enum weston_surface_status status = state->status;
@@ -4932,6 +4950,7 @@ weston_surface_commit_state(struct weston_surface *surface,
 static enum weston_surface_status
 weston_surface_commit(struct weston_surface *surface)
 {
+	WESTON_TRACE_FUNC();
 	enum weston_surface_status status;
 
 	status = weston_surface_commit_state(surface, &surface->pending);
@@ -4954,6 +4973,7 @@ weston_subsurface_parent_commit(struct weston_subsurface *sub,
 static void
 surface_commit(struct wl_client *client, struct wl_resource *resource)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_surface *surface = wl_resource_get_user_data(resource);
 	struct weston_subsurface *sub = weston_surface_to_subsurface(surface);
 	enum weston_surface_status status;
@@ -5206,6 +5226,7 @@ static const struct wl_compositor_interface compositor_interface = {
 static enum weston_surface_status
 weston_subsurface_commit_from_cache(struct weston_subsurface *sub)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_surface *surface = sub->surface;
 	enum weston_surface_status status;
 
@@ -5225,6 +5246,7 @@ weston_subsurface_commit_from_cache(struct weston_subsurface *sub)
 static void
 weston_subsurface_commit_to_cache(struct weston_subsurface *sub)
 {
+	WESTON_TRACE_FUNC();
 	struct weston_surface *surface = sub->surface;
 
 	/*
@@ -7347,12 +7369,16 @@ weston_region_global_to_output(pixman_region32_t *dst,
 			       struct weston_output *output,
 			       pixman_region32_t *src)
 {
+	WESTON_TRACE_FUNC();
+
 	weston_matrix_transform_region(dst, &output->matrix, src);
 }
 
 WESTON_EXPORT_FOR_TESTS void
 weston_output_update_matrix(struct weston_output *output)
 {
+	WESTON_TRACE_FUNC();
+
 	weston_output_dirty_paint_nodes(output);
 
 	weston_matrix_init_transform(&output->matrix, output->transform,
