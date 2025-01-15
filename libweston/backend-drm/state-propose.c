@@ -293,6 +293,21 @@ drm_output_check_zpos_plane_states(struct drm_output_state *state)
 	}
 }
 
+static const char *
+action_needed_to_str(enum actions_needed_dmabuf_feedback action_needed)
+{
+      switch(action_needed) {
+      case ACTION_NEEDED_ADD_SCANOUT_TRANCHE:
+              return "add scanout tranche";
+      case ACTION_NEEDED_REMOVE_SCANOUT_TRANCHE:
+              return "remove scanout tranche";
+      case ACTION_NEEDED_NONE:
+              return "no action needed";
+      default:
+              assert(0);
+      }
+}
+
 static void
 dmabuf_feedback_maybe_update(struct drm_device *device, struct weston_view *ev,
 			     uint32_t try_view_on_plane_failure_reasons)
@@ -383,7 +398,8 @@ dmabuf_feedback_maybe_update(struct drm_device *device, struct weston_view *ev,
 		assert(0);
 
 	drm_debug(b, "\t[repaint] Need to update and resend the "
-		     "dma-buf feedback for surface of view %p\n", ev);
+		     "dma-buf feedback for surface of view %p: %s\n",
+		     ev, action_needed_to_str(action_needed));
 	weston_dmabuf_feedback_send_all(b->compositor, dmabuf_feedback,
 					b->compositor->dmabuf_feedback_format_table);
 
