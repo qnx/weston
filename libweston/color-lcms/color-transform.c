@@ -1442,6 +1442,144 @@ cmlcms_color_transform_search_param_string(const struct cmlcms_color_transform_s
 	return str;
 }
 
+static bool
+build_3d_lut(struct weston_compositor *compositor, cmsHTRANSFORM cmap_3dlut,
+	     unsigned int len_shaper, float *shaper,
+	     unsigned int len_lut3d, float *lut3d)
+{
+	float divider = len_lut3d - 1;
+	float rgb_in[3], rgb_out[3];
+	uint32_t index, index_r, index_g, index_b;
+	float *curves[3];
+
+	curves[0] = &shaper[0];
+	curves[1] = &shaper[len_shaper];
+	curves[2] = &shaper[2 * len_shaper];
+
+	for (index_b = 0; index_b < len_lut3d; index_b++) {
+		for (index_g = 0; index_g < len_lut3d; index_g++) {
+			for (index_r = 0; index_r < len_lut3d; index_r++) {
+				/**
+				 * For each channel, use the shaper to compute
+				 * the value x such that y(x) = index / divider.
+				 * As the shapper is a LUT, we find the closest
+				 * neighbors of such point (x, y) and then use
+				 * linear interpolation to estimate x.
+				 */
+				rgb_in[0] = weston_inverse_evaluate_lut1d(compositor,len_shaper,
+									  curves[0],
+									  (float)index_r / divider);
+				rgb_in[1] = weston_inverse_evaluate_lut1d(compositor, len_shaper,
+									  curves[1],
+									  (float)index_g / divider);
+				rgb_in[2] = weston_inverse_evaluate_lut1d(compositor, len_shaper,
+									  curves[2],
+									  (float)index_b / divider);
+
+				cmsDoTransform(cmap_3dlut, rgb_in, rgb_out, 1);
+
+				index = 3 * (index_r + len_lut3d * (index_g + len_lut3d * index_b));
+				lut3d[index    ] = rgb_out[0];
+				lut3d[index + 1] = rgb_out[1];
+				lut3d[index + 2] = rgb_out[2];
+			}
+		}
+	}
+
+	return true;
+}
+
+static bool
+build_shaper(cmsContext lcms_ctx, cmsHTRANSFORM cmap_3dlut,
+	     unsigned int len_shaper, float *shaper)
+{
+	float *curves[3];
+	float divider = len_shaper - 1;
+	float rgb_in[3], rgb_out[3];
+	cmsToneCurve *tc[3] = { NULL };
+	unsigned int ch, i;
+	float smoothing_param;
+	bool ret = true;
+
+	/**
+	 * We use cmsSmoothToneCurve() for:
+	 *
+	 * a) checking monotonicity and degenerated curves;
+	 * b) getting rid of abrupt changes;
+	 *
+	 * A lambda between 0.0 and 1.0 is usually enough. 1.0 means moderate to
+	 * high smooth. We just want a mild smoothing, so we arbitrarily
+	 * hardcoded this value.
+	 */
+	smoothing_param = 0.3f;
+
+	curves[0] = &shaper[0];
+	curves[1] = &shaper[len_shaper];
+	curves[2] = &shaper[2 * len_shaper];
+
+	for (i = 0; i < len_shaper; i++) {
+		rgb_in[0] = rgb_in[1] = rgb_in[2] = (float)i / divider;
+		cmsDoTransform(cmap_3dlut, rgb_in, rgb_out, 1);
+		for (ch = 0; ch < 3; ch++)
+			curves[ch][i] = ensure_unorm(rgb_out[ch]);
+	}
+
+	for (ch = 0; ch < 3; ch++) {
+		tc[ch] = cmsBuildTabulatedToneCurveFloat(lcms_ctx, len_shaper,
+							 curves[ch]);
+		if (!tc[ch]) {
+			ret = false;
+			goto out;
+		}
+
+		/**
+		 * TODO: that should fail if the curves are not monotonic. Try
+		 * to make curve monotonic if possible before calling this.
+		 */
+		ret = cmsSmoothToneCurve(tc[ch], smoothing_param);
+		if (!ret)
+			goto out;
+
+		for (i = 0; i < len_shaper; i++)
+			curves[ch][i] = cmsEvalToneCurveFloat(tc[ch],
+							      (float)i / divider);
+	}
+
+out:
+	cmsFreeToneCurveTriple(tc);
+	return ret;
+}
+
+/**
+ * Based on [1]. We get cmsHTRANSFORM cmap_3dlut and decompose into a shaper
+ * (3x1D LUT) + 3D LUT. With that, we can reduce the 3D LUT dimension size
+ * without loosing precision. 3D LUT dimension size is problematic because it
+ * demands n³ memory. In this function we construct such shaper.
+ *
+ * [1] https://www.littlecms.com/ASICprelinerization_CGIV08.pdf
+ */
+static bool
+xform_to_shaper_plus_3dlut(struct weston_color_transform *xform_base,
+			   uint32_t len_shaper, float *shaper,
+			   uint32_t len_lut3d, float *lut3d)
+{
+	struct cmlcms_color_transform *xform = to_cmlcms_xform(xform_base);
+	struct weston_compositor *compositor = xform_base->cm->compositor;
+	bool ret;
+
+	ret = build_shaper(xform->lcms_ctx, xform->cmap_3dlut,
+			   len_shaper, shaper);
+	if (!ret)
+		return false;
+
+	ret = build_3d_lut(compositor, xform->cmap_3dlut,
+			   len_shaper, shaper, len_lut3d, lut3d);
+	if (!ret)
+		return false;
+
+	return true;
+}
+
 static struct cmlcms_color_transform *
 cmlcms_color_transform_create(struct weston_color_manager_lcms *cm,
 			      const struct cmlcms_color_transform_search_param *search_param)
@@ -1453,6 +1591,7 @@ cmlcms_color_transform_create(struct weston_color_manager_lcms *cm,
 	xform = xzalloc(sizeof *xform);
 	weston_color_transform_init(&xform->base, &cm->base);
 	wl_list_init(&xform->link);
+	xform->base.to_shaper_plus_3dlut = xform_to_shaper_plus_3dlut;
 	xform->search_key = *search_param;
 	xform->search_key.input_profile = ref_cprof(search_param->input_profile);
 	xform->search_key.output_profile = ref_cprof(search_param->output_profile);

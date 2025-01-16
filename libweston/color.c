@@ -408,6 +408,73 @@ weston_color_curve_to_3x1D_LUT(struct weston_compositor *compositor,
 	weston_assert_not_reached(compositor, "unkown color curve");
 }
 
+static float
+linear_interpolation(float x, float x0, float y0, float x1, float y1)
+{
+	float delta = x1 - x0;
+
+	/* x0 == x1, 5 digits precision. */
+	if (fabs(delta) < 1e-5)
+		return (y0 + y1) / 2.0f;
+
+	return y0 * ((x1 - x) / delta) + y1 * ((x - x0) / delta);
+}
+
+WESTON_EXPORT_FOR_TESTS void
+find_neighbors(struct weston_compositor *compositor, uint32_t len, float *array,
+	       float val, uint32_t *neigh_A_index, uint32_t *neigh_B_index)
+{
+	bool ascendent = (array[0] <= array[len - 1]);
+	int32_t left = 0;
+	int32_t right = len - 1;
+	int32_t mid;
+
+	/* We need at least 2 elements in the array. */
+	weston_assert_uint32_gt(compositor, len, 1);
+
+	while (right - left > 1) {
+		mid = left + ((right - left) / 2);
+
+		if ((ascendent && array[mid] < val) ||
+		    (!ascendent && array[mid] > val))
+			left = mid;
+		else
+			right = mid;
+	}
+
+	*neigh_A_index = left;
+	*neigh_B_index = right;
+}
+
+/**
+ * Given a 1D LUT, this evaluates a given input using the inverse of the LUT.
+ *
+ * If the input is out of the LUT range, this extrapolates using the two closest
+ * elements present in the LUT.
+ *
+ * \param compositor The compositor instance.
+ * \param len_lut The size of the 1D LUT.
+ * \param lut The 1D lut.
+ * \param input The input to evaluate
+ * \return The evaluation result.
+ */
+WL_EXPORT float
+weston_inverse_evaluate_lut1d(struct weston_compositor *compositor,
+			      uint32_t len_lut, float *lut, float input)
+{
+	float divider = len_lut - 1;
+	uint32_t neighbor_A_index, neighbor_B_index;
+
+	find_neighbors(compositor, len_lut, lut, input,
+		       &neighbor_A_index, &neighbor_B_index);
+
+	return linear_interpolation(input,
+				    lut[neighbor_A_index],
+				    (float)neighbor_A_index / divider,
+				    lut[neighbor_B_index],
+				    (float)neighbor_B_index / divider);
+}
+
 /**
  * Increase reference count of the color transform object
  *

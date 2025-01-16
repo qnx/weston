@@ -441,6 +441,25 @@ struct weston_color_transform {
 
 	/** Step 4: color curve after color mapping */
 	struct weston_color_curve post_curve;
+
+	/**
+	 * Decompose the color transformation into a shaper (3x1D LUT) and a 3D
+	 * LUT.
+	 *
+	 * \param xform_base The color transformation to decompose.
+	 * \param len_shaper Number of taps in each of the 1D LUT.
+	 * \param shaper Where the shaper is saved, caller's responsibility to
+	 * allocate.
+	 * \param len_lut3d The 3D LUT's length for each dimension.
+	 * \param lut3d Where the 3D LUT is saved, caller's responsibility to
+	 * allocate. Its layout on memory is: lut3d[B][G][R], i.e. R is the
+	 * innermost and its index grow faster, followed by G and then B.
+	 * \return True on success, false otherwise.
+	 */
+	bool
+	(*to_shaper_plus_3dlut)(struct weston_color_transform *xform_base,
+				uint32_t len_shaper, float *shaper,
+				uint32_t len_lut3d, float *lut3d);
 };
 
 /**
@@ -677,6 +696,14 @@ weston_color_curve_to_3x1D_LUT(struct weston_compositor *compositor,
 			       struct weston_color_transform *xform,
 			       enum weston_color_curve_step step,
 			       uint32_t lut_size, char **err_msg);
+
+void
+find_neighbors(struct weston_compositor *compositor, uint32_t len, float *array,
+	       float val, uint32_t *neigh_A_index, uint32_t *neigh_B_index);
+
+float
+weston_inverse_evaluate_lut1d(struct weston_compositor *compositor,
+			      uint32_t len_lut, float *lut, float input);
 
 struct weston_color_transform *
 weston_color_transform_ref(struct weston_color_transform *xform);
