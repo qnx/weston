@@ -1922,6 +1922,7 @@ weston_pointer_set_focus(struct weston_pointer *pointer,
 	if (view) {
 		struct weston_coord_surface surf_pos;
 
+		weston_view_update_transform(view);
 		surf_pos = weston_coord_global_to_surface(view, pointer->pos);
 		sx = wl_fixed_from_double(surf_pos.c.x);
 		sy = wl_fixed_from_double(surf_pos.c.y);
