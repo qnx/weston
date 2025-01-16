@@ -221,7 +221,8 @@ struct cmlcms_color_transform {
 	 * 3D LUT color mapping part of the transformation, if needed by the
 	 * weston_color_transform. This is used as a fallback when an
 	 * arbitrary LittleCMS pipeline cannot be translated into a more
-	 * specific form.
+	 * specific form or when the backend/renderer is not able to use
+	 * such optimized form.
 	 */
 	cmsHTRANSFORM cmap_3dlut;
 
@@ -238,14 +239,11 @@ struct cmlcms_color_transform {
 		/** Error producing a pipeline */
 		CMLCMS_TRANSFORM_FAILED = 0,
 
-		/**
-		 * Pipeline was optimized into weston_color_transform,
-		 * 3D LUT not used.
-		 */
+		/** Pipeline was optimized into weston_color_transform. */
 		CMLCMS_TRANSFORM_OPTIMIZED,
 
-		/** The transformation uses 3D LUT. */
-		CMLCMS_TRANSFORM_3DLUT,
+		/** Non-optimized pipeline, xform->cmap_3dlut must be used. */
+		CMLCMS_TRANSFORM_NON_OPTIMIZED,
 	} status;
 };
 

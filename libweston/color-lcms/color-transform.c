@@ -160,8 +160,7 @@ cmlcms_color_transform_destroy(struct cmlcms_color_transform *xform)
 
 	cmsFreeToneCurveTriple(xform->pre_curve);
 
-	if (xform->cmap_3dlut)
-		cmsDeleteTransform(xform->cmap_3dlut);
+	cmsDeleteTransform(xform->cmap_3dlut);
 
 	cmsFreeToneCurveTriple(xform->post_curve);
 
@@ -1045,7 +1044,7 @@ lcms_optimize_pipeline(cmsPipeline **lut, cmsContext context_id)
 	} while (cont_opt);
 }
 
-static cmsBool
+static void
 optimize_float_pipeline(cmsPipeline **lut, cmsContext context_id,
 			struct cmlcms_color_transform *xform)
 {
@@ -1053,7 +1052,7 @@ optimize_float_pipeline(cmsPipeline **lut, cmsContext context_id,
 
 	if (translate_pipeline(xform, *lut)) {
 		xform->status = CMLCMS_TRANSFORM_OPTIMIZED;
-		return TRUE;
+		return;
 	}
 
 	xform->base.pre_curve.type = WESTON_COLOR_CURVE_TYPE_IDENTITY;
@@ -1062,14 +1061,7 @@ optimize_float_pipeline(cmsPipeline **lut, cmsContext context_id,
 	xform->base.mapping.u.lut3d.optimal_len = cmlcms_reasonable_3D_points();
 	xform->base.post_curve.type = WESTON_COLOR_CURVE_TYPE_IDENTITY;
 
-	xform->status = CMLCMS_TRANSFORM_3DLUT;
-
-	/*
-	 * We use cmsDoTransform() to realize the 3D LUT. Return false so
-	 * that LittleCMS installs its usual float transform machinery,
-	 * running on the pipeline we optimized here.
-	 */
-	return FALSE;
+	xform->status = CMLCMS_TRANSFORM_NON_OPTIMIZED;
 }
 
 static const char *
@@ -1192,12 +1184,14 @@ pipeline_print(cmsPipeline **lut, cmsContext context_id,
  * cmsCreateMultiprofileTransformTHR() is handed to us for inspection before
  * the said function call returns.
  *
- * \param xform_fn If we handle the given transformation, we should assign
- * our own transformation function here. We do not do that, because:
- * a) Even when we optimize the pipeline, but do not handle the transformation,
- *    we rely on LittleCMS' own float transformation machinery.
- * b) When we do handle the transformation, we will not be calling
- *    cmsDoTransform() anymore.
+ * During this call we try to optimize the pipeline and translate it into an
+ * optimized weston_color_transform. If the translation fails, or some renderer
+ * or backend cannot use the translation, we depend on LittleCMS' own float
+ * transformation machinery for evaluating the pipeline.
+ *
+ * \param xform_fn If we handle the given transformation, we should assign our
+ * own transformation function here. We do not do that, because we depend on
+ * LittleCMS' transformation machinery (i.e. an useful cmsHTRANSFORM).
  *
  * \param user_data We could store a void pointer to custom user data
  * through this pointer to be carried with the cmsHTRANSFORM.
@@ -1218,11 +1212,9 @@ pipeline_print(cmsPipeline **lut, cmsContext context_id,
  *
  * \param flags Some flags we could also override? See cmsFLAGS_* defines.
  *
- * \return If this returns TRUE, it implies we handle the transformation. No
- * other plugin will be tried anymore and the transformation object is
- * complete. If this returns FALSE, the search for a plugin to handle this
- * transformation continues and falls back to the usual handling inside
- * LittleCMS.
+ * \return We always return FALSE, because we always depend on LittleCMS being
+ * able to handle the transformation itself (i.e. returning an useful
+ * cmsHTRANSFORM).
  */
 static cmsBool
 transform_factory(_cmsTransform2Fn *xform_fn,
@@ -1236,7 +1228,6 @@ transform_factory(_cmsTransform2Fn *xform_fn,
 	struct weston_color_manager_lcms *cm;
 	struct cmlcms_color_transform *xform;
 	cmsContext context_id;
-	bool ret;
 
 	if (T_CHANNELS(*input_format) != 3) {
 		weston_log("color-lcms debug: input format is not 3-channel.");
@@ -1267,14 +1258,14 @@ transform_factory(_cmsTransform2Fn *xform_fn,
 	pipeline_print(lut, context_id, cm->optimizer_scope);
 
 	/* Optimize pipeline */
-	ret = optimize_float_pipeline(lut, context_id, xform);
+	optimize_float_pipeline(lut, context_id, xform);
 
 	/* Print pipeline after optimization */
 	weston_log_scope_printf(cm->optimizer_scope,
 				"  transform pipeline after optimization:\n");
 	pipeline_print(lut, context_id, cm->optimizer_scope);
 
-	return ret;
+	return FALSE;
 }
 
 static cmsPluginTransform transform_plugin = {
@@ -1390,20 +1381,15 @@ xform_realize_chain(struct cmlcms_color_transform *xform)
 	if (!xform->cmap_3dlut)
 		goto failed;
 
-	if (xform->status != CMLCMS_TRANSFORM_3DLUT) {
-		cmsDeleteTransform(xform->cmap_3dlut);
-		xform->cmap_3dlut = NULL;
-	}
-
 	switch (xform->status) {
 	case CMLCMS_TRANSFORM_FAILED:
 		goto failed;
 	case CMLCMS_TRANSFORM_OPTIMIZED:
 		break;
-	case CMLCMS_TRANSFORM_3DLUT:
+	case CMLCMS_TRANSFORM_NON_OPTIMIZED:
 		/*
-		 * Given the chain formed above, blend-to-output should never
-		 * fall back to 3D LUT.
+		 * Given the chain formed above, blend-to-output should be
+		 * optimized.
 		 */
 		weston_assert_uint32_neq(cm->base.compositor, xform->search_key.category,
 					 CMLCMS_CATEGORY_BLEND_TO_OUTPUT);
