@@ -196,7 +196,7 @@ cd ..
 rm -rf neatvnc
 
 # Build and install libdisplay-info, used by drm-backend
-git clone --branch 0.1.1 --depth=1 https://gitlab.freedesktop.org/emersion/libdisplay-info.git
+git clone --branch 0.2.0 --depth=1 https://gitlab.freedesktop.org/emersion/libdisplay-info.git
 cd libdisplay-info
 meson build --wrap-mode=nofallback
 ninja ${NINJAFLAGS} -C build install
