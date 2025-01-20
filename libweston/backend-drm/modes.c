@@ -227,8 +227,6 @@ parse_modeline(const char *s, drmModeModeInfo *mode)
 	return 0;
 }
 
-#ifdef HAVE_LIBDISPLAY_INFO_HIGH_LEVEL_COLORIMETRY
-
 static uint32_t
 get_eotf_mask(const struct di_info *info)
 {
@@ -283,22 +281,6 @@ get_colorimetry_mask(const struct di_info *info)
 
 	return mask;
 }
-
-#else /* HAVE_LIBDISPLAY_INFO_HIGH_LEVEL_COLORIMETRY */
-
-static uint32_t
-get_eotf_mask(const struct di_info *info)
-{
-	return WESTON_EOTF_MODE_SDR;
-}
-
-static uint32_t
-get_colorimetry_mask(const struct di_info *info)
-{
-	return WESTON_COLORIMETRY_MODE_DEFAULT;
-}
-
-#endif /* HAVE_LIBDISPLAY_INFO_HIGH_LEVEL_COLORIMETRY */
 
 static struct di_info *
 drm_head_info_from_edid(struct drm_head_info *dhi,
