@@ -240,20 +240,21 @@ gl_color_curve_lut_3x1d(struct gl_renderer *gr,
 
 static bool
 gl_color_mapping_lut_3d(struct gl_renderer *gr,
-			struct gl_renderer_color_transform *gl_xform,
+			struct gl_renderer_color_mapping *gl_mapping,
+			const struct weston_color_mapping *mapping,
 			struct weston_color_transform *xform)
 {
 	GLint filters[] = { GL_LINEAR, GL_LINEAR };
 	struct gl_texture_parameters params;
 	GLuint tex3d;
 	float *lut;
-	const unsigned dim_size = xform->mapping.u.lut3d.optimal_len;
+	const unsigned dim_size = mapping->u.lut3d.optimal_len;
 
 	lut = calloc(3 * dim_size * dim_size * dim_size, sizeof *lut);
 	if (!lut)
 		return false;
 
-	xform->mapping.u.lut3d.fill_in(xform, lut, dim_size);
+	mapping->u.lut3d.fill_in(xform, lut, dim_size);
 
 	gl_texture_3d_init(gr, 1, GL_RGB32F, dim_size, dim_size, dim_size,
 			   &tex3d);
@@ -263,10 +264,10 @@ gl_color_mapping_lut_3d(struct gl_renderer *gr,
 				   NULL, true);
 
 	glBindTexture(GL_TEXTURE_3D, 0);
-	gl_xform->mapping.type = SHADER_COLOR_MAPPING_3DLUT;
-	gl_xform->mapping.u.lut3d.tex3d = tex3d;
-	gl_xform->mapping.u.lut3d.scale = (float)(dim_size - 1) / dim_size;
-	gl_xform->mapping.u.lut3d.offset = 0.5f / dim_size;
+	gl_mapping->type = SHADER_COLOR_MAPPING_3DLUT;
+	gl_mapping->u.lut3d.tex3d = tex3d;
+	gl_mapping->u.lut3d.scale = (float)(dim_size - 1) / dim_size;
+	gl_mapping->u.lut3d.offset = 0.5f / dim_size;
 
 	free(lut);
 
@@ -330,7 +331,8 @@ gl_renderer_color_transform_from(struct gl_renderer *gr,
 		ok = true;
 		break;
 	case WESTON_COLOR_MAPPING_TYPE_3D_LUT:
-		ok = gl_color_mapping_lut_3d(gr, gl_xform, xform);
+		ok = gl_color_mapping_lut_3d(gr, &gl_xform->mapping,
+					     &xform->mapping, xform);
 		break;
 	case WESTON_COLOR_MAPPING_TYPE_MATRIX:
 		gl_xform->mapping.type = SHADER_COLOR_MAPPING_MATRIX;
