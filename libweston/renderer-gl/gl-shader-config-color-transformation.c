@@ -277,29 +277,6 @@ gl_color_mapping_lut_3d_init(struct gl_renderer *gr,
 	gl_mapping->u.lut3d.offset = 0.5f / dim_size;
 }
 
-static bool
-gl_color_mapping_lut_3d(struct gl_renderer *gr,
-			struct gl_renderer_color_mapping *gl_mapping,
-			const struct weston_color_mapping *mapping,
-			struct weston_color_transform *xform)
-{
-
-	float *lut;
-	const unsigned dim_size = mapping->u.lut3d.optimal_len;
-
-	lut = calloc(3 * dim_size * dim_size * dim_size, sizeof *lut);
-	if (!lut)
-		return false;
-
-	mapping->u.lut3d.fill_in(xform, lut, dim_size);
-
-	gl_color_mapping_lut_3d_init(gr, gl_mapping, dim_size, lut);
-
-	free(lut);
-
-	return true;
-}
-
 static const struct gl_renderer_color_transform *
 gl_renderer_color_transform_create_steps(struct gl_renderer *gr,
 					 struct weston_color_transform *xform)
@@ -343,10 +320,6 @@ gl_renderer_color_transform_create_steps(struct gl_renderer *gr,
 	case WESTON_COLOR_MAPPING_TYPE_IDENTITY:
 		gl_xform->mapping = no_op_gl_xform.mapping;
 		ok = true;
-		break;
-	case WESTON_COLOR_MAPPING_TYPE_3D_LUT:
-		ok = gl_color_mapping_lut_3d(gr, &gl_xform->mapping,
-					     &xform->mapping, xform);
 		break;
 	case WESTON_COLOR_MAPPING_TYPE_MATRIX:
 		gl_xform->mapping.type = SHADER_COLOR_MAPPING_MATRIX;

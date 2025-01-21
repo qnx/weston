@@ -567,8 +567,6 @@ mapping_type_to_str(enum weston_color_mapping_type mapping_type)
 	switch (mapping_type) {
 	case WESTON_COLOR_MAPPING_TYPE_IDENTITY:
 		return "identity";
-	case WESTON_COLOR_MAPPING_TYPE_3D_LUT:
-		return "3D LUT";
 	case WESTON_COLOR_MAPPING_TYPE_MATRIX:
 		return "matrix";
 	}
@@ -614,8 +612,6 @@ weston_color_transform_string(const struct weston_color_transform *xform)
 
 	if (mapping_type != WESTON_COLOR_MAPPING_TYPE_IDENTITY) {
 		fprintf(fp, "%smapping %s", sep, mapping_type_to_str(mapping_type));
-		if (mapping_type == WESTON_COLOR_MAPPING_TYPE_3D_LUT)
-			fprintf(fp, " [%u]", xform->mapping.u.lut3d.optimal_len);
 		sep = ", ";
 	}
 
