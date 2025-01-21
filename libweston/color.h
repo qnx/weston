@@ -428,6 +428,14 @@ struct weston_color_transform {
 	/* for renderer or backend to attach their own cached objects */
 	struct wl_signal destroy_signal;
 
+	/**
+	 * When this is true, users are allowed to use the steps described below
+	 * (pre curve, color mapping and post curve) and implement the color
+	 * transformation themselves. Otherwise this is forbidden and
+	 * to_shaper_plus_3dlut() must be used.
+	 */
+	bool steps_valid;
+
 	/* Color transform is the series of steps: */
 
 	/** Step 1: color model change */

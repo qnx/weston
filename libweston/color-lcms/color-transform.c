@@ -62,12 +62,6 @@ cmlcms_reasonable_1D_points(void)
 	return 1024;
 }
 
-static unsigned int
-cmlcms_reasonable_3D_points(void)
-{
-	return 33;
-}
-
 static void
 fill_in_curves(cmsToneCurve *curves[3], float *values, unsigned len)
 {
@@ -120,35 +114,6 @@ ensure_unorm(float v)
 	if (v > 1.0f)
 		return 1.0f;
 	return v;
-}
-
-static void
-cmlcms_fill_in_3dlut(struct weston_color_transform *xform_base,
-		     float *lut, unsigned int len)
-{
-	struct cmlcms_color_transform *xform = to_cmlcms_xform(xform_base);
-	float rgb_in[3];
-	float rgb_out[3];
-	unsigned int index;
-	unsigned int value_b, value_r, value_g;
-	float divider = len - 1;
-
-	for (value_b = 0; value_b < len; value_b++) {
-		for (value_g = 0; value_g < len; value_g++) {
-			for (value_r = 0; value_r < len; value_r++) {
-				rgb_in[0] = (float)value_r / divider;
-				rgb_in[1] = (float)value_g / divider;
-				rgb_in[2] = (float)value_b / divider;
-
-				cmsDoTransform(xform->cmap_3dlut, rgb_in, rgb_out, 1);
-
-				index = 3 * (value_r + len * (value_g + len * value_b));
-				lut[index    ] = ensure_unorm(rgb_out[0]);
-				lut[index + 1] = ensure_unorm(rgb_out[1]);
-				lut[index + 2] = ensure_unorm(rgb_out[2]);
-			}
-		}
-	}
 }
 
 void
@@ -1052,16 +1017,11 @@ optimize_float_pipeline(cmsPipeline **lut, cmsContext context_id,
 
 	if (translate_pipeline(xform, *lut)) {
 		xform->status = CMLCMS_TRANSFORM_OPTIMIZED;
-		return;
+		xform->base.steps_valid = true;
+	} else {
+		xform->status = CMLCMS_TRANSFORM_NON_OPTIMIZED;
+		xform->base.steps_valid = false;
 	}
-
-	xform->base.pre_curve.type = WESTON_COLOR_CURVE_TYPE_IDENTITY;
-	xform->base.mapping.type = WESTON_COLOR_MAPPING_TYPE_3D_LUT;
-	xform->base.mapping.u.lut3d.fill_in = cmlcms_fill_in_3dlut;
-	xform->base.mapping.u.lut3d.optimal_len = cmlcms_reasonable_3D_points();
-	xform->base.post_curve.type = WESTON_COLOR_CURVE_TYPE_IDENTITY;
-
-	xform->status = CMLCMS_TRANSFORM_NON_OPTIMIZED;
 }
 
 static const char *

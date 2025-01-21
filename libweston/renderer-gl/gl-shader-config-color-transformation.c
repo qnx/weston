@@ -301,8 +301,8 @@ gl_color_mapping_lut_3d(struct gl_renderer *gr,
 }
 
 static const struct gl_renderer_color_transform *
-gl_renderer_color_transform_from(struct gl_renderer *gr,
-				 struct weston_color_transform *xform)
+gl_renderer_color_transform_create_steps(struct gl_renderer *gr,
+					 struct weston_color_transform *xform)
 {
 	static const struct gl_renderer_color_transform no_op_gl_xform = {
 		.pre_curve.type = SHADER_COLOR_CURVE_IDENTITY,
@@ -311,17 +311,6 @@ gl_renderer_color_transform_from(struct gl_renderer *gr,
 	};
 	struct gl_renderer_color_transform *gl_xform;
 	bool ok = false;
-
-	/* Identity transformation */
-	if (!xform)
-		return &no_op_gl_xform;
-
-	/* Cached transformation */
-	gl_xform = gl_renderer_color_transform_get(xform);
-	if (gl_xform)
-		return gl_xform;
-
-	/* New transformation */
 
 	gl_xform = gl_renderer_color_transform_create(xform);
 	if (!gl_xform)
@@ -394,6 +383,92 @@ gl_renderer_color_transform_from(struct gl_renderer *gr,
 	}
 
 	return gl_xform;
+}
+
+static const struct gl_renderer_color_transform *
+gl_renderer_color_transform_create_3dlut(struct gl_renderer *gr,
+					 struct weston_color_transform *xform)
+{
+	struct gl_renderer_color_transform *gl_xform = NULL;
+	float *shaper = NULL;
+	float *lut3d = NULL;
+	float len_shaper;
+	float len_lut3d;
+	bool ok;
+
+	/**
+	 * These are values that allow us to have good precision without
+	 * excessive memory consumption.
+	 */
+	len_shaper = 1024;
+	len_lut3d = 33;
+
+	shaper = zalloc(len_shaper * 3 * sizeof(*shaper));
+	if (!shaper)
+		goto err;
+
+	lut3d = zalloc(3 * len_lut3d * len_lut3d * len_lut3d * sizeof(*lut3d));
+	if (!lut3d)
+		goto err;
+
+	gl_xform = gl_renderer_color_transform_create(xform);
+	if (!gl_xform)
+		goto err;
+
+	ok = xform->to_shaper_plus_3dlut(xform, len_shaper, shaper,
+					 len_lut3d, lut3d);
+	if (!ok)
+		goto err;
+
+	ok = gl_color_curve_lut_3x1d_init(gr, &gl_xform->pre_curve,
+					  len_shaper, shaper);
+	if (!ok)
+		goto err;
+
+	gl_color_mapping_lut_3d_init(gr, &gl_xform->mapping,
+				     len_lut3d, lut3d);
+
+	free(shaper);
+	free(lut3d);
+
+	return gl_xform;
+
+err:
+	if (shaper)
+		free(shaper);
+	if (lut3d)
+		free(lut3d);
+	if (gl_xform)
+		gl_renderer_color_transform_destroy(gl_xform);
+	return NULL;
+}
+
+static const struct gl_renderer_color_transform *
+gl_renderer_color_transform_from(struct gl_renderer *gr,
+				 struct weston_color_transform *xform)
+{
+	static const struct gl_renderer_color_transform no_op_gl_xform = {
+		.pre_curve.type = SHADER_COLOR_CURVE_IDENTITY,
+		.mapping.type = SHADER_COLOR_MAPPING_IDENTITY,
+		.post_curve.type = SHADER_COLOR_CURVE_IDENTITY,
+	};
+	struct gl_renderer_color_transform *gl_xform;
+
+	/* Identity transformation */
+	if (!xform)
+		return &no_op_gl_xform;
+
+	/* Cached transformation */
+	gl_xform = gl_renderer_color_transform_get(xform);
+	if (gl_xform)
+		return gl_xform;
+
+	/* New transformation */
+
+	if (xform->steps_valid)
+		return gl_renderer_color_transform_create_steps(gr, xform);
+
+	return gl_renderer_color_transform_create_3dlut(gr, xform);
 }
 
 bool
