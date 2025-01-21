@@ -238,23 +238,14 @@ gl_color_curve_lut_3x1d(struct gl_renderer *gr,
 	return true;
 }
 
-static bool
-gl_color_mapping_lut_3d(struct gl_renderer *gr,
-			struct gl_renderer_color_mapping *gl_mapping,
-			const struct weston_color_mapping *mapping,
-			struct weston_color_transform *xform)
+static void
+gl_color_mapping_lut_3d_init(struct gl_renderer *gr,
+			     struct gl_renderer_color_mapping *gl_mapping,
+			     uint32_t dim_size, float *lut)
 {
 	GLint filters[] = { GL_LINEAR, GL_LINEAR };
 	struct gl_texture_parameters params;
 	GLuint tex3d;
-	float *lut;
-	const unsigned dim_size = mapping->u.lut3d.optimal_len;
-
-	lut = calloc(3 * dim_size * dim_size * dim_size, sizeof *lut);
-	if (!lut)
-		return false;
-
-	mapping->u.lut3d.fill_in(xform, lut, dim_size);
 
 	gl_texture_3d_init(gr, 1, GL_RGB32F, dim_size, dim_size, dim_size,
 			   &tex3d);
@@ -268,12 +259,30 @@ gl_color_mapping_lut_3d(struct gl_renderer *gr,
 	gl_mapping->u.lut3d.tex3d = tex3d;
 	gl_mapping->u.lut3d.scale = (float)(dim_size - 1) / dim_size;
 	gl_mapping->u.lut3d.offset = 0.5f / dim_size;
+}
+
+static bool
+gl_color_mapping_lut_3d(struct gl_renderer *gr,
+			struct gl_renderer_color_mapping *gl_mapping,
+			const struct weston_color_mapping *mapping,
+			struct weston_color_transform *xform)
+{
+
+	float *lut;
+	const unsigned dim_size = mapping->u.lut3d.optimal_len;
+
+	lut = calloc(3 * dim_size * dim_size * dim_size, sizeof *lut);
+	if (!lut)
+		return false;
+
+	mapping->u.lut3d.fill_in(xform, lut, dim_size);
+
+	gl_color_mapping_lut_3d_init(gr, gl_mapping, dim_size, lut);
 
 	free(lut);
 
 	return true;
 }
-
 
 static const struct gl_renderer_color_transform *
 gl_renderer_color_transform_from(struct gl_renderer *gr,
