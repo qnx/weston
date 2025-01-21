@@ -197,37 +197,30 @@ gl_color_curve_enum(struct gl_renderer *gr,
 }
 
 static bool
-gl_color_curve_lut_3x1d(struct gl_renderer *gr,
-			struct gl_renderer_color_curve *gl_curve,
-			const struct weston_color_curve *curve,
-			struct weston_color_transform *xform)
+gl_color_curve_lut_3x1d_init(struct gl_renderer *gr,
+			     struct gl_renderer_color_curve *gl_curve,
+			     uint32_t lut_len, float *lut)
 {
 	GLint filters[] = { GL_LINEAR, GL_LINEAR };
-	const unsigned lut_len = curve->u.lut_3x1d.optimal_len;
 	const unsigned nr_rows = 4;
 	struct gl_texture_parameters params;
 	GLuint tex;
-	float *lut;
 
-	/*
-	 * Four rows, see fragment.glsl sample_color_pre_curve_lut_2d().
-	 * The fourth row is unused in fragment.glsl color_pre_curve().
-	 * Four rows, see fragment.glsl sample_color_post_curve_lut_2d().
-	 * The fourth row is unused in fragment.glsl color_post_curve().
+	/**
+	 * Four rows, see fragment.glsl sample_lut_1d(). The fourth row is
+	 * unused.
 	 */
-	lut = calloc(lut_len * nr_rows, sizeof *lut);
-	if (!lut)
-		return false;
-
-	curve->u.lut_3x1d.fill_in(xform, lut, lut_len);
-
 	gl_texture_2d_init(gr, 1, GL_R32F, lut_len, nr_rows, &tex);
-	gl_texture_2d_store(gr, 0, 0, 0, lut_len, nr_rows, GL_RED, GL_FLOAT,
+
+	/**
+	 * lut is a linearized 3x1D LUT, it must occupy the first 3 rows of the
+	 * 4-row lut.
+	 */
+	gl_texture_2d_store(gr, 0, 0, 0, lut_len, 3, GL_RED, GL_FLOAT,
 			    lut);
+
 	gl_texture_parameters_init(gr, &params, GL_TEXTURE_2D, filters, NULL,
 				   NULL, true);
-
-	free(lut);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 	gl_curve->type = SHADER_COLOR_CURVE_LUT_3x1D;
@@ -236,6 +229,29 @@ gl_color_curve_lut_3x1d(struct gl_renderer *gr,
 	gl_curve->u.lut_3x1d.offset = 0.5f / lut_len;
 
 	return true;
+}
+
+static bool
+gl_color_curve_lut_3x1d(struct gl_renderer *gr,
+			struct gl_renderer_color_curve *gl_curve,
+			const struct weston_color_curve *curve,
+			struct weston_color_transform *xform)
+{
+	const unsigned lut_len = curve->u.lut_3x1d.optimal_len;
+	float *lut;
+	bool ret;
+
+	lut = calloc(lut_len * 3, sizeof *lut);
+	if (!lut)
+		return false;
+
+	curve->u.lut_3x1d.fill_in(xform, lut, lut_len);
+
+	ret = gl_color_curve_lut_3x1d_init(gr, gl_curve, lut_len, lut);
+
+	free(lut);
+
+	return ret;
 }
 
 static void
