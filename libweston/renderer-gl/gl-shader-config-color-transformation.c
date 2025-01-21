@@ -239,9 +239,9 @@ gl_color_curve_lut_3x1d(struct gl_renderer *gr,
 }
 
 static bool
-gl_3d_lut(struct gl_renderer *gr,
-	  struct gl_renderer_color_transform *gl_xform,
-	  struct weston_color_transform *xform)
+gl_color_mapping_lut_3d(struct gl_renderer *gr,
+			struct gl_renderer_color_transform *gl_xform,
+			struct weston_color_transform *xform)
 {
 	GLint filters[] = { GL_LINEAR, GL_LINEAR };
 	struct gl_texture_parameters params;
@@ -330,7 +330,7 @@ gl_renderer_color_transform_from(struct gl_renderer *gr,
 		ok = true;
 		break;
 	case WESTON_COLOR_MAPPING_TYPE_3D_LUT:
-		ok = gl_3d_lut(gr, gl_xform, xform);
+		ok = gl_color_mapping_lut_3d(gr, gl_xform, xform);
 		break;
 	case WESTON_COLOR_MAPPING_TYPE_MATRIX:
 		gl_xform->mapping.type = SHADER_COLOR_MAPPING_MATRIX;
