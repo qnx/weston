@@ -1,6 +1,6 @@
 # vim: set expandtab shiftwidth=2 tabstop=8 textwidth=0:
 
-.templates_sha: &template_sha 184ca628f89f3193c249b4e34e45afee2773a833 # see https://docs.gitlab.com/ee/ci/yaml/#includefile
+.templates_sha: &template_sha f210ea84576f756816da37908771edcee14ef7e6 # see https://docs.gitlab.com/ee/ci/yaml/#includefile
 # This file uses the freedesktop ci-templates to build Weston and run our
 # tests in CI.
 #
@@ -43,7 +43,7 @@
 variables:
   FDO_UPSTREAM_REPO: wayland/weston
   FDO_REPO_SUFFIX: "$BUILD_OS-$FDO_DISTRIBUTION_VERSION/$BUILD_ARCH"
-  FDO_DISTRIBUTION_TAG: '2024-11-04-00-libdrm-2.4.118'
+  FDO_DISTRIBUTION_TAG: '2025-01-21-ci-templates-update'
 
 
 include:
@@ -139,12 +139,14 @@ check-commit:
     - .os-debian-lts
   variables:
     BUILD_ARCH: "armv7"
+    FDO_DISTRIBUTION_PLATFORM: "linux/arm/v7"
 
 .debian-armv7:
   extends:
     - .os-debian
   variables:
     BUILD_ARCH: "armv7"
+    FDO_DISTRIBUTION_PLATFORM: "linux/arm/v7"
     # Armv7 doesn't have freerdp3 in bookworm-backports so we don't build FreeRDP
     MESON_DIST_OPTIONS: "-Dbackend-rdp=false"
     # Inhibit installation of freerdp-dev
@@ -211,8 +213,6 @@ armv7-debian-lts-container_prep:
     - .fdo.container-build@debian
   tags:
     - aarch64
-  variables:
-    FDO_BASE_IMAGE: "arm32v7/debian:$FDO_DISTRIBUTION_VERSION"
   needs:
     - job: base-container-pre
   timeout: 30m
@@ -225,8 +225,6 @@ armv7-debian-container_prep:
     - .fdo.container-build@debian
   tags:
     - aarch64
-  variables:
-    FDO_BASE_IMAGE: "arm32v7/debian:$FDO_DISTRIBUTION_VERSION"
   needs:
     - job: base-container-pre
   timeout: 30m
