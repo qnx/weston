@@ -3,7 +3,7 @@ project('weston',
 	version: '14.0.90',
 	default_options: [
 		'warning_level=3',
-		'c_std=gnu99',
+		'c_std=gnu11',
 		'b_lundef=true',
 	],
 	meson_version: '>= 0.63.0',

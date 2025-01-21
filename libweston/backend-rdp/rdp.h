@@ -27,14 +27,6 @@
 #ifndef RDP_H
 #define RDP_H
 
-/* Workaround an issue with clang and freerdp 3 headers. Another
- * option would be to build with --std=c11 but weston itself isn't
- * quite ready for that
- */
-#if USE_FREERDP_VERSION >= 3 && defined(__clang__)
-#pragma clang diagnostic ignored "-Wtypedef-redefinition"
-#endif
-
 #include <freerdp/version.h>
 
 #include <freerdp/freerdp.h>
