@@ -23,6 +23,9 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#ifndef WESTON_DESKTOP_SHELL_H
+#define WESTON_DESKTOP_SHELL_H
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <time.h>
@@ -31,6 +34,169 @@
 #include <libweston/xwayland-api.h>
 
 #include "weston-desktop-shell-server-protocol.h"
+
+struct focus_state {
+	struct desktop_shell *shell;
+	struct weston_seat *seat;
+	struct workspace *ws;
+	struct weston_surface *keyboard_focus;
+	struct wl_list link;
+	struct wl_listener seat_destroy_listener;
+	struct wl_listener surface_destroy_listener;
+};
+
+/*
+ * Surface stacking and ordering.
+ *
+ * This is handled using several linked lists of surfaces, organised into
+ * ‘layers’. The layers are ordered, and each of the surfaces in one layer are
+ * above all of the surfaces in the layer below. The set of layers is static and
+ * in the following order (top-most first):
+ *  • Lock layer (only ever displayed on its own)
+ *  • Cursor layer
+ *  • Input panel layer
+ *  • Fullscreen layer
+ *  • Panel layer
+ *  • Workspace layers
+ *  • Background layer
+ *
+ * The list of layers may be manipulated to remove whole layers of surfaces from
+ * display. For example, when locking the screen, all layers except the lock
+ * layer are removed.
+ *
+ * A surface’s layer is modified on configuring the surface, in
+ * set_surface_type() (which is only called when the surface’s type change is
+ * _committed_). If a surface’s type changes (e.g. when making a window
+ * fullscreen) its layer changes too.
+ *
+ * In order to allow popup and transient surfaces to be correctly stacked above
+ * their parent surfaces, each surface tracks both its parent surface, and a
+ * linked list of its children. When a surface’s layer is updated, so are the
+ * layers of its children. Note that child surfaces are *not* the same as
+ * subsurfaces — child/parent surfaces are purely for maintaining stacking
+ * order.
+ *
+ * The children_link list of siblings of a surface (i.e. those surfaces which
+ * have the same parent) only contains weston_surfaces which have a
+ * shell_surface. Stacking is not implemented for non-shell_surface
+ * weston_surfaces. This means that the following implication does *not* hold:
+ *     (shsurf->parent != NULL) ⇒ !wl_list_is_empty(shsurf->children_link)
+ */
+
+struct shell_surface {
+	struct wl_signal destroy_signal;
+
+	struct weston_desktop_surface *desktop_surface;
+	struct weston_view *view;
+	struct weston_surface *wsurface_anim_fade;
+	struct weston_view *wview_anim_fade;
+	int32_t last_width, last_height;
+
+	struct desktop_shell *shell;
+
+	struct wl_list children_list;
+	struct wl_list children_link;
+
+	struct weston_coord_global saved_pos;
+	bool saved_position_valid;
+	bool saved_rotation_valid;
+	int unresponsive, grabbed;
+	uint32_t resize_edges;
+	uint32_t orientation;
+
+	struct {
+		struct weston_transform transform;
+		struct weston_matrix rotation;
+	} rotation;
+
+	struct {
+		struct weston_curtain *black_view;
+	} fullscreen;
+
+	struct weston_output *fullscreen_output;
+	struct weston_output *output;
+	struct wl_listener output_destroy_listener;
+
+	struct surface_state {
+		bool fullscreen;
+		bool maximized;
+		bool lowered;
+	} state;
+
+	struct {
+		bool is_set;
+		struct weston_coord_global pos;
+	} xwayland;
+
+	int focus_count;
+
+	bool destroying;
+	struct wl_list link;	/** desktop_shell::shsurf_list */
+};
+
+struct shell_grab {
+	struct weston_pointer_grab grab;
+	struct shell_surface *shsurf;
+	struct wl_listener shsurf_destroy_listener;
+};
+
+struct shell_touch_grab {
+	struct weston_touch_grab grab;
+	struct shell_surface *shsurf;
+	struct wl_listener shsurf_destroy_listener;
+	struct weston_touch *touch;
+};
+
+struct shell_tablet_tool_grab {
+	struct weston_tablet_tool_grab grab;
+	struct shell_surface *shsurf;
+	struct wl_listener shsurf_destroy_listener;
+	struct weston_tablet_tool *tool;
+};
+
+struct weston_move_grab {
+	struct shell_grab base;
+	struct weston_coord_global delta;
+	bool client_initiated;
+};
+
+struct weston_touch_move_grab {
+	struct shell_touch_grab base;
+	int active;
+	struct weston_coord_global delta;
+};
+
+struct weston_tablet_tool_move_grab {
+	struct shell_tablet_tool_grab base;
+	wl_fixed_t dx, dy;
+};
+
+struct rotate_grab {
+	struct shell_grab base;
+	struct weston_matrix rotation;
+	struct {
+		float x;
+		float y;
+	} center;
+};
+
+struct shell_seat {
+	struct weston_seat *seat;
+	struct wl_listener seat_destroy_listener;
+	struct weston_surface *focused_surface;
+
+	struct wl_listener caps_changed_listener;
+	struct wl_listener pointer_focus_listener;
+	struct wl_listener keyboard_focus_listener;
+	struct wl_listener tablet_tool_added_listener;
+
+	struct wl_list link;	/** shell::seat_list */
+};
+
+struct tablet_tool_listener {
+	struct wl_listener base;
+	struct wl_listener removed_listener;
+};
 
 enum animation_type {
 	ANIMATION_NONE,
@@ -202,3 +368,5 @@ void
 shell_for_each_layer(struct desktop_shell *shell,
 		     shell_for_each_layer_func_t func,
 		     void *data);
+
+#endif /* WESTON_DESKTOP_SHELL_H */
