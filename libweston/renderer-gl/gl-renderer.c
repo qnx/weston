@@ -67,10 +67,15 @@
 
 #define BUFFER_DAMAGE_COUNT 2
 
-#define SWIZZLES_0G0A { GL_ZERO, GL_GREEN, GL_ZERO, GL_ALPHA }
-#define SWIZZLES_R000 { GL_RED,  GL_ZERO,  GL_ZERO, GL_ZERO  }
-#define SWIZZLES_RG00 { GL_RED,  GL_GREEN, GL_ZERO, GL_ZERO  }
-#define SWIZZLES_RGB0 { GL_RED,  GL_GREEN, GL_BLUE, GL_ZERO  }
+#define SWIZZLES_0A0G { GL_ZERO,  GL_ALPHA, GL_ZERO, GL_GREEN }
+#define SWIZZLES_0B0R { GL_ZERO,  GL_BLUE,  GL_ZERO, GL_RED   }
+#define SWIZZLES_0G0A { GL_ZERO,  GL_GREEN, GL_ZERO, GL_ALPHA }
+#define SWIZZLES_0R0B { GL_ZERO,  GL_RED,   GL_ZERO, GL_BLUE  }
+#define SWIZZLES_G000 { GL_GREEN, GL_ZERO,  GL_ZERO, GL_ZERO  }
+#define SWIZZLES_GR00 { GL_GREEN, GL_RED,   GL_ZERO, GL_ZERO  }
+#define SWIZZLES_R000 { GL_RED,   GL_ZERO,  GL_ZERO, GL_ZERO  }
+#define SWIZZLES_RG00 { GL_RED,   GL_GREEN, GL_ZERO, GL_ZERO  }
+#define SWIZZLES_RGB0 { GL_RED,   GL_GREEN, GL_BLUE, GL_ZERO  }
 
 enum gl_debug_mode {
 	DEBUG_MODE_NONE = 0,
@@ -384,6 +389,45 @@ struct yuv_format_descriptor yuv_formats[] = {
 			.swizzles.array = SWIZZLES_0G0A,
 		}}
 	}, {
+		.format = DRM_FORMAT_YVYU,
+		.output_planes = 2,
+		.shader_variant = SHADER_VARIANT_Y_XUXV,
+		{{
+			.format = DRM_FORMAT_GR88,
+			.plane_index = 0,
+			.swizzles.array = SWIZZLES_R000,
+		}, {
+			.format = DRM_FORMAT_ABGR8888,
+			.plane_index = 0,
+			.swizzles.array = SWIZZLES_0A0G,
+		}}
+	}, {
+		.format = DRM_FORMAT_UYVY,
+		.output_planes = 2,
+		.shader_variant = SHADER_VARIANT_Y_XUXV,
+		{{
+			.format = DRM_FORMAT_GR88,
+			.plane_index = 0,
+			.swizzles.array = SWIZZLES_G000,
+		}, {
+			.format = DRM_FORMAT_ABGR8888,
+			.plane_index = 0,
+			.swizzles.array = SWIZZLES_0R0B,
+		}}
+	}, {
+		.format = DRM_FORMAT_VYUY,
+		.output_planes = 2,
+		.shader_variant = SHADER_VARIANT_Y_XUXV,
+		{{
+			.format = DRM_FORMAT_GR88,
+			.plane_index = 0,
+			.swizzles.array = SWIZZLES_G000,
+		}, {
+			.format = DRM_FORMAT_ABGR8888,
+			.plane_index = 0,
+			.swizzles.array = SWIZZLES_0B0R,
+		}}
+	}, {
 		.format = DRM_FORMAT_NV12,
 		.output_planes = 2,
 		.shader_variant = SHADER_VARIANT_Y_UV,
@@ -395,6 +439,19 @@ struct yuv_format_descriptor yuv_formats[] = {
 			.format = DRM_FORMAT_GR88,
 			.plane_index = 1,
 			.swizzles.array = SWIZZLES_RG00,
+		}}
+	}, {
+		.format = DRM_FORMAT_NV21,
+		.output_planes = 2,
+		.shader_variant = SHADER_VARIANT_Y_UV,
+		{{
+			.format = DRM_FORMAT_R8,
+			.plane_index = 0,
+			.swizzles.array = SWIZZLES_R000,
+		}, {
+			.format = DRM_FORMAT_GR88,
+			.plane_index = 1,
+			.swizzles.array = SWIZZLES_GR00,
 		}}
 	}, {
 		.format = DRM_FORMAT_NV16,
@@ -410,6 +467,19 @@ struct yuv_format_descriptor yuv_formats[] = {
 			.swizzles.array = SWIZZLES_RG00,
 		}}
 	}, {
+		.format = DRM_FORMAT_NV61,
+		.output_planes = 2,
+		.shader_variant = SHADER_VARIANT_Y_UV,
+		{{
+			.format = DRM_FORMAT_R8,
+			.plane_index = 0,
+			.swizzles.array = SWIZZLES_R000,
+		}, {
+			.format = DRM_FORMAT_GR88,
+			.plane_index = 1,
+			.swizzles.array = SWIZZLES_GR00,
+		}}
+	}, {
 		.format = DRM_FORMAT_NV24,
 		.output_planes = 2,
 		.shader_variant = SHADER_VARIANT_Y_UV,
@@ -421,6 +491,19 @@ struct yuv_format_descriptor yuv_formats[] = {
 			.format = DRM_FORMAT_GR88,
 			.plane_index = 1,
 			.swizzles.array = SWIZZLES_RG00,
+		}}
+	}, {
+		.format = DRM_FORMAT_NV42,
+		.output_planes = 2,
+		.shader_variant = SHADER_VARIANT_Y_UV,
+		{{
+			.format = DRM_FORMAT_R8,
+			.plane_index = 0,
+			.swizzles.array = SWIZZLES_R000,
+		}, {
+			.format = DRM_FORMAT_GR88,
+			.plane_index = 1,
+			.swizzles.array = SWIZZLES_GR00,
 		}}
 	}, {
 		/* XXX The 6 lsb per component aren't masked out. Add a new
@@ -483,6 +566,23 @@ struct yuv_format_descriptor yuv_formats[] = {
 			.swizzles.array = SWIZZLES_R000,
 		}}
 	}, {
+		.format = DRM_FORMAT_YVU420,
+		.output_planes = 3,
+		.shader_variant = SHADER_VARIANT_Y_U_V,
+		{{
+			.format = DRM_FORMAT_R8,
+			.plane_index = 0,
+			.swizzles.array = SWIZZLES_R000,
+		}, {
+			.format = DRM_FORMAT_R8,
+			.plane_index = 2,
+			.swizzles.array = SWIZZLES_R000,
+		}, {
+			.format = DRM_FORMAT_R8,
+			.plane_index = 1,
+			.swizzles.array = SWIZZLES_R000,
+		}}
+	}, {
 		.format = DRM_FORMAT_YUV444,
 		.output_planes = 3,
 		.shader_variant = SHADER_VARIANT_Y_U_V,
@@ -497,6 +597,23 @@ struct yuv_format_descriptor yuv_formats[] = {
 		}, {
 			.format = DRM_FORMAT_R8,
 			.plane_index = 2,
+			.swizzles.array = SWIZZLES_R000,
+		}}
+	}, {
+		.format = DRM_FORMAT_YVU444,
+		.output_planes = 3,
+		.shader_variant = SHADER_VARIANT_Y_U_V,
+		{{
+			.format = DRM_FORMAT_R8,
+			.plane_index = 0,
+			.swizzles.array = SWIZZLES_R000,
+		}, {
+			.format = DRM_FORMAT_R8,
+			.plane_index = 2,
+			.swizzles.array = SWIZZLES_R000,
+		}, {
+			.format = DRM_FORMAT_R8,
+			.plane_index = 1,
 			.swizzles.array = SWIZZLES_R000,
 		}}
 	}, {
