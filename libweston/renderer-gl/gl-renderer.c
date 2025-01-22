@@ -3219,7 +3219,7 @@ static EGLImageKHR
 import_simple_dmabuf(struct gl_renderer *gr,
                      const struct dmabuf_attributes *attributes)
 {
-	EGLint attribs[52];
+	EGLint attribs[53];
 	int atti = 0;
 	bool has_modifier;
 
@@ -3307,6 +3307,12 @@ import_simple_dmabuf(struct gl_renderer *gr,
 			attribs[atti++] = attributes->modifier >> 32;
 		}
 	}
+
+	attribs[atti++] = EGL_YUV_COLOR_SPACE_HINT_EXT;
+	attribs[atti++] = EGL_ITU_REC601_EXT;
+
+	attribs[atti++] = EGL_SAMPLE_RANGE_HINT_EXT;
+	attribs[atti++] = EGL_YUV_NARROW_RANGE_EXT;
 
 	attribs[atti++] = EGL_NONE;
 
