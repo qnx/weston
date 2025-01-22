@@ -868,3 +868,9 @@ pixel_format_get_array(const uint32_t *drm_formats, unsigned int formats_count)
 
 	return formats;
 }
+
+WL_EXPORT bool
+pixel_format_is_yuv(const struct pixel_format_info *info)
+{
+	return !!info->sampler_type;
+}
