@@ -44,23 +44,6 @@
 #include "linux-dmabuf.h"
 #include "linux-explicit-synchronization.h"
 
-static struct gbm_device *
-create_gbm_device(int fd)
-{
-	struct gbm_device *gbm;
-
-	/* GBM will load a dri driver, but even though they need symbols from
-	 * libglapi, in some version of Mesa they are not linked to it. Since
-	 * only the gl-renderer module links to it, the call above won't make
-	 * these symbols globally available, and loading the DRI driver fails.
-	 * Workaround this by dlopen()'ing libglapi with RTLD_GLOBAL. */
-	dlopen("libglapi.so.0", RTLD_LAZY | RTLD_GLOBAL);
-
-	gbm = gbm_create_device(fd);
-
-	return gbm;
-}
-
 /* When initializing EGL, if the preferred buffer format isn't available
  * we may be able to substitute an ARGB format for an XRGB one.
  *
@@ -104,7 +87,7 @@ init_egl(struct drm_backend *b)
 {
 	struct drm_device *device = b->drm;
 
-	b->gbm = create_gbm_device(device->drm.fd);
+	b->gbm = gbm_create_device(device->drm.fd);
 	if (!b->gbm)
 		return -1;
 
