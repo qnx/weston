@@ -133,6 +133,18 @@ do {										\
 	cond;									\
 })
 
+#define weston_assert_bit_is_not_set(compositor, value, bit)			\
+({										\
+	struct weston_compositor *ec = compositor;				\
+	uint64_t v = (value);							\
+	uint8_t b = (bit);							\
+	bool cond = (v >> b) & 1;						\
+	if (cond)								\
+		custom_assert_fail_(ec, "%s:%u: Assertion failed! Bit %s (%u) of %s (0x%" PRIx64 ") is set.\n",	\
+				    __FILE__, __LINE__, #bit, b, #value, v);	\
+	cond;									\
+})
+
 #define weston_assert_legal_bits(compositor, value, mask)			\
 ({										\
 	struct weston_compositor *ec = compositor;				\
