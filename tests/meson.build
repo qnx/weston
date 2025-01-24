@@ -99,49 +99,6 @@ exe_plugin_test = shared_library(
 	install: false,
 )
 
-deps_zuc = [ dep_libshared ]
-config_h.set10('ENABLE_JUNIT_XML', get_option('test-junit-xml'))
-if get_option('test-junit-xml')
-	d = dependency('libxml-2.0', version: '>= 2.6', required: false)
-	if not d.found()
-		error('JUnit XML support requires libxml-2.0 >= 2.6 which was not found. Or, you can use \'-Dtest-junit-xml=false\'.')
-	endif
-	deps_zuc += d
-endif
-
-lib_zuc = static_library(
-	'zunitc',
-	'../tools/zunitc/inc/zunitc/zunitc.h',
-	'../tools/zunitc/inc/zunitc/zunitc_impl.h',
-	'../tools/zunitc/src/zuc_base_logger.c',
-	'../tools/zunitc/src/zuc_base_logger.h',
-	'../tools/zunitc/src/zuc_context.h',
-	'../tools/zunitc/src/zuc_event.h',
-	'../tools/zunitc/src/zuc_event_listener.h',
-	'../tools/zunitc/src/zuc_junit_reporter.c',
-	'../tools/zunitc/src/zuc_junit_reporter.h',
-	'../tools/zunitc/src/zuc_types.h',
-	'../tools/zunitc/src/zunitc_impl.c',
-	include_directories: [ common_inc, include_directories('../tools/zunitc/inc') ],
-	dependencies: deps_zuc,
-)
-dep_zuc = declare_dependency(
-	link_with: lib_zuc,
-	dependencies: dep_libshared,
-	include_directories: include_directories('../tools/zunitc/inc')
-)
-
-lib_zucmain = static_library(
-	'zunitcmain',
-	'../tools/zunitc/src/main.c',
-	include_directories: [ common_inc, include_directories('../tools/zunitc/inc') ],
-	dependencies: [ dep_libshared, dep_zuc ],
-)
-dep_zucmain = declare_dependency(
-	link_with: lib_zucmain,
-	dependencies: dep_zuc
-)
-
 tests = [
 	{
 		'name': 'alpha-blending',
@@ -328,17 +285,6 @@ if get_option('color-management-lcms')
 	]
 endif
 
-
-tests_standalone = [
-	['zuc',
-		[
-			'../tools/zunitc/test/fixtures_test.c',
-			'../tools/zunitc/test/zunitc_test.c'
-		],
-		[ dep_zucmain ]
-	],
-]
-
 if get_option('xwayland')
 	xcb_dep = dependency('xcb', required: false)
 	xcb_cursor_dep = dependency('xcb-cursor', required: false)
@@ -496,42 +442,6 @@ foreach t : tests
 		protocol: 'tap',
 		is_parallel: not run_exclusive
 	)
-endforeach
-
-# FIXME: the multiple loops is lame. rethink this.
-foreach t : tests_standalone
-	if t[0] != 'zuc'
-		srcs_t = [
-			'@0@-test.c'.format(t.get(0)),
-			weston_test_client_protocol_h,
-		]
-	else
-		srcs_t = []
-	endif
-
-	if t.length() > 1
-		srcs_t += t.get(1)
-	endif
-
-	if t.length() > 2
-		deps_t = t[2]
-	else
-		deps_t = [ dep_test_client ]
-	endif
-
-	exe_t = executable(
-		'test-@0@'.format(t.get(0)),
-		srcs_t,
-		build_by_default: true,
-		include_directories: common_inc,
-		dependencies: deps_t,
-		install: false,
-	)
-
-	# matrix-test is a manual test
-	if t[0] != 'matrix'
-		test(t.get(0), exe_t)
-	endif
 endforeach
 
 if get_option('backend-drm')
