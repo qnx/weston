@@ -25,6 +25,7 @@
 #include "config.h"
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef  __cplusplus
 extern "C" {
@@ -282,6 +283,18 @@ bswap32(uint32_t x)
 		((x << 8) & 0x00ff0000) |
 		(x << 24);
 #endif
+}
+
+/**
+ * Returns whether 64-bit value x is a power of 2.
+ *
+ * @param x a 64-bit value.
+ * @return true if x is a power of 2.
+ */
+static inline bool
+is_pow2_64(uint64_t x)
+{
+	return (x & (x - 1)) == 0;
 }
 
 /**

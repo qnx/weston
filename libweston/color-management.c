@@ -1743,7 +1743,7 @@ weston_compositor_enable_color_management_protocol(struct weston_compositor *com
 
 	weston_assert_bit_is_set(compositor,
 				 compositor->color_manager->supported_rendering_intents,
-				 WESTON_RENDER_INTENT_PERCEPTUAL);
+				 1ull << WESTON_RENDER_INTENT_PERCEPTUAL);
 
 	if (!wl_global_create(compositor->wl_display,
 			      &wp_color_manager_v1_interface,

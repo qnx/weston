@@ -134,9 +134,9 @@ TEST(asserts)
 	abort_if_not(ret == false);
 
 	uint32_t bitfield = 0xffff;
-	ret = weston_assert_bit_is_set(compositor, bitfield, 2);
+	ret = weston_assert_bit_is_set(compositor, bitfield, 1ull << 2);
 	abort_if_not(ret);
-	ret = weston_assert_bit_is_set(compositor, bitfield, 57);
+	ret = weston_assert_bit_is_set(compositor, bitfield, 1ull << 57);
 	abort_if_not(ret == false);
 
 	uint64_t max_uint64 = UINT64_MAX;
