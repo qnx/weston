@@ -248,6 +248,7 @@ tests = [
 	{	'name': 'subsurface-shot', },
 	{	'name': 'surface', },
 	{	'name': 'surface-global', },
+	{	'name': 'timespec', },
 	{
 		'name': 'touch',
 		'sources': [
@@ -329,7 +330,6 @@ endif
 
 tests_standalone = [
 	['config-parser', [], [ dep_zucmain ]],
-	['timespec', [], [ dep_zucmain ]],
 	['zuc',
 		[
 			'../tools/zunitc/test/fixtures_test.c',
