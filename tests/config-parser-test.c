@@ -25,24 +25,12 @@
 
 #include "config.h"
 
-#include <stdlib.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <string.h>
-#include <assert.h>
-#include <errno.h>
-#include <unistd.h>
-#include <math.h>
 
 #include <libweston/config-parser.h>
 
-#include "shared/helpers.h"
-#include "zunitc/zunitc.h"
-
-struct fixture_data {
-	const char *text;
-	struct weston_config *config;
-};
+#include "weston-test-client-helper.h"
+#include "weston-test-assert.h"
 
 static struct weston_config *
 load_config(const char *text)
@@ -54,61 +42,44 @@ load_config(const char *text)
 	FILE *file;
 
 	file = open_memstream(&content, &file_len);
-	ZUC_ASSERTG_NOT_NULL(file, out);
+	test_assert_ptr_not_null(file);
 
 	write_len = fwrite(text, 1, strlen(text), file);
-	ZUC_ASSERTG_EQ((int)strlen(text), write_len, out_close);
+	test_assert_int_eq((int)strlen(text), write_len);
 
-	ZUC_ASSERTG_EQ(fflush(file), 0, out_close);
+	test_assert_int_eq(fflush(file), 0);
 	fseek(file, 0L, SEEK_SET);
 
 	config = weston_config_parse_fp(file);
 
-out_close:
 	fclose(file);
 	free(content);
-out:
+
 	return config;
 }
 
-static void *
-setup_test_config(void *data)
+static struct weston_config *
+assert_load_config(const char *text)
 {
-	struct weston_config *config = load_config(data);
-	ZUC_ASSERTG_NOT_NULL(config, out);
+	struct weston_config *config = load_config(text);
+	test_assert_ptr_not_null(config);
 
-out:
 	return config;
 }
 
-static void *
-setup_test_config_failing(void *data)
-{
-	struct weston_config *config = load_config(data);
-	ZUC_ASSERTG_NULL(config, err_free);
+static const char *comment_only_text =
+	"# nothing in this file...\n";
 
-	return config;
-err_free:
-	weston_config_destroy(config);
-	return NULL;
-}
-
-static void
-cleanup_test_config(void *data)
+TEST(comment_only)
 {
-	struct weston_config *config = data;
-	ZUC_ASSERT_NOT_NULL(config);
+	struct weston_config *config = assert_load_config(comment_only_text);
+
 	weston_config_destroy(config);
 }
 
-static struct zuc_fixture config_test_t0 = {
-	.data = "# nothing in this file...\n",
-	.set_up = setup_test_config,
-	.tear_down = cleanup_test_config
-};
+/** @todo legit tests should have more descriptive names. */
 
-static struct zuc_fixture config_test_t1 = {
-	.data =
+static const char *legit_text =
 	"# comment line here...\n"
 	"\n"
 	"[foo]\n"
@@ -149,685 +120,721 @@ static struct zuc_fixture config_test_t1 = {
 	"[bucket]\n"
 	"material=plastic \n"
 	"color=red\n"
-	"contents=sand\n",
-	.set_up = setup_test_config,
-	.tear_down = cleanup_test_config
-};
+	"contents=sand\n";
 
-static const char *section_names[] = {
-	"foo", "bar", "colors", "stuff", "bucket", "bucket"
-};
-
-/*
- * Since these next few won't parse, we don't add the tear_down to
- * attempt cleanup.
- */
-
-static struct zuc_fixture config_test_t2 = {
-	.data =
-	"# invalid section...\n"
-	"[this bracket isn't closed\n",
-	.set_up = setup_test_config_failing,
-};
-
-static struct zuc_fixture config_test_t3 = {
-	.data =
-	"# line without = ...\n"
-	"[bambam]\n"
-	"this line isn't any kind of valid\n",
-	.set_up = setup_test_config_failing,
-};
-
-static struct zuc_fixture config_test_t4 = {
-	.data =
-	"# starting with = ...\n"
-	"[bambam]\n"
-	"=not valid at all\n",
-	.set_up = setup_test_config_failing,
-};
-
-ZUC_TEST_F(config_test_t0, comment_only, data)
+TEST(legit_test01)
 {
-	struct weston_config *config = data;
-	ZUC_ASSERT_NOT_NULL(config);
-}
-
-/** @todo individual t1 tests should have more descriptive names. */
-
-ZUC_TEST_F(config_test_t1, test001, data)
-{
+	struct weston_config *config = assert_load_config(legit_text);
 	struct weston_config_section *section;
-	struct weston_config *config = data;
-	ZUC_ASSERT_NOT_NULL(config);
+
 	section = weston_config_get_section(config,
 					    "mollusc", NULL, NULL);
-	ZUC_ASSERT_NULL(section);
+	test_assert_ptr_null(section);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test002, data)
+TEST(legit_test02)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	char *s;
 	int r;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "foo", NULL, NULL);
 	r = weston_config_section_get_string(section, "a", &s, NULL);
 
-	ZUC_ASSERTG_EQ(0, r, out_free);
-	ZUC_ASSERTG_STREQ("b", s, out_free);
+	test_assert_int_eq(0, r);
+	test_assert_str_eq("b", s);
 
-out_free:
 	free(s);
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test003, data)
+TEST(legit_test03)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	char *s;
 	int r;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "foo", NULL, NULL);
 	r = weston_config_section_get_string(section, "b", &s, NULL);
 
-	ZUC_ASSERT_EQ(-1, r);
-	ZUC_ASSERT_EQ(ENOENT, errno);
-	ZUC_ASSERT_NULL(s);
+	test_assert_int_eq(-1, r);
+	test_assert_errno(ENOENT);
+	test_assert_ptr_null(s);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test004, data)
+TEST(legit_test04)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	char *s;
 	int r;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "foo", NULL, NULL);
 	r = weston_config_section_get_string(section, "name", &s, NULL);
 
-	ZUC_ASSERTG_EQ(0, r, out_free);
-	ZUC_ASSERTG_STREQ("Roy Batty", s, out_free);
+	test_assert_int_eq(0, r);
+	test_assert_str_eq("Roy Batty", s);
 
-out_free:
 	free(s);
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test005, data)
+TEST(legit_test05)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	char *s;
 	int r;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_string(section, "a", &s, "boo");
 
-	ZUC_ASSERTG_EQ(-1, r, out_free);
-	ZUC_ASSERTG_EQ(ENOENT, errno, out_free);
-	ZUC_ASSERTG_STREQ("boo", s, out_free);
+	test_assert_int_eq(-1, r);
+	test_assert_errno(ENOENT);
+	test_assert_str_eq("boo", s);
 
-out_free:
 	free(s);
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test006, data)
+TEST(legit_test06)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	int32_t n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_int(section, "number", &n, 600);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_EQ(5252, n);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_s32_eq(5252, n);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test007, data)
+TEST(legit_test07)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	int32_t n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_int(section, "+++", &n, 700);
 
-	ZUC_ASSERT_EQ(-1, r);
-	ZUC_ASSERT_EQ(ENOENT, errno);
-	ZUC_ASSERT_EQ(700, n);
+	test_assert_int_eq(-1, r);
+	test_assert_errno(ENOENT);
+	test_assert_s32_eq(700, n);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test008, data)
+TEST(legit_test08)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	uint32_t u;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_uint(section, "number", &u, 600);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_EQ(5252, u);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_u32_eq(5252, u);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test009, data)
+TEST(legit_test09)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	uint32_t u;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_uint(section, "+++", &u, 600);
-	ZUC_ASSERT_EQ(-1, r);
-	ZUC_ASSERT_EQ(ENOENT, errno);
-	ZUC_ASSERT_EQ(600, u);
+
+	test_assert_int_eq(-1, r);
+	test_assert_errno(ENOENT);
+	test_assert_u32_eq(600, u);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test010, data)
+TEST(legit_test10)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	bool b;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_bool(section, "flag", &b, true);
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_EQ(false, b);
+
+	test_assert_int_eq(0, r);
+	test_assert_false(b);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test011, data)
+TEST(legit_test11)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	bool b;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "stuff", NULL, NULL);
 	r = weston_config_section_get_bool(section, "flag", &b, false);
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_EQ(true, b);
+
+	test_assert_int_eq(0, r);
+	test_assert_true(b);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test012, data)
+TEST(legit_test12)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	bool b;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "stuff", NULL, NULL);
 	r = weston_config_section_get_bool(section, "bonk", &b, false);
-	ZUC_ASSERT_EQ(-1, r);
-	ZUC_ASSERT_EQ(ENOENT, errno);
-	ZUC_ASSERT_EQ(false, b);
+
+	test_assert_int_eq(-1, r);
+	test_assert_errno(ENOENT);
+	test_assert_false(b);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test013, data)
+TEST(legit_test13)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	char *s;
 	int r;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config,
 					    "bucket", "color", "blue");
 	r = weston_config_section_get_string(section, "contents", &s, NULL);
 
-	ZUC_ASSERTG_EQ(0, r, out_free);
-	ZUC_ASSERTG_STREQ("live crabs", s, out_free);
+	test_assert_int_eq(0, r);
+	test_assert_str_eq("live crabs", s);
 
-out_free:
 	free(s);
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test014, data)
+TEST(legit_test14)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	char *s;
 	int r;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config,
 					    "bucket", "color", "red");
 	r = weston_config_section_get_string(section, "contents", &s, NULL);
 
-	ZUC_ASSERTG_EQ(0, r, out_free);
-	ZUC_ASSERTG_STREQ("sand", s, out_free);
+	test_assert_int_eq(0, r);
+	test_assert_str_eq("sand", s);
 
-out_free:
 	free(s);
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test015, data)
+TEST(legit_test15)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	char *s;
 	int r;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config,
 					    "bucket", "color", "pink");
-	ZUC_ASSERT_NULL(section);
+	test_assert_ptr_null(section);
 	r = weston_config_section_get_string(section, "contents", &s, "eels");
 
-	ZUC_ASSERTG_EQ(-1, r, out_free);
-	ZUC_ASSERTG_EQ(ENOENT, errno, out_free);
-	ZUC_ASSERTG_STREQ("eels", s, out_free);
+	test_assert_int_eq(-1, r);
+	test_assert_errno(ENOENT);
+	test_assert_str_eq("eels", s);
 
-out_free:
 	free(s);
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test016, data)
+TEST(legit_test16)
 {
+	static const char *section_names[] = {
+		"foo", "bar", "colors", "stuff", "bucket", "bucket"
+	};
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	const char *name;
 	int i;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = NULL;
 	i = 0;
 	while (weston_config_next_section(config, &section, &name))
-		ZUC_ASSERT_STREQ(section_names[i++], name);
+		test_assert_str_eq(section_names[i++], name);
 
-	ZUC_ASSERT_EQ(6, i);
+	test_assert_int_eq(6, i);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test017, data)
+TEST(legit_test17)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	int32_t n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_int(section, "zero", &n, 600);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_EQ(0, n);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_s32_eq(0, n);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test018, data)
+TEST(legit_test18)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	uint32_t n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_uint(section, "zero", &n, 600);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_EQ(0, n);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_u32_eq(0, n);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test019, data)
+TEST(legit_test19)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	uint32_t n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "colors", NULL, NULL);
 	r = weston_config_section_get_color(section, "none", &n, 0xff336699);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_EQ(0x000000, n);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_u32_eq(0x000000, n);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test020, data)
+TEST(legit_test20)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	uint32_t n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "colors", NULL, NULL);
 	r = weston_config_section_get_color(section, "low", &n, 0xff336699);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_EQ(0x11223344, n);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_u32_eq(0x11223344, n);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test021, data)
+TEST(legit_test21)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	uint32_t n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "colors", NULL, NULL);
 	r = weston_config_section_get_color(section, "high", &n, 0xff336699);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_EQ(0xff00ff00, n);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_u32_eq(0xff00ff00, n);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test022, data)
+TEST(legit_test22)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	uint32_t n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
-	// Treat colors as hex values even if missing the leading 0x
+	/* Treat colors as hex values even if missing the leading 0x */
 	section = weston_config_get_section(config, "colors", NULL, NULL);
 	r = weston_config_section_get_color(section, "oct", &n, 0xff336699);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_EQ(0x01234567, n);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_u32_eq(0x01234567, n);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test023, data)
+TEST(legit_test23)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	uint32_t n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
-	// Treat colors as hex values even if missing the leading 0x
+	/* Treat colors as hex values even if missing the leading 0x */
 	section = weston_config_get_section(config, "colors", NULL, NULL);
 	r = weston_config_section_get_color(section, "dec", &n, 0xff336699);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_EQ(0x12345670, n);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_u32_eq(0x12345670, n);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test024, data)
+TEST(legit_test24)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	uint32_t n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
-	// 7-digit colors are not valid (most likely typos)
+	/* 7-digit colors are not valid (most likely typos) */
 	section = weston_config_get_section(config, "colors", NULL, NULL);
 	r = weston_config_section_get_color(section, "short", &n, 0xff336699);
 
-	ZUC_ASSERT_EQ(-1, r);
-	ZUC_ASSERT_EQ(0xff336699, n);
-	ZUC_ASSERT_EQ(EINVAL, errno);
+	test_assert_int_eq(-1, r);
+	test_assert_u32_eq(0xff336699, n);
+	test_assert_errno(EINVAL);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test025, data)
+TEST(legit_test25)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	uint32_t n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
-	// String color names are unsupported
+	/* String color names are unsupported */
 	section = weston_config_get_section(config, "bucket", NULL, NULL);
 	r = weston_config_section_get_color(section, "color", &n, 0xff336699);
 
-	ZUC_ASSERT_EQ(-1, r);
-	ZUC_ASSERT_EQ(0xff336699, n);
-	ZUC_ASSERT_EQ(EINVAL, errno);
+	test_assert_int_eq(-1, r);
+	test_assert_u32_eq(0xff336699, n);
+	test_assert_errno(EINVAL);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test026, data)
+TEST(legit_test26)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	int32_t n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_int(section, "negative", &n, 600);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_EQ(-42, n);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_s32_eq(-42, n);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, test027, data)
+TEST(legit_test27)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	uint32_t n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_uint(section, "negative", &n, 600);
 
-	ZUC_ASSERT_EQ(-1, r);
-	ZUC_ASSERT_EQ(600, n);
-	ZUC_ASSERT_EQ(ERANGE, errno);
+	test_assert_int_eq(-1, r);
+	test_assert_u32_eq(600, n);
+	test_assert_errno(ERANGE);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, get_double_number, data)
+TEST(get_double_number)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	double n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	errno = 0;
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_double(section, "number", &n, 600.0);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_TRUE(5252.0 == n);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_f64_eq(5252.0, n);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, get_double_missing, data)
+TEST(get_double_missing)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	double n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_double(section, "+++", &n, 600.0);
 
-	ZUC_ASSERT_EQ(-1, r);
-	ZUC_ASSERT_TRUE(600.0 == n);
-	ZUC_ASSERT_EQ(ENOENT, errno);
+	test_assert_int_eq(-1, r);
+	test_assert_f64_eq(600.0, n);
+	test_assert_errno(ENOENT);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, get_double_zero, data)
+TEST(get_double_zero)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	double n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	errno = 0;
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_double(section, "zero", &n, 600.0);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_TRUE(0.0 == n);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_f64_eq(n, 0.0);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, get_double_negative, data)
+TEST(get_double_negative)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	double n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	errno = 0;
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_double(section, "negative", &n, 600.0);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_TRUE(-42.0 == n);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_f64_eq(n, -42.0);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, get_double_flag, data)
+TEST(get_double_flag)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	double n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	errno = 0;
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_double(section, "flag", &n, 600.0);
 
-	ZUC_ASSERT_EQ(-1, r);
-	ZUC_ASSERT_TRUE(600.0 == n);
-	ZUC_ASSERT_EQ(EINVAL, errno);
+	test_assert_int_eq(-1, r);
+	test_assert_f64_eq(n, 600.0);
+	test_assert_errno(EINVAL);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, get_double_real, data)
+TEST(get_double_real)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	double n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	errno = 0;
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_double(section, "real", &n, 600.0);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_TRUE(4.667 == n);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_f64_eq(4.667, n);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, get_double_negreal, data)
+TEST(get_double_negreal)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	double n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	errno = 0;
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_double(section, "negreal", &n, 600.0);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_TRUE(-3.2 == n);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_f64_eq(-3.2, n);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, get_double_expval, data)
+TEST(get_double_expval)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	double n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	errno = 0;
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_double(section, "expval", &n, 600.0);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_TRUE(24.687e+15 == n);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_f64_eq(24.687e+15, n);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, get_double_negexpval, data)
+TEST(get_double_negexpval)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	double n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	errno = 0;
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_double(section, "negexpval", &n, 600.0);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_TRUE(-3e-2 == n);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_f64_eq(-3e-2, n);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, get_double_notanumber, data)
+TEST(get_double_notanumber)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	double n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	errno = 0;
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_double(section, "notanumber", &n, 600.0);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_TRUE(isnan(n));
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_true(isnan(n));
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, get_double_empty, data)
+TEST(get_double_empty)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	double n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	errno = 0;
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_double(section, "empty", &n, 600.0);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_TRUE(0.0 == n);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_f64_eq(0.0, n);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t1, get_double_tiny, data)
+TEST(get_double_tiny)
 {
+	struct weston_config *config = assert_load_config(legit_text);
+	struct weston_config_section *section;
 	int r;
 	double n;
-	struct weston_config_section *section;
-	struct weston_config *config = data;
 
 	errno = 0;
 	section = weston_config_get_section(config, "bar", NULL, NULL);
 	r = weston_config_section_get_double(section, "tiny", &n, 600.0);
 
-	ZUC_ASSERT_EQ(0, r);
-	ZUC_ASSERT_TRUE(6.3548e-39 == n);
-	ZUC_ASSERT_EQ(0, errno);
+	test_assert_int_eq(0, r);
+	test_assert_f64_eq(6.3548e-39, n);
+	test_assert_errno(0);
+
+	weston_config_destroy(config);
 }
 
-ZUC_TEST_F(config_test_t2, doesnt_parse, data)
+struct doesnt_parse_test { char *text; };
+
+static const struct doesnt_parse_test doesnt_parse_test_data[] = {
+	{
+		"# invalid section...\n"
+		"[this bracket isn't closed\n",
+	}, {
+		"# line without = ...\n"
+		"[bambam]\n"
+		"this line isn't any kind of valid\n",
+	}, {
+		"# starting with = ...\n"
+		"[bambam]\n"
+		"=not valid at all\n",
+	},
+};
+
+TEST_P(doesnt_parse, doesnt_parse_test_data)
 {
-	struct weston_config *config = data;
-	ZUC_ASSERT_NULL(config);
+	struct doesnt_parse_test *test = (struct doesnt_parse_test *) data;
+	struct weston_config *config = load_config(test->text);
+	test_assert_ptr_null(config);
 }
 
-ZUC_TEST_F(config_test_t3, doesnt_parse, data)
-{
-	struct weston_config *config = data;
-	ZUC_ASSERT_NULL(config);
-}
-
-ZUC_TEST_F(config_test_t4, doesnt_parse, data)
-{
-	struct weston_config *config = data;
-	ZUC_ASSERT_NULL(config);
-}
-
-ZUC_TEST(config_test, destroy_null)
+TEST(destroy_null)
 {
 	weston_config_destroy(NULL);
-	ZUC_ASSERT_EQ(0, weston_config_next_section(NULL, NULL, NULL));
+	test_assert_int_eq(0, weston_config_next_section(NULL, NULL, NULL));
 }
 
-ZUC_TEST(config_test, section_from_null)
+TEST(section_from_null)
 {
 	struct weston_config_section *section;
 	section = weston_config_get_section(NULL, "bucket", NULL, NULL);
-	ZUC_ASSERT_NULL(section);
+	test_assert_ptr_null(section);
 }

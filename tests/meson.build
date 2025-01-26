@@ -154,6 +154,7 @@ tests = [
 		'name': 'color-metadata-errors',
 		'dep_objs': dep_libexec_weston,
 	},
+	{	'name': 'config-parser', },
 	{
 		'name': 'constraints',
 		'sources': [
@@ -329,7 +330,6 @@ endif
 
 
 tests_standalone = [
-	['config-parser', [], [ dep_zucmain ]],
 	['zuc',
 		[
 			'../tools/zunitc/test/fixtures_test.c',
