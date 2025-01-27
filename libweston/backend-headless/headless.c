@@ -161,7 +161,6 @@ headless_output_repaint(struct weston_output *output_base)
 	struct headless_output *output = to_headless_output(output_base);
 	struct weston_compositor *ec;
 	pixman_region32_t damage;
-	int delay_msec;
 
 	assert(output);
 
@@ -178,8 +177,7 @@ headless_output_repaint(struct weston_output *output_base)
 
 	pixman_region32_fini(&damage);
 
-	delay_msec = millihz_to_nsec(output->mode.refresh) / 1000000;
-	wl_event_source_timer_update(output->finish_frame_timer, delay_msec);
+	weston_output_arm_frame_timer(output_base, output->finish_frame_timer);
 
 	return 0;
 }
