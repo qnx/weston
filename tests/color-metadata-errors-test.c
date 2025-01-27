@@ -26,11 +26,11 @@
 #include "config.h"
 
 #include <string.h>
-#include <assert.h>
 #include <math.h>
 
 #include "weston-test-client-helper.h"
 #include "weston-test-fixture-compositor.h"
+#include "weston-test-assert.h"
 
 #include "weston-private.h"
 #include "libweston-internal.h"
@@ -225,17 +225,17 @@ TEST_P(color_characteristics_config_error, config_cases)
 
 	wc = create_config(t);
 	section = weston_config_get_section(wc, "output", "name", "mockoutput");
-	assert(section);
+	test_assert_ptr_not_null(section);
 
 	retval = wet_output_set_color_characteristics(&mock_output, wc, section);
 
-	assert(fclose(logfile) == 0);
+	test_assert_int_eq(fclose(logfile), 0);
 	logfile = NULL;
 
 	testlog("retval %d, logs:\n%s\n", retval, logbuf);
 
-	assert(retval == t->expected_retval);
-	assert(strcmp(logbuf, t->expected_error) == 0);
+	test_assert_int_eq(retval, t->expected_retval);
+	test_assert_int_eq(strcmp(logbuf, t->expected_error), 0);
 
 	weston_config_destroy(wc);
 	free(logbuf);
@@ -264,7 +264,7 @@ TEST(weston_output_set_color_characteristics_null)
 
 	mock_output.color_characteristics.group_mask = 1;
 	weston_output_set_color_characteristics(&mock_output, NULL);
-	assert(mock_output.color_characteristics.group_mask == 0);
+	test_assert_u32_eq(mock_output.color_characteristics.group_mask, 0);
 
 	weston_output_release(&mock_output);
 	weston_idalloc_destroy(mock_compositor.color_profile_id_generator);
@@ -347,10 +347,10 @@ TEST_P(hdr_metadata_type1_errors, value_cases)
 	wl_list_init(&mock_compositor.plane_list);
 	weston_output_init(&mock_output, &mock_compositor, "mockoutput");
 
-	assert(t->field_index < ARRAY_LENGTH(fields));
+	test_assert_uint_lt(t->field_index, ARRAY_LENGTH(fields));
 	*fields[t->field_index] = t->value;
 	ret = weston_output_set_color_outcome(&mock_output);
-	assert(ret == t->retval);
+	test_assert_int_eq(ret, t->retval);
 
 	weston_output_color_outcome_destroy(&mock_output.color_outcome);
 	weston_output_release(&mock_output);
@@ -393,7 +393,7 @@ TEST(hdr_metadata_type1_ignore_unflagged)
 	weston_output_init(&mock_output, &mock_compositor, "mockoutput");
 
 	ret = weston_output_set_color_outcome(&mock_output);
-	assert(ret);
+	test_assert_true(ret);
 
 	weston_output_color_outcome_destroy(&mock_output.color_outcome);
 	weston_output_release(&mock_output);
@@ -633,14 +633,14 @@ TEST_P(mode_config_error, mode_config_cases)
 	weston_head_set_supported_eotf_mask(&mock_head, t->supported_eotf_mask);
 	weston_head_set_supported_colorimetry_mask(&mock_head, t->supported_colorimetry_mask);
 	attached = weston_output_attach_head(&mock_output, &mock_head);
-	assert(attached == 0);
+	test_assert_int_eq(attached, 0);
 
 	logfile = open_memstream(&logbuf, &logsize);
 	weston_log_set_handler(logger, logger);
 
 	wc = create_mode_config(t);
 	section = weston_config_get_section(wc, "output", "name", "mockoutput");
-	assert(section);
+	test_assert_ptr_not_null(section);
 
 	retval = wet_output_set_eotf_mode(&mock_output, section, t->color_management);
 	if (retval == 0) {
@@ -648,15 +648,15 @@ TEST_P(mode_config_error, mode_config_cases)
 							 t->color_management);
 	}
 
-	assert(fclose(logfile) == 0);
+	test_assert_int_eq(fclose(logfile), 0);
 	logfile = NULL;
 
 	testlog("retval %d, logs:\n%s\n", retval, logbuf);
 
-	assert(retval == t->expected_retval);
-	assert(strcmp(logbuf, t->expected_error) == 0);
-	assert(weston_output_get_eotf_mode(&mock_output) == t->expected_eotf_mode);
-	assert(weston_output_get_colorimetry_mode(&mock_output) == t->expected_colorimetry_mode);
+	test_assert_int_eq(retval, t->expected_retval);
+	test_assert_int_eq(strcmp(logbuf, t->expected_error), 0);
+	test_assert_enum(weston_output_get_eotf_mode(&mock_output), t->expected_eotf_mode);
+	test_assert_enum(weston_output_get_colorimetry_mode(&mock_output), t->expected_colorimetry_mode);
 
 	weston_config_destroy(wc);
 	free(logbuf);

@@ -26,9 +26,10 @@
 #ifndef WESTON_TESTSUITE_DATA_H
 #define WESTON_TESTSUITE_DATA_H
 
-#include <assert.h>
 #include <errno.h>
 #include <semaphore.h>
+
+#include "weston-test-assert.h"
 
 /** Standard return codes
  *

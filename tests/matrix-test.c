@@ -28,6 +28,7 @@
 #include <math.h>
 #include <libweston/matrix.h>
 #include "weston-test-client-helper.h"
+#include "weston-test-assert.h"
 
 /*
  * A helper to lay out a matrix in the natural writing order in code
@@ -266,6 +267,6 @@ TEST_P(matrix_inversion_precision, matrices)
 	if (err > tm->err_limit) {
 		testlog("Error is too high for matrix\n");
 		print_matrix(&tm->M);
-		assert(0);
+		test_assert_true(false);
 	}
 }

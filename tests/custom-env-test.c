@@ -25,7 +25,6 @@
 
 #include "config.h"
 
-#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -39,12 +38,13 @@
 #include "shared/string-helpers.h"
 
 #include "weston-test-runner.h"
+#include "weston-test-assert.h"
 
 #define ASSERT_STR_MATCH(_as, _bs) do { \
 	const char *as = _as; \
 	const char *bs = _bs; \
-	assert(!!as == !!bs); \
-	assert(!as || strcmp(as, bs) == 0); \
+	test_assert_true(!!as == !!bs); \
+	test_assert_true(!as || strcmp(as, bs) == 0); \
 } while (0)
 
 #define ASSERT_STR_ARRAY_MATCH(_name, _aa, _ba) do { \
@@ -84,7 +84,7 @@ TEST(basic_env)
 	custom_env_set_env_var(&env, "ENV5", "five");
 	custom_env_set_env_var(&env, "ENV3", "four");
 	ASSERT_STR_ARRAY_MATCH("envp", custom_env_get_envp(&env), envp);
-	assert(env.env_finalized);
+	test_assert_true(env.env_finalized);
 	custom_env_fini(&env);
 }
 
@@ -99,9 +99,9 @@ TEST(basic_env_arg)
 	custom_env_add_arg(&env, "arg3");
 
 	ASSERT_STR_ARRAY_MATCH("envp", custom_env_get_envp(&env), DEFAULT_ENVP);
-	assert(env.env_finalized);
+	test_assert_true(env.env_finalized);
 	ASSERT_STR_ARRAY_MATCH("argp", custom_env_get_argp(&env), argp);
-	assert(env.arg_finalized);
+	test_assert_true(env.arg_finalized);
 	custom_env_fini(&env);
 }
 

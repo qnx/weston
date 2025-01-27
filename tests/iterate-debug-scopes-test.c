@@ -25,7 +25,6 @@
 #include "config.h"
 
 #include <unistd.h>
-#include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -33,7 +32,7 @@
 #include <libweston/weston-log.h>
 #include "weston-test-client-helper.h"
 #include "weston-test-fixture-compositor.h"
-
+#include "weston-test-assert.h"
 
 static enum test_result_code
 fixture_setup(struct weston_test_harness *harness)
@@ -63,10 +62,10 @@ iterate_debug_scopes(struct weston_compositor *compositor)
 		const char *desc_name;
 
 		scope_name = weston_log_scope_get_name(nscope);
-		assert(scope_name);
+		test_assert_ptr_not_null(scope_name);
 
 		desc_name = weston_log_scope_get_description(nscope);
-		assert(desc_name);
+		test_assert_ptr_not_null(desc_name);
 
 		weston_log("\tscope name: %s, desc: %s\n", scope_name, desc_name);
 
@@ -75,7 +74,7 @@ iterate_debug_scopes(struct weston_compositor *compositor)
 	}
 	weston_log("\n");
 
-	assert(found_test_harness_debug_scope);
+	test_assert_true(found_test_harness_debug_scope);
 }
 
 PLUGIN_TEST(iterate_default_debug_scopes)

@@ -35,6 +35,7 @@
 #include <libweston/matrix.h>
 #include "color_util.h"
 #include "weston-test-runner.h"
+#include "weston-test-assert.h"
 #include "shared/helpers.h"
 
 static_assert(sizeof(struct color_float) == 4 * sizeof(float),
@@ -117,7 +118,7 @@ transfer_fn_invert(enum transfer_fn fn)
 	case TRANSFER_FN_SRGB_EOTF_INVERSE:
 		return TRANSFER_FN_SRGB_EOTF;
 	}
-	assert(0 && "bad transfer_fn");
+	test_assert_not_reached("bad transfer_fn");
 	return 0;
 }
 
@@ -140,7 +141,7 @@ transfer_fn_name(enum transfer_fn fn)
 	case TRANSFER_FN_SRGB_EOTF_INVERSE:
 		return "inverse sRGB EOTF";
 	}
-	assert(0 && "bad transfer_fn");
+	test_assert_not_reached("bad transfer_fn");
 	return 0;
 }
 
@@ -155,10 +156,10 @@ ensure_unit_range(float v)
 	const float lim_lo = -tol;
 	const float lim_hi = 1.0f + tol;
 
-	assert(v >= lim_lo);
+	test_assert_f32_ge(v, lim_lo);
 	if (v < 0.0f)
 		return 0.0f;
-	assert(v <= lim_hi);
+	test_assert_f32_le(v, lim_hi);
 	if (v > 1.0f)
 		return 1.0f;
 	return v;
@@ -389,7 +390,7 @@ lcmsMAT3_invert(struct lcmsMAT3 *result, const struct lcmsMAT3 *mat)
 
 	weston_matrix_from_lcmsMAT3(&w, mat);
 	ret = weston_matrix_invert(&inv, &w);
-	assert(ret == 0);
+	test_assert_int_eq(ret, 0);
 	lcmsMAT3_from_weston_matrix(result, &inv);
 }
 
@@ -489,7 +490,7 @@ rgb_diff_stat_print(const struct rgb_diff_stat *stat,
 	float scale = exp2f(scaling_bits) - 1.0f;
 	unsigned i;
 
-	assert(scaling_bits > 0);
+	test_assert_uint_gt(scaling_bits, 0);
 
 	testlog("%s error statistics, %u samples, value range 0.0 - %.1f:\n",
 		title, stat->two_norm.count, scale);

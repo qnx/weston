@@ -25,13 +25,12 @@
 
 #include "config.h"
 
-#include <assert.h>
-
 #include <libweston/libweston.h>
 #include <libweston/plugin-registry.h>
 
 #include "weston-test-runner.h"
 #include "weston-test-fixture-compositor.h"
+#include "weston-test-assert.h"
 
 static enum test_result_code
 fixture_setup(struct weston_test_harness *harness)
@@ -65,20 +64,23 @@ static const struct my_api {
 static void
 init_tests(struct weston_compositor *compositor)
 {
-	assert(weston_plugin_api_get(compositor, MY_API_NAME,
-				     sizeof(my_test_api)) == NULL);
+	test_assert_ptr_null(weston_plugin_api_get(compositor, MY_API_NAME,
+						   sizeof(my_test_api)));
 
-	assert(weston_plugin_api_register(compositor, MY_API_NAME, &my_test_api,
-					  sizeof(my_test_api)) == 0);
+	test_assert_int_eq(weston_plugin_api_register(compositor, MY_API_NAME,
+						      &my_test_api,
+						      sizeof(my_test_api)), 0);
 
-	assert(weston_plugin_api_register(compositor, MY_API_NAME, &my_test_api,
-					  sizeof(my_test_api)) == -2);
+	test_assert_int_eq(weston_plugin_api_register(compositor, MY_API_NAME,
+						      &my_test_api,
+						      sizeof(my_test_api)), -2);
 
-	assert(weston_plugin_api_get(compositor, MY_API_NAME,
-				     sizeof(my_test_api)) == &my_test_api);
+	test_assert_ptr_eq(weston_plugin_api_get(compositor, MY_API_NAME,
+						 sizeof(my_test_api)), &my_test_api);
 
-	assert(weston_plugin_api_register(compositor, "another", &my_test_api,
-					  sizeof(my_test_api)) == 0);
+	test_assert_int_eq(weston_plugin_api_register(compositor, "another",
+						      &my_test_api,
+						      sizeof(my_test_api)), 0);
 }
 
 PLUGIN_TEST(plugin_registry_test)
@@ -89,14 +91,15 @@ PLUGIN_TEST(plugin_registry_test)
 
 	init_tests(compositor);
 
-	assert(weston_plugin_api_get(compositor, MY_API_NAME, sz) ==
-				     &my_test_api);
+	test_assert_ptr_eq(weston_plugin_api_get(compositor, MY_API_NAME, sz),
+			   &my_test_api);
 
-	assert(weston_plugin_api_get(compositor, MY_API_NAME, sz - 4) ==
-				     &my_test_api);
+	test_assert_ptr_eq(weston_plugin_api_get(compositor, MY_API_NAME, sz - 4),
+			   &my_test_api);
 
-	assert(weston_plugin_api_get(compositor, MY_API_NAME, sz + 4) == NULL);
+	test_assert_ptr_null(weston_plugin_api_get(compositor, MY_API_NAME, sz + 4));
 
 	api = weston_plugin_api_get(compositor, MY_API_NAME, sz);
-	assert(api && api->func2 == dummy_func);
+	test_assert_ptr_not_null(api);
+	test_assert_ptr_eq(api->func2, dummy_func);
 }

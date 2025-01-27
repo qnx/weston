@@ -29,7 +29,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 #include <time.h>
 
 #include "shared/helpers.h"
@@ -38,6 +37,7 @@
 #include "weston-test-client-helper.h"
 #include "presentation-time-client-protocol.h"
 #include "weston-test-fixture-compositor.h"
+#include "weston-test-assert.h"
 
 static enum test_result_code
 fixture_setup(struct weston_test_harness *harness)
@@ -64,18 +64,18 @@ get_presentation(struct client *client)
 			continue;
 
 		if (global_pres)
-			assert(0 && "multiple presentation objects");
+			test_assert_not_reached("multiple presentation objects");
 
 		global_pres = g;
 	}
 
-	assert(global_pres && "no presentation found");
+	test_assert_ptr_not_null(global_pres);
 
-	assert(global_pres->version == 1);
+	test_assert_u32_eq(global_pres->version, 1);
 
 	pres = wl_registry_bind(client->wl_registry, global_pres->name,
 				&wp_presentation_interface, 1);
-	assert(pres);
+	test_assert_ptr_not_null(pres);
 
 	return pres;
 }
@@ -104,7 +104,7 @@ feedback_sync_output(void *data,
 {
 	struct feedback *fb = data;
 
-	assert(fb->result == FB_PENDING);
+	test_assert_enum(fb->result, FB_PENDING);
 
 	if (output)
 		fb->sync_output = output;
@@ -123,7 +123,7 @@ feedback_presented(void *data,
 {
 	struct feedback *fb = data;
 
-	assert(fb->result == FB_PENDING);
+	test_assert_enum(fb->result, FB_PENDING);
 	fb->result = FB_PRESENTED;
 	fb->seq = u64_from_u32s(seq_hi, seq_lo);
 	timespec_from_proto(&fb->time, tv_sec_hi, tv_sec_lo, tv_nsec);
@@ -137,7 +137,7 @@ feedback_discarded(void *data,
 {
 	struct feedback *fb = data;
 
-	assert(fb->result == FB_PENDING);
+	test_assert_enum(fb->result, FB_PENDING);
 	fb->result = FB_DISCARDED;
 }
 
@@ -166,7 +166,7 @@ static void
 feedback_wait(struct feedback *fb)
 {
 	while (fb->result == FB_PENDING) {
-		assert(wl_display_dispatch(fb->client->wl_display) >= 0);
+		test_assert_int_ge(wl_display_dispatch(fb->client->wl_display), 0);
 	}
 }
 
@@ -231,7 +231,7 @@ TEST(test_presentation_feedback_simple)
 	struct wp_presentation *pres;
 
 	client = create_client_and_test_surface(100, 50, 123, 77);
-	assert(client);
+	test_assert_ptr_not_null(client);
 	pres = get_presentation(client);
 
 	wl_surface_attach(client->surface->wl_surface,

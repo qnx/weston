@@ -32,6 +32,7 @@
 #include "weston-test-client-helper.h"
 #include "text-input-unstable-v1-client-protocol.h"
 #include "weston-test-fixture-compositor.h"
+#include "weston-test-assert.h"
 
 static enum test_result_code
 fixture_setup(struct weston_test_harness *harness)
@@ -188,7 +189,7 @@ TEST(text_test)
 	struct text_input_state state;
 
 	client = create_client_and_test_surface(100, 100, 100, 100);
-	assert(client);
+	test_assert_ptr_not_null(client);
 
 	factory = NULL;
 	wl_list_for_each(global, &client->global_list, link) {
@@ -198,7 +199,7 @@ TEST(text_test)
 						   &zwp_text_input_manager_v1_interface, 1);
 	}
 
-	assert(factory);
+	test_assert_ptr_not_null(factory);
 
 	memset(&state, 0, sizeof state);
 	text_input = zwp_text_input_manager_v1_create_text_input(factory);
@@ -210,29 +211,33 @@ TEST(text_test)
 	weston_test_activate_surface(client->test->weston_test,
 				 client->surface->wl_surface);
 	client_roundtrip(client);
-	assert(client->input->keyboard->focus == client->surface);
+	test_assert_ptr_eq(client->input->keyboard->focus, client->surface);
 
 	/* Activate test model and make sure we get enter event. */
 	zwp_text_input_v1_activate(text_input, client->input->wl_seat,
 				   client->surface->wl_surface);
 	client_roundtrip(client);
-	assert(state.activated == 1 && state.deactivated == 0);
+	test_assert_int_eq(state.activated, 1);
+	test_assert_int_eq(state.deactivated, 0);
 
 	/* Deactivate test model and make sure we get leave event. */
 	zwp_text_input_v1_deactivate(text_input, client->input->wl_seat);
 	client_roundtrip(client);
-	assert(state.activated == 1 && state.deactivated == 1);
+	test_assert_int_eq(state.activated, 1);
+	test_assert_int_eq(state.deactivated, 1);
 
 	/* Activate test model again. */
 	zwp_text_input_v1_activate(text_input, client->input->wl_seat,
 				   client->surface->wl_surface);
 	client_roundtrip(client);
-	assert(state.activated == 2 && state.deactivated == 1);
+	test_assert_int_eq(state.activated, 2);
+	test_assert_int_eq(state.deactivated, 1);
 
 	/* Take keyboard focus away and verify we get leave event. */
 	weston_test_activate_surface(client->test->weston_test, NULL);
 	client_roundtrip(client);
-	assert(state.activated == 2 && state.deactivated == 2);
+	test_assert_int_eq(state.activated, 2);
+	test_assert_int_eq(state.deactivated, 2);
 
 	zwp_text_input_v1_destroy(text_input);
 	zwp_text_input_manager_v1_destroy(factory);

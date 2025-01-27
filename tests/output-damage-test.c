@@ -31,6 +31,7 @@
 
 #include "weston-test-client-helper.h"
 #include "weston-test-fixture-compositor.h"
+#include "weston-test-assert.h"
 
 #define RENDERERS(s, t)							\
 	{								\
@@ -199,7 +200,7 @@ TEST(output_damage)
 
 	ret = asprintf(&refname, "output-damage_%d-%s",
 		       oargs->scale, oargs->transform_name);
-	assert(ret);
+	test_assert_int_ne(ret, 0);
 
 	testlog("%s: %s\n", get_test_name(), refname);
 
@@ -226,7 +227,7 @@ TEST(output_damage)
 			match = false;
 	}
 
-	assert(match);
+	test_assert_true(match);
 
 	for (i = 0; i < COUNT_BUFS; i++)
 		buffer_destroy(buf[i]);

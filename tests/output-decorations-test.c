@@ -27,6 +27,7 @@
 
 #include "weston-test-client-helper.h"
 #include "weston-test-fixture-compositor.h"
+#include "weston-test-assert.h"
 
 static enum test_result_code
 fixture_setup(struct weston_test_harness *harness)
@@ -76,7 +77,7 @@ TEST(output_decorations)
 	img = image_convert_to_a8r8g8b8(shot->image);
 
 	match = verify_image(img, "output-decorations", 0, NULL, 0);
-	assert(match);
+	test_assert_true(match);
 
 	pixman_image_unref(img);
 	buffer_destroy(shot);

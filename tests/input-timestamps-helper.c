@@ -25,7 +25,6 @@
 
 #include "config.h"
 
-#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -35,6 +34,7 @@
 #include "shared/timespec-util.h"
 #include <libweston/zalloc.h>
 #include "weston-test-client-helper.h"
+#include "weston-test-assert.h"
 
 struct input_timestamps {
 	struct zwp_input_timestamps_v1 *proxy;
@@ -51,18 +51,18 @@ get_input_timestamps_manager(struct client *client)
 		if (strcmp(g->interface, zwp_input_timestamps_manager_v1_interface.name))
 			continue;
 
-		if (global_ts)
-			assert(!"Multiple input timestamp managers");
+		/* Can't have multiple input timestamp managers. */
+		test_assert_ptr_null(global_ts);
 
 		global_ts = g;
 	}
 
-	assert(global_ts);
-	assert(global_ts->version == 1);
+	test_assert_ptr_not_null(global_ts);
+	test_assert_u32_eq(global_ts->version, 1);
 
 	ts = wl_registry_bind(client->wl_registry, global_ts->name,
 			      &zwp_input_timestamps_manager_v1_interface, 1);
-	assert(ts);
+	test_assert_ptr_not_null(ts);
 
 	return ts;
 }
@@ -97,12 +97,12 @@ input_timestamps_create_for_keyboard(struct client *client)
 	struct input_timestamps *input_ts;
 
 	input_ts = zalloc(sizeof *input_ts);
-	assert(input_ts);
+	test_assert_ptr_not_null(input_ts);
 
 	input_ts->proxy =
 		zwp_input_timestamps_manager_v1_get_keyboard_timestamps(
 			manager, client->input->keyboard->wl_keyboard);
-	assert(input_ts->proxy);
+	test_assert_ptr_not_null(input_ts->proxy);
 
 	zwp_input_timestamps_v1_add_listener(input_ts->proxy,
 					     &input_timestamps_listener,
@@ -124,12 +124,12 @@ input_timestamps_create_for_pointer(struct client *client)
 	struct input_timestamps *input_ts;
 
 	input_ts = zalloc(sizeof *input_ts);
-	assert(input_ts);
+	test_assert_ptr_not_null(input_ts);
 
 	input_ts->proxy =
 		zwp_input_timestamps_manager_v1_get_pointer_timestamps(
 			manager, client->input->pointer->wl_pointer);
-	assert(input_ts->proxy);
+	test_assert_ptr_not_null(input_ts->proxy);
 
 	zwp_input_timestamps_v1_add_listener(input_ts->proxy,
 					     &input_timestamps_listener,
@@ -151,12 +151,12 @@ input_timestamps_create_for_touch(struct client *client)
 	struct input_timestamps *input_ts;
 
 	input_ts = zalloc(sizeof *input_ts);
-	assert(input_ts);
+	test_assert_ptr_not_null(input_ts);
 
 	input_ts->proxy =
 		zwp_input_timestamps_manager_v1_get_touch_timestamps(
 			manager, client->input->touch->wl_touch);
-	assert(input_ts->proxy);
+	test_assert_ptr_not_null(input_ts->proxy);
 
 	zwp_input_timestamps_v1_add_listener(input_ts->proxy,
 					     &input_timestamps_listener,

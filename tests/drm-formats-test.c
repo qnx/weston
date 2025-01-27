@@ -25,14 +25,13 @@
 
 #include "config.h"
 
-#include <assert.h>
-
 #include <libweston/libweston.h>
 #include <libweston-internal.h>
 #include "shared/weston-drm-fourcc.h"
 
 #include "weston-test-client-helper.h"
 #include "weston-test-fixture-compositor.h"
+#include "weston-test-assert.h"
 
 /* Add multiple formats to weston_drm_format_array and add the same set of
  * modifiers to each format. */
@@ -63,11 +62,11 @@ format_array_add_format_and_modifiers(struct weston_drm_format_array *formats,
         int ret;
 
         fmt = weston_drm_format_array_add_format(formats, format);
-        assert(fmt);
+        test_assert_ptr_not_null(fmt);
 
         for (i = 0; i < num_modifiers; i++) {
                 ret = weston_drm_format_add_modifier(fmt, modifiers[i]);
-                assert(ret == 0);
+                test_assert_int_eq(ret, 0);
         }
 }
 
@@ -81,19 +80,20 @@ TEST(basic_operations)
 
         weston_drm_format_array_init(&format_array);
 
-        assert(weston_drm_format_array_count_pairs(&format_array) == 0);
+        test_assert_int_eq(weston_drm_format_array_count_pairs(&format_array), 0);
 
         ADD_FORMATS_AND_MODS(&format_array, formats, modifiers);
 
         for (i = 0; i < ARRAY_LENGTH(formats); i++) {
                 fmt = weston_drm_format_array_find_format(&format_array, formats[i]);
-                assert(fmt && fmt->format == formats[i]);
+                test_assert_ptr_not_null(fmt);
+                test_assert_u32_eq(fmt->format, formats[i]);
                 for (j = 0; j < ARRAY_LENGTH(modifiers); j++)
-                        assert(weston_drm_format_has_modifier(fmt, modifiers[j]));
+                        test_assert_true(weston_drm_format_has_modifier(fmt, modifiers[j]));
         }
 
-        assert(weston_drm_format_array_count_pairs(&format_array) ==
-               ARRAY_LENGTH(formats) * ARRAY_LENGTH(modifiers));
+        test_assert_uint_eq(weston_drm_format_array_count_pairs(&format_array),
+                            ARRAY_LENGTH(formats) * ARRAY_LENGTH(modifiers));
 
         weston_drm_format_array_fini(&format_array);
 }
@@ -108,12 +108,12 @@ TEST(compare_arrays_same_content)
         weston_drm_format_array_init(&format_array_B);
 
         /* Both are empty arrays, so they have the same content. */
-        assert(weston_drm_format_array_equal(&format_array_A, &format_array_B));
+        test_assert_true(weston_drm_format_array_equal(&format_array_A, &format_array_B));
 
         /* Test non-empty arrays with same content. */
         ADD_FORMATS_AND_MODS(&format_array_A, formats, modifiers);
         ADD_FORMATS_AND_MODS(&format_array_B, formats, modifiers);
-        assert(weston_drm_format_array_equal(&format_array_A, &format_array_B));
+        test_assert_true(weston_drm_format_array_equal(&format_array_A, &format_array_B));
 
         /* Test non-empty arrays with same content, but add elements to B in
          * reverse order. This is important as in the future we may keep
@@ -121,7 +121,7 @@ TEST(compare_arrays_same_content)
         weston_drm_format_array_fini(&format_array_B);
         weston_drm_format_array_init(&format_array_B);
         ADD_FORMATS_AND_MODS_REVERSE(&format_array_B, formats, modifiers);
-        assert(weston_drm_format_array_equal(&format_array_A, &format_array_B));
+        test_assert_true(weston_drm_format_array_equal(&format_array_A, &format_array_B));
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
@@ -141,7 +141,8 @@ TEST(compare_arrays_exclusive_content)
         /* Arrays with formats that are mutually exclusive. */
         ADD_FORMATS_AND_MODS(&format_array_A, formats_A, modifiers_A);
         ADD_FORMATS_AND_MODS(&format_array_B, formats_B, modifiers_B);
-        assert(!weston_drm_format_array_equal(&format_array_A, &format_array_B));
+        test_assert_false(weston_drm_format_array_equal(&format_array_A,
+							&format_array_B));
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
@@ -161,8 +162,8 @@ TEST(replace_array)
          * have the same content. */
         ADD_FORMATS_AND_MODS(&format_array_A, formats, modifiers);
         ret = weston_drm_format_array_replace(&format_array_B, &format_array_A);
-        assert(ret == 0);
-        assert(weston_drm_format_array_equal(&format_array_A, &format_array_B));
+        test_assert_int_eq(ret, 0);
+        test_assert_true(weston_drm_format_array_equal(&format_array_A, &format_array_B));
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
@@ -185,12 +186,12 @@ TEST(remove_from_array)
         ADD_FORMATS_AND_MODS(&format_array_A, formats_A, modifiers);
         ADD_FORMATS_AND_MODS(&format_array_B, formats_B, modifiers);
         weston_drm_format_array_remove_latest_format(&format_array_A);
-        assert(weston_drm_format_array_equal(&format_array_A, &format_array_B));
+        test_assert_true(weston_drm_format_array_equal(&format_array_A, &format_array_B));
 
         /* Add 6 to the format array A, so it should be equal to C. */
         ADD_FORMATS_AND_MODS(&format_array_A, (uint32_t[]){6}, modifiers);
         ADD_FORMATS_AND_MODS(&format_array_C, formats_C, modifiers);
-        assert(weston_drm_format_array_equal(&format_array_A, &format_array_C));
+        test_assert_true(weston_drm_format_array_equal(&format_array_A, &format_array_C));
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
@@ -215,7 +216,7 @@ TEST(join_arrays)
         ADD_FORMATS_AND_MODS(&format_array_A, formats_A, modifiers_A);
         ADD_FORMATS_AND_MODS(&format_array_B, formats_B, modifiers_B);
         ret = weston_drm_format_array_join(&format_array_A, &format_array_B);
-        assert(ret == 0);
+        test_assert_int_eq(ret, 0);
 
         /* The result of the joint (which is saved in A) should have
          * the same content as C. */
@@ -226,7 +227,7 @@ TEST(join_arrays)
         ADD_FORMATS_AND_MODS(&format_array_C, (uint32_t[]){7}, modifiers_B);
         ADD_FORMATS_AND_MODS(&format_array_C, (uint32_t[]){9}, modifiers_join);
         ADD_FORMATS_AND_MODS(&format_array_C, (uint32_t[]){10}, modifiers_join);
-        assert(weston_drm_format_array_equal(&format_array_A, &format_array_C));
+        test_assert_true(weston_drm_format_array_equal(&format_array_A, &format_array_C));
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
@@ -245,21 +246,21 @@ TEST(join_arrays_same_content)
 
         /* Joint of empty arrays must be empty. */
         ret = weston_drm_format_array_join(&format_array_A, &format_array_B);
-        assert(ret == 0);
-        assert(format_array_A.arr.size == 0);
+        test_assert_int_eq(ret, 0);
+        test_assert_u64_eq(format_array_A.arr.size, 0);
 
         /* Join B, which is empty, with A, which is non-empty. The joint (which
          * is saved in B) should have the same content as A. */
         ADD_FORMATS_AND_MODS(&format_array_A, formats, modifiers);
         ret = weston_drm_format_array_join(&format_array_B, &format_array_A);
-        assert(ret == 0);
-        assert(weston_drm_format_array_equal(&format_array_A, &format_array_B));
+        test_assert_int_eq(ret, 0);
+        test_assert_true(weston_drm_format_array_equal(&format_array_A, &format_array_B));
 
         /* Now A and B are non-empty and have the same content. The joint (which
          * is saved in A) should not change its content. */
         ret = weston_drm_format_array_join(&format_array_A, &format_array_B);
-        assert(ret == 0);
-        assert(weston_drm_format_array_equal(&format_array_A, &format_array_B));
+        test_assert_int_eq(ret, 0);
+        test_assert_true(weston_drm_format_array_equal(&format_array_A, &format_array_B));
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
@@ -284,8 +285,8 @@ TEST(join_arrays_exclusive_content)
         ADD_FORMATS_AND_MODS(&format_array_B, formats_B, modifiers);
         ADD_FORMATS_AND_MODS(&format_array_C, formats_C, modifiers);
         ret = weston_drm_format_array_join(&format_array_A, &format_array_B);
-        assert(ret == 0);
-        assert(weston_drm_format_array_equal(&format_array_A, &format_array_C));
+        test_assert_int_eq(ret, 0);
+        test_assert_true(weston_drm_format_array_equal(&format_array_A, &format_array_C));
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
@@ -312,8 +313,8 @@ TEST(join_arrays_modifier_invalid)
         ADD_FORMATS_AND_MODS(&format_array_B, (uint32_t[]){1}, regular_modifiers);
         ADD_FORMATS_AND_MODS(&format_array_C, (uint32_t[]){1}, regular_modifiers_plus_invalid);
         ret = weston_drm_format_array_join(&format_array_A, &format_array_B);
-        assert(ret == 0);
-        assert(weston_drm_format_array_equal(&format_array_A, &format_array_C));
+        test_assert_int_eq(ret, 0);
+        test_assert_true(weston_drm_format_array_equal(&format_array_A, &format_array_C));
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
@@ -338,14 +339,14 @@ TEST(intersect_arrays)
         ADD_FORMATS_AND_MODS(&format_array_A, formats_A, modifiers_A);
         ADD_FORMATS_AND_MODS(&format_array_B, formats_B, modifiers_B);
         ret = weston_drm_format_array_intersect(&format_array_A, &format_array_B);
-        assert(ret == 0);
+        test_assert_int_eq(ret, 0);
 
         /* The result of the intersection (stored in A) should have the same
          * content as C. */
         ADD_FORMATS_AND_MODS(&format_array_C, (uint32_t[]){2}, modifiers_intersect);
         ADD_FORMATS_AND_MODS(&format_array_C, (uint32_t[]){9}, modifiers_intersect);
         ADD_FORMATS_AND_MODS(&format_array_C, (uint32_t[]){10}, modifiers_intersect);
-        assert(weston_drm_format_array_equal(&format_array_A, &format_array_C));
+        test_assert_true(weston_drm_format_array_equal(&format_array_A, &format_array_C));
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
@@ -365,18 +366,18 @@ TEST(intersect_arrays_same_content)
         /* The intersection between two empty arrays must be an
          * empty array. */
         ret = weston_drm_format_array_intersect(&format_array_A, &format_array_B);
-        assert(ret == 0);
-        assert(format_array_A.arr.size == 0);
+        test_assert_int_eq(ret, 0);
+        test_assert_u64_eq(format_array_A.arr.size, 0);
 
         /* DRM-format arrays A and B have the same content, so the intersection
          * should be equal to them. A keeps the result of the intersection, and B
          * does not change. So we compare them. */
         ADD_FORMATS_AND_MODS(&format_array_A, formats, modifiers);
         ret = weston_drm_format_array_replace(&format_array_B, &format_array_A);
-        assert(ret == 0);
+        test_assert_int_eq(ret, 0);
         ret = weston_drm_format_array_intersect(&format_array_A, &format_array_B);
-        assert(ret == 0);
-        assert(weston_drm_format_array_equal(&format_array_A, &format_array_B));
+        test_assert_int_eq(ret, 0);
+        test_assert_true(weston_drm_format_array_equal(&format_array_A, &format_array_B));
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
@@ -398,8 +399,8 @@ TEST(intersect_arrays_exclusive_formats)
         ADD_FORMATS_AND_MODS(&format_array_A, formats_A, modifiers);
         ADD_FORMATS_AND_MODS(&format_array_B, formats_B, modifiers);
         ret = weston_drm_format_array_intersect(&format_array_A, &format_array_B);
-        assert(ret ==  0);
-        assert(format_array_A.arr.size == 0);
+        test_assert_int_eq(ret,  0);
+        test_assert_u64_eq(format_array_A.arr.size, 0);
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
@@ -423,8 +424,8 @@ TEST(intersect_arrays_exclusive_modifiers)
         ADD_FORMATS_AND_MODS(&format_array_A, (uint32_t[]){1}, modifiers_A);
         ADD_FORMATS_AND_MODS(&format_array_B, (uint32_t[]){1}, modifiers_B);
         ret = weston_drm_format_array_intersect(&format_array_A, &format_array_B);
-        assert(ret == 0);
-        assert(format_array_A.arr.size == 0);
+        test_assert_int_eq(ret, 0);
+        test_assert_u64_eq(format_array_A.arr.size, 0);
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
@@ -448,7 +449,7 @@ TEST(subtract_arrays)
         ADD_FORMATS_AND_MODS(&format_array_A, formats_A, modifiers_A);
         ADD_FORMATS_AND_MODS(&format_array_B, formats_B, modifiers_B);
         ret = weston_drm_format_array_subtract(&format_array_A, &format_array_B);
-        assert(ret == 0);
+        test_assert_int_eq(ret, 0);
 
         /* The result of the subtraction (which is saved in A) should have
          * the same content as C. */
@@ -457,7 +458,7 @@ TEST(subtract_arrays)
         ADD_FORMATS_AND_MODS(&format_array_C, (uint32_t[]){6}, modifiers_A);
         ADD_FORMATS_AND_MODS(&format_array_C, (uint32_t[]){9}, modifiers_subtract);
         ADD_FORMATS_AND_MODS(&format_array_C, (uint32_t[]){10}, modifiers_subtract);
-        assert(weston_drm_format_array_equal(&format_array_A, &format_array_C));
+        test_assert_true(weston_drm_format_array_equal(&format_array_A, &format_array_C));
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
@@ -478,10 +479,10 @@ TEST(subtract_arrays_same_content)
          * (which is saved in A) should be an empty array. */
         ADD_FORMATS_AND_MODS(&format_array_A, formats, modifiers);
         ret = weston_drm_format_array_replace(&format_array_B, &format_array_A);
-        assert(ret == 0);
+        test_assert_int_eq(ret, 0);
         ret = weston_drm_format_array_subtract(&format_array_A, &format_array_B);
-        assert(ret == 0);
-        assert(format_array_A.arr.size == 0);
+        test_assert_int_eq(ret, 0);
+        test_assert_u64_eq(format_array_A.arr.size, 0);
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
@@ -505,11 +506,11 @@ TEST(subtract_arrays_exclusive_formats)
         ADD_FORMATS_AND_MODS(&format_array_A, formats_A, modifiers);
         ADD_FORMATS_AND_MODS(&format_array_B, formats_B, modifiers);
         ret = weston_drm_format_array_replace(&format_array_C, &format_array_A);
-        assert(ret == 0);
+        test_assert_int_eq(ret, 0);
 
         ret = weston_drm_format_array_subtract(&format_array_A, &format_array_B);
-        assert(ret == 0);
-        assert(weston_drm_format_array_equal(&format_array_A, &format_array_C));
+        test_assert_int_eq(ret, 0);
+        test_assert_true(weston_drm_format_array_equal(&format_array_A, &format_array_C));
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
@@ -534,11 +535,11 @@ TEST(subtract_arrays_exclusive_modifiers)
         ADD_FORMATS_AND_MODS(&format_array_A, (uint32_t[]){1}, modifiers_A);
         ADD_FORMATS_AND_MODS(&format_array_B, (uint32_t[]){1}, modifiers_B);
         ret = weston_drm_format_array_replace(&format_array_C, &format_array_A);
-        assert(ret == 0);
+        test_assert_int_eq(ret, 0);
 
         ret = weston_drm_format_array_subtract(&format_array_A, &format_array_B);
-        assert(ret == 0);
-        assert(weston_drm_format_array_equal(&format_array_A, &format_array_C));
+        test_assert_int_eq(ret, 0);
+        test_assert_true(weston_drm_format_array_equal(&format_array_A, &format_array_C));
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
@@ -564,8 +565,8 @@ TEST(subtract_arrays_modifier_invalid)
         ADD_FORMATS_AND_MODS(&format_array_A, (uint32_t[]){1}, modifier_invalid);
         ADD_FORMATS_AND_MODS(&format_array_B, (uint32_t[]){1}, regular_modifiers_plus_invalid);
         ret = weston_drm_format_array_subtract(&format_array_A, &format_array_B);
-        assert(ret == 0);
-        assert(format_array_A.arr.size == 0);
+        test_assert_int_eq(ret, 0);
+        test_assert_u64_eq(format_array_A.arr.size, 0);
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);

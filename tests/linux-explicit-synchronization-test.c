@@ -32,6 +32,7 @@
 #include "weston-test-client-helper.h"
 #include "wayland-server-protocol.h"
 #include "weston-test-fixture-compositor.h"
+#include "weston-test-assert.h"
 
 static enum test_result_code
 fixture_setup(struct weston_test_harness *harness)
@@ -65,18 +66,18 @@ get_linux_explicit_synchronization(struct client *client)
 			continue;
 
 		if (global_sync)
-			assert(!"Multiple linux explicit sync objects");
+			test_assert_not_reached("Multiple linux explicit sync objects");
 
 		global_sync = g;
 	}
 
-	assert(global_sync);
-	assert(global_sync->version == 2);
+	test_assert_ptr_not_null(global_sync);
+	test_assert_u32_eq(global_sync->version, 2);
 
 	sync = wl_registry_bind(
 			client->wl_registry, global_sync->name,
 			&zwp_linux_explicit_synchronization_v1_interface, 2);
-	assert(sync);
+	test_assert_ptr_not_null(sync);
 
 	return sync;
 }
@@ -85,7 +86,7 @@ static struct client *
 create_test_client(void)
 {
 	struct client *cl = create_client_and_test_surface(0, 0, 100, 100);
-	assert(cl);
+	test_assert_ptr_not_null(cl);
 	return cl;
 }
 
@@ -127,7 +128,7 @@ TEST(set_acquire_fence_with_invalid_fence_raises_error)
 			sync, client->surface->wl_surface);
 	int pipefd[2] = { -1, -1 };
 
-	assert(pipe(pipefd) == 0);
+	test_assert_int_eq(pipe(pipefd), 0);
 
 	zwp_linux_surface_synchronization_v1_set_acquire_fence(surface_sync,
 							       pipefd[0]);
@@ -153,7 +154,7 @@ TEST(set_acquire_fence_on_destroyed_surface_raises_error)
 			sync, client->surface->wl_surface);
 	int pipefd[2] = { -1, -1 };
 
-	assert(pipe(pipefd) == 0);
+	test_assert_int_eq(pipe(pipefd), 0);
 
 	wl_surface_destroy(client->surface->wl_surface);
 	client->surface->wl_surface = NULL;
@@ -288,7 +289,7 @@ buffer_release_fenced_handler(void *data,
 			      struct zwp_linux_buffer_release_v1 *buffer_release,
 			      int32_t fence)
 {
-	assert(!"Fenced release not supported yet");
+	test_assert_not_reached("Fenced release not supported yet");
 }
 
 static void
@@ -340,7 +341,7 @@ TEST(get_release_events_are_emitted_for_different_buffers)
 	frame_callback_wait(client, &frame);
 	/* No release event should have been emitted yet (we are using the
 	 * pixman renderer, which holds buffers until they are replaced). */
-	assert(buf_released1 == 0);
+	test_assert_int_eq(buf_released1, 0);
 
 	buffer_release2 =
 		zwp_linux_surface_synchronization_v1_get_release(surface_sync);
@@ -353,8 +354,8 @@ TEST(get_release_events_are_emitted_for_different_buffers)
 	frame_callback_wait(client, &frame);
 	/* Check that exactly one buffer_release event was emitted for the
 	 * previous commit (buf1). */
-	assert(buf_released1 == 1);
-	assert(buf_released2 == 0);
+	test_assert_int_eq(buf_released1, 1);
+	test_assert_int_eq(buf_released2, 0);
 
 	wl_surface_attach(surface, buf1->proxy, 0, 0);
 	frame_callback_set(surface, &frame);
@@ -362,8 +363,8 @@ TEST(get_release_events_are_emitted_for_different_buffers)
 	frame_callback_wait(client, &frame);
 	/* Check that exactly one buffer_release event was emitted for the
 	 * previous commit (buf2). */
-	assert(buf_released1 == 1);
-	assert(buf_released2 == 1);
+	test_assert_int_eq(buf_released1, 1);
+	test_assert_int_eq(buf_released2, 1);
 
 	buffer_destroy(buf2);
 	buffer_destroy(buf1);
@@ -401,7 +402,7 @@ TEST(get_release_events_are_emitted_for_same_buffer_on_surface)
 	frame_callback_wait(client, &frame);
 	/* No release event should have been emitted yet (we are using the
 	 * pixman renderer, which holds buffers until they are replaced). */
-	assert(buf_released1 == 0);
+	test_assert_int_eq(buf_released1, 0);
 
 	buffer_release2 =
 		zwp_linux_surface_synchronization_v1_get_release(surface_sync);
@@ -414,8 +415,8 @@ TEST(get_release_events_are_emitted_for_same_buffer_on_surface)
 	frame_callback_wait(client, &frame);
 	/* Check that exactly one buffer_release event was emitted for the
 	 * previous commit (buf). */
-	assert(buf_released1 == 1);
-	assert(buf_released2 == 0);
+	test_assert_int_eq(buf_released1, 1);
+	test_assert_int_eq(buf_released2, 0);
 
 	wl_surface_attach(surface, buf->proxy, 0, 0);
 	frame_callback_set(surface, &frame);
@@ -423,8 +424,8 @@ TEST(get_release_events_are_emitted_for_same_buffer_on_surface)
 	frame_callback_wait(client, &frame);
 	/* Check that exactly one buffer_release event was emitted for the
 	 * previous commit (buf again). */
-	assert(buf_released1 == 1);
-	assert(buf_released2 == 1);
+	test_assert_int_eq(buf_released1, 1);
+	test_assert_int_eq(buf_released2, 1);
 
 	buffer_destroy(buf);
 	zwp_linux_buffer_release_v1_destroy(buffer_release2);
@@ -479,8 +480,8 @@ TEST(get_release_events_are_emitted_for_same_buffer_on_different_surfaces)
 	wl_surface_commit(surface2);
 	frame_callback_wait(client, &frame);
 
-	assert(buf_released1 == 0);
-	assert(buf_released2 == 0);
+	test_assert_int_eq(buf_released1, 0);
+	test_assert_int_eq(buf_released2, 0);
 
 	/* Attach buf2 to surface1, and check that a buffer_release event for
 	 * the previous commit (buf1) for that surface is emitted. */
@@ -489,8 +490,8 @@ TEST(get_release_events_are_emitted_for_same_buffer_on_different_surfaces)
 	wl_surface_commit(surface1);
 	frame_callback_wait(client, &frame);
 
-	assert(buf_released1 == 1);
-	assert(buf_released2 == 0);
+	test_assert_int_eq(buf_released1, 1);
+	test_assert_int_eq(buf_released2, 0);
 
 	/* Attach buf2 to surface2, and check that a buffer_release event for
 	 * the previous commit (buf1) for that surface is emitted. */
@@ -499,8 +500,8 @@ TEST(get_release_events_are_emitted_for_same_buffer_on_different_surfaces)
 	wl_surface_commit(surface2);
 	frame_callback_wait(client, &frame);
 
-	assert(buf_released1 == 1);
-	assert(buf_released2 == 1);
+	test_assert_int_eq(buf_released1, 1);
+	test_assert_int_eq(buf_released2, 1);
 
 	buffer_destroy(buf2);
 	buffer_destroy(buf1);

@@ -28,6 +28,7 @@
 #include "color-properties.h"
 #include "weston-test-client-helper.h"
 #include "weston-test-fixture-compositor.h"
+#include "weston-test-assert.h"
 #include "shared/xalloc.h"
 #include "lcms_util.h"
 
@@ -170,9 +171,7 @@ static void
 image_descr_info_received(struct image_description_info *image_descr_info,
 			  enum image_descr_info_event ev)
 {
-	/* TODO: replace this assert with weston_assert_uint32_mask_bit_is_clear
-	 * when we start using weston-assert in the test suite. */
-	assert(!((image_descr_info->events_received >> ev) & 1));
+	test_assert_bit_not_set(image_descr_info->events_received, 1 << ev);
 	image_descr_info->events_received |= (1 << ev);
 }
 
@@ -444,7 +443,7 @@ image_descr_info_done(void *data,
 
 	testlog("Image description info %p done:\n", wp_image_description_info_v1);
 
-	assert(are_events_received_valid(image_descr_info));
+	test_assert_true(are_events_received_valid(image_descr_info));
 
 	/* ICC based image description */
 	if ((image_descr_info->events_received >> IMAGE_DESCR_INFO_EVENT_ICC_FD) & 1) {
@@ -596,22 +595,24 @@ color_manager_init(struct color_manager *cm, struct client *client)
 	client_roundtrip(client);
 
 	/* Weston supports all color features. */
-	assert(cm->supported_features == ((1 << WP_COLOR_MANAGER_V1_FEATURE_ICC_V2_V4) |
-					  (1 << WP_COLOR_MANAGER_V1_FEATURE_PARAMETRIC) |
-					  (1 << WP_COLOR_MANAGER_V1_FEATURE_SET_PRIMARIES) |
-					  (1 << WP_COLOR_MANAGER_V1_FEATURE_SET_TF_POWER) |
-					  (1 << WP_COLOR_MANAGER_V1_FEATURE_SET_LUMINANCES) |
-					  (1 << WP_COLOR_MANAGER_V1_FEATURE_SET_MASTERING_DISPLAY_PRIMARIES) |
-					  (1 << WP_COLOR_MANAGER_V1_FEATURE_EXTENDED_TARGET_VOLUME)));
+	test_assert_u32_eq(cm->supported_features,
+			   (1 << WP_COLOR_MANAGER_V1_FEATURE_ICC_V2_V4) |
+			   (1 << WP_COLOR_MANAGER_V1_FEATURE_PARAMETRIC) |
+			   (1 << WP_COLOR_MANAGER_V1_FEATURE_SET_PRIMARIES) |
+			   (1 << WP_COLOR_MANAGER_V1_FEATURE_SET_TF_POWER) |
+			   (1 << WP_COLOR_MANAGER_V1_FEATURE_SET_LUMINANCES) |
+			   (1 << WP_COLOR_MANAGER_V1_FEATURE_SET_MASTERING_DISPLAY_PRIMARIES) |
+			   (1 << WP_COLOR_MANAGER_V1_FEATURE_EXTENDED_TARGET_VOLUME));
 
 	/* Weston supports all rendering intents. */
-	assert(cm->supported_rendering_intents == ((1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_PERCEPTUAL) |
-						   (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_RELATIVE) |
-						   (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_SATURATION) |
-						   (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_ABSOLUTE) |
-						   (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_RELATIVE_BPC)));
+	test_assert_u32_eq(cm->supported_rendering_intents,
+			   (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_PERCEPTUAL) |
+			   (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_RELATIVE) |
+			   (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_SATURATION) |
+			   (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_ABSOLUTE) |
+			   (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_RELATIVE_BPC));
 
-	assert(cm->done);
+	test_assert_true(cm->done);
 }
 
 static void
@@ -670,9 +671,9 @@ create_icc_based_image_description(struct color_manager *cm,
 	struct stat st;
 
 	icc_fd = open(icc_path, O_RDONLY);
-	assert(icc_fd >= 0);
+	test_assert_s32_ge(icc_fd, 0);
 
-	assert(fstat(icc_fd, &st) == 0);
+	test_assert_int_eq(fstat(icc_fd, &st), 0);
 
 	wp_image_description_creator_icc_v1_set_icc_file(image_descr_creator_icc,
 							 icc_fd, 0, st.st_size);
@@ -698,10 +699,10 @@ build_sRGB_icc_profile(const char *filename)
 
 	profile = build_lcms_matrix_shaper_profile_output(NULL, &pipeline_sRGB,
 							  vcgt_exponents);
-	assert(profile);
+	test_assert_ptr_not_null(profile);
 
 	saved = cmsSaveProfileToFile(profile, filename);
-	assert(saved);
+	test_assert_true(saved);
 
 	cmsCloseProfile(profile);
 }
@@ -723,7 +724,7 @@ fixture_setup(struct weston_test_harness *harness)
 
 		tmp = output_filename_for_test_program(THIS_TEST_NAME,
 						       NULL, "icm");
-		assert(strlen(tmp) < ARRAY_LENGTH(srgb_icc_profile_path));
+		test_assert_int_lt(strlen(tmp), ARRAY_LENGTH(srgb_icc_profile_path));
 		strcpy(srgb_icc_profile_path, tmp);
 		free(tmp);
 
@@ -781,9 +782,9 @@ wait_until_image_description_ready(struct client *client,
 				   struct image_description *image_descr)
 {
 	while (image_descr->status == CM_IMAGE_DESC_NOT_CREATED)
-		assert(wl_display_dispatch(client->wl_display) >= 0);
+		test_assert_int_ge(wl_display_dispatch(client->wl_display), 0);
 
-	assert(image_descr->status == CM_IMAGE_DESC_READY);
+	test_assert_enum(image_descr->status, CM_IMAGE_DESC_READY);
 }
 
 TEST(output_get_image_description)
@@ -877,8 +878,8 @@ TEST(set_unreadable_icc_fd)
 	/* The file is being open with WRITE, not READ permission. So the
 	 * compositor should complain. */
 	icc_fd = open(srgb_icc_profile_path, O_WRONLY);
-	assert(icc_fd >= 0);
-	assert(fstat(icc_fd, &st) == 0);
+	test_assert_s32_ge(icc_fd, 0);
+	test_assert_int_eq(fstat(icc_fd, &st), 0);
 
 	/* Try setting the bad ICC file fd, it should fail. */
 	wp_image_description_creator_icc_v1_set_icc_file(image_descr_creator_icc,
@@ -906,7 +907,7 @@ TEST(set_bad_icc_size_zero)
 		wp_color_manager_v1_create_icc_creator(cm.manager);
 
 	icc_fd = open(srgb_icc_profile_path, O_RDONLY);
-	assert(icc_fd >= 0);
+	test_assert_s32_ge(icc_fd, 0);
 
 	/* Try setting ICC file with a bad size, it should fail. */
 	wp_image_description_creator_icc_v1_set_icc_file(image_descr_creator_icc,
@@ -934,7 +935,7 @@ TEST(set_bad_icc_non_seekable)
 		wp_color_manager_v1_create_icc_creator(cm.manager);
 
 	/* We need a non-seekable file, and pipes are non-seekable. */
-	assert(pipe(fds) >= 0);
+	test_assert_int_ge(pipe(fds), 0);
 
 	/* Pretend that it has a valid size of 1024 bytes. That still should
 	 * fail because the fd is non-seekable. */
@@ -965,8 +966,8 @@ TEST(set_icc_twice)
 		wp_color_manager_v1_create_icc_creator(cm.manager);
 
 	icc_fd = open(srgb_icc_profile_path, O_RDONLY);
-	assert(icc_fd >= 0);
-	assert(fstat(icc_fd, &st) == 0);
+	test_assert_s32_ge(icc_fd, 0);
+	test_assert_int_eq(fstat(icc_fd, &st), 0);
 
 	wp_image_description_creator_icc_v1_set_icc_file(image_descr_creator_icc,
 							 icc_fd, 0, st.st_size);

@@ -32,6 +32,7 @@
 
 #include "weston-test-client-helper.h"
 #include "weston-test-fixture-compositor.h"
+#include "weston-test-assert.h"
 
 struct setup_args {
 	struct fixture_metadata meta;
@@ -93,7 +94,7 @@ TEST(viewport_upscale_solid)
 
 	match = verify_screen_content(client, "viewport_upscale_solid", 0,
 				      NULL, 0, NULL);
-	assert(match);
+	test_assert_true(match);
 
 	wp_viewport_destroy(viewport);
 	client_destroy(client);

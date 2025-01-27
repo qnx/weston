@@ -28,14 +28,13 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
-#define custom_assert_fail_ test_assert_report
-
 #include "shared/weston-assert.h"
 #include "weston-test-runner.h"
 
 __attribute__((format(printf, 2, 3)))
-static void
-test_assert_report(const struct weston_compositor *compositor, const char *fmt, ...)
+static inline void
+test_assert_report(const struct weston_compositor *compositor,
+		   const char *fmt, ...)
 {
 	va_list ap;
 
@@ -43,6 +42,11 @@ test_assert_report(const struct weston_compositor *compositor, const char *fmt, 
 	vfprintf(stderr, fmt, ap);
 	va_end(ap);
 }
+
+#ifdef custom_assert_fail_
+#undef custom_assert_fail_
+#endif
+#define custom_assert_fail_ test_assert_report
 
 static void
 abort_if_not(bool cond)

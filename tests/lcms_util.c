@@ -29,13 +29,13 @@
 
 #include <math.h>
 #include <lcms2.h>
-#include <assert.h>
 #include <stdlib.h>
 
 #include <libweston/matrix.h>
 #include "shared/helpers.h"
 #include "color_util.h"
 #include "lcms_util.h"
+#include "weston-test-assert.h"
 
 static const cmsCIExyY wp_d65 = { 0.31271, 0.32902, 1.0 };
 
@@ -184,7 +184,7 @@ build_MPE_curve(cmsContext ctx, enum transfer_fn fn)
 	case TRANSFER_FN_SRGB_EOTF_INVERSE:
 		return build_MPE_curve_sRGB_inv(ctx);
 	default:
-		assert(0 && "unimplemented MPE curve");
+		test_assert_not_reached("unimplemented MPE curve");
 	}
 
 	return NULL;
@@ -199,7 +199,7 @@ build_MPE_curve_stage(cmsContext context_id, enum transfer_fn fn)
 	c = build_MPE_curve(context_id, fn);
 	stage = cmsStageAllocToneCurves(context_id, 3,
 					(cmsToneCurve *[3]){ c, c, c });
-	assert(stage);
+	test_assert_ptr_not_null(stage);
 	cmsFreeToneCurve(c);
 
 	return stage;
@@ -278,7 +278,7 @@ roundtrip_verification(cmsPipeline *DToB, cmsPipeline *BToD, float tolerance)
 	cmsPipelineFree(pip);
 
 	rgb_diff_stat_print(&stat, "DToB->BToD roundtrip", 8);
-	assert(stat.two_norm.max < tolerance);
+	test_assert_f32_lt(stat.two_norm.max, tolerance);
 }
 
 static const struct weston_vector ZEROS = {
@@ -377,7 +377,7 @@ create_cLUT_from_transform(cmsContext context_id, const cmsHTRANSFORM t,
 	struct transform_sampler_context tsc;
 	cmsStage *cLUT_stage;
 
-	assert(dim_size);
+	test_assert_int_ne(dim_size, 0);
 
 	tsc.t = t;
 	tsc.dir = dir;
@@ -412,7 +412,7 @@ vcgt_tag_add_to_profile(cmsContext context_id, cmsHPROFILE profile,
 	for (i = 0; i < COLOR_CHAN_NUM; i++)
 		vcgt_tag_curves[i] = cmsBuildGamma(context_id, vcgt_exponents[i]);
 
-	assert(cmsWriteTag(profile, cmsSigVcgtTag, vcgt_tag_curves));
+	test_assert_true(cmsWriteTag(profile, cmsSigVcgtTag, vcgt_tag_curves));
 
 	cmsFreeToneCurveTriple(vcgt_tag_curves);
 }
@@ -443,7 +443,7 @@ build_lcms_clut_profile_output(cmsContext context_id,
 	linear_device = cmsCreateRGBProfileTHR(context_id, &wp_d65,
 					       &pipeline->prim_output,
 					       identity_curves);
-	assert(cmsIsMatrixShaper(linear_device));
+	test_assert_true(cmsIsMatrixShaper(linear_device));
 	cmsFreeToneCurve(identity_curves[0]);
 
 	pcs = cmsCreateXYZProfileTHR(context_id);
@@ -551,8 +551,8 @@ build_lcms_matrix_shaper_profile_output(cmsContext context_id,
 	int type_inverse_tone_curve;
 	double inverse_tone_curve_param[5];
 
-	assert(find_tone_curve_type(pipeline->post_fn, &type_inverse_tone_curve,
-				    inverse_tone_curve_param));
+	test_assert_true(find_tone_curve_type(pipeline->post_fn, &type_inverse_tone_curve,
+					      inverse_tone_curve_param));
 
 	/*
 	 * We are creating output profile and therefore we can use the following:
@@ -569,10 +569,10 @@ build_lcms_matrix_shaper_profile_output(cmsContext context_id,
 					    (-1) * type_inverse_tone_curve,
 					    inverse_tone_curve_param);
 
-	assert(arr_curves[0]);
+	test_assert_ptr_not_null(arr_curves[0]);
 	hRGB = cmsCreateRGBProfileTHR(context_id, &wp_d65,
 				      &pipeline->prim_output, arr_curves);
-	assert(hRGB);
+	test_assert_ptr_not_null(hRGB);
 
 	vcgt_tag_add_to_profile(context_id, hRGB, vcgt_exponents);
 

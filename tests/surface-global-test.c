@@ -25,13 +25,13 @@
 
 #include "config.h"
 
-#include <assert.h>
 #include <stdint.h>
 
 #include <libweston/libweston.h>
 #include "libweston-internal.h"
 #include "weston-test-runner.h"
 #include "weston-test-fixture-compositor.h"
+#include "weston-test-assert.h"
 
 static enum test_result_code
 fixture_setup(struct weston_test_harness *harness)
@@ -54,9 +54,9 @@ PLUGIN_TEST(surface_to_from_global)
 	struct weston_coord_surface cs;
 
 	surface = weston_surface_create(compositor);
-	assert(surface);
+	test_assert_ptr_not_null(surface);
 	view = weston_view_create(surface);
-	assert(view);
+	test_assert_ptr_not_null(view);
 	surface->width = 50;
 	surface->height = 50;
 	cg.c = weston_coord(5, 10);
@@ -65,39 +65,49 @@ PLUGIN_TEST(surface_to_from_global)
 
 	cs = weston_coord_surface(33, 22, surface);
 	cg = weston_coord_surface_to_global(view, cs);
-	assert(cg.c.x == 38 && cg.c.y == 32);
+	test_assert_f64_eq(cg.c.x, 38);
+	test_assert_f64_eq(cg.c.y, 32);
 
 	cs = weston_coord_surface(-8, -2, surface);
 	cg = weston_coord_surface_to_global(view, cs);
-	assert(cg.c.x == -3 && cg.c.y == 8);
+	test_assert_f64_eq(cg.c.x, -3);
+	test_assert_f64_eq(cg.c.y, 8);
 
 	cs = weston_coord_surface_from_fixed(wl_fixed_from_int(12),
 					     wl_fixed_from_int(5), surface);
 	cg = weston_coord_surface_to_global(view, cs);
-	assert(wl_fixed_from_double(cg.c.x) == wl_fixed_from_int(17) &&
-	       wl_fixed_from_double(cg.c.y) == wl_fixed_from_int(15));
+	test_assert_s32_eq(wl_fixed_from_double(cg.c.x),
+			   wl_fixed_from_int(17));
+	test_assert_s32_eq(wl_fixed_from_double(cg.c.y),
+			   wl_fixed_from_int(15));
 
 	cg.c = weston_coord(38, 32);
 	cs = weston_coord_global_to_surface(view, cg);
-	assert(cs.c.x == 33 && cs.c.y == 22);
+	test_assert_f64_eq(cs.c.x, 33);
+	test_assert_f64_eq(cs.c.y, 22);
 
 	cg.c = weston_coord(42, 5);
 	cs = weston_coord_global_to_surface(view, cg);
-	assert(cs.c.x == 37 && cs.c.y == -5);
+	test_assert_f64_eq(cs.c.x, 37);
+	test_assert_f64_eq(cs.c.y, -5);
 
 	cg.c = weston_coord_from_fixed(wl_fixed_from_int(21),
 				       wl_fixed_from_int(100));
 	cs = weston_coord_global_to_surface(view, cg);
-	assert(wl_fixed_from_double(cs.c.x) == wl_fixed_from_int(16) &&
-	       wl_fixed_from_double(cs.c.y) == wl_fixed_from_int(90));
+	test_assert_s32_eq(wl_fixed_from_double(cs.c.x),
+			   wl_fixed_from_int(16));
+	test_assert_s32_eq(wl_fixed_from_double(cs.c.y),
+			   wl_fixed_from_int(90));
 
 	cg.c = weston_coord(0, 0);
 	cs = weston_coord_global_to_surface(view, cg);
-	assert(cs.c.x == -5 && cs.c.y == -10);
+	test_assert_f64_eq(cs.c.x, -5);
+	test_assert_f64_eq(cs.c.y, -10);
 
 	cg.c = weston_coord(5, 10);
 	cs = weston_coord_global_to_surface(view, cg);
-	assert(cs.c.x == 0 && cs.c.y == 0);
+	test_assert_f64_eq(cs.c.x, 0);
+	test_assert_f64_eq(cs.c.y, 0);
 
 	/* Destroys all views too. */
 	weston_surface_unref(surface);

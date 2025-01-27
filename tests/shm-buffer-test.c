@@ -106,13 +106,13 @@ shm_buffer_create(struct client *client,
 	buf->height = height;
 
 	fd = os_create_anonymous_file(buf->bytes);
-	assert(fd >= 0);
+	test_assert_int_ge(fd, 0);
 
 	buf->data = mmap(NULL, buf->bytes,
 			 PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (buf->data == MAP_FAILED) {
 		close(fd);
-		assert(buf->data != MAP_FAILED);
+		test_assert_not_reached("mmap() failed");
 	}
 
 	pool = wl_shm_create_pool(client->wl_shm, fd, buf->bytes);
@@ -128,7 +128,7 @@ static void
 shm_buffer_destroy(struct shm_buffer *buf)
 {
 	wl_buffer_destroy(buf->proxy);
-	assert(munmap(buf->data, buf->bytes) == 0);
+	test_assert_int_eq(munmap(buf->data, buf->bytes), 0);
 	free(buf);
 }
 
@@ -199,7 +199,7 @@ rgba4444_create_buffer(struct client *client,
 		idx = 3;
 		break;
 	default:
-		assert(0 && "Invalid format!");
+		test_assert_not_reached("Invalid format!");
 	};
 
 	buf = shm_buffer_create(client, src.width * src.height * 2, src.width,
@@ -248,10 +248,10 @@ rgba5551_create_buffer(struct client *client,
 	int x, y;
 	uint16_t a;
 
-	assert(drm_format == DRM_FORMAT_RGBX5551 ||
-	       drm_format == DRM_FORMAT_RGBA5551 ||
-	       drm_format == DRM_FORMAT_BGRX5551 ||
-	       drm_format == DRM_FORMAT_BGRA5551);
+	test_assert_true(drm_format == DRM_FORMAT_RGBX5551 ||
+			 drm_format == DRM_FORMAT_RGBA5551 ||
+			 drm_format == DRM_FORMAT_BGRX5551 ||
+			 drm_format == DRM_FORMAT_BGRA5551);
 
 	buf = shm_buffer_create(client, src.width * src.height * 2, src.width,
 				src.height, src.width * 2, drm_format);
@@ -296,8 +296,8 @@ rgb565_create_buffer(struct client *client,
 	struct shm_buffer *buf;
 	int x, y;
 
-	assert(drm_format == DRM_FORMAT_RGB565 ||
-	       drm_format == DRM_FORMAT_BGR565);
+	test_assert_true(drm_format == DRM_FORMAT_RGB565 ||
+			 drm_format == DRM_FORMAT_BGR565);
 
 	buf = shm_buffer_create(client, src.width * src.height * 2, src.width,
 				src.height, src.width * 2, drm_format);
@@ -336,8 +336,8 @@ rgb888_create_buffer(struct client *client,
 	struct shm_buffer *buf;
 	int x, y;
 
-	assert(drm_format == DRM_FORMAT_RGB888 ||
-	       drm_format == DRM_FORMAT_BGR888);
+	test_assert_true(drm_format == DRM_FORMAT_RGB888 ||
+			 drm_format == DRM_FORMAT_BGR888);
 
 	buf = shm_buffer_create(client, src.width * src.height * 3, src.width,
 				src.height, src.width * 3, drm_format);
@@ -433,7 +433,7 @@ rgba8888_create_buffer(struct client *client,
 		idx = 3;
 		break;
 	default:
-		assert(0 && "Invalid format!");
+		test_assert_not_reached("Invalid format!");
 	};
 
 	buf = shm_buffer_create(client, src.width * src.height * 4, src.width,
@@ -482,10 +482,10 @@ rgba2101010_create_buffer(struct client *client,
 	int x, y;
 	uint32_t a;
 
-	assert(drm_format == DRM_FORMAT_XRGB2101010 ||
-	       drm_format == DRM_FORMAT_ARGB2101010 ||
-	       drm_format == DRM_FORMAT_XBGR2101010 ||
-	       drm_format == DRM_FORMAT_ABGR2101010);
+	test_assert_true(drm_format == DRM_FORMAT_XRGB2101010 ||
+			 drm_format == DRM_FORMAT_ARGB2101010 ||
+			 drm_format == DRM_FORMAT_XBGR2101010 ||
+			 drm_format == DRM_FORMAT_ABGR2101010);
 
 	buf = shm_buffer_create(client, src.width * src.height * 4, src.width,
 				src.height, src.width * 4, drm_format);
@@ -558,7 +558,7 @@ rgba16161616_create_buffer(struct client *client,
 		idx = 1;
 		break;
 	default:
-		assert(0 && "Invalid format!");
+		test_assert_not_reached("Invalid format!");
 	};
 
 	buf = shm_buffer_create(client, src.width * src.height * 8, src.width,
@@ -654,7 +654,7 @@ rgba16161616f_create_buffer(struct client *client,
 		idx = 1;
 		break;
 	default:
-		assert(0 && "Invalid format!");
+		test_assert_not_reached("Invalid format!");
 	};
 
 	buf = shm_buffer_create(client, src.width * src.height * 8, src.width,
@@ -739,7 +739,8 @@ x8r8g8b8_to_ycbcr16_bt709(uint32_t xrgb, int depth,
 	/* Rec. ITU-R BT.709-6 defines D as 1 or 4 for 8-bit or 10-bit
 	 * quantization respectively. We extrapolate here to [9, 16]-bit depths
 	 * by setting D to 2^(depth - 8). */
-	assert(depth >= 9 && depth <= 16);
+	test_assert_int_ge(depth, 9);
+	test_assert_int_le(depth, 16);
 	d = 1 << (depth - 8);
 
 	/* normalize to [0.0, 1.0] */
@@ -796,10 +797,10 @@ y_u_v_create_buffer(struct client *client,
 	int sub = (drm_format == DRM_FORMAT_YUV420 ||
 		   drm_format == DRM_FORMAT_YVU420) ? 2 : 1;
 
-	assert(drm_format == DRM_FORMAT_YUV420 ||
-	       drm_format == DRM_FORMAT_YVU420 ||
-	       drm_format == DRM_FORMAT_YUV444 ||
-	       drm_format == DRM_FORMAT_YVU444);
+	test_assert_true(drm_format == DRM_FORMAT_YUV420 ||
+			 drm_format == DRM_FORMAT_YVU420 ||
+			 drm_format == DRM_FORMAT_YUV444 ||
+			 drm_format == DRM_FORMAT_YVU444);
 
 	/* Full size Y plus quarter U and V */
 	bytes = rgb.width * rgb.height +
@@ -817,7 +818,7 @@ y_u_v_create_buffer(struct client *client,
 		v_base = y_base + rgb.width * rgb.height;
 		u_base = v_base + (rgb.width / sub) * (rgb.height / sub);
 	} else {
-		assert(0 && "Invalid format!");
+		test_assert_not_reached("Invalid format!");
 	}
 
 	for (y = 0; y < rgb.height; y++) {
@@ -895,7 +896,7 @@ nv12_create_buffer(struct client *client,
 		idx = 1;
 		break;
 	default:
-		assert(0 && "Invalid format!");
+		test_assert_not_reached("Invalid format!");
 	};
 
 	/* Full size Y, quarter UV */
@@ -982,7 +983,7 @@ nv16_create_buffer(struct client *client,
 		idx = 1;
 		break;
 	default:
-		assert(0 && "Invalid format!");
+		test_assert_not_reached("Invalid format!");
 	};
 
 	/* Full size Y, horizontally subsampled UV */
@@ -1069,7 +1070,7 @@ nv24_create_buffer(struct client *client,
 		idx = 1;
 		break;
 	default:
-		assert(0 && "Invalid format!");
+		test_assert_not_reached("Invalid format!");
 	};
 
 	/* Full size Y, non-subsampled UV */
@@ -1157,7 +1158,7 @@ yuyv_create_buffer(struct client *client,
 		idx = 3;
 		break;
 	default:
-		assert(0 && "Invalid format!");
+		test_assert_not_reached("Invalid format!");
 	};
 
 	/* Full size Y, horizontally subsampled UV, 2 pixels in 32 bits */
@@ -1211,7 +1212,7 @@ xyuv8888_create_buffer(struct client *client,
 	uint8_t cb;
 	uint8_t y0;
 
-	assert(drm_format == DRM_FORMAT_XYUV8888);
+	test_assert_enum(drm_format, DRM_FORMAT_XYUV8888);
 
 	/* Full size, 32 bits per pixel */
 	bytes = rgb.width * rgb.height * sizeof(uint32_t);
@@ -1290,7 +1291,7 @@ p016_create_buffer(struct client *client,
 		depth = 10;
 		break;
 	default:
-		assert(0 && "Invalid format!");
+		test_assert_not_reached("Invalid format!");
 	};
 
 	/* Full size Y, quarter UV */
@@ -1450,7 +1451,7 @@ TEST_P(shm_buffer, shm_cases)
 	fname = image_filename("chocolate-cake");
 	img = load_image_from_png(fname);
 	free(fname);
-	assert(img);
+	test_assert_ptr_not_null(img);
 
 	client = create_client();
 	client->surface = create_test_surface(client);
@@ -1464,7 +1465,7 @@ TEST_P(shm_buffer, shm_cases)
 
 	match = verify_screen_content(client, "shm-buffer", my_case->ref_seq_no,
 				      NULL, 0, NULL);
-	assert(match);
+	test_assert_true(match);
 
 	shm_buffer_destroy(buf);
 

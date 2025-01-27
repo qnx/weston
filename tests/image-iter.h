@@ -28,7 +28,8 @@
 
 #include <stdint.h>
 #include <pixman.h>
-#include <assert.h>
+
+#include "weston-test-assert.h"
 
 /** A collection of basic information extracted from a pixman_image_t */
 struct image_header {
@@ -67,9 +68,9 @@ image_header_from(pixman_image_t *image)
 static inline uint32_t *
 image_header_get_row_u32(const struct image_header *header, int y)
 {
-	assert(y >= 0);
-	assert(y < header->height);
-	assert(PIXMAN_FORMAT_BPP(header->pixman_format) == 32);
+	test_assert_int_ge(y, 0);
+	test_assert_int_lt(y, header->height);
+	test_assert_int_eq(PIXMAN_FORMAT_BPP(header->pixman_format), 32);
 
 	return (uint32_t *)(header->data + y * header->stride_bytes);
 }

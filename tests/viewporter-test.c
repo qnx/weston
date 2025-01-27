@@ -28,13 +28,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 #include <time.h>
 
 #include "shared/helpers.h"
 #include "shared/xalloc.h"
 #include "weston-test-client-helper.h"
 #include "weston-test-fixture-compositor.h"
+#include "weston-test-assert.h"
 
 static enum test_result_code
 fixture_setup(struct weston_test_harness *harness)
@@ -316,20 +316,20 @@ TEST(test_viewporter_source_buffer_params)
 	const int max_scale = 2;
 
 	/* buffer_scale requirement */
-	assert(WIN_W % max_scale == 0);
-	assert(WIN_H % max_scale == 0);
+	test_assert_int_eq(WIN_W % max_scale, 0);
+	test_assert_int_eq(WIN_H % max_scale, 0);
 
 	/* source rect must fit inside regardless of scale and transform */
-	assert(SRC_W < WIN_W / max_scale);
-	assert(SRC_H < WIN_H / max_scale);
-	assert(SRC_W < WIN_H / max_scale);
-	assert(SRC_H < WIN_W / max_scale);
+	test_assert_int_lt(SRC_W, WIN_W / max_scale);
+	test_assert_int_lt(SRC_H, WIN_H / max_scale);
+	test_assert_int_lt(SRC_W, WIN_H / max_scale);
+	test_assert_int_lt(SRC_H, WIN_W / max_scale);
 
 	/* If buffer scale was ignored, source rect should be inside instead */
-	assert(WIN_W / max_scale + SRC_W + MRG < WIN_W);
-	assert(WIN_H / max_scale + SRC_H + MRG < WIN_H);
-	assert(WIN_W / max_scale + SRC_H + MRG < WIN_W);
-	assert(WIN_H / max_scale + SRC_W + MRG < WIN_H);
+	test_assert_int_lt(WIN_W / max_scale + SRC_W + MRG, WIN_W);
+	test_assert_int_lt(WIN_H / max_scale + SRC_H + MRG, WIN_H);
+	test_assert_int_lt(WIN_W / max_scale + SRC_H + MRG, WIN_W);
+	test_assert_int_lt(WIN_H / max_scale + SRC_W + MRG, WIN_H);
 }
 
 static const struct source_buffer_args bad_source_buffer_args[] = {

@@ -32,6 +32,7 @@
 #include "shared/timespec-util.h"
 #include "weston-test-client-helper.h"
 #include "weston-test-fixture-compositor.h"
+#include "weston-test-assert.h"
 
 struct setup_args {
 	struct fixture_metadata meta;
@@ -93,7 +94,7 @@ surface_commit_color(struct client *client, struct surface *surface,
 	wl_surface_damage(surface->wl_surface, 0, 0, width, height);
 	wl_surface_commit(surface->wl_surface);
 
-	assert(!surface->buffer);
+	test_assert_ptr_null(surface->buffer);
 	surface->buffer = buf;
 
 	return buf;
@@ -151,7 +152,7 @@ TEST(pointer_cursor_retains_committed_buffer_after_reenter)
 			      main_cursor_surface->wl_surface, 0, 0);
 	match = verify_screen_content(client, "pointer_cursor_reenter", 0,
 				      NULL, 0, NULL);
-	assert(match);
+	test_assert_true(match);
 
 	/* Move the cursor just outside the main surface. */
 	send_motion(client, &t2, 150, 150);
@@ -160,7 +161,7 @@ TEST(pointer_cursor_retains_committed_buffer_after_reenter)
 			      back_cursor_surface->wl_surface, 0, 0);
 	match = verify_screen_content(client, "pointer_cursor_reenter", 1,
 				      NULL, 1, NULL);
-	assert(match);
+	test_assert_true(match);
 
 	/* And back in the main surface again. */
 	send_motion(client, &t3, 149, 149);
@@ -169,7 +170,7 @@ TEST(pointer_cursor_retains_committed_buffer_after_reenter)
 			      main_cursor_surface->wl_surface, 0, 0);
 	match = verify_screen_content(client, "pointer_cursor_reenter", 2,
 				      NULL, 2, NULL);
-	assert(match);
+	test_assert_true(match);
 
 	surface_destroy(back_cursor_surface);
 	surface_destroy(main_cursor_surface);

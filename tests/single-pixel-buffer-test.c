@@ -33,6 +33,7 @@
 
 #include "weston-test-client-helper.h"
 #include "weston-test-fixture-compositor.h"
+#include "weston-test-assert.h"
 #include "single-pixel-buffer-v1-client-protocol.h"
 #include "shared/os-compatibility.h"
 #include "shared/xalloc.h"
@@ -92,7 +93,7 @@ TEST(solid_buffer_argb_u32)
 									  0x8fffffff, /* g */
 									  0x4fffffff, /* b */
 									  0xffffffff /* a */);
-	assert(buffer);
+	test_assert_ptr_not_null(buffer);
 
 	weston_test_move_surface(client->test->weston_test,
 				 client->surface->wl_surface,
@@ -104,7 +105,7 @@ TEST(solid_buffer_argb_u32)
 	frame_callback_wait(client, &done);
 
 	match = verify_screen_content(client, "single-pixel-buffer", 0, NULL, 0, NULL);
-	assert(match);
+	test_assert_true(match);
 
 	wl_buffer_destroy(buffer);
 	wp_viewport_destroy(viewport);

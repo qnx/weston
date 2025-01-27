@@ -31,6 +31,7 @@
 #include "weston-test-client-helper.h"
 #include "ivi-application-client-protocol.h"
 #include "weston-test-fixture-compositor.h"
+#include "weston-test-assert.h"
 #include "test-config.h"
 
 static enum test_result_code
@@ -158,18 +159,19 @@ get_ivi_application(struct client *client)
 			continue;
 
 		if (global_iviapp)
-			assert(0 && "multiple ivi_application objects");
+			test_assert_not_reached("multiple ivi_application objects");
 
 		global_iviapp = g;
 	}
 
-	assert(global_iviapp && "no ivi_application found");
+	/* No ivi_application found. */
+	test_assert_ptr_not_null(global_iviapp);
 
-	assert(global_iviapp->version == 1);
+	test_assert_int_eq(global_iviapp->version, 1);
 
 	iviapp = wl_registry_bind(client->wl_registry, global_iviapp->name,
 				  &ivi_application_interface, 1);
-	assert(iviapp);
+	test_assert_ptr_not_null(iviapp);
 
 	return iviapp;
 }

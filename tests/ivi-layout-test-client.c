@@ -35,6 +35,7 @@
 #include "ivi-application-client-protocol.h"
 #include "ivi-test.h"
 #include "weston-test-fixture-compositor.h"
+#include "weston-test-assert.h"
 
 static enum test_result_code
 fixture_setup(struct weston_test_harness *harness)
@@ -82,19 +83,19 @@ client_create_runner(struct client *client)
 			continue;
 
 		if (global_runner)
-			assert(0 && "multiple weston_test_runner objects");
+			test_assert_not_reached("multiple weston_test_runner objects");
 
 		global_runner = g;
 	}
 
-	assert(global_runner && "no weston_test_runner found");
-	assert(global_runner->version == 1);
+	test_assert_ptr_not_null(global_runner);
+	test_assert_u32_eq(global_runner->version, 1);
 
 	runner->test_runner = wl_registry_bind(client->wl_registry,
 					       global_runner->name,
 					       &weston_test_runner_interface,
 					       1);
-	assert(runner->test_runner);
+	test_assert_ptr_not_null(runner->test_runner);
 
 	weston_test_runner_add_listener(runner->test_runner,
 					&test_runner_listener, runner);
@@ -120,7 +121,7 @@ runner_run(struct runner *runner, const char *test_name)
 
 	while (!runner->done) {
 		if (wl_display_dispatch(runner->client->wl_display) < 0)
-			assert(0 && "runner wait");
+			test_assert_not_reached("runner wait");
 	}
 }
 
@@ -136,18 +137,18 @@ get_ivi_application(struct client *client)
 			continue;
 
 		if (global_iviapp)
-			assert(0 && "multiple ivi_application objects");
+			test_assert_not_reached("multiple ivi_application objects");
 
 		global_iviapp = g;
 	}
 
-	assert(global_iviapp && "no ivi_application found");
+	test_assert_ptr_not_null(global_iviapp);
 
-	assert(global_iviapp->version == 1);
+	test_assert_u32_eq(global_iviapp->version, 1);
 
 	iviapp = wl_registry_bind(client->wl_registry, global_iviapp->name,
 				  &ivi_application_interface, 1);
-	assert(iviapp);
+	test_assert_ptr_not_null(iviapp);
 
 	return iviapp;
 }

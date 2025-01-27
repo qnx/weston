@@ -28,7 +28,6 @@
 
 #include "config.h"
 
-#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <time.h>
@@ -241,7 +240,7 @@ void
 move_client_offscreenable(struct client *client, int x, int y);
 
 #define client_roundtrip(c) do { \
-	assert(wl_display_roundtrip((c)->wl_display) >= 0); \
+	test_assert_int_ge(wl_display_roundtrip((c)->wl_display), 0); \
 } while (0)
 
 struct wl_callback *
@@ -250,7 +249,7 @@ frame_callback_set(struct wl_surface *surface, int *done);
 int
 frame_callback_wait_nofail(struct client *client, int *done);
 
-#define frame_callback_wait(c, d) assert(frame_callback_wait_nofail((c), (d)))
+#define frame_callback_wait(c, d) test_assert_true(frame_callback_wait_nofail((c), (d)))
 
 void
 expect_protocol_error(struct client *client,

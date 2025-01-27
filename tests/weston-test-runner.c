@@ -30,7 +30,6 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <string.h>
-#include <assert.h>
 #include <errno.h>
 #include <signal.h>
 #include <getopt.h>
@@ -38,6 +37,7 @@
 
 #include "test-config.h"
 #include "weston-test-runner.h"
+#include "weston-test-assert.h"
 #include "weston-testsuite-data.h"
 #include "shared/string-helpers.h"
 
@@ -274,7 +274,7 @@ result_to_str(enum test_result_code ret)
 #endif
 	};
 
-	assert(ret >= 0 && ret < ARRAY_LENGTH(names));
+	test_assert_true(ret >= 0 && ret < ARRAY_LENGTH(names));
 	return names[ret];
 }
 
@@ -458,7 +458,7 @@ weston_test_harness_create(int argc, char **argv)
 	struct weston_test_harness *harness;
 
 	harness = zalloc(sizeof(*harness));
-	assert(harness);
+	test_assert_ptr_not_null(harness);
 
 	harness->fixt_ind = -1;
 	harness->case_ind = -1;

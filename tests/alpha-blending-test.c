@@ -31,6 +31,7 @@
 
 #include "weston-test-client-helper.h"
 #include "weston-test-fixture-compositor.h"
+#include "weston-test-assert.h"
 #include "image-iter.h"
 #include "color_util.h"
 
@@ -105,8 +106,8 @@ fill_alpha_pattern(struct buffer *buf)
 	struct image_header ih = image_header_from(buf->image);
 	int y;
 
-	assert(ih.pixman_format == PIXMAN_a8r8g8b8);
-	assert(ih.width == BLOCK_WIDTH * ALPHA_STEPS);
+	test_assert_enum(ih.pixman_format, PIXMAN_a8r8g8b8);
+	test_assert_int_eq(ih.width, BLOCK_WIDTH * ALPHA_STEPS);
 
 	for (y = 0; y < ih.height; y++) {
 		uint32_t *row = image_header_get_row_u32(&ih, y);
@@ -193,8 +194,8 @@ get_middle_row(struct buffer *buf)
 {
 	struct image_header ih = image_header_from(buf->image);
 
-	assert(ih.width >= BLOCK_WIDTH * ALPHA_STEPS);
-	assert(ih.height >= BLOCK_WIDTH);
+	test_assert_int_ge(ih.width, BLOCK_WIDTH * ALPHA_STEPS);
+	test_assert_int_ge(ih.height, BLOCK_WIDTH);
 
 	return image_header_get_row_u32(&ih, (BLOCK_WIDTH - 1) / 2);
 }
@@ -351,10 +352,10 @@ TEST(alpha_blend)
 	move_client(client, 0, 0);
 
 	shot = capture_screenshot_of_output(client, NULL);
-	assert(shot);
+	test_assert_ptr_not_null(shot);
 	match = verify_image(shot->image, "alpha_blend", seq_no, NULL, seq_no);
-	assert(check_blend_pattern(bg, fg, shot, space));
-	assert(match);
+	test_assert_true(check_blend_pattern(bg, fg, shot, space));
+	test_assert_true(match);
 
 	buffer_destroy(shot);
 
