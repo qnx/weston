@@ -37,10 +37,6 @@
 #include "weston-test-fixture-compositor.h"
 #include "weston-testsuite-data.h"
 
-#ifdef NDEBUG
-#error "Tests must not be built with NDEBUG defined, they rely on assert()."
-#endif
-
 /** Test harness context
  *
  * \ingroup testharness
