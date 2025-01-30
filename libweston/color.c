@@ -37,12 +37,14 @@
 #include <string.h>
 
 #include "color.h"
+#include "color-operations.h"
 #include "color-properties.h"
 #include "id-number-allocator.h"
 #include "libweston-internal.h"
 #include <libweston/weston-log.h>
 #include "shared/string-helpers.h"
 #include "shared/helpers.h"
+#include "shared/weston-assert.h"
 #include "shared/xalloc.h"
 #include "shared/weston-assert.h"
 
@@ -264,6 +266,147 @@ weston_color_curve_enum_get_parametric(struct weston_compositor *compositor,
 		*out = curve->tf->inverse_curve;
 
 	return true;
+}
+
+static bool
+curve_to_lut_has_good_precision(struct weston_color_curve *curve)
+{
+	struct weston_color_curve_enum *e = &curve->u.enumerated;
+	struct weston_color_curve_parametric *p = &curve->u.parametric;
+	float g;
+	unsigned int i;
+
+	if (curve->type == WESTON_COLOR_CURVE_TYPE_ENUM) {
+		if (e->tf_direction == WESTON_INVERSE_TF) {
+			if (e->tf->tf == WESTON_TF_ST2084_PQ ||
+			    e->tf->tf == WESTON_TF_GAMMA22 ||
+			    e->tf->tf == WESTON_TF_GAMMA28) {
+				/**
+				 * These have bad precision in the indirect
+				 * direction.
+				 */
+				return false;
+			}
+
+			if (e->tf->tf == WESTON_TF_POWER) {
+				/**
+				 * Same as the above, but for parametric
+				 * power-law transfer function. If g > 1.0
+				 * it would result in bad precision.
+				 */
+				for (i = 0; i < 3; i++) {
+					g = e->params[i][0];
+					if (g > 1.0f)
+						return false;
+				}
+			}
+		} else {
+			if (e->tf->tf == WESTON_TF_POWER) {
+				/**
+				 * For parametric power-law transfer function
+				 * in the forward direction, g < 1.0 would
+				 * result in bad precision.
+				 */
+				for (i = 0; i < 3; i++) {
+					g = e->params[i][0];
+					if (g < 1.0f)
+						return false;
+				}
+			}
+		}
+	} else if (curve->type == WESTON_COLOR_CURVE_TYPE_PARAMETRIC) {
+		switch(p->type) {
+		case WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW:
+		case WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN:
+			/**
+			 * Both LINPOW and POWLIN have bad precision if g < 1.0.
+			 */
+			for (i = 0; i < 3; i++) {
+				g = p->params[i][0];
+				if (g < 1.0f)
+					return false;
+			}
+			break;
+		}
+	}
+
+	return true;
+}
+
+/**
+ * Given a xform and an enum corresponding to one of its curves (pre or post),
+ * returns a 3x1D LUT that corresponds to such curve.
+ *
+ * The 3x1D LUT returned looks like this: the first lut_size elements compose
+ * the LUT for the R channel, the next lut_size elements compose the LUT for the
+ * G channel and the last lut_size elements compose the LUT for the B channel.
+ *
+ * @param compositor The Weston compositor.
+ * @param xform The color transformation that owns the curve.
+ * @param step The curve step (pre or post) from the xform.
+ * @param lut_size The size of each LUT.
+ * @param err_msg Set on failure, untouched otherwise. Must be free()'d by caller.
+ * @return NULL on failure, the 3x1D LUT on success.
+ */
+WL_EXPORT float *
+weston_color_curve_to_3x1D_LUT(struct weston_compositor *compositor,
+			       struct weston_color_transform *xform,
+			       enum weston_color_curve_step step,
+			       uint32_t lut_size, char **err_msg)
+{
+	struct weston_color_curve *curve;
+	float divider = lut_size - 1;
+	float *in, *lut;
+	unsigned int i, ch;
+	bool ret;
+
+	switch(step) {
+	case WESTON_COLOR_CURVE_STEP_PRE:
+		curve = &xform->pre_curve;
+		break;
+	case WESTON_COLOR_CURVE_STEP_POST:
+		curve = &xform->post_curve;
+		break;
+	default:
+		weston_assert_not_reached(compositor, "unknown curve step");
+	}
+
+	if (!curve_to_lut_has_good_precision(curve)) {
+		str_printf(err_msg, "can't create color LUT from curve, it would " \
+				    "result in bad precision");
+		return NULL;
+	}
+
+	switch(curve->type) {
+	case WESTON_COLOR_CURVE_TYPE_LUT_3x1D:
+		lut = xzalloc(3 * lut_size * sizeof(*lut));
+		curve->u.lut_3x1d.fill_in(xform, lut, lut_size);
+		return lut;
+	case WESTON_COLOR_CURVE_TYPE_ENUM:
+	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
+		lut = xzalloc(3 * lut_size * sizeof(*lut));
+		in  = xzalloc(lut_size * sizeof(*lut));
+		for (i = 0; i < lut_size; i++)
+			in[i] = (float)i / divider;
+		for (ch = 0; ch < 3; ch++) {
+			ret = weston_color_curve_sample(compositor, curve, ch, lut_size,
+							in, &lut[ch * lut_size]);
+			if (!ret) {
+				free(lut);
+				lut = NULL;
+				str_printf(err_msg, "can't create color LUT from " \
+						    "curve, failed to sample color curve");
+				break;
+			}
+		}
+		free(in);
+		return lut;
+	case WESTON_COLOR_CURVE_TYPE_IDENTITY:
+		weston_assert_not_reached(compositor,
+					  "no reason to create LUT for identity curve");
+	}
+
+	weston_assert_not_reached(compositor, "unkown color curve");
 }
 
 /**

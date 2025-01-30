@@ -653,6 +653,17 @@ weston_color_curve_from_tf_info(struct weston_color_curve *curve,
 				const float tf_params[MAX_PARAMS_TF],
 				enum weston_tf_direction tf_direction);
 
+enum weston_color_curve_step {
+	WESTON_COLOR_CURVE_STEP_PRE,
+	WESTON_COLOR_CURVE_STEP_POST,
+};
+
+float *
+weston_color_curve_to_3x1D_LUT(struct weston_compositor *compositor,
+			       struct weston_color_transform *xform,
+			       enum weston_color_curve_step step,
+			       uint32_t lut_size, char **err_msg);
+
 struct weston_color_transform *
 weston_color_transform_ref(struct weston_color_transform *xform);
 

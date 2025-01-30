@@ -1,0 +1,182 @@
+/*
+ * Copyright 2025 Collabora, Ltd.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including
+ * without limitation the rights to use, copy, modify, merge, publish,
+ * distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to
+ * the following conditions:
+ *
+ * The above copyright notice and this permission notice (including the
+ * next paragraph) shall be included in all copies or substantial
+ * portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+#include "config.h"
+
+#include "color.h"
+#include "color-operations.h"
+
+#include "shared/helpers.h"
+#include "shared/weston-assert.h"
+
+/**
+ * Clamp value to [0.0, 1.0], except pass NaN through.
+ *
+ * This function is not intended for hiding NaN.
+ */
+static float
+ensure_unorm(float v)
+{
+	if (v <= 0.0f)
+		return 0.0f;
+	if (v > 1.0f)
+		return 1.0f;
+	return v;
+}
+
+static float
+linpow(float x, float g, float a, float b, float c, float d)
+{
+	/* See WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW for details about LINPOW. */
+
+	if (x >= d)
+		return pow((a * x) + b, g);
+
+	return c * x;
+}
+
+static void
+sample_linpow(float params[3][MAX_PARAMS_PARAM_CURVE], uint32_t ch,
+	      uint32_t len, bool clamp_input, float *in, float *out)
+{
+	float g, a, b, c, d;
+	float x;
+	unsigned int i;
+
+	g = params[ch][0];
+	a = params[ch][1];
+	b = params[ch][2];
+	c = params[ch][3];
+	d = params[ch][4];
+
+	for (i = 0; i < len; i++) {
+		x = in[i];
+		if (clamp_input)
+			x = ensure_unorm(x);
+
+		/* LINPOW uses mirroring for negative input values. */
+		if (x < 0.0)
+			out[i] = -linpow(-x, g, a, b, c, d);
+		else
+			out[i] = linpow(x, g, a, b, c, d);
+	}
+}
+
+static float
+powlin(float x, float g, float a, float b, float c, float d)
+{
+	/* See WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN for details about POWLIN. */
+
+	if (x >= d)
+		return a * pow(x, g) + b;
+
+	return c * x;
+}
+
+static void
+sample_powlin(float params[3][MAX_PARAMS_PARAM_CURVE], uint32_t ch,
+	      uint32_t len, bool clamp_input, float *in, float *out)
+{
+	float g, a, b, c, d;
+	float x;
+	unsigned int i;
+
+	g = params[ch][0];
+	a = params[ch][1];
+	b = params[ch][2];
+	c = params[ch][3];
+	d = params[ch][4];
+
+	for (i = 0; i < len; i++) {
+		x = in[i];
+		if (clamp_input)
+			x = ensure_unorm(x);
+
+		/* POWLIN uses mirroring for negative input values. */
+		if (x < 0.0)
+			out[i] = -powlin(-x, g, a, b, c, d);
+		else
+			out[i] = powlin(x, g, a, b, c, d);
+	}
+}
+
+/**
+* Given a color curve and a channel, sample an input.
+*
+* This handles the parametric curves (LINPOW, POWLIN, etc) and enumerated color
+* curves. Others should result in failure.
+*
+* @param compositor The Weston compositor
+* @param curve The color curve to be used to sample
+* @param ch The curve color channel to sample from
+* @param len The in and out arrays length
+* @param in The input array to sample
+* @param out The resulting array from sampling
+* @returns True on success, false otherwise
+*/
+bool
+weston_color_curve_sample(struct weston_compositor *compositor,
+			  struct weston_color_curve *curve,
+			  uint32_t ch, uint32_t len, float *in, float *out)
+{
+	struct weston_color_curve_parametric parametric;
+	bool ret;
+
+	switch(curve->type) {
+	case WESTON_COLOR_CURVE_TYPE_ENUM:
+		/* Lower the enum curve to a param curve and we'll handle that below. */
+		ret = weston_color_curve_enum_get_parametric(compositor,
+							     &curve->u.enumerated,
+							     &parametric);
+		if (!ret)
+			return false;
+		goto param;
+	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
+		/* Parametric curve, let's copy it and we'll handle that below. */
+		parametric = curve->u.parametric;
+		goto param;
+	case WESTON_COLOR_CURVE_TYPE_IDENTITY:
+		weston_assert_not_reached(compositor,
+					  "no need to sample identity");
+	case WESTON_COLOR_CURVE_TYPE_LUT_3x1D:
+		weston_assert_not_reached(compositor,
+					  "function does not handle LUT 3x1D");
+	}
+
+	weston_assert_not_reached(compositor, "unknown color curve");
+
+param:
+	/* Sample from parametric curves. */
+	switch(parametric.type) {
+	case WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW:
+		sample_linpow(parametric.params, ch, len, parametric.clamped_input, in, out);
+		return true;
+	case WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN:
+		sample_powlin(parametric.params, ch, len, parametric.clamped_input, in, out);
+		return true;
+	}
+
+	weston_assert_not_reached(compositor, "unknown parametric color curve");
+}
