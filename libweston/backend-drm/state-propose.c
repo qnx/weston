@@ -570,7 +570,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 			possible_plane_mask &= fb->plane_mask;
 		} else {
 			char *fr_str = bits_to_str(fb_failure_reasons, failure_reasons_to_str);
-			weston_assert_ptr(b->compositor, fr_str);
+			weston_assert_ptr_not_null(b->compositor, fr_str);
 			drm_debug(b, "\t\t\t[view] couldn't get FB for view: %s\n", fr_str);
 			free(fr_str);
 			pnode->try_view_on_plane_failure_reasons |= fb_failure_reasons;
@@ -995,7 +995,7 @@ drm_output_propose_state(struct weston_output *output_base,
 		} else if (!ps) {
 			char *fr_str = bits_to_str(pnode->try_view_on_plane_failure_reasons,
 						   failure_reasons_to_str);
-			weston_assert_ptr(b->compositor, fr_str);
+			weston_assert_ptr_not_null(b->compositor, fr_str);
 			drm_debug(b, "\t\t\t\t[view] view %p will be placed "
 				     "on the renderer: %s\n", ev, fr_str);
 			free(fr_str);

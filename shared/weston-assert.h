@@ -88,10 +88,10 @@ do {										\
 #define weston_assert_false(compositor, a) \
 	weston_assert_(compositor, a, false, bool, "%d", ==)
 
-#define weston_assert_ptr(compositor, a) \
+#define weston_assert_ptr_not_null(compositor, a) \
 	weston_assert_(compositor, a, NULL, const void *, "%p", !=)
 
-#define weston_assert_ptr_is_null(compositor, a) \
+#define weston_assert_ptr_null(compositor, a) \
 	weston_assert_(compositor, a, NULL, const void *, "%p", ==)
 
 #define weston_assert_ptr_eq(compositor, a, b) \

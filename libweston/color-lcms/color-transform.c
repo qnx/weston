@@ -1255,7 +1255,7 @@ xform_realize_chain(struct cmlcms_color_transform *xform)
 			chain[chain_len++] = output_profile->extract.vcgt;
 
 		/* Render intent does not apply here, but need to set something. */
-		weston_assert_ptr_is_null(cm->base.compositor, render_intent);
+		weston_assert_ptr_null(cm->base.compositor, render_intent);
 		render_intent = weston_render_intent_info_from(cm->base.compositor,
 							       WESTON_RENDER_INTENT_ABSOLUTE);
 		break;
@@ -1268,7 +1268,7 @@ xform_realize_chain(struct cmlcms_color_transform *xform)
 	}
 
 	assert(chain_len <= ARRAY_LENGTH(chain));
-	weston_assert_ptr(cm->base.compositor, render_intent);
+	weston_assert_ptr_not_null(cm->base.compositor, render_intent);
 
 	/**
 	 * Binding to our LittleCMS plug-in occurs here.

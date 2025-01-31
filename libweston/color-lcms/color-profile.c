@@ -298,7 +298,7 @@ ensure_output_profile_extract(struct cmlcms_color_profile *cprof,
 							cprof->icc.profile, num_points,
 							err_msg);
 		if (ret)
-			weston_assert_ptr(compositor, cprof->extract.eotf.p);
+			weston_assert_ptr_not_null(compositor, cprof->extract.eotf.p);
 		break;
 	case CMLCMS_PROFILE_TYPE_PARAMS:
 		/* TODO: need to address this when we create param profiles. */

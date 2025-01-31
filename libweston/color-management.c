@@ -500,7 +500,7 @@ cm_output_get_image_description(struct wl_client *client,
 	 * object inert. We do that in weston_head_remove_global(), and the
 	 * cm_output_res user data (which was the head itself) is set to NULL.
 	 * So if we reached here, head is active and head->output != NULL. */
-	weston_assert_ptr(compositor, output);
+	weston_assert_ptr_not_null(compositor, output);
 
 	cm_image_desc = cm_image_desc_create(compositor->color_manager,
 					     output->color_profile, client,

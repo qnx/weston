@@ -99,16 +99,16 @@ TEST(asserts)
 	ret = weston_assert_true(compositor, true && false);
 	abort_if_not(ret == false);
 
-	ret = weston_assert_ptr(compositor, &ret);
+	ret = weston_assert_ptr_not_null(compositor, &ret);
 	abort_if_not(ret);
 
-	ret = weston_assert_ptr(compositor, NULL);
+	ret = weston_assert_ptr_not_null(compositor, NULL);
 	abort_if_not(ret == false);
 
-	ret = weston_assert_ptr_is_null(compositor, NULL);
+	ret = weston_assert_ptr_null(compositor, NULL);
 	abort_if_not(ret);
 
-	ret = weston_assert_ptr_is_null(compositor, &ret);
+	ret = weston_assert_ptr_null(compositor, &ret);
 	abort_if_not(ret == false);
 
 	ret = weston_assert_ptr_eq(compositor, &ret, &ret);

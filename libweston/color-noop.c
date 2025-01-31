@@ -167,7 +167,7 @@ cmnoop_get_surface_color_transform(struct weston_color_manager *cm_base,
 				     cmnoop->stock_cprof);
 
 	/* The output must have a cprof, and it has to be the stock one. */
-	weston_assert_ptr(compositor, output->color_profile);
+	weston_assert_ptr_not_null(compositor, output->color_profile);
 	weston_assert_ptr_eq(compositor, to_cmnoop_cprof(output->color_profile),
 			     cmnoop->stock_cprof);
 
@@ -189,7 +189,7 @@ cmnoop_create_output_color_outcome(struct weston_color_manager *cm_base,
 	struct weston_color_manager_noop *cmnoop = to_cmnoop(cm_base);
 	struct weston_output_color_outcome *co;
 
-	weston_assert_ptr(compositor, output->color_profile);
+	weston_assert_ptr_not_null(compositor, output->color_profile);
 	weston_assert_ptr_eq(compositor, to_cmnoop_cprof(output->color_profile),
 			     cmnoop->stock_cprof);
 
