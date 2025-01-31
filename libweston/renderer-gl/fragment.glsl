@@ -95,29 +95,16 @@ compile_const bool c_need_color_pipeline =
 compile_const bool c_need_straight_alpha =
 	c_need_color_pipeline || c_color_effect != SHADER_COLOR_EFFECT_NONE;
 
+uniform HIGHPRECISION mat3 yuv_coefficients;
+uniform HIGHPRECISION vec3 yuv_offsets;
+
 vec4
 yuva2rgba(vec4 yuva)
 {
 	vec4 color_out;
-	float Y, su, sv;
 
-	/* ITU-R BT.601 & BT.709 quantization (limited range) */
-
-	Y = 255.0/219.0 * (yuva.x - 16.0/255.0);
-
-	/* Remove offset 128/255, but the 255/224 multiplier comes later */
-	su = yuva.y - 128.0/255.0;
-	sv = yuva.z - 128.0/255.0;
-
-	/*
-	 * ITU-R BT.709 encoding coefficients (inverse), with the
-	 * 255/224 limited range multiplier already included in the
-	 * factors for su (Cb) and sv (Cr).
-	 */
-	color_out.r = Y                   + 1.79274107 * sv;
-	color_out.g = Y - 0.21324861 * su - 0.53290933 * sv;
-	color_out.b = Y + 2.11240179 * su;
-
+	color_out.rgb = yuv_coefficients * (yuva.xyz - yuv_offsets);
+	color_out.rgb *= yuva.w;
 	color_out.a = yuva.w;
 
 	return color_out;

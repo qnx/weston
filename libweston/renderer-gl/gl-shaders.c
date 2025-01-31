@@ -34,6 +34,7 @@
 #include <string.h>
 #include <assert.h>
 
+#include <libweston/color-representation.h>
 #include <libweston/libweston.h>
 #include <libweston/weston-log.h>
 
@@ -99,6 +100,8 @@ struct gl_shader {
 	union gl_shader_color_curve_uniforms color_pre_curve;
 	union gl_shader_color_mapping_uniforms color_mapping;
 	union gl_shader_color_curve_uniforms color_post_curve;
+	GLint yuv_offsets_uniform;
+	GLint yuv_coefficients_uniform;
 };
 
 static const char *
@@ -503,6 +506,12 @@ gl_shader_create(struct gl_renderer *gr,
 	case SHADER_COLOR_MAPPING_IDENTITY:
 		break;
 	}
+
+	shader->yuv_coefficients_uniform =
+		glGetUniformLocation(shader->program, "yuv_coefficients");
+	shader->yuv_offsets_uniform = glGetUniformLocation(shader->program,
+							   "yuv_offsets");
+
 	free(conf);
 
 	wl_list_insert(&gr->shader_list, &shader->link);
@@ -752,6 +761,28 @@ gl_shader_load_config_mapping(struct weston_compositor *compositor,
 	weston_assert_not_reached(compositor, "unknown enum gl_shader_color_mapping value");
 }
 
+static void
+gl_shader_load_config_representation(struct weston_compositor *compositor,
+				     struct gl_shader *shader,
+				     const struct gl_shader_config *sconf)
+{
+	struct weston_color_representation_matrix cr_matrix;
+
+	if (sconf->yuv_coefficients == WESTON_COLOR_MATRIX_COEF_UNSET ||
+	    sconf->yuv_coefficients == WESTON_COLOR_MATRIX_COEF_IDENTITY) {
+		assert(shader->yuv_coefficients_uniform == -1);
+		assert(shader->yuv_offsets_uniform == -1);
+		return;
+	}
+
+	weston_get_color_representation_matrix(compositor,
+		sconf->yuv_coefficients, sconf->yuv_range, &cr_matrix);
+
+	glUniformMatrix3fv(shader->yuv_coefficients_uniform, 1, GL_FALSE,
+			   cr_matrix.matrix.colmaj);
+	glUniform3fv(shader->yuv_offsets_uniform, 1, cr_matrix.offset.el);
+}
+
 bool
 gl_shader_texture_variant_can_be_premult(enum gl_shader_texture_variant v)
 {
@@ -858,6 +889,8 @@ gl_shader_load_config(struct gl_renderer *gr,
 	gl_shader_load_config_curve(gr->compositor, sconf->req.color_post_curve,
 				    &sconf->color_post_curve, &shader->color_post_curve,
 				    TEX_UNIT_COLOR_POST_CURVE);
+
+	gl_shader_load_config_representation(gr->compositor, shader, sconf);
 
 	if (sconf->req.wireframe)
 		glUniform1i(shader->tex_uniform_wireframe, TEX_UNIT_WIREFRAME);

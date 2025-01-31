@@ -390,6 +390,9 @@ struct gl_shader_config {
 	union gl_shader_config_color_curve color_pre_curve;
 	union gl_shader_config_color_mapping color_mapping;
 	union gl_shader_config_color_curve color_post_curve;
+
+	enum weston_color_matrix_coef yuv_coefficients;
+	enum weston_color_quant_range yuv_range;
 };
 
 struct gl_renderer {

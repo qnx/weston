@@ -49,6 +49,7 @@
 #include "timeline.h"
 
 #include "color.h"
+#include "color-representation.h"
 #include "gl-renderer.h"
 #include "gl-renderer-internal.h"
 #include "vertex-clipping.h"
@@ -63,6 +64,7 @@
 #include "shared/platform.h"
 #include "shared/string-helpers.h"
 #include "shared/timespec-util.h"
+#include "shared/weston-assert.h"
 #include "shared/weston-drm-fourcc.h"
 #include "shared/weston-egl-ext.h"
 #include "shared/xalloc.h"
@@ -1464,6 +1466,7 @@ prepare_textured_draw(struct gl_shader_config *sconf,
 	struct gl_buffer_state *gb = gs->buffer;
 	struct gl_output_state *go = get_output_state(pnode->output);
 	struct weston_buffer *buffer = gs->buffer_ref.buffer;
+	struct weston_color_representation color_rep;
 	GLint filter;
 	int i;
 
@@ -1507,6 +1510,12 @@ prepare_textured_draw(struct gl_shader_config *sconf,
 		weston_log("GL-renderer: %s failed to generate a color effect.\n", __func__);
 		return false;
 	}
+
+	color_rep =
+		weston_fill_color_representation(&pnode->surface->color_representation,
+						 buffer->pixel_format);
+	sconf->yuv_coefficients = color_rep.matrix_coefficients;
+	sconf->yuv_range = color_rep.quant_range;
 
 	return true;
 }
