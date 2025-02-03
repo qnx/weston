@@ -1362,6 +1362,56 @@ wet_output_set_transform(struct weston_output *output,
 }
 
 static int
+wet_output_set_vrr_mode(struct weston_output *output,
+			struct weston_config_section *section)
+{
+	static const struct {
+		const char *name;
+		enum weston_vrr_mode vrr_mode;
+	} vrr_modes[] = {
+		{ "none",	WESTON_VRR_MODE_NONE },
+		{ "game", 	WESTON_VRR_MODE_GAME },
+	};
+	enum weston_vrr_mode vrr_mode = WESTON_VRR_MODE_NONE;
+	char *vrr_str = NULL;
+	unsigned int i;
+
+	weston_config_section_get_string(section, "vrr-mode", &vrr_str, NULL);
+	if (!vrr_str)
+		return vrr_mode;
+
+	for (i = 0; i < ARRAY_LENGTH(vrr_modes); i++)
+		if (strcmp(vrr_str, vrr_modes[i].name) == 0)
+			break;
+
+	if (i == ARRAY_LENGTH(vrr_modes)) {
+		weston_log("Error in config for output '%s': '%s' is not a valid vrr mode. Try one of:",
+			   output->name, vrr_str);
+		for (i = 0; i < ARRAY_LENGTH(vrr_modes); i++)
+			weston_log_continue(" %s", vrr_modes[i].name);
+		weston_log_continue("\n");
+		free(vrr_str);
+		return -1;
+	}
+
+	vrr_mode = vrr_modes[i].vrr_mode;
+
+	if (vrr_mode && (weston_output_get_supported_vrr_modes(output) & vrr_mode) == 0) {
+		weston_log("Error: output '%s' does not support output format %s.\n",
+			   output->name, vrr_str);
+		free(vrr_str);
+		return -1;
+	}
+
+	free(vrr_str);
+
+	if (weston_output_set_vrr_mode(output, vrr_mode) < 0)
+		return -1;
+
+	return 0;
+}
+
+static int
 wet_output_set_color_profile(struct weston_output *output,
 			     struct weston_config_section *section,
 			     struct weston_color_profile *parent_winsys_profile)
@@ -2421,6 +2471,9 @@ drm_backend_output_configure(struct weston_output *output,
 
 	if (wet_output_set_color_characteristics(output,
 						 wet->config, section) < 0)
+		return -1;
+
+	if (wet_output_set_vrr_mode(output, section) < 0)
 		return -1;
 
 	return 0;

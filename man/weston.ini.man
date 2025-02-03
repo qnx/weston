@@ -669,6 +669,19 @@ only for remote outputs.
 NOTE: The native outputs created by the DRM backend using the 'clone-of'
 are for cloning the outputs, and not sharing or mirroring. See also
 .BR weston-drm(7).
+.TP 7
+.BI "vrr-mode=" mode
+Sets the variable refresh rate mode of the display.
+The mode can be one of the following strings:
+.PP
+.RS 10
+.nf
+.BR  "none                 " "variable refresh rate is disabled"
+.BR  "game                 " "game variable refresh rate"
+.fi
+.RE
+.IP
+Defaults to "none".
 .\"---------------------------------------------------------------------
 .SH "INPUT-METHOD SECTION"
 .TP 7
