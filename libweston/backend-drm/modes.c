@@ -599,6 +599,8 @@ update_head_from_connector(struct drm_head *head)
 	struct drm_connector *connector = &head->connector;
 	drmModeObjectProperties *props = connector->props_drm;
 	drmModeConnector *conn = connector->conn;
+	int vrr_capable;
+	uint32_t vrr_mode_mask = 0;
 
 	weston_head_set_non_desktop(&head->base,
 				    check_non_desktop(connector, props));
@@ -630,10 +632,17 @@ update_head_from_connector(struct drm_head *head)
 					dhi.serial_number);
 
 	prune_eotf_modes_by_kms_support(head, &dhi.eotf_mask);
+
 	weston_head_set_supported_eotf_mask(&head->base, dhi.eotf_mask);
 
 	dhi.colorimetry_mask &= drm_head_get_kms_colorimetry_modes(head);
 	weston_head_set_supported_colorimetry_mask(&head->base, dhi.colorimetry_mask);
+
+	vrr_capable = drm_property_get_value(&head->connector.props[WDRM_CONNECTOR_VRR_CAPABLE],
+					      head->connector.props_drm, 0);
+	if (vrr_capable)
+		vrr_mode_mask = WESTON_VRR_MODE_GAME;
+	weston_head_set_supported_vrr_modes_mask(&head->base, vrr_mode_mask);
 
 	drm_head_info_fini(&dhi);
 }

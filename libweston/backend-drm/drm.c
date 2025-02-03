@@ -2653,12 +2653,28 @@ drm_connector_init(struct drm_device *device, struct drm_connector *connector,
 	connector->props_drm = NULL;
 }
 
+static const char *
+vrr_mode_to_str(enum weston_vrr_mode vrr_mode)
+{
+	switch (vrr_mode) {
+	case WESTON_VRR_MODE_NONE:		return "(none)";
+	case WESTON_VRR_MODE_GAME:		return "Game";
+	}
+	return "???";
+}
+
 static void
 drm_connector_fini(struct drm_connector *connector)
 {
 	drmModeFreeConnector(connector->conn);
 	drmModeFreeObjectProperties(connector->props_drm);
 	drm_property_info_free(connector->props, WDRM_CONNECTOR__COUNT);
+}
+
+static char *
+weston_vrr_mask_to_str(uint32_t mask)
+{
+	return bits_to_str(mask, vrr_mode_to_str);
 }
 
 static void
@@ -2684,6 +2700,14 @@ drm_head_log_info(struct drm_head *head, const char *msg)
 		if (str) {
 			weston_log_continue(STAMP_SPACE
 					    "Supported colorimetry modes: %s\n",
+					    str);
+		}
+		free(str);
+
+		str = weston_vrr_mask_to_str(head->base.supported_vrr_mode_mask);
+		if (str) {
+			weston_log_continue(STAMP_SPACE
+					    "Supported VRR modes: (none), %s\n",
 					    str);
 		}
 		free(str);

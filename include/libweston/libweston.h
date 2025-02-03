@@ -522,6 +522,8 @@ struct weston_head {
 	 * When a client uses this request, we add the wl_resource we create to
 	 * this list. */
         struct wl_list cm_output_resource_list;
+
+	uint32_t supported_vrr_mode_mask;
 };
 
 enum weston_output_power_state {
@@ -530,6 +532,15 @@ enum weston_output_power_state {
 	/** Normal rendering and dpms on */
 	WESTON_OUTPUT_POWER_NORMAL
 };
+
+enum weston_vrr_mode {
+	/** No VRR */
+	WESTON_VRR_MODE_NONE = 0,
+	/** Game mode VRR */
+	WESTON_VRR_MODE_GAME = 1 << 0,
+};
+#define WESTON_VRR_MODE_ALL_MASK \
+	((uint32_t)(WESTON_VRR_MODE_GAME))
 
 struct weston_plane {
 	struct weston_compositor *compositor;

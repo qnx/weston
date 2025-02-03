@@ -249,6 +249,9 @@ const struct drm_property_info connector_props[] = {
 		.enum_values = colorspace_enums,
 		.num_enum_values = WDRM_COLORSPACE__COUNT,
 	},
+	[WDRM_CONNECTOR_VRR_CAPABLE] = {
+		.name = "vrr_capable",
+	},
 };
 
 const struct drm_property_info crtc_props[] = {

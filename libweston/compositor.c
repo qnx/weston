@@ -7113,6 +7113,22 @@ weston_head_set_supported_colorimetry_mask(struct weston_head *head,
 }
 
 WL_EXPORT void
+weston_head_set_supported_vrr_modes_mask(struct weston_head *head,
+                                         uint32_t vrr_mode_mask)
+{
+	weston_assert_legal_bits(head->compositor,
+				 vrr_mode_mask,
+				 WESTON_VRR_MODE_ALL_MASK);
+
+	if (head->supported_vrr_mode_mask == vrr_mode_mask)
+		return;
+
+	head->supported_vrr_mode_mask = vrr_mode_mask;
+
+	weston_head_set_device_changed(head);
+}
+
+WL_EXPORT void
 weston_head_set_content_protection_status(struct weston_head *head,
 					  enum weston_hdcp_protection status)
 {
