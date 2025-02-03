@@ -2864,6 +2864,14 @@ int
 weston_output_mode_set_native(struct weston_output *output,
 			      struct weston_mode *mode,
 			      int32_t scale);
+
+int
+weston_output_set_vrr_mode(struct weston_output *output,
+			   enum weston_vrr_mode vrr_mode);
+
+uint32_t
+weston_output_get_supported_vrr_modes(struct weston_output *output);
+
 #ifdef  __cplusplus
 }
 #endif

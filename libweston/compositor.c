@@ -8803,6 +8803,36 @@ weston_output_power_off(struct weston_output *output)
 	weston_output_force_power(output, WESTON_OUTPUT_POWER_FORCED_OFF);
 }
 
+WL_EXPORT uint32_t
+weston_output_get_supported_vrr_modes(struct weston_output *output)
+{
+	uint32_t vrr_modes = WESTON_VRR_MODE_ALL_MASK;
+	struct weston_head *head;
+
+	if (wl_list_empty(&output->head_list))
+		return WESTON_VRR_MODE_NONE;
+
+	wl_list_for_each(head, &output->head_list, output_link)
+		vrr_modes &= head->supported_vrr_mode_mask;
+
+	return vrr_modes;
+}
+
+WL_EXPORT int
+weston_output_set_vrr_mode(struct weston_output *output,
+			   enum weston_vrr_mode vrr_mode)
+{
+	uint32_t modes = weston_output_get_supported_vrr_modes(output);
+
+	if (vrr_mode && !(modes & vrr_mode))
+		return -1;
+
+	output->vrr_mode = vrr_mode;
+
+	return 0;
+}
+
+
 static void
 xdg_output_unlist(struct wl_resource *resource)
 {
