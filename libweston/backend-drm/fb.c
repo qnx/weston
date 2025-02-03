@@ -384,9 +384,10 @@ drm_fb_destroy_dmabuf(struct drm_fb *fb)
 	 * If we imported the dmabuf into a scanout device, we are responsible
 	 * for closing the GEM handle.
 	 */
-	for (i = 0; i < 4; i++)
-		if (fb->scanout_device && fb->handles[i] != 0)
+	for (i = 0; i < MAX_DMABUF_PLANES; i++) {
+		if (fb->scanout_device && fb->handles[i] != 0) {
 			gem_handle_put(fb->scanout_device, fb->handles[i]);
+			fb->handles[i] = 0;
 		}
 
 	}
