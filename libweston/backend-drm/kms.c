@@ -429,6 +429,17 @@ drm_rotation_from_output_transform(struct drm_plane *plane,
 	return out;
 }
 
+static int
+wdrm_vrr_enabled_from_output(struct drm_output *drm_output)
+{
+	struct weston_output *output = &drm_output->base;
+
+	if (output->vrr_mode == WESTON_VRR_MODE_GAME)
+		return 1;
+
+	return 0;
+}
+
 /**
  * Cache DRM property values
  *
@@ -1352,7 +1363,8 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
 						     WDRM_CRTC_DEGAMMA_LUT, 0);
 		}
 		ret |= crtc_add_prop_zero_ok(req, crtc, WDRM_CRTC_CTM, 0);
-		ret |= crtc_add_prop_zero_ok(req, crtc, WDRM_CRTC_VRR_ENABLED, 0);
+		ret |= crtc_add_prop_zero_ok(req, crtc, WDRM_CRTC_VRR_ENABLED,
+					     wdrm_vrr_enabled_from_output(output));
 
 		/* No need for the DPMS property, since it is implicit in
 		 * routing and CRTC activity. */

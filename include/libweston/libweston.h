@@ -732,6 +732,8 @@ struct weston_output {
 	 * mirror-of key in [output] section.
 	 */
 	struct weston_output *mirror_of;
+
+	enum weston_vrr_mode vrr_mode;
 };
 
 enum weston_pointer_motion_mask {
