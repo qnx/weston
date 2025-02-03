@@ -1905,7 +1905,7 @@ weston_view_update_transform_enable(struct weston_view *view)
 WL_EXPORT void
 weston_view_update_transform(struct weston_view *view)
 {
-	WESTON_TRACE_FUNC_FLOW(&view->surface->flow_id);
+	WESTON_TRACE_FUNC();
 	struct weston_view *parent = view->geometry.parent;
 	struct weston_view *child;
 	struct weston_layer *layer;
