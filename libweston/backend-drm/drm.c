@@ -58,6 +58,7 @@
 #include "shared/string-helpers.h"
 #include "shared/weston-drm-fourcc.h"
 #include "output-capture.h"
+#include "weston-trace.h"
 #include "pixman-renderer.h"
 #include "pixel-formats.h"
 #include "libbacklight.h"
@@ -185,6 +186,64 @@ drm_output_pageflip_timer_create(struct drm_output *output)
 			   strerror(errno));
 		return -1;
 	}
+
+	return 0;
+}
+
+static int
+pageflip_timer_counter_handler(void *data)
+{
+	struct drm_backend *b = data;
+	struct weston_compositor *ec = b->compositor;
+	struct weston_output *output_base;
+
+	wl_list_for_each(output_base, &ec->output_list, link) {
+		struct drm_output *output = to_drm_output(output_base);
+		char desc[1024];
+
+		output->page_flips_per_timer_interval =
+			(float) (output->page_flips_counted /
+					b->perf_page_flips_stats.frame_counter_interval);
+
+		snprintf(desc, sizeof(desc),
+			 "output %s KMS page flips", output_base->name);
+
+		WESTON_TRACE_SET_COUNTER(desc,
+					output->page_flips_per_timer_interval);
+
+		output->page_flips_counted = 0;
+	}
+
+
+	wl_event_source_timer_update(b->perf_page_flips_stats.pageflip_timer_counter,
+				     1000 * b->perf_page_flips_stats.frame_counter_interval);
+
+	return 0;
+}
+
+static int
+drm_backend_pageflip_timer_create(struct drm_backend *b, uint32_t interval)
+{
+	struct wl_event_loop *loop = NULL;
+	struct weston_compositor *ec = b->compositor;
+
+	loop = wl_display_get_event_loop(ec->wl_display);
+	assert(loop);
+
+	b->perf_page_flips_stats.pageflip_timer_counter =
+		wl_event_loop_add_timer(loop, pageflip_timer_counter_handler, b);
+
+	if (b->perf_page_flips_stats.pageflip_timer_counter == NULL) {
+		weston_log("creating drm pageflip counter timer failed: %s\n",
+			   strerror(errno));
+		return -1;
+	}
+
+	b->perf_page_flips_stats.frame_counter_interval = interval;
+
+	/* arm it w/ interval */
+	wl_event_source_timer_update(b->perf_page_flips_stats.pageflip_timer_counter,
+				     1000 * b->perf_page_flips_stats.frame_counter_interval);
 
 	return 0;
 }
@@ -3478,6 +3537,7 @@ drm_shutdown(struct weston_backend *backend)
 
 	wl_event_source_remove(b->udev_drm_source);
 	wl_event_source_remove(b->drm_source);
+	wl_event_source_remove(b->perf_page_flips_stats.pageflip_timer_counter);
 
 	/* We are shutting down. This function destroy the planes with
 	 * destroy_sprites() and then calls weston_compositor_shutdown(), which
@@ -4266,6 +4326,8 @@ drm_backend_create(struct weston_compositor *compositor,
 		weston_log("Failed to register virtual output API.\n");
 		goto err_udev_monitor;
 	}
+
+	drm_backend_pageflip_timer_create(b, DEFAULT_FRAME_RATE_INTERVAL);
 
 	return b;
 

@@ -272,6 +272,11 @@ struct drm_backend {
 	bool has_underlay;
 
 	struct weston_log_scope *debug;
+
+	struct {
+		uint32_t frame_counter_interval;
+		struct wl_event_source *pageflip_timer_counter;
+	} perf_page_flips_stats;
 };
 
 struct drm_mode {
@@ -600,6 +605,12 @@ struct drm_output {
 	struct wl_listener recorder_frame_listener;
 
 	struct wl_event_source *pageflip_timer;
+
+	/* how many page flips */
+	uint32_t page_flips_counted;
+
+	/* how many page flips / interval */
+	float page_flips_per_timer_interval;
 
 	bool is_virtual;
 	void (*virtual_destroy)(struct weston_output *base);

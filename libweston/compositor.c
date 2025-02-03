@@ -98,7 +98,6 @@
  */
 
 #define DEFAULT_REPAINT_WINDOW 7 /* milliseconds */
-#define DEFAULT_FRAME_RATE_INTERVAL 1 /* seconds */
 
 static void
 weston_output_transform_scale_init(struct weston_output *output,

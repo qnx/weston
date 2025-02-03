@@ -44,6 +44,8 @@
 #include <assert.h>
 #include "color.h"
 
+#define DEFAULT_FRAME_RATE_INTERVAL 1 /* seconds */
+
 /* compositor <-> renderer interface */
 
 /** Opaque pointer to renderbuffer data.
