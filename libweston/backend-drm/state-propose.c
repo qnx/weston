@@ -39,6 +39,7 @@
 #include "drm-internal.h"
 
 #include "color.h"
+#include "color-representation.h"
 #include "linux-dmabuf.h"
 #include "presentation-time-server-protocol.h"
 #include "linux-dmabuf-unstable-v1-server-protocol.h"
@@ -139,23 +140,33 @@ drm_output_try_paint_node_on_plane(struct drm_plane *plane,
 	state->in_fence_fd = ev->surface->acquire_fence_fd;
 
 	if (fb->format && fb->format->color_model == COLOR_MODEL_YUV) {
-		enum wdrm_plane_color_encoding color_encoding;
-		enum wdrm_plane_color_range color_range;
+		struct weston_color_representation color_rep;
+		const struct weston_color_matrix_coef_info *matrix_coef_info;
+		const struct weston_color_quant_range_info *quant_range_info;
 
-		/* These values will become dynamic once we implement the
-		 * color-representation protocol. */
-		color_encoding = WDRM_PLANE_COLOR_ENCODING_DEFAULT;
-		color_range = WDRM_PLANE_COLOR_RANGE_DEFAULT;
+		color_rep =
+			weston_fill_color_representation(&surface->color_representation,
+							 fb->format);
+		matrix_coef_info =
+			weston_color_matrix_coef_info_get(color_rep.matrix_coefficients);
+		assert(matrix_coef_info);
+		assert(matrix_coef_info->wdrm != WDRM_PLANE_COLOR_ENCODING__COUNT);
+
+		quant_range_info =
+			weston_color_quant_range_info_get(color_rep.quant_range);
+		assert(quant_range_info);
+		assert(quant_range_info->wdrm != WDRM_PLANE_COLOR_RANGE__COUNT);
+
 
 		if (plane->props[WDRM_PLANE_COLOR_ENCODING].prop_id == 0) {
-			if (color_encoding != WDRM_PLANE_COLOR_ENCODING_DEFAULT) {
+			if (matrix_coef_info->wdrm != WDRM_PLANE_COLOR_ENCODING_DEFAULT) {
 				drm_debug(b, "\t\t\t[view] not placing view %p on plane %lu: "
 					  "non-default color encoding not supported\n",
 					  ev, (unsigned long) plane->plane_id);
 				goto out;
 			}
 		} else if (!drm_plane_supports_color_encoding(plane,
-							      color_encoding)) {
+							      matrix_coef_info->wdrm)) {
 			drm_debug(b, "\t\t\t[view] not placing view %p on plane %lu: "
 				  "color encoding not supported\n", ev,
 				  (unsigned long) plane->plane_id);
@@ -163,22 +174,22 @@ drm_output_try_paint_node_on_plane(struct drm_plane *plane,
 		}
 
 		if (plane->props[WDRM_PLANE_COLOR_RANGE].prop_id == 0) {
-			if (color_range != WDRM_PLANE_COLOR_RANGE_DEFAULT) {
+			if (quant_range_info->wdrm != WDRM_PLANE_COLOR_RANGE_DEFAULT) {
 				drm_debug(b, "\t\t\t[view] not placing view %p on plane %lu: "
 					  "non-default color range not supported\n",
 					  ev, (unsigned long) plane->plane_id);
 				goto out;
 			}
 		} else if (!drm_plane_supports_color_range(plane,
-							   color_range)) {
+							   quant_range_info->wdrm)) {
 			drm_debug(b, "\t\t\t[view] not placing view %p on plane %lu: "
 				  "color range not supported\n", ev,
 				  (unsigned long) plane->plane_id);
 			goto out;
 		}
 
-		state->color_encoding = color_encoding;
-		state->color_range = color_range;
+		state->color_encoding = matrix_coef_info->wdrm;
+		state->color_range = quant_range_info->wdrm;
 	}
 
 	/* In planes-only mode, we don't have an incremental state to
