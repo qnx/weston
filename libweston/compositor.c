@@ -4146,6 +4146,18 @@ weston_output_finish_frame(struct weston_output *output,
 		goto out;
 	}
 
+	/* If we're doing game mode VRR, repainting right away
+	 * might be better than waiting, so try now.
+	 * TODO: Come up with some better handling...
+	 * We should probably try to use "repaint window" style behaviour
+	 * if we're scheduling a repaint during the vactive display
+	 * period, but try to render immediately if we're not.
+	 */
+	if (output->vrr_mode == WESTON_VRR_MODE_GAME) {
+		output->next_repaint = now;
+		goto out;
+	}
+
 	timespec_add_nsec(&output->next_repaint, stamp, refresh_nsec);
 	timespec_add_msec(&output->next_repaint, &output->next_repaint,
 			  -compositor->repaint_msec);
