@@ -817,11 +817,12 @@ drm_output_repaint(struct weston_output *output_base)
 	 * hit assign_planes at all, so might not have valid output state
 	 * here. */
 	state = drm_pending_state_get_output(pending_state, output);
-	if (!state)
+	if (!state) {
 		state = drm_output_state_duplicate(output->state_cur,
 						   pending_state,
 						   DRM_OUTPUT_STATE_CLEAR_PLANES);
-	state->dpms = WESTON_DPMS_ON;
+		state->dpms = WESTON_DPMS_ON;
+	}
 
 	cursor_state = drm_output_state_get_existing_plane(state,
 							   output->cursor_plane);

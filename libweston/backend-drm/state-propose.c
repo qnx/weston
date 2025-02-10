@@ -766,6 +766,7 @@ drm_output_propose_state(struct weston_output *output_base,
 	state = drm_output_state_duplicate(output->state_cur,
 					   pending_state,
 					   DRM_OUTPUT_STATE_CLEAR_PLANES);
+	state->dpms = WESTON_DPMS_ON;
 
 	/* Start with the assumption that we're going to do a tearing commit,
 	 * if the hardware supports it and we're not compositing with the
