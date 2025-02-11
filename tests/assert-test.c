@@ -26,27 +26,9 @@
 #include "config.h"
 
 #include <stdlib.h>
-#include <stdarg.h>
 
-#include "shared/weston-assert.h"
 #include "weston-test-runner.h"
-
-__attribute__((format(printf, 2, 3)))
-static inline void
-test_assert_report(const struct weston_compositor *compositor,
-		   const char *fmt, ...)
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-	vfprintf(stderr, fmt, ap);
-	va_end(ap);
-}
-
-#ifdef custom_assert_fail_
-#undef custom_assert_fail_
-#endif
-#define custom_assert_fail_ test_assert_report
+#include "weston-test-assert.h"
 
 static void
 abort_if_not(bool cond)
@@ -154,4 +136,8 @@ TEST(asserts)
 
 	ret = weston_assert_legal_bits(compositor, val, UINT64_MAX);
 	abort_if_not(ret);
+
+	/* If we reach that point, it's a success so reset the assert counter
+	 * that's been incremented to check that assertions work. */
+	weston_assert_counter_reset();
 }

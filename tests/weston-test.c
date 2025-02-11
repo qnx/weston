@@ -229,7 +229,6 @@ test_seat_release(struct weston_test *test)
 
 	assert(test->is_seat_initialized &&
 	       "Trying to release already released test seat");
-
 	test->is_seat_initialized = false;
 	weston_seat_release(&test->seat);
 	memset(&test->seat, 0, sizeof test->seat);

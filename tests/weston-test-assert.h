@@ -28,7 +28,35 @@
 
 #include <errno.h>
 
+#include "libweston/libweston-internal.h"
 #include "shared/weston-assert.h"
+
+int
+weston_assert_counter_get(void);
+
+void
+weston_assert_counter_inc(void);
+
+void
+weston_assert_counter_reset(void);
+
+__attribute__((format(printf, 2, 3)))
+static inline void
+test_assert_fail(void *compositor, const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+
+	weston_assert_counter_inc();
+}
+
+#ifdef custom_assert_fail_
+#undef custom_assert_fail_
+#endif
+#define custom_assert_fail_ test_assert_fail
 
 /* Boolean asserts. */
 
@@ -142,6 +170,12 @@
 #define test_assert_bit_not_set(a, bit) weston_assert_bit_is_not_set(NULL, a, bit)
 #define test_assert_errno(a)            test_assert_int_eq(a, errno)
 #define test_assert_enum(a, b)          test_assert_u64_eq(a, b)
-#define test_assert_not_reached(reason) weston_assert_not_reached(NULL, reason)
+
+/* Explicitly abort when reached. */
+#define test_assert_not_reached(reason) \
+do { \
+	weston_assert_not_reached(NULL, reason); \
+	abort(); \
+} while (0)
 
 #endif /* _WESTON_TEST_ASSERT_H_ */

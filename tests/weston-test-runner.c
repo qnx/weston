@@ -59,6 +59,7 @@ struct weston_test_run_info {
 };
 
 static const struct weston_test_run_info *test_run_info_;
+static int assert_counter_ = 0;
 
 /** Get the test name string with counter
  *
@@ -110,6 +111,24 @@ testlog(const char *fmt, ...)
 	va_start(argp, fmt);
 	vfprintf(stderr, fmt, argp);
 	va_end(argp);
+}
+
+int
+weston_assert_counter_get(void)
+{
+	return assert_counter_;
+}
+
+void
+weston_assert_counter_inc(void)
+{
+	assert_counter_++;
+}
+
+void
+weston_assert_counter_reset(void)
+{
+	assert_counter_ = 0;
 }
 
 static const void *
@@ -165,16 +184,13 @@ run_test(struct wet_testsuite_data *suite_data, int fixture_nr,
 	}
 	info.fixture_nr = fixture_nr;
 
+	weston_assert_counter_reset();
+
 	test_run_info_ = &info;
 	t->run(suite_data, data);
 	test_run_info_ = NULL;
 
-	/*
-	 * XXX: We should return t->run(data); but that requires changing
-	 * the function signature and stop using assert() in tests.
-	 * https://gitlab.freedesktop.org/wayland/weston/issues/311
-	 */
-	return RESULT_OK;
+	return weston_assert_counter_get() ? RESULT_FAIL: RESULT_OK;
 }
 
 static void
