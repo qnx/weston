@@ -1510,14 +1510,6 @@ create_sprites(struct drm_device *device)
 
 	}
 
-	if (b->has_underlay && !b->format->opaque_substitute) {
-		weston_log("WARNING: Unable to use hardware underlay "
-			   "planes as the output format is opaque. In "
-			    "order to make use of hardware overlay planes "
-			    "adjust the output format.\n");
-		b->has_underlay = false;
-	}
-
 	drmModeFreePlaneResources(kplane_res);
 }
 
