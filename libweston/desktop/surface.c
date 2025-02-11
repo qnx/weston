@@ -456,8 +456,12 @@ weston_desktop_view_propagate_layer(struct weston_desktop_view *view)
 	/* Move each child to the same layer, immediately in front of its
 	 * parent. */
 	wl_list_for_each_reverse(child, &view->children_list, children_link) {
-		struct weston_layer_entry *child_pos =
-			wl_container_of(parent_pos->prev, child_pos, link);
+		struct weston_layer_entry *child_pos;
+
+		if (view->view->layer_link.layer)
+			child_pos = wl_container_of(parent_pos->prev, child_pos, link);
+		else
+			child_pos = NULL;
 
 		weston_view_move_to_layer(child->view, child_pos);
 		weston_desktop_view_propagate_layer(child);
