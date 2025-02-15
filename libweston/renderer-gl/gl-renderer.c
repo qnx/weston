@@ -4688,14 +4688,6 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	if (gl_renderer_setup(ec) < 0)
 		goto fail_terminate;
 
-	ec->capabilities |= WESTON_CAP_ROTATION_ANY;
-	ec->capabilities |= WESTON_CAP_CAPTURE_YFLIP;
-	ec->capabilities |= WESTON_CAP_VIEW_CLIP_MASK;
-	if (gl_features_has(gr, FEATURE_EXPLICIT_SYNC))
-		ec->capabilities |= WESTON_CAP_EXPLICIT_SYNC;
-	if (gl_features_has(gr, FEATURE_COLOR_TRANSFORMS))
-		ec->capabilities |= WESTON_CAP_COLOR_OPS;
-
 	if (gr->allocator)
 		gr->base.dmabuf_alloc = gl_renderer_dmabuf_alloc;
 
@@ -4768,6 +4760,19 @@ gl_renderer_display_create(struct weston_compositor *ec,
 			wl_display_add_shm_format(ec->wl_display,
 						  yuv_formats[i].format);
 	}
+
+	/**
+	 * Keep this at the end of the function. We don't want to change the
+	 * caps if something fails, as the compositor may fallback to another
+	 * renderer and the caps we set here would be invalid.
+	 */
+	ec->capabilities |= WESTON_CAP_ROTATION_ANY;
+	ec->capabilities |= WESTON_CAP_CAPTURE_YFLIP;
+	ec->capabilities |= WESTON_CAP_VIEW_CLIP_MASK;
+	if (gl_features_has(gr, FEATURE_EXPLICIT_SYNC))
+		ec->capabilities |= WESTON_CAP_EXPLICIT_SYNC;
+	if (gl_features_has(gr, FEATURE_COLOR_TRANSFORMS))
+		ec->capabilities |= WESTON_CAP_COLOR_OPS;
 
 	return 0;
 
