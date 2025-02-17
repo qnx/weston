@@ -43,7 +43,7 @@
 variables:
   FDO_UPSTREAM_REPO: wayland/weston
   FDO_REPO_SUFFIX: "$BUILD_OS-$FDO_DISTRIBUTION_VERSION/$BUILD_ARCH"
-  FDO_DISTRIBUTION_TAG: '2025-01-21-ci-templates-update'
+  FDO_DISTRIBUTION_TAG: '2025-02-17-bump-wayland-protocols-version-2'
 
 
 include:
