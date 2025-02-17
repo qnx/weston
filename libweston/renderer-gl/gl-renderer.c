@@ -2745,15 +2745,18 @@ gl_renderer_flush_damage(struct weston_paint_node *pnode)
 		for (j = 0; j < gb->num_textures; j++) {
 			int hsub = pixel_format_hsub(buffer->pixel_format, j);
 			int vsub = pixel_format_vsub(buffer->pixel_format, j);
+			int width = r.x2 - r.x1, height = r.y2 - r.y1;
 
+			width  = MIN(width,  buffer->width);
+			height = MIN(height, buffer->height);
 			glBindTexture(GL_TEXTURE_2D, gb->textures[j]);
 			glPixelStorei(GL_UNPACK_ROW_LENGTH_EXT,
 				      gb->pitch / hsub);
 			glPixelStorei(GL_UNPACK_SKIP_PIXELS_EXT, r.x1 / hsub);
 			glPixelStorei(GL_UNPACK_SKIP_ROWS_EXT, r.y1 / vsub);
 			gl_texture_2d_store(gr, 0, r.x1 / hsub, r.y1 / vsub,
-					    (r.x2 - r.x1) / hsub,
-					    (r.y2 - r.y1) / vsub,
+					    width / hsub,
+					    height / vsub,
 					    gb->texture_format[j].external,
 					    gb->texture_format[j].type,
 					    data + gb->offset[j]);
