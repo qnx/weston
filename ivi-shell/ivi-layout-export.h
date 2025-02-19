@@ -220,6 +220,17 @@ struct ivi_layout_interface {
 	void (*add_listener_configure_desktop_surface)(struct wl_listener *listener);
 
 	/**
+	 * \brief add a listener for desktop_surface ping timeout notification
+	 *
+	 * When a desktop_client fails to respond to compositor pings within
+	 * the configured timeout period, this signal is emitted to registered
+	 * listeners. The void* data argument will contain a pointer to the
+	 * weston_desktop_client associated with the unresponsive surface.
+	 */
+
+	void (*add_listener_desktop_surface_ping_timeout)(struct wl_listener *listener);
+
+	/**
 	 * \brief Get all ivi_surfaces which are currently registered and managed
 	 * by the services
 	 */

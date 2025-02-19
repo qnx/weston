@@ -622,7 +622,7 @@ static void
 desktop_surface_ping_timeout(struct weston_desktop_client *client,
 			     void *user_data)
 {
-	/* Not supported */
+	ivi_layout_desktop_surface_ping_timeout(client);
 }
 
 static void

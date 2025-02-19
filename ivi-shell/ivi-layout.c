@@ -988,6 +988,16 @@ ivi_layout_add_listener_configure_desktop_surface(struct wl_listener *listener)
 	wl_signal_add(&layout->surface_notification.configure_desktop_changed, listener);
 }
 
+static void
+ivi_layout_add_listener_desktop_surface_ping_timeout(struct wl_listener *listener)
+{
+	struct ivi_layout *layout = get_instance();
+
+	assert(listener);
+
+	wl_signal_add(&layout->surface_notification.ping_timeout, listener);
+}
+
 static int32_t
 ivi_layout_shell_add_destroy_listener_once(struct wl_listener *listener, wl_notify_func_t destroy_handler)
 {
@@ -1912,6 +1922,14 @@ ivi_layout_desktop_surface_configure(struct ivi_layout_surface *ivisurf,
 		       ivisurf);
 }
 
+void
+ivi_layout_desktop_surface_ping_timeout(struct weston_desktop_client *client)
+{
+	struct ivi_layout *layout = get_instance();
+
+	wl_signal_emit_mutable(&layout->surface_notification.ping_timeout, client);
+}
+
 struct ivi_layout_surface*
 ivi_layout_desktop_surface_create(struct weston_surface *wl_surface,
 				  struct weston_desktop_surface *surface)
@@ -2113,6 +2131,7 @@ ivi_layout_init(struct weston_compositor *ec, struct ivi_shell *shell)
 	wl_signal_init(&layout->surface_notification.removed);
 	wl_signal_init(&layout->surface_notification.configure_changed);
 	wl_signal_init(&layout->surface_notification.configure_desktop_changed);
+	wl_signal_init(&layout->surface_notification.ping_timeout);
 
 	wl_signal_init(&layout->input_panel_notification.configure_changed);
 	wl_signal_init(&layout->input_panel_notification.show);
@@ -2168,6 +2187,7 @@ static struct ivi_layout_interface ivi_layout_interface = {
 	.add_listener_remove_surface	= ivi_layout_add_listener_remove_surface,
 	.add_listener_configure_surface	= ivi_layout_add_listener_configure_surface,
 	.add_listener_configure_desktop_surface	= ivi_layout_add_listener_configure_desktop_surface,
+	.add_listener_desktop_surface_ping_timeout	= ivi_layout_add_listener_desktop_surface_ping_timeout,
 	.get_surface				= shell_get_ivi_layout_surface,
 	.get_surfaces				= ivi_layout_get_surfaces,
 	.get_id_of_surface			= ivi_layout_get_id_of_surface,

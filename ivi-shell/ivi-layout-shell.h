@@ -46,6 +46,9 @@ void
 ivi_layout_desktop_surface_configure(struct ivi_layout_surface *ivisurf,
 			     int32_t width, int32_t height);
 
+void
+ivi_layout_desktop_surface_ping_timeout(struct weston_desktop_client *client);
+
 struct ivi_layout_surface*
 ivi_layout_desktop_surface_create(struct weston_surface *wl_surface,
 				  struct weston_desktop_surface *surface);

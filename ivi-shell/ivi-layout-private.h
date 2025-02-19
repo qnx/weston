@@ -115,6 +115,7 @@ struct ivi_layout {
 		struct wl_signal removed;
 		struct wl_signal configure_changed;
 		struct wl_signal configure_desktop_changed;
+		struct wl_signal ping_timeout;
 	} surface_notification;
 
 	struct {
