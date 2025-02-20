@@ -647,6 +647,12 @@ weston_color_curve_enum_get_parametric(struct weston_compositor *compositor,
 				       const struct weston_color_curve_enum *curve,
 				       struct weston_color_curve_parametric *out);
 
+void
+weston_color_curve_from_tf_info(struct weston_color_curve *curve,
+				const struct weston_color_tf_info *tf_info,
+				const float tf_params[MAX_PARAMS_TF],
+				enum weston_tf_direction tf_direction);
+
 struct weston_color_transform *
 weston_color_transform_ref(struct weston_color_transform *xform);
 
