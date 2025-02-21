@@ -58,6 +58,7 @@ static char *option_term;
 static char *option_shell;
 
 static struct wl_list terminal_list;
+struct sigaction oldact;
 
 static struct terminal *
 terminal_create(struct display *display);
@@ -3100,6 +3101,9 @@ terminal_run(struct terminal *terminal, const char *path)
 		close(pipes[0]);
 		setenv("TERM", option_term, 1);
 		setenv("COLORTERM", option_term, 1);
+
+		sigaction(SIGPIPE, &oldact, NULL);
+
 		if (execl(path, path, NULL)) {
 			printf("exec failed: %s\n", strerror(errno));
 			exit(EXIT_FAILURE);
@@ -3177,8 +3181,10 @@ int main(int argc, char *argv[])
 	 * socket whose reading end has been closed */
 	sigpipe.sa_handler = SIG_IGN;
 	sigemptyset(&sigpipe.sa_mask);
+	sigemptyset(&oldact.sa_mask);
+
 	sigpipe.sa_flags = 0;
-	sigaction(SIGPIPE, &sigpipe, NULL);
+	sigaction(SIGPIPE, &sigpipe, &oldact);
 
 	d = display_create(&argc, argv);
 	if (d == NULL) {
