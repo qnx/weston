@@ -493,6 +493,7 @@ weston_color_manager_create(struct weston_compositor *compositor)
 	cm->base.get_color_profile_from_icc = cmlcms_get_color_profile_from_icc;
 	cm->base.get_color_profile_from_params = cmlcms_get_color_profile_from_params;
 	cm->base.send_image_desc_info = cmlcms_send_image_desc_info;
+	cm->base.get_parametric_color_profile = cmlcms_get_parametric_color_profile;
 	cm->base.destroy_color_transform = cmlcms_destroy_color_transform;
 	cm->base.get_surface_color_transform = cmlcms_get_surface_color_transform;
 	cm->base.create_output_color_outcome = cmlcms_create_output_color_outcome;

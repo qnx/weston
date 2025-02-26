@@ -340,16 +340,15 @@ enum weston_color_primaries {
 
 /** Transfer functions known by libweston */
 enum weston_transfer_function {
-	WESTON_TF_LINEAR = 0,
+	WESTON_TF_BT1886 = 0,
 	WESTON_TF_GAMMA22,
 	WESTON_TF_GAMMA28,
 	WESTON_TF_SRGB,
 	WESTON_TF_EXT_SRGB,
-	WESTON_TF_BT709,
-	WESTON_TF_BT1361,
 	WESTON_TF_ST240,
 	WESTON_TF_ST428,
 	WESTON_TF_ST2084_PQ,
+	WESTON_TF_EXT_LINEAR,
 	WESTON_TF_LOG_100,
 	WESTON_TF_LOG_316,
 	WESTON_TF_XVYCC,
@@ -360,7 +359,7 @@ enum weston_transfer_function {
 /** Error codes that the color profile parameters functions may return. */
 enum weston_color_profile_param_builder_error {
 	WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_TF = 0,
-	WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_PRIMARIES,
+	WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_PRIMARIES_NAMED,
 	WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_CIE_XY_OUT_OF_RANGE,
 	WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_CREATE_FAILED,
 	WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
@@ -2095,7 +2094,7 @@ struct weston_surface {
 	 *
 	 * When a client uses this request, we add the wl_resource we create to
 	 * this list. */
-        struct wl_list cm_feedback_surface_resource_list;
+        struct wl_list cm_surface_feedback_resource_list;
         struct wl_resource *cm_surface;
 
 	uint64_t damage_track_id;

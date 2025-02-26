@@ -52,16 +52,16 @@ struct color {
 	struct widget *parent_widget;
 	struct widget *widget;
 
-	struct xx_color_manager_v4 *color_manager;
-	struct xx_color_management_surface_v4 *color_surface;
+	struct wp_color_manager_v1 *color_manager;
+	struct wp_color_management_surface_v1 *color_surface;
 	struct wp_single_pixel_buffer_manager_v1 *single_pixel_manager;
 	struct wp_viewporter *viewporter;
 	struct wp_viewport *viewport;
 
 	struct pixel_color pixel_color;
 
-	enum xx_color_manager_v4_primaries primaries;
-	enum xx_color_manager_v4_transfer_function transfer_function;
+	enum wp_color_manager_v1_primaries primaries;
+	enum wp_color_manager_v1_transfer_function transfer_function;
 	float min_lum;
 	float max_lum;
 	float ref_lum;
@@ -105,14 +105,14 @@ static const struct weston_option cli_options[] = {
 };
 
 static const struct valid_enum valid_primaries[] = {
-	{ "srgb", XX_COLOR_MANAGER_V4_PRIMARIES_SRGB },
-	{ "bt2020", XX_COLOR_MANAGER_V4_PRIMARIES_BT2020 },
+	{ "srgb", WP_COLOR_MANAGER_V1_PRIMARIES_SRGB },
+	{ "bt2020", WP_COLOR_MANAGER_V1_PRIMARIES_BT2020 },
 };
 
 static const struct valid_enum valid_transfer_functions[] = {
-	{ "srgb", XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_SRGB },
-	{ "pq", XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_ST2084_PQ },
-	{ "linear", XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_LINEAR },
+	{ "srgb", WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB },
+	{ "pq", WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST2084_PQ },
+	{ "linear", WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_EXT_LINEAR },
 };
 
 static bool
@@ -196,11 +196,11 @@ validate_options(struct color *color)
 	       validate_option(opt_primaries, &color->primaries,
 			       valid_primaries,
 			       ARRAY_LENGTH(valid_primaries),
-			       XX_COLOR_MANAGER_V4_PRIMARIES_SRGB) &&
+			       WP_COLOR_MANAGER_V1_PRIMARIES_SRGB) &&
 	       validate_option(opt_transfer_function, &color->transfer_function,
 			       valid_transfer_functions,
 			       ARRAY_LENGTH(valid_transfer_functions),
-			       XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_SRGB) &&
+			       WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB) &&
 	       validate_luminance(opt_min_lum, &color->min_lum, -1.f) &&
 	       validate_luminance(opt_max_lum, &color->max_lum, -1.f) &&
 	       validate_luminance(opt_ref_lum, &color->ref_lum, -1.f);
@@ -237,7 +237,7 @@ usage(const char *program_name, int exit_code)
 }
 
 static void
-supported_intent(void *data, struct xx_color_manager_v4 *xx_color_manager_v4,
+supported_intent(void *data, struct wp_color_manager_v1 *wp_color_manager_v1,
 		 uint32_t render_intent)
 {
 	struct color *color = data;
@@ -246,7 +246,7 @@ supported_intent(void *data, struct xx_color_manager_v4 *xx_color_manager_v4,
 }
 
 static void
-supported_feature(void *data, struct xx_color_manager_v4 *xx_color_manager_v4,
+supported_feature(void *data, struct wp_color_manager_v1 *wp_color_manager_v1,
 		  uint32_t feature)
 {
 	struct color *color = data;
@@ -255,7 +255,7 @@ supported_feature(void *data, struct xx_color_manager_v4 *xx_color_manager_v4,
 }
 
 static void
-supported_tf_named(void *data, struct xx_color_manager_v4 *xx_color_manager_v4,
+supported_tf_named(void *data, struct wp_color_manager_v1 *wp_color_manager_v1,
 		   uint32_t tf)
 {
 	struct color *color = data;
@@ -265,7 +265,7 @@ supported_tf_named(void *data, struct xx_color_manager_v4 *xx_color_manager_v4,
 
 static void
 supported_primaries_named(void *data,
-			  struct xx_color_manager_v4 *xx_color_manager_v4,
+			  struct wp_color_manager_v1 *wp_color_manager_v1,
 			  uint32_t primaries)
 {
 	struct color *color = data;
@@ -273,11 +273,17 @@ supported_primaries_named(void *data,
 	color->supported_primaries_named |= 1 << primaries;
 }
 
-static const struct xx_color_manager_v4_listener color_manager_listener = {
+static void
+done(void *data, struct wp_color_manager_v1 *wp_color_manager_v1)
+{
+}
+
+static const struct wp_color_manager_v1_listener color_manager_listener = {
 	supported_intent,
 	supported_feature,
 	supported_tf_named,
 	supported_primaries_named,
+	done,
 };
 
 static void
@@ -287,12 +293,12 @@ global_handler(struct display *display, uint32_t name,
 	struct color *color = data;
 	struct wl_surface *surface = widget_get_wl_surface(color->widget);
 
-	if (strcmp(interface, xx_color_manager_v4_interface.name) == 0) {
+	if (strcmp(interface, wp_color_manager_v1_interface.name) == 0) {
 		color->color_manager = display_bind(display, name,
-						    &xx_color_manager_v4_interface, 1);
-		color->color_surface = xx_color_manager_v4_get_surface(color->color_manager,
+						    &wp_color_manager_v1_interface, 1);
+		color->color_surface = wp_color_manager_v1_get_surface(color->color_manager,
 								       surface);
-		xx_color_manager_v4_add_listener(color->color_manager,
+		wp_color_manager_v1_add_listener(color->color_manager,
 						 &color_manager_listener, color);
 	} else if (strcmp(interface, wp_single_pixel_buffer_manager_v1_interface.name) == 0) {
 		color->single_pixel_manager =
@@ -311,10 +317,10 @@ check_color_requirements(struct color *color)
 
 	if (!color->color_manager) {
 		fprintf(stderr, "The compositor doesn't expose %s\n",
-			xx_color_manager_v4_interface.name);
+			wp_color_manager_v1_interface.name);
 		return false;
 	}
-	if (!(color->supported_color_features & (1 << XX_COLOR_MANAGER_V4_FEATURE_PARAMETRIC))) {
+	if (!(color->supported_color_features & (1 << WP_COLOR_MANAGER_V1_FEATURE_PARAMETRIC))) {
 		fprintf(stderr, "The color manager doesn't support the parametric creator\n");
 		return false;
 	}
@@ -326,12 +332,12 @@ check_color_requirements(struct color *color)
 		fprintf(stderr, "The color manager doesn't support the transfer function\n");
 		return false;
 	}
-	if (!(color->supported_rendering_intents & (1 << XX_COLOR_MANAGER_V4_RENDER_INTENT_PERCEPTUAL))) {
+	if (!(color->supported_rendering_intents & (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_PERCEPTUAL))) {
 		fprintf(stderr, "The color manager doesn't support perceptual render intent\n");
 		return false;
 	}
 	if (color->min_lum != -1.f || color->max_lum != -1.f || color->ref_lum != -1.f) {
-		if (!(color->supported_color_features & (1 << XX_COLOR_MANAGER_V4_FEATURE_SET_LUMINANCES))) {
+		if (!(color->supported_color_features & (1 << WP_COLOR_MANAGER_V1_FEATURE_SET_LUMINANCES))) {
 			fprintf(stderr, "The color manager doesn't support setting luminances\n");
 			return false;
 		}
@@ -348,10 +354,10 @@ static void
 color_destroy(struct color *color)
 {
 	if (color->color_surface)
-		xx_color_management_surface_v4_destroy(color->color_surface);
+		wp_color_management_surface_v1_destroy(color->color_surface);
 
 	if (color->color_manager)
-		xx_color_manager_v4_destroy(color->color_manager);
+		wp_color_manager_v1_destroy(color->color_manager);
 
 	if (color->single_pixel_manager)
 		wp_single_pixel_buffer_manager_v1_destroy(color->single_pixel_manager);
@@ -432,7 +438,7 @@ set_single_pixel(struct color *color, struct widget *widget)
 
 static void
 image_description_failed(void *data,
-			 struct xx_image_description_v4 *xx_image_description_v4,
+			 struct wp_image_description_v1 *wp_image_description_v1,
 			 uint32_t cause, const char *msg)
 {
 	enum image_description_status *image_desc_status = data;
@@ -444,7 +450,7 @@ image_description_failed(void *data,
 }
 
 static void
-image_description_ready(void *data, struct xx_image_description_v4 *xx_image_description_v4,
+image_description_ready(void *data, struct wp_image_description_v1 *wp_image_description_v1,
 			uint32_t identity)
 {
 	enum image_description_status *image_desc_status = data;
@@ -452,43 +458,43 @@ image_description_ready(void *data, struct xx_image_description_v4 *xx_image_des
 	*image_desc_status = IMAGE_DESCRIPTION_READY;
 }
 
-static const struct xx_image_description_v4_listener image_description_listener = {
+static const struct wp_image_description_v1_listener image_description_listener = {
 	image_description_failed,
 	image_description_ready,
 };
 
-static struct xx_image_description_v4 *
+static struct wp_image_description_v1 *
 create_image_description(struct color *color, uint32_t primaries_named, uint32_t tf_named)
 {
-	struct xx_image_description_creator_params_v4 *params_creator;
-	struct xx_image_description_v4 *image_description;
+	struct wp_image_description_creator_params_v1 *params_creator;
+	struct wp_image_description_v1 *image_description;
 	enum image_description_status image_desc_status = IMAGE_DESCRIPTION_NOT_CREATED;
 	int ret = 0;
 
-	params_creator = xx_color_manager_v4_new_parametric_creator(color->color_manager);
-        xx_image_description_creator_params_v4_set_primaries_named(params_creator, primaries_named);
-        xx_image_description_creator_params_v4_set_tf_named(params_creator, tf_named);
+	params_creator = wp_color_manager_v1_create_parametric_creator(color->color_manager);
+        wp_image_description_creator_params_v1_set_primaries_named(params_creator, primaries_named);
+        wp_image_description_creator_params_v1_set_tf_named(params_creator, tf_named);
 	if (color->min_lum != -1 && color->max_lum != -1 && color->ref_lum != -1)
-		xx_image_description_creator_params_v4_set_luminances(params_creator,
+		wp_image_description_creator_params_v1_set_luminances(params_creator,
 								      color->min_lum * 10000,
 								      color->max_lum,
 								      color->ref_lum);
 
-	image_description = xx_image_description_creator_params_v4_create(params_creator);
-        xx_image_description_v4_add_listener(image_description,
+	image_description = wp_image_description_creator_params_v1_create(params_creator);
+        wp_image_description_v1_add_listener(image_description,
 					     &image_description_listener,
 					     &image_desc_status);
 
 	while (ret != -1 && image_desc_status == IMAGE_DESCRIPTION_NOT_CREATED)
 		ret = wl_display_dispatch(display_get_display(color->display));
 	if (ret == -1) {
-		xx_image_description_v4_destroy(image_description);
+		wp_image_description_v1_destroy(image_description);
 		fprintf(stderr, "Error when creating the image description: %s\n", strerror(errno));
 		return NULL;
 	}
 
 	if (image_desc_status == IMAGE_DESCRIPTION_FAILED) {
-		xx_image_description_v4_destroy(image_description);
+		wp_image_description_v1_destroy(image_description);
 		return NULL;
 	}
 
@@ -500,7 +506,7 @@ create_image_description(struct color *color, uint32_t primaries_named, uint32_t
 static bool
 set_image_description(struct color *color, struct widget *widget)
 {
-	struct xx_image_description_v4 *image_description;
+	struct wp_image_description_v1 *image_description;
 
 	image_description =
 		create_image_description(color,
@@ -509,12 +515,12 @@ set_image_description(struct color *color, struct widget *widget)
 	if (!image_description)
 		return false;
 
-	xx_color_management_surface_v4_set_image_description(
+	wp_color_management_surface_v1_set_image_description(
 		color->color_surface,
 		image_description,
-		XX_COLOR_MANAGER_V4_RENDER_INTENT_PERCEPTUAL);
+		WP_COLOR_MANAGER_V1_RENDER_INTENT_PERCEPTUAL);
 
-	xx_image_description_v4_destroy(image_description);
+	wp_image_description_v1_destroy(image_description);
 
 	return true;
 }

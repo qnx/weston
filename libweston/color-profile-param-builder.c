@@ -245,7 +245,7 @@ weston_color_profile_param_builder_set_primaries_named(struct weston_color_profi
 	bool success = true;
 
 	if (!((cm->supported_primaries_named >> primaries) & 1)) {
-		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_PRIMARIES,
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_PRIMARIES_NAMED,
 			    "named primaries %u not supported by the color manager",
 			    primaries);
 		success = false;
@@ -410,13 +410,6 @@ weston_color_profile_param_builder_set_primary_luminance(struct weston_color_pro
 		success = false;
 	}
 
-	if (max_lum < ref_lum) {
-		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
-			    "primary reference luminance %f shouldn't be greater than max %f",
-			    ref_lum, max_lum);
-		success = false;
-	}
-
 	if (min_lum >= ref_lum) {
 		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
 			    "primary reference luminance %f shouldn't be lesser than or equal to min %f",
@@ -505,7 +498,15 @@ bool
 weston_color_profile_param_builder_set_target_luminance(struct weston_color_profile_param_builder *builder,
 							float min_lum, float max_lum)
 {
+	struct weston_color_manager *cm = builder->compositor->color_manager;
 	bool success = true;
+
+	if (!((cm->supported_color_features >> WESTON_COLOR_FEATURE_SET_MASTERING_DISPLAY_PRIMARIES) & 1)) {
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_UNSUPPORTED,
+			    "set_mastering_display_primaries not supported by " \
+			    "the color manager, so setting target luminance is not allowed");
+		success = false;
+	}
 
 	if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TARGET_LUMINANCE) {
 		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_ALREADY_SET,
@@ -684,7 +685,7 @@ validate_maxcll(struct weston_color_profile_param_builder *builder)
 
 	if (builder->params.target_min_luminance >= builder->params.maxCLL)
 		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
-			    "maxCLL (%f) should be greater or equal to target min luminance (%f)",
+			    "maxCLL (%f) should be greater than target min luminance (%f)",
 			    builder->params.maxCLL, builder->params.target_min_luminance);
 
 	if (builder->params.target_max_luminance < builder->params.maxCLL)
@@ -701,7 +702,7 @@ validate_maxfall(struct weston_color_profile_param_builder *builder)
 
 	if (builder->params.target_min_luminance >= builder->params.maxFALL)
 		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
-			    "maxFALL (%f) should be greater or equal to min luminance (%f)",
+			    "maxFALL (%f) should be greater than min luminance (%f)",
 			    builder->params.maxFALL, builder->params.target_min_luminance);
 
 	if (builder->params.target_max_luminance < builder->params.maxFALL)
@@ -718,6 +719,13 @@ builder_validate_params(struct weston_color_profile_param_builder *builder)
 
 	if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_MAXFALL)
 		validate_maxfall(builder);
+
+	if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_MAXCLL &&
+	    builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_MAXFALL &&
+	    builder->params.maxFALL > builder->params.maxCLL)
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
+			    "maxFALL (%f) should not be greater than maxCLL (%f)",
+			    builder->params.maxFALL,  builder->params.maxCLL);
 
 	if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_PRIMARIES)
 		validate_color_gamut(builder, &builder->params.primaries,
@@ -746,9 +754,14 @@ builder_complete_params(struct weston_color_profile_param_builder *builder)
 		 * protocol as well. */
 		if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TF) {
 			switch(builder->params.tf_info->tf) {
+			case WESTON_TF_BT1886:
+				builder->params.reference_white_luminance = 100.0;
+				builder->params.min_luminance = 0.01;
+				builder->params.max_luminance = 100.0;
+				break;
 			case WESTON_TF_ST2084_PQ:
 				builder->params.reference_white_luminance = 203.0;
-				builder->params.min_luminance = 0.0;
+				builder->params.min_luminance = 0.005;
 				builder->params.max_luminance = 10000.0;
 				break;
 			case WESTON_TF_HLG:
@@ -761,29 +774,25 @@ builder_complete_params(struct weston_color_profile_param_builder *builder)
 			}
 		}
 	} else {
-		/* Primary luminance is set, but PQ TF override them anyway
-		 * (except reference white level). Also part of the CM&HDR
-		 * protocol. */
+		/* Primary luminance is set, but the CM&HDR protocol states that
+		 * PQ TF should override max_lum with min_lum + 10000 cd/m². */
 		if ((builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TF) &&
-		    builder->params.tf_info->tf == WESTON_TF_ST2084_PQ) {
-			builder->params.min_luminance = 0.0;
-			builder->params.max_luminance = 10000.0;
-		}
+		    builder->params.tf_info->tf == WESTON_TF_ST2084_PQ)
+			builder->params.max_luminance =
+				builder->params.min_luminance + 10000.0;
 	}
 
-	/*
-	 * If target luminance is not set, set it to negative. Same applies to
-	 * maxCLL and maxFALL.
-	 */
-
+	/* CM&HDR protocol states that if target luminance is not set, the
+	 * target min and max luminances should have the same values as the
+	 * primary min and max luminances. */
 	if (!(builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TARGET_LUMINANCE)) {
-		builder->params.target_min_luminance = -1.0f;
-		builder->params.target_max_luminance = -1.0f;
+		builder->params.target_min_luminance = builder->params.min_luminance;
+		builder->params.target_max_luminance = builder->params.max_luminance;
 	}
 
+	/* If maxCLL and maxFALL are not set, set them to negative. */
 	if (!(builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_MAXCLL))
 		builder->params.maxCLL = -1.0f;
-
 	if (!(builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_MAXFALL))
 		builder->params.maxFALL = -1.0f;
 }

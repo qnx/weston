@@ -89,7 +89,7 @@ struct display {
 	struct wl_data_device_manager *data_device_manager;
 	struct text_cursor_position *text_cursor_position;
 	struct xdg_wm_base *xdg_shell;
-	struct xx_color_manager_v4 *color_manager;
+	struct wp_color_manager_v1 *color_manager;
 	struct zwp_tablet_manager_v2 *tablet_manager;
 	struct zwp_relative_pointer_manager_v1 *relative_pointer_manager;
 	struct zwp_pointer_constraints_v1 *pointer_constraints;
@@ -215,7 +215,7 @@ struct surface {
 	struct wl_callback *frame_cb;
 	uint32_t last_time;
 
-	struct xx_color_management_surface_v4 *cm_surface;
+	struct wp_color_management_surface_v1 *cm_surface;
 
 	struct rectangle allocation;
 	struct rectangle server_allocation;
@@ -476,7 +476,7 @@ struct shm_pool {
 };
 
 struct cm_image_description {
-	struct xx_image_description_v4 *image_desc;
+	struct wp_image_description_v1 *image_desc;
 	enum cm_image_desc_status {
 		CM_IMAGE_DESC_NOT_CREATED = 0,
 		CM_IMAGE_DESC_READY,
@@ -489,27 +489,27 @@ render_intent_info_table[] = {
         {
                 .intent = RENDER_INTENT_PERCEPTUAL,
                 .desc = "Perceptual",
-                .protocol_intent = XX_COLOR_MANAGER_V4_RENDER_INTENT_PERCEPTUAL,
+                .protocol_intent = WP_COLOR_MANAGER_V1_RENDER_INTENT_PERCEPTUAL,
         },
         {
                 .intent = RENDER_INTENT_RELATIVE,
                 .desc = "Media-relative colorimetric",
-                .protocol_intent = XX_COLOR_MANAGER_V4_RENDER_INTENT_RELATIVE,
+                .protocol_intent = WP_COLOR_MANAGER_V1_RENDER_INTENT_RELATIVE,
         },
         {
                 .intent = RENDER_INTENT_RELATIVE_BPC,
                 .desc = "Media-relative colorimetric + black point compensation",
-                .protocol_intent = XX_COLOR_MANAGER_V4_RENDER_INTENT_RELATIVE_BPC,
+                .protocol_intent = WP_COLOR_MANAGER_V1_RENDER_INTENT_RELATIVE_BPC,
         },
         {
                 .intent = RENDER_INTENT_SATURATION,
                 .desc = "Saturation",
-                .protocol_intent = XX_COLOR_MANAGER_V4_RENDER_INTENT_SATURATION,
+                .protocol_intent = WP_COLOR_MANAGER_V1_RENDER_INTENT_SATURATION,
         },
         {
                 .intent = RENDER_INTENT_ABSOLUTE,
                 .desc = "ICC-absolute colorimetric",
-                .protocol_intent = XX_COLOR_MANAGER_V4_RENDER_INTENT_ABSOLUTE,
+                .protocol_intent = WP_COLOR_MANAGER_V1_RENDER_INTENT_ABSOLUTE,
         },
 };
 
@@ -564,7 +564,7 @@ debug_print(void *proxy, int line, const char *func, const char *fmt, ...)
 #endif
 
 static void
-cm_image_desc_ready(void *data, struct xx_image_description_v4 *xx_image_description_v4,
+cm_image_desc_ready(void *data, struct wp_image_description_v1 *wp_image_description_v1,
 		    uint32_t identity)
 {
 	struct cm_image_description *cm_image_desc = data;
@@ -573,7 +573,7 @@ cm_image_desc_ready(void *data, struct xx_image_description_v4 *xx_image_descrip
 }
 
 static void
-cm_image_desc_failed(void *data, struct xx_image_description_v4 *xx_image_description_v4,
+cm_image_desc_failed(void *data, struct wp_image_description_v1 *wp_image_description_v1,
 		     uint32_t cause, const char *msg)
 {
 	struct cm_image_description *cm_image_desc = data;
@@ -584,7 +584,7 @@ cm_image_desc_failed(void *data, struct xx_image_description_v4 *xx_image_descri
 	cm_image_desc->status = CM_IMAGE_DESC_FAILED;
 }
 
-static const struct xx_image_description_v4_listener cm_image_desc_listener = {
+static const struct wp_image_description_v1_listener cm_image_desc_listener = {
 	.ready = cm_image_desc_ready,
 	.failed = cm_image_desc_failed,
 };
@@ -606,10 +606,10 @@ widget_set_image_description_icc(struct widget *widget, int icc_fd,
 				 uint32_t length, uint32_t offset,
 				 enum render_intent intent, char **err_msg)
 {
-	struct xx_image_description_creator_icc_v4 *icc_creator;
+	struct wp_image_description_creator_icc_v1 *icc_creator;
 	struct display *display = widget->window->display;
 	struct surface *surface = widget->surface;
-	struct xx_color_manager_v4 *color_manager_wrapper;
+	struct wp_color_manager_v1 *color_manager_wrapper;
 	struct wl_event_queue *queue;
 	struct cm_image_description cm_image_desc;
 	const struct render_intent_info *intent_info;
@@ -619,11 +619,11 @@ widget_set_image_description_icc(struct widget *widget, int icc_fd,
 		str_printf(err_msg,
 			   "%s extension not supported by the Wayland " \
 			   "compositor, ignoring image color profile.",
-			   xx_color_manager_v4_interface.name);
+			   wp_color_manager_v1_interface.name);
 		return false;
 	}
 
-	if (!((display->color_manager_features >> XX_COLOR_MANAGER_V4_FEATURE_ICC_V2_V4) & 1)) {
+	if (!((display->color_manager_features >> WP_COLOR_MANAGER_V1_FEATURE_ICC_V2_V4) & 1)) {
 		str_printf(err_msg,
 			   "Wayland compositor does not support creating image " \
 			   "descriptions from ICC files, ignoring color profile.");
@@ -646,15 +646,15 @@ widget_set_image_description_icc(struct widget *widget, int icc_fd,
 	wl_proxy_set_queue((struct wl_proxy *)color_manager_wrapper, queue);
 
 	/* Create ICC image description creator and set the ICC file. */
-	icc_creator = xx_color_manager_v4_new_icc_creator(color_manager_wrapper);
+	icc_creator = wp_color_manager_v1_create_icc_creator(color_manager_wrapper);
 	wl_proxy_wrapper_destroy(color_manager_wrapper);
-	xx_image_description_creator_icc_v4_set_icc_file(icc_creator,
+	wp_image_description_creator_icc_v1_set_icc_file(icc_creator,
 							 icc_fd, offset, length);
 
 	/* Create the image description. It will also destroy the ICC creator. */
 	cm_image_desc.status = CM_IMAGE_DESC_NOT_CREATED;
-	cm_image_desc.image_desc = xx_image_description_creator_icc_v4_create(icc_creator);
-	xx_image_description_v4_add_listener(cm_image_desc.image_desc,
+	cm_image_desc.image_desc = wp_image_description_creator_icc_v1_create(icc_creator);
+	wp_image_description_v1_add_listener(cm_image_desc.image_desc,
 					     &cm_image_desc_listener, &cm_image_desc);
 
 	/* Wait until compositor creates the image description or gracefully
@@ -662,7 +662,7 @@ widget_set_image_description_icc(struct widget *widget, int icc_fd,
 	while (ret != -1 && cm_image_desc.status == CM_IMAGE_DESC_NOT_CREATED)
 		ret = wl_display_dispatch_queue(display->display, queue);
 	if (ret == -1) {
-		xx_image_description_v4_destroy(cm_image_desc.image_desc);
+		wp_image_description_v1_destroy(cm_image_desc.image_desc);
 		wl_event_queue_destroy(queue);
 		str_printf(err_msg,
 			   "Disconnected from the Wayland compositor, " \
@@ -673,7 +673,7 @@ widget_set_image_description_icc(struct widget *widget, int icc_fd,
 	/* Gracefully failed to create image description. Error already printed
 	 * in the handler. */
 	if (cm_image_desc.status == CM_IMAGE_DESC_FAILED) {
-		xx_image_description_v4_destroy(cm_image_desc.image_desc);
+		wp_image_description_v1_destroy(cm_image_desc.image_desc);
 		wl_event_queue_destroy(queue);
 		str_printf(err_msg,
 			   "Image description creation gracefully failed.");
@@ -683,14 +683,14 @@ widget_set_image_description_icc(struct widget *widget, int icc_fd,
 
 	if (!surface->cm_surface)
 		surface->cm_surface =
-			xx_color_manager_v4_get_surface(display->color_manager,
+			wp_color_manager_v1_get_surface(display->color_manager,
 							surface->surface);
 
-	xx_color_management_surface_v4_set_image_description(surface->cm_surface,
+	wp_color_management_surface_v1_set_image_description(surface->cm_surface,
 							     cm_image_desc.image_desc,
 							     intent_info->protocol_intent);
 
-	xx_image_description_v4_destroy(cm_image_desc.image_desc);
+	wp_image_description_v1_destroy(cm_image_desc.image_desc);
 	wl_event_queue_destroy(queue);
 
 	return true;
@@ -1574,7 +1574,7 @@ surface_destroy(struct surface *surface)
 		wp_viewport_destroy(surface->viewport);
 
 	if (surface->cm_surface)
-		xx_color_management_surface_v4_destroy(surface->cm_surface);
+		wp_color_management_surface_v1_destroy(surface->cm_surface);
 
 	wl_surface_destroy(surface->surface);
 
@@ -6687,7 +6687,7 @@ display_bind_tablets(struct display *d, uint32_t id)
 }
 
 static void
-cm_supported_intent(void *data, struct xx_color_manager_v4 *xx_color_manager_v4,
+cm_supported_intent(void *data, struct wp_color_manager_v1 *wp_color_manager_v1,
 		    uint32_t render_intent)
 {
 	struct display *d = data;
@@ -6696,7 +6696,7 @@ cm_supported_intent(void *data, struct xx_color_manager_v4 *xx_color_manager_v4,
 }
 
 static void
-cm_supported_feature(void *data, struct xx_color_manager_v4 *xx_color_manager_v4,
+cm_supported_feature(void *data, struct wp_color_manager_v1 *wp_color_manager_v1,
 		     uint32_t feature)
 {
 	struct display *d = data;
@@ -6705,24 +6705,31 @@ cm_supported_feature(void *data, struct xx_color_manager_v4 *xx_color_manager_v4
 }
 
 static void
-cm_supported_tf_named(void *data, struct xx_color_manager_v4 *xx_color_manager_v4,
+cm_supported_tf_named(void *data, struct wp_color_manager_v1 *wp_color_manager_v1,
 		      uint32_t tf_code)
 {
 	/* unused in this file */
 }
 
 static void
-cm_supported_primaries_named(void *data, struct xx_color_manager_v4 *xx_color_manager_v4,
+cm_supported_primaries_named(void *data, struct wp_color_manager_v1 *wp_color_manager_v1,
 			     uint32_t primaries_code)
 {
 	/* unused in this file */
 }
 
-static const struct xx_color_manager_v4_listener cm_listener = {
+static void
+cm_done(void *data, struct wp_color_manager_v1 *wp_color_manager_v1)
+{
+	/* unused in this file */
+}
+
+static const struct wp_color_manager_v1_listener cm_listener = {
 	.supported_intent = cm_supported_intent,
 	.supported_feature = cm_supported_feature,
 	.supported_tf_named = cm_supported_tf_named,
 	.supported_primaries_named = cm_supported_primaries_named,
+	.done = cm_done,
 };
 
 static void
@@ -6793,11 +6800,11 @@ registry_handle_global(void *data, struct wl_registry *registry, uint32_t id,
 					&wp_viewporter_interface, 1);
 	} else if (strcmp(interface, "zwp_tablet_manager_v2") == 0) {
 		display_bind_tablets(d, id);
-	} else if (strcmp(interface, "xx_color_manager_v4") == 0) {
+	} else if (strcmp(interface, "wp_color_manager_v1") == 0) {
 		d->color_manager =
 			wl_registry_bind(registry, id,
-					 &xx_color_manager_v4_interface, 1);
-		xx_color_manager_v4_add_listener(d->color_manager,
+					 &wp_color_manager_v1_interface, 1);
+		wp_color_manager_v1_add_listener(d->color_manager,
 						 &cm_listener, d);
 	}
 
@@ -7021,7 +7028,7 @@ display_destroy(struct display *display)
 		xdg_wm_base_destroy(display->xdg_shell);
 
 	if (display->color_manager)
-		xx_color_manager_v4_destroy(display->color_manager);
+		wp_color_manager_v1_destroy(display->color_manager);
 
 	if (display->shm)
 		wl_shm_destroy(display->shm);

@@ -49,7 +49,7 @@ enum error_point {
 };
 
 struct image_description {
-	struct xx_image_description_v4 *xx_image_desc;
+	struct wp_image_description_v1 *wp_image_desc;
 	enum image_description_status {
 		CM_IMAGE_DESC_NOT_CREATED = 0,
 		CM_IMAGE_DESC_READY,
@@ -61,27 +61,29 @@ struct image_description {
 };
 
 struct color_manager {
-	struct xx_color_manager_v4 *manager;
+	struct wp_color_manager_v1 *manager;
 
 	/* Bitfield that holds what color features are supported. If enum
-	 * xx_color_manager_v4_feature v is supported, bit v will be set
+	 * wp_color_manager_v1_feature v is supported, bit v will be set
 	 * to 1. */
 	uint32_t supported_features;
 
 	/* Bitfield that holds what rendering intents are supported. If enum
-	 * xx_color_manager_v4_render_intent v is supported, bit v will be set
+	 * wp_color_manager_v1_render_intent v is supported, bit v will be set
 	 * to 1. */
 	uint32_t supported_rendering_intents;
 
 	/* Bitfield that holds what color primaries are supported. If enum
-	 * xx_color_manager_v4_primaries v is supported, bit v will be set
+	 * wp_color_manager_v1_primaries v is supported, bit v will be set
 	 * to 1. */
 	uint32_t supported_color_primaries;
 
 	/* Bitfield that holds what transfer functions are supported. If enum
-	 * xx_color_manager_v4_transfer_function v is supported, bit v will be
+	 * wp_color_manager_v1_transfer_function v is supported, bit v will be
 	 * set to 1. */
 	uint32_t supported_tf;
+
+	bool done;
 };
 
 struct test_case {
@@ -128,9 +130,9 @@ static const struct weston_color_gamut color_gamut_invalid_white_point = {
 static const struct test_case good_test_cases[] = {
 	{
 	  /* sRGB primaries with sRGB TF; succeeds. */
-	  .primaries_named = XX_COLOR_MANAGER_V4_PRIMARIES_SRGB,
+	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
-	  .tf_named = XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_SRGB,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -147,7 +149,7 @@ static const struct test_case good_test_cases[] = {
 	  /* Custom primaries with sRGB TF; succeeds. */
 	  .primaries_named = NOT_SET,
 	  .primaries = &color_gamut_sRGB,
-	  .tf_named = XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_SRGB,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -164,7 +166,7 @@ static const struct test_case good_test_cases[] = {
 	  /* sRGB primaries, sRGB TF and valid luminance values; succeeds. */
 	  .primaries_named = NOT_SET,
 	  .primaries = &color_gamut_sRGB,
-	  .tf_named = XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_SRGB,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = 0.5,
 	  .primaries_max_lum = 2000,
@@ -179,7 +181,7 @@ static const struct test_case good_test_cases[] = {
 	},
 	{
 	  /* sRGB primaries with custom power-law TF; succeeds. */
-	  .primaries_named = XX_COLOR_MANAGER_V4_PRIMARIES_SRGB,
+	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
 	  .tf_named = NOT_SET,
 	  .tf_power = 2.4f,
@@ -196,9 +198,9 @@ static const struct test_case good_test_cases[] = {
 	},
 	{
 	  /* sRGB primaries, sRGB TF and valid target primaries; succeeds. */
-	  .primaries_named = XX_COLOR_MANAGER_V4_PRIMARIES_SRGB,
+	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
-	  .tf_named = XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_SRGB,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -213,9 +215,9 @@ static const struct test_case good_test_cases[] = {
 	},
 	{
 	  /* sRGB primaries, PQ TF and valid target luminance; succeeds. */
-	  .primaries_named = XX_COLOR_MANAGER_V4_PRIMARIES_SRGB,
+	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
-	  .tf_named = XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_ST2084_PQ,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST2084_PQ,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -230,9 +232,9 @@ static const struct test_case good_test_cases[] = {
 	},
 	{
 	  /* sRGB primaries, PQ TF and valid max cll; succeeds. */
-	  .primaries_named = XX_COLOR_MANAGER_V4_PRIMARIES_SRGB,
+	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
-	  .tf_named = XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_ST2084_PQ,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST2084_PQ,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -247,9 +249,9 @@ static const struct test_case good_test_cases[] = {
 	},
 	{
 	  /* sRGB primaries, PQ TF and valid max fall; succeeds. */
-	  .primaries_named = XX_COLOR_MANAGER_V4_PRIMARIES_SRGB,
+	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
-	  .tf_named = XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_ST2084_PQ,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST2084_PQ,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -265,9 +267,9 @@ static const struct test_case good_test_cases[] = {
 	{
 	  /* sRGB primaries, PQ TF and valid target luminance, max fall and
 	   * max cll; succeeds. */
-	  .primaries_named = XX_COLOR_MANAGER_V4_PRIMARIES_SRGB,
+	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
-	  .tf_named = XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_ST2084_PQ,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST2084_PQ,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -286,25 +288,25 @@ static const struct test_case bad_test_cases[] = {
 	{
 	  /* Invalid named primaries; protocol error. */
 	  .primaries_named = BAD_ENUM,
-	  .expected_error = XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INVALID_PRIMARIES,
+	  .expected_error = WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INVALID_PRIMARIES_NAMED,
 	  .error_point = ERROR_POINT_PRIMARIES_NAMED,
 	},
 	{
 	  /* Invalid TF named; protocol error. */
-	  .primaries_named = XX_COLOR_MANAGER_V4_PRIMARIES_SRGB,
+	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
 	  .tf_named = BAD_ENUM,
-	  .expected_error = XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INVALID_TF,
+	  .expected_error = WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INVALID_TF,
 	  .error_point = ERROR_POINT_TF_NAMED,
 	},
 	{
 	  /* Invalid power-law TF exponent (0.9 < 1.0, which is the minimum);
 	   * protocol error. */
-	  .primaries_named = XX_COLOR_MANAGER_V4_PRIMARIES_SRGB,
+	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
 	  .tf_named = NOT_SET,
 	  .tf_power = 0.9f,
-	  .expected_error = XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INVALID_TF,
+	  .expected_error = WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INVALID_TF,
 	  .error_point = ERROR_POINT_TF_POWER,
 	},
 	{
@@ -316,14 +318,14 @@ static const struct test_case bad_test_cases[] = {
 	  .primaries_min_lum = 50.0,
 	  .primaries_max_lum = 100,
 	  .primaries_ref_lum = 49,
-	  .expected_error = XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INVALID_LUMINANCE,
+	  .expected_error = WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INVALID_LUMINANCE,
 	  .error_point = ERROR_POINT_PRIMARIES_LUM,
 	},
 	{
 	  /* Invalid target luminance (min_lum == max_lum); protocol error. */
-	  .primaries_named = XX_COLOR_MANAGER_V4_PRIMARIES_SRGB,
+	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
-	  .tf_named = XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_ST2084_PQ,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST2084_PQ,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -333,15 +335,15 @@ static const struct test_case bad_test_cases[] = {
 	  .target_max_lum = 5,
 	  .target_max_cll = NOT_SET,
 	  .target_max_fall = NOT_SET,
-	  .expected_error = XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INVALID_LUMINANCE,
+	  .expected_error = WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INVALID_LUMINANCE,
 	  .error_point = ERROR_POINT_TARGET_LUM,
 	},
 	{
 	  /* Invalid max cll (max cll < min target luminance);
 	   * protocol error. */
-	  .primaries_named = XX_COLOR_MANAGER_V4_PRIMARIES_SRGB,
+	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
-	  .tf_named = XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_SRGB,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -351,15 +353,15 @@ static const struct test_case bad_test_cases[] = {
 	  .target_max_lum = 7,
 	  .target_max_cll = 5,
 	  .target_max_fall = NOT_SET,
-	  .expected_error = XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INVALID_LUMINANCE,
+	  .expected_error = WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INVALID_LUMINANCE,
 	  .error_point = ERROR_POINT_IMAGE_DESC,
 	},
 	{
 	  /* Invalid max fall (max fall < min target luminance);
 	   * protocol error. */
-	  .primaries_named = XX_COLOR_MANAGER_V4_PRIMARIES_SRGB,
+	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
-	  .tf_named = XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_SRGB,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -369,7 +371,7 @@ static const struct test_case bad_test_cases[] = {
 	  .target_max_lum = 7,
 	  .target_max_cll = NOT_SET,
 	  .target_max_fall = 5,
-	  .expected_error = XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INVALID_LUMINANCE,
+	  .expected_error = WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INVALID_LUMINANCE,
 	  .error_point = ERROR_POINT_IMAGE_DESC,
 	},
 	{
@@ -387,7 +389,7 @@ static const struct test_case bad_test_cases[] = {
 	  .target_max_lum = NOT_SET,
 	  .target_max_cll = NOT_SET,
 	  .target_max_fall = NOT_SET,
-	  .expected_error = XX_IMAGE_DESCRIPTION_V4_CAUSE_UNSUPPORTED,
+	  .expected_error = WP_IMAGE_DESCRIPTION_V1_CAUSE_UNSUPPORTED,
 	  .error_point = ERROR_POINT_GRACEFUL_FAILURE,
 	},
 	{
@@ -405,15 +407,15 @@ static const struct test_case bad_test_cases[] = {
 	  .target_max_lum = NOT_SET,
 	  .target_max_cll = NOT_SET,
 	  .target_max_fall = NOT_SET,
-	  .expected_error = XX_IMAGE_DESCRIPTION_V4_CAUSE_UNSUPPORTED,
+	  .expected_error = WP_IMAGE_DESCRIPTION_V1_CAUSE_UNSUPPORTED,
 	  .error_point = ERROR_POINT_GRACEFUL_FAILURE,
 	},
 	{
 	  /* Invalid custom target primaries (CIE XY value out of compositor
 	   * defined range); graceful failure. */
-	  .primaries_named = XX_COLOR_MANAGER_V4_PRIMARIES_SRGB,
+	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
-	  .tf_named = XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_SRGB,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -423,15 +425,15 @@ static const struct test_case bad_test_cases[] = {
 	  .target_max_lum = NOT_SET,
 	  .target_max_cll = NOT_SET,
 	  .target_max_fall = NOT_SET,
-	  .expected_error = XX_IMAGE_DESCRIPTION_V4_CAUSE_UNSUPPORTED,
+	  .expected_error = WP_IMAGE_DESCRIPTION_V1_CAUSE_UNSUPPORTED,
 	  .error_point = ERROR_POINT_GRACEFUL_FAILURE,
 	},
 	{
 	  /* Invalid custom target primaries (white point out of color gamut);
 	   * graceful failure. */
-	  .primaries_named = XX_COLOR_MANAGER_V4_PRIMARIES_SRGB,
+	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
-	  .tf_named = XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_SRGB,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -441,45 +443,45 @@ static const struct test_case bad_test_cases[] = {
 	  .target_max_lum = NOT_SET,
 	  .target_max_cll = NOT_SET,
 	  .target_max_fall = NOT_SET,
-	  .expected_error = XX_IMAGE_DESCRIPTION_V4_CAUSE_UNSUPPORTED,
+	  .expected_error = WP_IMAGE_DESCRIPTION_V1_CAUSE_UNSUPPORTED,
 	  .error_point = ERROR_POINT_GRACEFUL_FAILURE,
 	},
 };
 
 static void
-set_primaries(struct xx_image_description_creator_params_v4 *image_desc_creator,
+set_primaries(struct wp_image_description_creator_params_v1 *image_desc_creator,
 	      const struct weston_color_gamut *color_gamut)
 {
-	xx_image_description_creator_params_v4_set_primaries(
+	wp_image_description_creator_params_v1_set_primaries(
 		image_desc_creator,
-		color_gamut->primary[0].x * 10000,
-		color_gamut->primary[0].y * 10000,
-		color_gamut->primary[1].x * 10000,
-		color_gamut->primary[1].y * 10000,
-		color_gamut->primary[2].x * 10000,
-		color_gamut->primary[2].y * 10000,
-		color_gamut->white_point.x * 10000,
-		color_gamut->white_point.y * 10000);
+		color_gamut->primary[0].x * 1000000,
+		color_gamut->primary[0].y * 1000000,
+		color_gamut->primary[1].x * 1000000,
+		color_gamut->primary[1].y * 1000000,
+		color_gamut->primary[2].x * 1000000,
+		color_gamut->primary[2].y * 1000000,
+		color_gamut->white_point.x * 1000000,
+		color_gamut->white_point.y * 1000000);
 }
 
 static void
-set_mastering_display_primaries(struct xx_image_description_creator_params_v4 *image_desc_creator,
+set_mastering_display_primaries(struct wp_image_description_creator_params_v1 *image_desc_creator,
 				const struct weston_color_gamut *color_gamut)
 {
-	xx_image_description_creator_params_v4_set_mastering_display_primaries(
+	wp_image_description_creator_params_v1_set_mastering_display_primaries(
 		image_desc_creator,
-		color_gamut->primary[0].x * 10000,
-		color_gamut->primary[0].y * 10000,
-		color_gamut->primary[1].x * 10000,
-		color_gamut->primary[1].y * 10000,
-		color_gamut->primary[2].x * 10000,
-		color_gamut->primary[2].y * 10000,
-		color_gamut->white_point.x * 10000,
-		color_gamut->white_point.y * 10000);
+		color_gamut->primary[0].x * 1000000,
+		color_gamut->primary[0].y * 1000000,
+		color_gamut->primary[1].x * 1000000,
+		color_gamut->primary[1].y * 1000000,
+		color_gamut->primary[2].x * 1000000,
+		color_gamut->primary[2].y * 1000000,
+		color_gamut->white_point.x * 1000000,
+		color_gamut->white_point.y * 1000000);
 }
 
 static void
-image_desc_ready(void *data, struct xx_image_description_v4 *xx_image_description_v4,
+image_desc_ready(void *data, struct wp_image_description_v1 *wp_image_description_v1,
 		 uint32_t identity)
 {
 	struct image_description *image_desc = data;
@@ -488,7 +490,7 @@ image_desc_ready(void *data, struct xx_image_description_v4 *xx_image_descriptio
 }
 
 static void
-image_desc_failed(void *data, struct xx_image_description_v4 *xx_image_description_v4,
+image_desc_failed(void *data, struct wp_image_description_v1 *wp_image_description_v1,
 		  uint32_t cause, const char *msg)
 {
 	struct image_description *image_desc = data;
@@ -500,21 +502,21 @@ image_desc_failed(void *data, struct xx_image_description_v4 *xx_image_descripti
 		"    cause: %u, msg: %s\n", cause, msg);
 }
 
-static const struct xx_image_description_v4_listener
+static const struct wp_image_description_v1_listener
 image_desc_iface = {
 	.ready = image_desc_ready,
 	.failed = image_desc_failed,
 };
 
 static struct image_description *
-image_description_create(struct xx_image_description_creator_params_v4 *image_desc_creator_param)
+image_description_create(struct wp_image_description_creator_params_v1 *image_desc_creator_param)
 {
 	struct image_description *image_desc = xzalloc(sizeof(*image_desc));
 
-	image_desc->xx_image_desc =
-		xx_image_description_creator_params_v4_create(image_desc_creator_param);
+	image_desc->wp_image_desc =
+		wp_image_description_creator_params_v1_create(image_desc_creator_param);
 
-	xx_image_description_v4_add_listener(image_desc->xx_image_desc,
+	wp_image_description_v1_add_listener(image_desc->wp_image_desc,
 					     &image_desc_iface, image_desc);
 
 	return image_desc;
@@ -523,12 +525,12 @@ image_description_create(struct xx_image_description_creator_params_v4 *image_de
 static void
 image_description_destroy(struct image_description *image_desc)
 {
-	xx_image_description_v4_destroy(image_desc->xx_image_desc);
+	wp_image_description_v1_destroy(image_desc->wp_image_desc);
 	free(image_desc);
 }
 
 static void
-cm_supported_intent(void *data, struct xx_color_manager_v4 *xx_color_manager_v4,
+cm_supported_intent(void *data, struct wp_color_manager_v1 *wp_color_manager_v1,
 		    uint32_t render_intent)
 {
 	struct color_manager *cm = data;
@@ -537,7 +539,7 @@ cm_supported_intent(void *data, struct xx_color_manager_v4 *xx_color_manager_v4,
 }
 
 static void
-cm_supported_feature(void *data, struct xx_color_manager_v4 *xx_color_manager_v4,
+cm_supported_feature(void *data, struct wp_color_manager_v1 *wp_color_manager_v1,
 		     uint32_t feature)
 {
 	struct color_manager *cm = data;
@@ -546,7 +548,7 @@ cm_supported_feature(void *data, struct xx_color_manager_v4 *xx_color_manager_v4
 }
 
 static void
-cm_supported_tf_named(void *data, struct xx_color_manager_v4 *xx_color_manager_v4,
+cm_supported_tf_named(void *data, struct wp_color_manager_v1 *wp_color_manager_v1,
 		      uint32_t tf)
 {
 	struct color_manager *cm = data;
@@ -555,7 +557,7 @@ cm_supported_tf_named(void *data, struct xx_color_manager_v4 *xx_color_manager_v
 }
 
 static void
-cm_supported_primaries_named(void *data, struct xx_color_manager_v4 *xx_color_manager_v4,
+cm_supported_primaries_named(void *data, struct wp_color_manager_v1 *wp_color_manager_v1,
 			     uint32_t primaries)
 {
 	struct color_manager *cm = data;
@@ -563,12 +565,21 @@ cm_supported_primaries_named(void *data, struct xx_color_manager_v4 *xx_color_ma
 	cm->supported_color_primaries |= (1 << primaries);
 }
 
-static const struct xx_color_manager_v4_listener
+static void
+cm_done(void *data, struct wp_color_manager_v1 *wp_color_manager_v1)
+{
+	struct color_manager *cm = data;
+
+	cm->done = true;
+}
+
+static const struct wp_color_manager_v1_listener
 cm_iface = {
 	.supported_intent = cm_supported_intent,
 	.supported_feature = cm_supported_feature,
 	.supported_tf_named = cm_supported_tf_named,
 	.supported_primaries_named = cm_supported_primaries_named,
+	.done = cm_done,
 };
 
 static void
@@ -577,52 +588,54 @@ color_manager_init(struct color_manager *cm, struct client *client)
 	memset(cm, 0, sizeof(*cm));
 
 	cm->manager = bind_to_singleton_global(client,
-					       &xx_color_manager_v4_interface,
+					       &wp_color_manager_v1_interface,
 					       1);
-	xx_color_manager_v4_add_listener(cm->manager, &cm_iface, cm);
+	wp_color_manager_v1_add_listener(cm->manager, &cm_iface, cm);
 
 	client_roundtrip(client);
 
 	/* Weston supports all color features. */
-	assert(cm->supported_features == ((1 << XX_COLOR_MANAGER_V4_FEATURE_ICC_V2_V4) |
-					  (1 << XX_COLOR_MANAGER_V4_FEATURE_PARAMETRIC) |
-					  (1 << XX_COLOR_MANAGER_V4_FEATURE_SET_PRIMARIES) |
-					  (1 << XX_COLOR_MANAGER_V4_FEATURE_SET_LUMINANCES) |
-					  (1 << XX_COLOR_MANAGER_V4_FEATURE_SET_TF_POWER) |
-					  (1 << XX_COLOR_MANAGER_V4_FEATURE_SET_MASTERING_DISPLAY_PRIMARIES) |
-					  (1 << XX_COLOR_MANAGER_V4_FEATURE_EXTENDED_TARGET_VOLUME)));
+	assert(cm->supported_features == ((1 << WP_COLOR_MANAGER_V1_FEATURE_ICC_V2_V4) |
+					  (1 << WP_COLOR_MANAGER_V1_FEATURE_PARAMETRIC) |
+					  (1 << WP_COLOR_MANAGER_V1_FEATURE_SET_PRIMARIES) |
+					  (1 << WP_COLOR_MANAGER_V1_FEATURE_SET_LUMINANCES) |
+					  (1 << WP_COLOR_MANAGER_V1_FEATURE_SET_TF_POWER) |
+					  (1 << WP_COLOR_MANAGER_V1_FEATURE_SET_MASTERING_DISPLAY_PRIMARIES) |
+					  (1 << WP_COLOR_MANAGER_V1_FEATURE_EXTENDED_TARGET_VOLUME)));
 
 	/* Weston supports all rendering intents. */
-	assert(cm->supported_rendering_intents == ((1 << XX_COLOR_MANAGER_V4_RENDER_INTENT_PERCEPTUAL) |
-						   (1 << XX_COLOR_MANAGER_V4_RENDER_INTENT_RELATIVE) |
-						   (1 << XX_COLOR_MANAGER_V4_RENDER_INTENT_SATURATION) |
-						   (1 << XX_COLOR_MANAGER_V4_RENDER_INTENT_ABSOLUTE) |
-						   (1 << XX_COLOR_MANAGER_V4_RENDER_INTENT_RELATIVE_BPC)));
+	assert(cm->supported_rendering_intents == ((1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_PERCEPTUAL) |
+						   (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_RELATIVE) |
+						   (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_SATURATION) |
+						   (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_ABSOLUTE) |
+						   (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_RELATIVE_BPC)));
 
 	/* Weston supports all primaries. */
-	assert(cm->supported_color_primaries == ((1 << XX_COLOR_MANAGER_V4_PRIMARIES_SRGB) |
-						 (1 << XX_COLOR_MANAGER_V4_PRIMARIES_PAL_M) |
-						 (1 << XX_COLOR_MANAGER_V4_PRIMARIES_PAL) |
-						 (1 << XX_COLOR_MANAGER_V4_PRIMARIES_NTSC) |
-						 (1 << XX_COLOR_MANAGER_V4_PRIMARIES_GENERIC_FILM) |
-						 (1 << XX_COLOR_MANAGER_V4_PRIMARIES_BT2020) |
-						 (1 << XX_COLOR_MANAGER_V4_PRIMARIES_CIE1931_XYZ) |
-						 (1 << XX_COLOR_MANAGER_V4_PRIMARIES_DCI_P3) |
-						 (1 << XX_COLOR_MANAGER_V4_PRIMARIES_DISPLAY_P3) |
-						 (1 << XX_COLOR_MANAGER_V4_PRIMARIES_ADOBE_RGB)));
+	assert(cm->supported_color_primaries == ((1 << WP_COLOR_MANAGER_V1_PRIMARIES_SRGB) |
+						 (1 << WP_COLOR_MANAGER_V1_PRIMARIES_PAL_M) |
+						 (1 << WP_COLOR_MANAGER_V1_PRIMARIES_PAL) |
+						 (1 << WP_COLOR_MANAGER_V1_PRIMARIES_NTSC) |
+						 (1 << WP_COLOR_MANAGER_V1_PRIMARIES_GENERIC_FILM) |
+						 (1 << WP_COLOR_MANAGER_V1_PRIMARIES_BT2020) |
+						 (1 << WP_COLOR_MANAGER_V1_PRIMARIES_CIE1931_XYZ) |
+						 (1 << WP_COLOR_MANAGER_V1_PRIMARIES_DCI_P3) |
+						 (1 << WP_COLOR_MANAGER_V1_PRIMARIES_DISPLAY_P3) |
+						 (1 << WP_COLOR_MANAGER_V1_PRIMARIES_ADOBE_RGB)));
 
 	/* Weston supports only a few transfer functions, and we make use of
 	 * them in our tests. */
-	assert(cm->supported_tf == ((1 << XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_GAMMA22) |
-				    (1 << XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_GAMMA28) |
-				    (1 << XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_SRGB) |
-				    (1 << XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_ST2084_PQ)));
+	assert(cm->supported_tf == ((1 << WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22) |
+				    (1 << WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA28) |
+				    (1 << WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB) |
+				    (1 << WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST2084_PQ)));
+
+	assert(cm->done);
 }
 
 static void
 color_manager_fini(struct color_manager *cm)
 {
-	xx_color_manager_v4_destroy(cm->manager);
+	wp_color_manager_v1_destroy(cm->manager);
 }
 
 static enum test_result_code
@@ -647,7 +660,7 @@ TEST_P(create_parametric_image_description, good_test_cases)
 {
 	struct client *client;
 	struct color_manager cm;
-	struct xx_image_description_creator_params_v4 *image_desc_creator_param = NULL;
+	struct wp_image_description_creator_params_v1 *image_desc_creator_param = NULL;
 	const struct test_case *args = data;
 	struct image_description *image_desc = NULL;
 
@@ -659,26 +672,26 @@ TEST_P(create_parametric_image_description, good_test_cases)
 	color_manager_init(&cm, client);
 
 	image_desc_creator_param =
-		xx_color_manager_v4_new_parametric_creator(cm.manager);
+		wp_color_manager_v1_create_parametric_creator(cm.manager);
 
 	if (args->primaries_named != NOT_SET)
-		xx_image_description_creator_params_v4_set_primaries_named(image_desc_creator_param,
+		wp_image_description_creator_params_v1_set_primaries_named(image_desc_creator_param,
 									   args->primaries_named);
 
 	if (args->primaries)
 		set_primaries(image_desc_creator_param, args->primaries);
 
 	if (args->tf_named != NOT_SET)
-		xx_image_description_creator_params_v4_set_tf_named(image_desc_creator_param,
+		wp_image_description_creator_params_v1_set_tf_named(image_desc_creator_param,
 								    args->tf_named);
 
 	if (args->tf_power != NOT_SET)
-		xx_image_description_creator_params_v4_set_tf_power(image_desc_creator_param,
+		wp_image_description_creator_params_v1_set_tf_power(image_desc_creator_param,
 								    args->tf_power * 10000);
 
 	if (args->primaries_min_lum != NOT_SET && args->primaries_max_lum != NOT_SET &&
 	    args->primaries_ref_lum != NOT_SET)
-		xx_image_description_creator_params_v4_set_luminances(image_desc_creator_param,
+		wp_image_description_creator_params_v1_set_luminances(image_desc_creator_param,
 								      args->primaries_min_lum * 10000,
 								      args->primaries_max_lum,
 								      args->primaries_ref_lum);
@@ -687,16 +700,16 @@ TEST_P(create_parametric_image_description, good_test_cases)
 		set_mastering_display_primaries(image_desc_creator_param, args->target_primaries);
 
 	if (args->target_min_lum != NOT_SET && args->target_max_lum != NOT_SET)
-		xx_image_description_creator_params_v4_set_mastering_luminance(image_desc_creator_param,
+		wp_image_description_creator_params_v1_set_mastering_luminance(image_desc_creator_param,
 									       args->target_min_lum * 10000,
 									       args->target_max_lum);
 
 	if (args->target_max_cll != NOT_SET)
-		xx_image_description_creator_params_v4_set_max_cll(image_desc_creator_param,
+		wp_image_description_creator_params_v1_set_max_cll(image_desc_creator_param,
 								   args->target_max_cll);
 
 	if (args->target_max_fall != NOT_SET)
-		xx_image_description_creator_params_v4_set_max_fall(image_desc_creator_param,
+		wp_image_description_creator_params_v1_set_max_fall(image_desc_creator_param,
 								    args->target_max_fall);
 
 	image_desc = image_description_create(image_desc_creator_param);
@@ -715,7 +728,7 @@ TEST_P(fail_to_create_parametric_image_description, bad_test_cases)
 {
 	struct client *client;
 	struct color_manager cm;
-	struct xx_image_description_creator_params_v4 *image_desc_creator_param = NULL;
+	struct wp_image_description_creator_params_v1 *image_desc_creator_param = NULL;
 	const struct test_case *args = data;
 	struct image_description *image_desc = NULL;
 
@@ -723,13 +736,13 @@ TEST_P(fail_to_create_parametric_image_description, bad_test_cases)
 	color_manager_init(&cm, client);
 
 	image_desc_creator_param =
-		xx_color_manager_v4_new_parametric_creator(cm.manager);
+		wp_color_manager_v1_create_parametric_creator(cm.manager);
 
 	if (args->primaries_named != NOT_SET)
-		xx_image_description_creator_params_v4_set_primaries_named(image_desc_creator_param,
+		wp_image_description_creator_params_v1_set_primaries_named(image_desc_creator_param,
 									   args->primaries_named);
 	if (args->error_point == ERROR_POINT_PRIMARIES_NAMED) {
-		expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
+		expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
 				      args->expected_error);
 		goto out;
 	}
@@ -737,38 +750,38 @@ TEST_P(fail_to_create_parametric_image_description, bad_test_cases)
 	if (args->primaries)
 		set_primaries(image_desc_creator_param, args->primaries);
 	if (args->error_point == ERROR_POINT_PRIMARIES) {
-		expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
+		expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
 				      args->expected_error);
 		goto out;
 	}
 
 	if (args->tf_named != NOT_SET)
-		xx_image_description_creator_params_v4_set_tf_named(image_desc_creator_param,
+		wp_image_description_creator_params_v1_set_tf_named(image_desc_creator_param,
 								    args->tf_named);
 	if (args->error_point == ERROR_POINT_TF_NAMED) {
-		expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
+		expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
 				      args->expected_error);
 		goto out;
 	}
 
 	if (args->tf_power != NOT_SET)
-		xx_image_description_creator_params_v4_set_tf_power(image_desc_creator_param,
+		wp_image_description_creator_params_v1_set_tf_power(image_desc_creator_param,
 								    args->tf_power * 10000);
 	if (args->error_point == ERROR_POINT_TF_POWER) {
-		expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
+		expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
 				      args->expected_error);
 		goto out;
 	}
 
 	if (args->primaries_min_lum != NOT_SET && args->primaries_max_lum != NOT_SET &&
 	    args->primaries_ref_lum != NOT_SET)
-		xx_image_description_creator_params_v4_set_luminances(image_desc_creator_param,
+		wp_image_description_creator_params_v1_set_luminances(image_desc_creator_param,
 								      args->primaries_min_lum * 10000,
 								      args->primaries_max_lum,
 								      args->primaries_ref_lum);
 
 	if (args->error_point == ERROR_POINT_PRIMARIES_LUM) {
-		expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
+		expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
 				      args->expected_error);
 		goto out;
 	}
@@ -781,17 +794,17 @@ TEST_P(fail_to_create_parametric_image_description, bad_test_cases)
 	 */
 
 	if (args->target_min_lum != NOT_SET && args->target_max_lum != NOT_SET)
-		xx_image_description_creator_params_v4_set_mastering_luminance(image_desc_creator_param,
+		wp_image_description_creator_params_v1_set_mastering_luminance(image_desc_creator_param,
 									       args->target_min_lum * 10000,
 									       args->target_max_lum);
 	if (args->error_point == ERROR_POINT_TARGET_LUM) {
-		expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
+		expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
 				      args->expected_error);
 		goto out;
 	}
 
 	if (args->target_max_cll != NOT_SET)
-		xx_image_description_creator_params_v4_set_max_cll(image_desc_creator_param,
+		wp_image_description_creator_params_v1_set_max_cll(image_desc_creator_param,
 								   args->target_max_cll);
 	/**
 	 * The only possible failure for set_max_cll() is ALREADY_SET, but we test that
@@ -799,7 +812,7 @@ TEST_P(fail_to_create_parametric_image_description, bad_test_cases)
 	 */
 
 	if (args->target_max_fall != NOT_SET)
-		xx_image_description_creator_params_v4_set_max_fall(image_desc_creator_param,
+		wp_image_description_creator_params_v1_set_max_fall(image_desc_creator_param,
 								    args->target_max_fall);
 	/**
 	 * The only possible failure for set_max_fall() is ALREADY_SET, but we test that
@@ -829,7 +842,7 @@ out:
 	if (image_desc)
 		image_description_destroy(image_desc);
 	if (image_desc_creator_param)
-		xx_image_description_creator_params_v4_destroy(image_desc_creator_param);
+		wp_image_description_creator_params_v1_destroy(image_desc_creator_param);
 	color_manager_fini(&cm);
 	client_destroy(client);
 }
@@ -838,21 +851,21 @@ TEST(set_primaries_named_twice)
 {
 	struct client *client;
 	struct color_manager cm;
-	struct xx_image_description_creator_params_v4 *image_desc_creator_param;
+	struct wp_image_description_creator_params_v1 *image_desc_creator_param;
 
 	client = create_client();
 	color_manager_init(&cm, client);
 
 	image_desc_creator_param =
-		xx_color_manager_v4_new_parametric_creator(cm.manager);
-	xx_image_description_creator_params_v4_set_primaries_named(image_desc_creator_param,
-								   XX_COLOR_MANAGER_V4_PRIMARIES_SRGB);
+		wp_color_manager_v1_create_parametric_creator(cm.manager);
+	wp_image_description_creator_params_v1_set_primaries_named(image_desc_creator_param,
+								   WP_COLOR_MANAGER_V1_PRIMARIES_SRGB);
 	client_roundtrip(client); /* make sure connection is still valid */
-	xx_image_description_creator_params_v4_set_primaries_named(image_desc_creator_param,
-								   XX_COLOR_MANAGER_V4_PRIMARIES_SRGB);
-	expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
-			      XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_ALREADY_SET);
-	xx_image_description_creator_params_v4_destroy(image_desc_creator_param);
+	wp_image_description_creator_params_v1_set_primaries_named(image_desc_creator_param,
+								   WP_COLOR_MANAGER_V1_PRIMARIES_SRGB);
+	expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
+			      WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_ALREADY_SET);
+	wp_image_description_creator_params_v1_destroy(image_desc_creator_param);
 
 	color_manager_fini(&cm);
 	client_destroy(client);
@@ -862,19 +875,19 @@ TEST(set_primaries_twice)
 {
 	struct client *client;
 	struct color_manager cm;
-	struct xx_image_description_creator_params_v4 *image_desc_creator_param;
+	struct wp_image_description_creator_params_v1 *image_desc_creator_param;
 
 	client = create_client();
 	color_manager_init(&cm, client);
 
 	image_desc_creator_param =
-		xx_color_manager_v4_new_parametric_creator(cm.manager);
+		wp_color_manager_v1_create_parametric_creator(cm.manager);
 	set_primaries(image_desc_creator_param, &color_gamut_sRGB);
 	client_roundtrip(client); /* make sure connection is still valid */
 	set_primaries(image_desc_creator_param, &color_gamut_sRGB);
-	expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
-			      XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_ALREADY_SET);
-	xx_image_description_creator_params_v4_destroy(image_desc_creator_param);
+	expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
+			      WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_ALREADY_SET);
+	wp_image_description_creator_params_v1_destroy(image_desc_creator_param);
 
 	color_manager_fini(&cm);
 	client_destroy(client);
@@ -884,20 +897,20 @@ TEST(set_primaries_then_primaries_named)
 {
 	struct client *client;
 	struct color_manager cm;
-	struct xx_image_description_creator_params_v4 *image_desc_creator_param;
+	struct wp_image_description_creator_params_v1 *image_desc_creator_param;
 
 	client = create_client();
 	color_manager_init(&cm, client);
 
 	image_desc_creator_param =
-		xx_color_manager_v4_new_parametric_creator(cm.manager);
+		wp_color_manager_v1_create_parametric_creator(cm.manager);
 	set_primaries(image_desc_creator_param, &color_gamut_sRGB);
 	client_roundtrip(client); /* make sure connection is still valid */
-	xx_image_description_creator_params_v4_set_primaries_named(image_desc_creator_param,
-								   XX_COLOR_MANAGER_V4_PRIMARIES_SRGB);
-	expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
-			      XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_ALREADY_SET);
-	xx_image_description_creator_params_v4_destroy(image_desc_creator_param);
+	wp_image_description_creator_params_v1_set_primaries_named(image_desc_creator_param,
+								   WP_COLOR_MANAGER_V1_PRIMARIES_SRGB);
+	expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
+			      WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_ALREADY_SET);
+	wp_image_description_creator_params_v1_destroy(image_desc_creator_param);
 
 	color_manager_fini(&cm);
 	client_destroy(client);
@@ -907,20 +920,20 @@ TEST(set_primaries_named_then_primaries)
 {
 	struct client *client;
 	struct color_manager cm;
-	struct xx_image_description_creator_params_v4 *image_desc_creator_param;
+	struct wp_image_description_creator_params_v1 *image_desc_creator_param;
 
 	client = create_client();
 	color_manager_init(&cm, client);
 
 	image_desc_creator_param =
-		xx_color_manager_v4_new_parametric_creator(cm.manager);
-	xx_image_description_creator_params_v4_set_primaries_named(image_desc_creator_param,
-								   XX_COLOR_MANAGER_V4_PRIMARIES_SRGB);
+		wp_color_manager_v1_create_parametric_creator(cm.manager);
+	wp_image_description_creator_params_v1_set_primaries_named(image_desc_creator_param,
+								   WP_COLOR_MANAGER_V1_PRIMARIES_SRGB);
 	client_roundtrip(client); /* make sure connection is still valid */
 	set_primaries(image_desc_creator_param, &color_gamut_sRGB);
-	expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
-			      XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_ALREADY_SET);
-	xx_image_description_creator_params_v4_destroy(image_desc_creator_param);
+	expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
+			      WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_ALREADY_SET);
+	wp_image_description_creator_params_v1_destroy(image_desc_creator_param);
 
 	color_manager_fini(&cm);
 	client_destroy(client);
@@ -930,21 +943,21 @@ TEST(set_tf_power_twice)
 {
 	struct client *client;
 	struct color_manager cm;
-	struct xx_image_description_creator_params_v4 *image_desc_creator_param;
+	struct wp_image_description_creator_params_v1 *image_desc_creator_param;
 
 	client = create_client();
 	color_manager_init(&cm, client);
 
 	image_desc_creator_param =
-		xx_color_manager_v4_new_parametric_creator(cm.manager);
-	xx_image_description_creator_params_v4_set_tf_power(image_desc_creator_param,
+		wp_color_manager_v1_create_parametric_creator(cm.manager);
+	wp_image_description_creator_params_v1_set_tf_power(image_desc_creator_param,
 							    2.4 * 10000);
 	client_roundtrip(client); /* make sure connection is still valid */
-	xx_image_description_creator_params_v4_set_tf_power(image_desc_creator_param,
+	wp_image_description_creator_params_v1_set_tf_power(image_desc_creator_param,
 							    2.4 * 10000);
-	expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
-			      XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_ALREADY_SET);
-	xx_image_description_creator_params_v4_destroy(image_desc_creator_param);
+	expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
+			      WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_ALREADY_SET);
+	wp_image_description_creator_params_v1_destroy(image_desc_creator_param);
 
 	color_manager_fini(&cm);
 	client_destroy(client);
@@ -954,21 +967,21 @@ TEST(set_tf_named_twice)
 {
 	struct client *client;
 	struct color_manager cm;
-	struct xx_image_description_creator_params_v4 *image_desc_creator_param;
+	struct wp_image_description_creator_params_v1 *image_desc_creator_param;
 
 	client = create_client();
 	color_manager_init(&cm, client);
 
 	image_desc_creator_param =
-		xx_color_manager_v4_new_parametric_creator(cm.manager);
-	xx_image_description_creator_params_v4_set_tf_named(image_desc_creator_param,
-							    XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_SRGB);
+		wp_color_manager_v1_create_parametric_creator(cm.manager);
+	wp_image_description_creator_params_v1_set_tf_named(image_desc_creator_param,
+							    WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB);
 	client_roundtrip(client); /* make sure connection is still valid */
-	xx_image_description_creator_params_v4_set_tf_named(image_desc_creator_param,
-							    XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_SRGB);
-	expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
-			      XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_ALREADY_SET);
-	xx_image_description_creator_params_v4_destroy(image_desc_creator_param);
+	wp_image_description_creator_params_v1_set_tf_named(image_desc_creator_param,
+							    WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB);
+	expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
+			      WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_ALREADY_SET);
+	wp_image_description_creator_params_v1_destroy(image_desc_creator_param);
 
 	color_manager_fini(&cm);
 	client_destroy(client);
@@ -978,21 +991,21 @@ TEST(set_tf_power_then_tf_named)
 {
 	struct client *client;
 	struct color_manager cm;
-	struct xx_image_description_creator_params_v4 *image_desc_creator_param;
+	struct wp_image_description_creator_params_v1 *image_desc_creator_param;
 
 	client = create_client();
 	color_manager_init(&cm, client);
 
 	image_desc_creator_param =
-		xx_color_manager_v4_new_parametric_creator(cm.manager);
-	xx_image_description_creator_params_v4_set_tf_power(image_desc_creator_param,
+		wp_color_manager_v1_create_parametric_creator(cm.manager);
+	wp_image_description_creator_params_v1_set_tf_power(image_desc_creator_param,
 							    2.4 * 10000);
 	client_roundtrip(client); /* make sure connection is still valid */
-	xx_image_description_creator_params_v4_set_tf_named(image_desc_creator_param,
-							    XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_SRGB);
-	expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
-			      XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_ALREADY_SET);
-	xx_image_description_creator_params_v4_destroy(image_desc_creator_param);
+	wp_image_description_creator_params_v1_set_tf_named(image_desc_creator_param,
+							    WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB);
+	expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
+			      WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_ALREADY_SET);
+	wp_image_description_creator_params_v1_destroy(image_desc_creator_param);
 
 	color_manager_fini(&cm);
 	client_destroy(client);
@@ -1002,21 +1015,21 @@ TEST(set_tf_named_then_tf_power)
 {
 	struct client *client;
 	struct color_manager cm;
-	struct xx_image_description_creator_params_v4 *image_desc_creator_param;
+	struct wp_image_description_creator_params_v1 *image_desc_creator_param;
 
 	client = create_client();
 	color_manager_init(&cm, client);
 
 	image_desc_creator_param =
-		xx_color_manager_v4_new_parametric_creator(cm.manager);
-	xx_image_description_creator_params_v4_set_tf_named(image_desc_creator_param,
-							    XX_COLOR_MANAGER_V4_TRANSFER_FUNCTION_SRGB);
+		wp_color_manager_v1_create_parametric_creator(cm.manager);
+	wp_image_description_creator_params_v1_set_tf_named(image_desc_creator_param,
+							    WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB);
 	client_roundtrip(client); /* make sure connection is still valid */
-	xx_image_description_creator_params_v4_set_tf_power(image_desc_creator_param,
+	wp_image_description_creator_params_v1_set_tf_power(image_desc_creator_param,
 							    2.4 * 10000);
-	expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
-			      XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_ALREADY_SET);
-	xx_image_description_creator_params_v4_destroy(image_desc_creator_param);
+	expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
+			      WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_ALREADY_SET);
+	wp_image_description_creator_params_v1_destroy(image_desc_creator_param);
 
 	color_manager_fini(&cm);
 	client_destroy(client);
@@ -1026,7 +1039,7 @@ TEST(set_luminance_twice)
 {
 	struct client *client;
 	struct color_manager cm;
-	struct xx_image_description_creator_params_v4 *image_desc_creator_param;
+	struct wp_image_description_creator_params_v1 *image_desc_creator_param;
 	float min_lum = 0.5;
 	float max_lum = 2000.0;
 	float ref_lum = 300.0;
@@ -1035,19 +1048,19 @@ TEST(set_luminance_twice)
 	color_manager_init(&cm, client);
 
 	image_desc_creator_param =
-		xx_color_manager_v4_new_parametric_creator(cm.manager);
-	xx_image_description_creator_params_v4_set_luminances(image_desc_creator_param,
+		wp_color_manager_v1_create_parametric_creator(cm.manager);
+	wp_image_description_creator_params_v1_set_luminances(image_desc_creator_param,
 							      min_lum * 10000,
 							      max_lum,
 							      ref_lum);
 	client_roundtrip(client); /* make sure connection is still valid */
-	xx_image_description_creator_params_v4_set_luminances(image_desc_creator_param,
+	wp_image_description_creator_params_v1_set_luminances(image_desc_creator_param,
 							      min_lum * 10000,
 							      max_lum,
 							      ref_lum);
-	expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
-			      XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_ALREADY_SET);
-	xx_image_description_creator_params_v4_destroy(image_desc_creator_param);
+	expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
+			      WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_ALREADY_SET);
+	wp_image_description_creator_params_v1_destroy(image_desc_creator_param);
 
 	color_manager_fini(&cm);
 	client_destroy(client);
@@ -1057,19 +1070,19 @@ TEST(set_target_primaries_twice)
 {
 	struct client *client;
 	struct color_manager cm;
-	struct xx_image_description_creator_params_v4 *image_desc_creator_param;
+	struct wp_image_description_creator_params_v1 *image_desc_creator_param;
 
 	client = create_client();
 	color_manager_init(&cm, client);
 
 	image_desc_creator_param =
-		xx_color_manager_v4_new_parametric_creator(cm.manager);
+		wp_color_manager_v1_create_parametric_creator(cm.manager);
 	set_mastering_display_primaries(image_desc_creator_param, &color_gamut_sRGB);
 	client_roundtrip(client); /* make sure connection is still valid */
 	set_mastering_display_primaries(image_desc_creator_param, &color_gamut_sRGB);
-	expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
-			      XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_ALREADY_SET);
-	xx_image_description_creator_params_v4_destroy(image_desc_creator_param);
+	expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
+			      WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_ALREADY_SET);
+	wp_image_description_creator_params_v1_destroy(image_desc_creator_param);
 
 	color_manager_fini(&cm);
 	client_destroy(client);
@@ -1079,7 +1092,7 @@ TEST(set_target_luminance_twice)
 {
 	struct client *client;
 	struct color_manager cm;
-	struct xx_image_description_creator_params_v4 *image_desc_creator_param;
+	struct wp_image_description_creator_params_v1 *image_desc_creator_param;
 	float target_min_lum = 2.0f;
 	float target_max_lum = 3.0f;
 
@@ -1087,17 +1100,17 @@ TEST(set_target_luminance_twice)
 	color_manager_init(&cm, client);
 
 	image_desc_creator_param =
-		xx_color_manager_v4_new_parametric_creator(cm.manager);
-	xx_image_description_creator_params_v4_set_mastering_luminance(image_desc_creator_param,
+		wp_color_manager_v1_create_parametric_creator(cm.manager);
+	wp_image_description_creator_params_v1_set_mastering_luminance(image_desc_creator_param,
 								       target_min_lum * 10000,
 								       target_max_lum);
 	client_roundtrip(client); /* make sure connection is still valid */
-	xx_image_description_creator_params_v4_set_mastering_luminance(image_desc_creator_param,
+	wp_image_description_creator_params_v1_set_mastering_luminance(image_desc_creator_param,
 								       target_min_lum * 10000,
 								       target_max_lum);
-	expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
-			      XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_ALREADY_SET);
-	xx_image_description_creator_params_v4_destroy(image_desc_creator_param);
+	expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
+			      WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_ALREADY_SET);
+	wp_image_description_creator_params_v1_destroy(image_desc_creator_param);
 
 	color_manager_fini(&cm);
 	client_destroy(client);
@@ -1107,19 +1120,19 @@ TEST(set_max_cll_twice)
 {
 	struct client *client;
 	struct color_manager cm;
-	struct xx_image_description_creator_params_v4 *image_desc_creator_param;
+	struct wp_image_description_creator_params_v1 *image_desc_creator_param;
 
 	client = create_client();
 	color_manager_init(&cm, client);
 
 	image_desc_creator_param =
-		xx_color_manager_v4_new_parametric_creator(cm.manager);
-	xx_image_description_creator_params_v4_set_max_cll(image_desc_creator_param, 5.0f);
+		wp_color_manager_v1_create_parametric_creator(cm.manager);
+	wp_image_description_creator_params_v1_set_max_cll(image_desc_creator_param, 5.0f);
 	client_roundtrip(client); /* make sure connection is still valid */
-	xx_image_description_creator_params_v4_set_max_cll(image_desc_creator_param, 5.0f);
-	expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
-			      XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_ALREADY_SET);
-	xx_image_description_creator_params_v4_destroy(image_desc_creator_param);
+	wp_image_description_creator_params_v1_set_max_cll(image_desc_creator_param, 5.0f);
+	expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
+			      WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_ALREADY_SET);
+	wp_image_description_creator_params_v1_destroy(image_desc_creator_param);
 
 	color_manager_fini(&cm);
 	client_destroy(client);
@@ -1129,19 +1142,19 @@ TEST(set_max_fall_twice)
 {
 	struct client *client;
 	struct color_manager cm;
-	struct xx_image_description_creator_params_v4 *image_desc_creator_param;
+	struct wp_image_description_creator_params_v1 *image_desc_creator_param;
 
 	client = create_client();
 	color_manager_init(&cm, client);
 
 	image_desc_creator_param =
-		xx_color_manager_v4_new_parametric_creator(cm.manager);
-	xx_image_description_creator_params_v4_set_max_fall(image_desc_creator_param, 5.0f);
+		wp_color_manager_v1_create_parametric_creator(cm.manager);
+	wp_image_description_creator_params_v1_set_max_fall(image_desc_creator_param, 5.0f);
 	client_roundtrip(client); /* make sure connection is still valid */
-	xx_image_description_creator_params_v4_set_max_fall(image_desc_creator_param, 5.0f);
-	expect_protocol_error(client, &xx_image_description_creator_params_v4_interface,
-			      XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_ALREADY_SET);
-	xx_image_description_creator_params_v4_destroy(image_desc_creator_param);
+	wp_image_description_creator_params_v1_set_max_fall(image_desc_creator_param, 5.0f);
+	expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
+			      WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_ALREADY_SET);
+	wp_image_description_creator_params_v1_destroy(image_desc_creator_param);
 
 	color_manager_fini(&cm);
 	client_destroy(client);

@@ -790,12 +790,43 @@ cmlcms_send_image_desc_info(struct cm_image_desc_info *cm_image_desc_info,
 		weston_cm_send_primaries(cm_image_desc_info,
 					 &primaries_info->color_gamut);
 
+		/* Target primaries, equal to the primary primaries. */
+		weston_cm_send_target_primaries(cm_image_desc_info,
+						&primaries_info->color_gamut);
+
 		/* sRGB transfer function. */
 		tf_info = weston_color_tf_info_from(compositor, WESTON_TF_GAMMA22);
 		weston_cm_send_tf_named(cm_image_desc_info, tf_info);
+
+		/* Primary luminance, default values from the protocol. */
+		weston_cm_send_luminances(cm_image_desc_info, 0.2, 80.0, 80.0);
+
+		/* Target luminance, min/max equals primary luminance min/max. */
+		weston_cm_send_target_luminances(cm_image_desc_info, 0.2, 80.0);
 	}
 
 	return true;
+}
+
+struct weston_color_profile *
+cmlcms_get_parametric_color_profile(struct weston_color_profile *cprof_base,
+				    char **errmsg)
+{
+	struct weston_color_manager_lcms *cm = to_cmlcms(cprof_base->cm);
+	struct weston_compositor *compositor = cm->base.compositor;
+	struct cmlcms_color_profile *cprof = to_cmlcms_cprof(cprof_base);
+
+	switch(cprof->type) {
+	case CMLCMS_PROFILE_TYPE_ICC:
+		/* TODO: transform an ICC profile into an equivalent parametric one. */
+		str_printf(errmsg, "we still can't create param cprof equivalent to ICC cprof");
+		return NULL;
+	case CMLCMS_PROFILE_TYPE_PARAMS:
+		ref_cprof(cprof);
+		return cprof_base;
+	default:
+		weston_assert_not_reached(compositor, "unknown cprof type");
+	}
 }
 
 void

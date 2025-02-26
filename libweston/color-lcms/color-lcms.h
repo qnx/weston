@@ -177,6 +177,10 @@ bool
 cmlcms_send_image_desc_info(struct cm_image_desc_info *cm_image_desc_info,
 			    struct weston_color_profile *cprof_base);
 
+struct weston_color_profile *
+cmlcms_get_parametric_color_profile(struct weston_color_profile *cprof_base,
+				    char **errmsg);
+
 void
 cmlcms_destroy_color_profile(struct weston_color_profile *cprof_base);
 

@@ -122,13 +122,13 @@ weston_cm_send_icc_file(struct cm_image_desc_info *cm_image_desc_info,
 		return;
 	}
 
-	xx_image_description_info_v4_send_icc_file(cm_image_desc_info->owner,
+	wp_image_description_info_v1_send_icc_file(cm_image_desc_info->owner,
 						   fd, len);
 }
 
 /**
  * For a parametric image description, sends its
- * enum xx_color_manager_v4_primaries code to the client.
+ * enum wp_color_manager_v1_primaries code to the client.
  *
  * This is a helper function that should be used by the color plugin
  * that owns the color profile and has information about it.
@@ -140,7 +140,7 @@ WL_EXPORT void
 weston_cm_send_primaries_named(struct cm_image_desc_info *cm_image_desc_info,
 			       const struct weston_color_primaries_info *primaries_info)
 {
-	xx_image_description_info_v4_send_primaries_named(cm_image_desc_info->owner,
+	wp_image_description_info_v1_send_primaries_named(cm_image_desc_info->owner,
 							  primaries_info->protocol_primaries);
 }
 
@@ -158,24 +158,53 @@ WL_EXPORT void
 weston_cm_send_primaries(struct cm_image_desc_info *cm_image_desc_info,
 			 const struct weston_color_gamut *color_gamut)
 {
-	xx_image_description_info_v4_send_primaries(cm_image_desc_info->owner,
+	wp_image_description_info_v1_send_primaries(cm_image_desc_info->owner,
 						    /* red */
-						    round(color_gamut->primary[0].x * 10000),
-						    round(color_gamut->primary[0].y * 10000),
+						    round(color_gamut->primary[0].x * 1000000),
+						    round(color_gamut->primary[0].y * 1000000),
 						    /* green */
-						    round(color_gamut->primary[1].x * 10000),
-						    round(color_gamut->primary[1].y * 10000),
+						    round(color_gamut->primary[1].x * 1000000),
+						    round(color_gamut->primary[1].y * 1000000),
 						    /* blue */
-						    round(color_gamut->primary[2].x * 10000),
-						    round(color_gamut->primary[2].y * 10000),
+						    round(color_gamut->primary[2].x * 1000000),
+						    round(color_gamut->primary[2].y * 1000000),
 						    /* white point */
-						    round(color_gamut->white_point.x * 10000),
-						    round(color_gamut->white_point.y * 10000));
+						    round(color_gamut->white_point.x * 1000000),
+						    round(color_gamut->white_point.y * 1000000));
+}
+
+/**
+ * For a parametric image description, sends the target color volume primaries
+ * and white point using CIE 1931 xy chromaticity coordinates to the client.
+ *
+ * This is a helper function that should be used by the color plugin
+ * that owns the color profile and has information about it.
+ *
+ * \param cm_image_desc_info The image description info object
+ * \param color_gamut The CIE 1931 xy chromaticity coordinates
+ */
+WL_EXPORT void
+weston_cm_send_target_primaries(struct cm_image_desc_info *cm_image_desc_info,
+				const struct weston_color_gamut *color_gamut)
+{
+	wp_image_description_info_v1_send_target_primaries(cm_image_desc_info->owner,
+							   /* red */
+							   round(color_gamut->primary[0].x * 1000000),
+							   round(color_gamut->primary[0].y * 1000000),
+							   /* green */
+							   round(color_gamut->primary[1].x * 1000000),
+							   round(color_gamut->primary[1].y * 1000000),
+							   /* blue */
+							   round(color_gamut->primary[2].x * 1000000),
+							   round(color_gamut->primary[2].y * 1000000),
+							   /* white point */
+							   round(color_gamut->white_point.x * 1000000),
+							   round(color_gamut->white_point.y * 1000000));
 }
 
 /**
  * For a parametric image description, sends its
- * enum xx_color_manager_v4_transfer_function code to the client.
+ * enum wp_color_manager_v1_transfer_function code to the client.
  *
  * This is a helper function that should be used by the color plugin
  * that owns the color profile and has information about it.
@@ -187,8 +216,49 @@ WL_EXPORT void
 weston_cm_send_tf_named(struct cm_image_desc_info *cm_image_desc_info,
 			const struct weston_color_tf_info *tf_info)
 {
-	xx_image_description_info_v4_send_tf_named(cm_image_desc_info->owner,
+	wp_image_description_info_v1_send_tf_named(cm_image_desc_info->owner,
 						   tf_info->protocol_tf);
+}
+
+/**
+ * For a parametric image description, sends the primary luminances
+ * to the client.
+ *
+ * This is a helper function that should be used by the color plugin
+ * that owns the color profile and has information about it.
+ *
+ * \param cm_image_desc_info The image description info object
+ * \param min_lum The minimum luminance (cd/m²)
+ * \param max_lum The maximum luminance (cd/m²)
+ * \param ref_lum The reference white luminance (cd/m²)
+ */
+WL_EXPORT void
+weston_cm_send_luminances(struct cm_image_desc_info *cm_image_desc_info,
+			  float min_lum, float max_lum, float ref_lum)
+{
+	wp_image_description_info_v1_send_luminances(cm_image_desc_info->owner,
+						     min_lum * 10000,
+						     max_lum, ref_lum);
+}
+
+/**
+ * For a parametric image description, sends the target luminances
+ * to the client.
+ *
+ * This is a helper function that should be used by the color plugin
+ * that owns the color profile and has information about it.
+ *
+ * \param cm_image_desc_info The image description info object
+ * \param min_lum The minimum target luminance (cd/m²)
+ * \param max_lum The maximum target luminance (cd/m²)
+ */
+WL_EXPORT void
+weston_cm_send_target_luminances(struct cm_image_desc_info *cm_image_desc_info,
+				 float min_lum, float max_lum)
+{
+	wp_image_description_info_v1_send_target_luminance(cm_image_desc_info->owner,
+							   min_lum * 10000,
+							   max_lum);
 }
 
 /**
@@ -228,7 +298,7 @@ image_description_info_create(struct wl_client *client, uint32_t version,
 	cm_image_desc_info->compositor = compositor;
 
 	cm_image_desc_info->owner =
-		wl_resource_create(client, &xx_image_description_info_v4_interface,
+		wl_resource_create(client, &wp_image_description_info_v1_interface,
 				   version, cm_image_desc_info_id);
 	if (!cm_image_desc_info->owner) {
 		free(cm_image_desc_info);
@@ -258,7 +328,7 @@ image_description_get_information(struct wl_client *client,
 
 	if (!cm_image_desc) {
 		wl_resource_post_error(cm_image_desc_res,
-				       XX_IMAGE_DESCRIPTION_V4_ERROR_NOT_READY,
+				       WP_IMAGE_DESCRIPTION_V1_ERROR_NOT_READY,
 				       "we gracefully failed to create this image " \
 				       "description");
 		return;
@@ -266,14 +336,14 @@ image_description_get_information(struct wl_client *client,
 
 	if (!cm_image_desc->cprof) {
 		wl_resource_post_error(cm_image_desc_res,
-				       XX_IMAGE_DESCRIPTION_V4_ERROR_NOT_READY,
+				       WP_IMAGE_DESCRIPTION_V1_ERROR_NOT_READY,
 				       "image description not ready yet");
 		return;
 	}
 
 	if (!cm_image_desc->supports_get_info) {
 		wl_resource_post_error(cm_image_desc_res,
-				       XX_IMAGE_DESCRIPTION_V4_ERROR_NO_INFORMATION,
+				       WP_IMAGE_DESCRIPTION_V1_ERROR_NO_INFORMATION,
 				       "get_information is not allowed for this "
 				       "image description");
 		return;
@@ -293,7 +363,7 @@ image_description_get_information(struct wl_client *client,
 	success = cm_image_desc->cm->send_image_desc_info(cm_image_desc_info,
 							  cm_image_desc->cprof);
 	if (success)
-		xx_image_description_info_v4_send_done(cm_image_desc_info->owner);
+		wp_image_description_info_v1_send_done(cm_image_desc_info->owner);
 
 	/* All info sent, so destroy the object. */
 	wl_resource_destroy(cm_image_desc_info->owner);
@@ -331,7 +401,7 @@ image_description_resource_destroy(struct wl_resource *cm_image_desc_res)
 	cm_image_desc_destroy(cm_image_desc);
 }
 
-static const struct xx_image_description_v4_interface
+static const struct wp_image_description_v1_interface
 image_description_implementation = {
 	.destroy = image_description_destroy,
 	.get_information = image_description_get_information,
@@ -352,7 +422,7 @@ cm_image_desc_create(struct weston_color_manager *cm,
 	cm_image_desc = xzalloc(sizeof(*cm_image_desc));
 
 	cm_image_desc->owner =
-		wl_resource_create(client, &xx_image_description_v4_interface,
+		wl_resource_create(client, &wp_image_description_v1_interface,
 				   version, image_description_id);
 	if (!cm_image_desc->owner) {
 		free(cm_image_desc);
@@ -405,7 +475,7 @@ cm_output_get_image_description(struct wl_client *client,
 	 * that they are invalid through that). */
 	if (!head) {
 		cm_image_desc_res =
-			wl_resource_create(client, &xx_image_description_v4_interface,
+			wl_resource_create(client, &wp_image_description_v1_interface,
 					   version, protocol_object_id);
 		if (!cm_image_desc_res) {
 			wl_resource_post_no_memory(cm_output_res);
@@ -416,8 +486,8 @@ cm_output_get_image_description(struct wl_client *client,
 					       &image_description_implementation,
 					       NULL, image_description_resource_destroy);
 
-		xx_image_description_v4_send_failed(cm_image_desc_res,
-						    XX_IMAGE_DESCRIPTION_V4_CAUSE_NO_OUTPUT,
+		wp_image_description_v1_send_failed(cm_image_desc_res,
+						    WP_IMAGE_DESCRIPTION_V1_CAUSE_NO_OUTPUT,
 						    "the wl_output global no longer exists");
 		return;
 	}
@@ -441,7 +511,7 @@ cm_output_get_image_description(struct wl_client *client,
 		return;
 	}
 
-	xx_image_description_v4_send_ready(cm_image_desc->owner,
+	wp_image_description_v1_send_ready(cm_image_desc->owner,
 					   cm_image_desc->cprof->id);
 }
 
@@ -479,7 +549,7 @@ cm_output_resource_destroy(struct wl_resource *cm_output_res)
 	wl_list_remove(wl_resource_get_link(cm_output_res));
 }
 
-static const struct xx_color_management_output_v4_interface
+static const struct wp_color_management_output_v1_interface
 cm_output_implementation = {
 	.destroy = cm_output_destroy,
 	.get_image_description = cm_output_get_image_description,
@@ -506,7 +576,7 @@ weston_output_send_image_description_changed(struct weston_output *output)
 	/* Send the events for each head attached to this weston_output. */
 	wl_list_for_each(head, &output->head_list, output_link) {
 		wl_resource_for_each(res, &head->cm_output_resource_list)
-			xx_color_management_output_v4_send_image_description_changed(res);
+			wp_color_management_output_v1_send_image_description_changed(res);
 
 		/* wl_output.done should be sent after collecting all the
 		 * changes related to the output. But in Weston we are lacking
@@ -536,7 +606,7 @@ cm_get_output(struct wl_client *client, struct wl_resource *cm_res,
 	uint32_t version = wl_resource_get_version(cm_res);
 	struct wl_resource *res;
 
-	res = wl_resource_create(client, &xx_color_management_output_v4_interface,
+	res = wl_resource_create(client, &wp_color_management_output_v1_interface,
 				 version, cm_output_id);
 	if (!res) {
 		wl_resource_post_no_memory(cm_res);
@@ -580,9 +650,8 @@ cm_surface_set_image_description(struct wl_client *client,
 	/* The surface might have been already gone, in such case cm_surface is
 	 * inert. */
 	if (!surface) {
-		/* TODO: This error will be surface intert in the future */
 		wl_resource_post_error(cm_surface_res,
-				       XX_COLOR_MANAGEMENT_SURFACE_V4_ERROR_IMAGE_DESCRIPTION,
+				       WP_COLOR_MANAGEMENT_SURFACE_V1_ERROR_INERT,
 				       "the wl_surface has already been destroyed");
 		return;
 	}
@@ -590,17 +659,16 @@ cm_surface_set_image_description(struct wl_client *client,
 	/* Invalid image description for this request, as we gracefully failed
 	 * to create it. */
 	if (!cm_image_desc) {
-		/* TODO: the version of the xx protocol that we are using still
-		 * does not have an error for this. Fix when we update to the
-		 * next version. */
-		wl_resource_post_no_memory(cm_surface_res);
+		wl_resource_post_error(cm_surface_res,
+				       WP_COLOR_MANAGEMENT_SURFACE_V1_ERROR_IMAGE_DESCRIPTION,
+				       "we gracefully failed to create this image description");
 		return;
 	}
 
 	/* Invalid image description for this request, as it isn't ready yet. */
 	if (!cm_image_desc->cprof) {
 		wl_resource_post_error(cm_surface_res,
-				       XX_COLOR_MANAGEMENT_SURFACE_V4_ERROR_IMAGE_DESCRIPTION,
+				       WP_COLOR_MANAGEMENT_SURFACE_V1_ERROR_IMAGE_DESCRIPTION,
 				       "the image description is not ready");
 		return;
 	}
@@ -611,14 +679,14 @@ cm_surface_set_image_description(struct wl_client *client,
 								protocol_render_intent);
 	if (!render_intent) {
 		wl_resource_post_error(cm_surface_res,
-				       XX_COLOR_MANAGEMENT_SURFACE_V4_ERROR_RENDER_INTENT,
+				       WP_COLOR_MANAGEMENT_SURFACE_V1_ERROR_RENDER_INTENT,
 				       "unknown render intent");
 		return;
 	}
 
 	if (!((cm->supported_rendering_intents >> render_intent->intent) & 1)) {
 		wl_resource_post_error(cm_surface_res,
-				       XX_COLOR_MANAGEMENT_SURFACE_V4_ERROR_RENDER_INTENT,
+				       WP_COLOR_MANAGEMENT_SURFACE_V1_ERROR_RENDER_INTENT,
 				       "unsupported render intent");
 		return;
 	}
@@ -644,9 +712,8 @@ cm_surface_unset_image_description(struct wl_client *client,
 	/* The surface might have been already gone, in such case cm_surface is
 	 * inert. */
 	if (!surface) {
-		/* TODO: This error will be surface intert in the future */
 		wl_resource_post_error(cm_surface_res,
-				       XX_COLOR_MANAGEMENT_SURFACE_V4_ERROR_IMAGE_DESCRIPTION,
+				       WP_COLOR_MANAGEMENT_SURFACE_V1_ERROR_INERT,
 				       "the wl_surface has already been destroyed");
 		return;
 	}
@@ -689,7 +756,7 @@ cm_surface_resource_destroy(struct wl_resource *cm_surface_res)
 	surface->pending.render_intent = NULL;
 }
 
-static const struct xx_color_management_surface_v4_interface
+static const struct wp_color_management_surface_v1_interface
 cm_surface_implementation = {
 	.destroy = cm_surface_destroy,
 	.set_image_description = cm_surface_set_image_description,
@@ -710,12 +777,12 @@ cm_get_surface(struct wl_client *client, struct wl_resource *cm_res,
 
 	if (surface->cm_surface) {
 		wl_resource_post_error(cm_res,
-				       XX_COLOR_MANAGER_V4_ERROR_SURFACE_EXISTS,
+				       WP_COLOR_MANAGER_V1_ERROR_SURFACE_EXISTS,
 				       "surface already requested");
 		return;
 	}
 
-	res = wl_resource_create(client, &xx_color_management_surface_v4_interface,
+	res = wl_resource_create(client, &wp_color_management_surface_v1_interface,
 				 version, cm_surface_id);
 	if (!res) {
 		wl_resource_post_no_memory(cm_res);
@@ -729,13 +796,13 @@ cm_get_surface(struct wl_client *client, struct wl_resource *cm_res,
 }
 
 /**
- * Client will not use the cm_feedback_surface anymore, so we destroy its resource.
+ * Client will not use the cm_surface_feedback anymore, so we destroy its resource.
  */
 static void
-cm_feedback_surface_destroy(struct wl_client *client,
-			    struct wl_resource *cm_feedback_surface_res)
+cm_surface_feedback_destroy(struct wl_client *client,
+			    struct wl_resource *cm_surface_feedback_res)
 {
-	wl_resource_destroy(cm_feedback_surface_res);
+	wl_resource_destroy(cm_surface_feedback_res);
 }
 
 /**
@@ -743,20 +810,20 @@ cm_feedback_surface_destroy(struct wl_client *client,
  * the surface.
  */
 static void
-cm_feedback_surface_get_preferred(struct wl_client *client,
-				  struct wl_resource *cm_feedback_surface_res,
+cm_surface_feedback_get_preferred(struct wl_client *client,
+				  struct wl_resource *cm_surface_feedback_res,
 				  uint32_t protocol_object_id)
 {
-	struct weston_surface *surface = wl_resource_get_user_data(cm_feedback_surface_res);
-	uint32_t version = wl_resource_get_version(cm_feedback_surface_res);
+	struct weston_surface *surface = wl_resource_get_user_data(cm_surface_feedback_res);
+	uint32_t version = wl_resource_get_version(cm_surface_feedback_res);
 	struct weston_color_manager *cm;
 	struct cm_image_desc *cm_image_desc;
 
-	/* The surface might have been already gone, in such case cm_feedback_surface is
+	/* The surface might have been already gone, in such case cm_surface_feedback is
 	 * inert. */
 	if (!surface) {
-		wl_resource_post_error(cm_feedback_surface_res,
-				       XX_COLOR_MANAGEMENT_FEEDBACK_SURFACE_V4_ERROR_INERT,
+		wl_resource_post_error(cm_surface_feedback_res,
+				       WP_COLOR_MANAGEMENT_SURFACE_FEEDBACK_V1_ERROR_INERT,
 				       "the wl_surface has already been destroyed");
 		return;
 	}
@@ -767,38 +834,93 @@ cm_feedback_surface_get_preferred(struct wl_client *client,
 					     client, version, protocol_object_id,
 					     YES_GET_INFO);
 	if (!cm_image_desc) {
-		wl_resource_post_no_memory(cm_feedback_surface_res);
+		wl_resource_post_no_memory(cm_surface_feedback_res);
 		return;
 	}
 
-	xx_image_description_v4_send_ready(cm_image_desc->owner,
+	wp_image_description_v1_send_ready(cm_image_desc->owner,
 					   cm_image_desc->cprof->id);
 }
 
-static const struct xx_color_management_feedback_surface_v4_interface
-cm_feedback_surface_implementation = {
-	.destroy = cm_feedback_surface_destroy,
-	.get_preferred = cm_feedback_surface_get_preferred,
+static void
+cm_surface_feedback_get_preferred_parametric(struct wl_client *client,
+					     struct wl_resource *cm_surface_feedback_res,
+					     uint32_t protocol_object_id)
+{
+	struct weston_surface *surface = wl_resource_get_user_data(cm_surface_feedback_res);
+	uint32_t version = wl_resource_get_version(cm_surface_feedback_res);
+	struct weston_color_manager *cm;
+	struct cm_image_desc *cm_image_desc;
+	char *err_msg;
+
+	/* The surface might have been already gone, in such case cm_surface_feedback is
+	 * inert. */
+	if (!surface) {
+		wl_resource_post_error(cm_surface_feedback_res,
+				       WP_COLOR_MANAGEMENT_SURFACE_FEEDBACK_V1_ERROR_INERT,
+				       "the wl_surface has already been destroyed");
+		return;
+	}
+
+	cm = surface->compositor->color_manager;
+
+	/* Create the image description with cprof == NULL. */
+	cm_image_desc = cm_image_desc_create(cm, NULL, client, version,
+					     protocol_object_id, YES_GET_INFO);
+	if (!cm_image_desc) {
+		wl_resource_post_no_memory(cm_surface_feedback_res);
+		return;
+	}
+
+	cm_image_desc->cprof =
+		cm->get_parametric_color_profile(surface->preferred_color_profile,
+						 &err_msg);
+
+	/* Failed to get a parametric cprof for surface preferred cprof. */
+	if (!cm_image_desc->cprof) {
+		wp_image_description_v1_send_failed(cm_image_desc->owner,
+						    WP_IMAGE_DESCRIPTION_V1_CAUSE_UNSUPPORTED,
+						    err_msg);
+		free(err_msg);
+
+		/* Failed to create the image description, let's set the
+		 * resource userdata to NULL (and other functions can tell that
+		 * it is invalid through that). */
+		wl_resource_set_user_data(cm_image_desc->owner, NULL);
+		cm_image_desc_destroy(cm_image_desc);
+
+		return;
+	}
+
+	wp_image_description_v1_send_ready(cm_image_desc->owner,
+					   cm_image_desc->cprof->id);
+}
+
+static const struct wp_color_management_surface_feedback_v1_interface
+cm_surface_feedback_implementation = {
+	.destroy = cm_surface_feedback_destroy,
+	.get_preferred = cm_surface_feedback_get_preferred,
+	.get_preferred_parametric = cm_surface_feedback_get_preferred_parametric,
 };
 
 /**
- * Resource destruction function for the cm_feedback_surface.
+ * Resource destruction function for the cm_surface_feedback.
  */
 static void
-cm_feedback_surface_resource_destroy(struct wl_resource *cm_feedback_surface_res)
+cm_surface_feedback_resource_destroy(struct wl_resource *cm_surface_feedback_res)
 {
-	struct weston_surface *surface = wl_resource_get_user_data(cm_feedback_surface_res);
+	struct weston_surface *surface = wl_resource_get_user_data(cm_surface_feedback_res);
 
-	/* For inert cm_feedback_surface, we don't have to do anything.
+	/* For inert cm_surface_feedback, we don't have to do anything.
 	 *
-	 * We already did what was necessary when cm_feedback_surface became
+	 * We already did what was necessary when cm_surface_feedback became
 	 * inert, in the surface destruction process: weston_surface_unref(). */
 	if (!surface)
 		return;
 
-	/* We are destroying the cm_feedback_surface_res, so simply remove it from
-	 * weston_surface::cm_feedback_surface_resource_list. */
-	wl_list_remove(wl_resource_get_link(cm_feedback_surface_res));
+	/* We are destroying the cm_surface_feedback_res, so simply remove it from
+	 * weston_surface::cm_surface_feedback_resource_list. */
+	wl_list_remove(wl_resource_get_link(cm_surface_feedback_res));
 }
 
 /**
@@ -810,33 +932,34 @@ void
 weston_surface_send_preferred_image_description_changed(struct weston_surface *surface)
 {
 	struct wl_resource *res;
+	uint32_t id = surface->preferred_color_profile->id;
 
-	wl_resource_for_each(res, &surface->cm_feedback_surface_resource_list)
-		xx_color_management_feedback_surface_v4_send_preferred_changed(res);
+	wl_resource_for_each(res, &surface->cm_surface_feedback_resource_list)
+		wp_color_management_surface_feedback_v1_send_preferred_changed(res, id);
 }
 
 /**
- * Client called get_feedback_surface(). We already have the backing object, so just
+ * Client called get_surface_feedback(). We already have the backing object, so just
  * create a resource for the client.
  */
 static void
-cm_get_feedback_surface(struct wl_client *client, struct wl_resource *cm_res,
+cm_get_surface_feedback(struct wl_client *client, struct wl_resource *cm_res,
 			uint32_t cm_surface_id, struct wl_resource *surface_res)
 {
 	struct weston_surface *surface = wl_resource_get_user_data(surface_res);
 	uint32_t version = wl_resource_get_version(cm_res);
 	struct wl_resource *res;
 
-	res = wl_resource_create(client, &xx_color_management_feedback_surface_v4_interface,
+	res = wl_resource_create(client, &wp_color_management_surface_feedback_v1_interface,
 				 version, cm_surface_id);
 	if (!res) {
 		wl_resource_post_no_memory(cm_res);
 		return;
 	}
 
-	wl_resource_set_implementation(res, &cm_feedback_surface_implementation,
-				       surface, cm_feedback_surface_resource_destroy);
-	wl_list_insert(&surface->cm_feedback_surface_resource_list, wl_resource_get_link(res));
+	wl_resource_set_implementation(res, &cm_surface_feedback_implementation,
+				       surface, cm_surface_feedback_resource_destroy);
+	wl_list_insert(&surface->cm_surface_feedback_resource_list, wl_resource_get_link(res));
 }
 
 /**
@@ -854,27 +977,27 @@ cm_creator_icc_set_icc_file(struct wl_client *client,
 	const char *err_msg;
 
 	if (cm_creator_icc->icc_data_length > 0) {
-		err_code = XX_IMAGE_DESCRIPTION_CREATOR_ICC_V4_ERROR_ALREADY_SET;
+		err_code = WP_IMAGE_DESCRIPTION_CREATOR_ICC_V1_ERROR_ALREADY_SET;
 		err_msg = "ICC file was already set";
 		goto err;
 	}
 
-	if (length == 0 || length > (4 * 1024 * 1024)) {
-		err_code = XX_IMAGE_DESCRIPTION_CREATOR_ICC_V4_ERROR_BAD_SIZE;
+	if (length == 0 || length > (32 * 1024 * 1024)) {
+		err_code = WP_IMAGE_DESCRIPTION_CREATOR_ICC_V1_ERROR_BAD_SIZE;
 		err_msg = "invalid ICC file size, should be in the " \
-			  "(0, 4MB] interval";
+			  "(0, 32MB] interval";
 		goto err;
 	}
 
 	flags = fcntl(icc_profile_fd, F_GETFL);
 	if ((flags & O_ACCMODE) == O_WRONLY) {
-		err_code = XX_IMAGE_DESCRIPTION_CREATOR_ICC_V4_ERROR_BAD_FD;
+		err_code = WP_IMAGE_DESCRIPTION_CREATOR_ICC_V1_ERROR_BAD_FD;
 		err_msg = "ICC fd is not readable";
 		goto err;
 	}
 
 	if (lseek(icc_profile_fd, 0, SEEK_CUR) < 0) {
-		err_code = XX_IMAGE_DESCRIPTION_CREATOR_ICC_V4_ERROR_BAD_FD;
+		err_code = WP_IMAGE_DESCRIPTION_CREATOR_ICC_V1_ERROR_BAD_FD;
 		err_msg = "ICC fd is not seekable";
 		goto err;
 	}
@@ -930,13 +1053,13 @@ create_image_description_color_profile_from_icc_creator(struct cm_image_desc *cm
 	bool ret;
 
 	if (!do_length_and_offset_fit(cm_creator_icc)) {
-		xx_image_description_v4_send_failed(cm_image_desc->owner,
-						    XX_IMAGE_DESCRIPTION_V4_CAUSE_OPERATING_SYSTEM,
+		wp_image_description_v1_send_failed(cm_image_desc->owner,
+						    WP_IMAGE_DESCRIPTION_V1_CAUSE_OPERATING_SYSTEM,
 						    "length + offset does not fit off_t");
 		return -1;
 	}
 
-	/* Create buffer to read ICC profile. As they may have up to 4MB, we
+	/* Create buffer to read ICC profile. As they may have up to 32MB, we
 	 * send OOM if something fails (instead of using xalloc). */
 	icc_prof_data = zalloc(cm_creator_icc->icc_data_length);
 	if (!icc_prof_data) {
@@ -964,8 +1087,8 @@ create_image_description_color_profile_from_icc_creator(struct cm_image_desc *cm
 			/* Reading the ICC failed */
 			free(icc_prof_data);
 			str_printf(&err_msg, "failed to read ICC file: %s", strerror(errno));
-			xx_image_description_v4_send_failed(cm_image_desc->owner,
-							    XX_IMAGE_DESCRIPTION_V4_CAUSE_OPERATING_SYSTEM,
+			wp_image_description_v1_send_failed(cm_image_desc->owner,
+							    WP_IMAGE_DESCRIPTION_V1_CAUSE_OPERATING_SYSTEM,
 							    err_msg);
 			free(err_msg);
 			return -1;
@@ -976,7 +1099,7 @@ create_image_description_color_profile_from_icc_creator(struct cm_image_desc *cm
 			 * the given ICC file don't simply change. */
 			free(icc_prof_data);
 			wl_resource_post_error(cm_creator_icc->owner,
-					       XX_IMAGE_DESCRIPTION_CREATOR_ICC_V4_ERROR_OUT_OF_FILE,
+					       WP_IMAGE_DESCRIPTION_CREATOR_ICC_V1_ERROR_OUT_OF_FILE,
 					       "tried to read ICC beyond EOF");
 			return -1;
 		}
@@ -998,15 +1121,15 @@ create_image_description_color_profile_from_icc_creator(struct cm_image_desc *cm
 		 * color-manager plugins and decide if we should gracefully fail
 		 * or return a protocol error.
 		 */
-		xx_image_description_v4_send_failed(cm_image_desc->owner,
-						    XX_IMAGE_DESCRIPTION_V4_CAUSE_UNSUPPORTED,
+		wp_image_description_v1_send_failed(cm_image_desc->owner,
+						    WP_IMAGE_DESCRIPTION_V1_CAUSE_UNSUPPORTED,
 						    err_msg);
 		free(err_msg);
 		return -1;
 	}
 
 	cm_image_desc->cprof = cprof;
-	xx_image_description_v4_send_ready(cm_image_desc->owner,
+	wp_image_description_v1_send_ready(cm_image_desc->owner,
 					   cm_image_desc->cprof->id);
 	return 0;
 }
@@ -1030,7 +1153,7 @@ cm_creator_icc_create(struct wl_client *client, struct wl_resource *resource,
 
 	if (cm_creator_icc->icc_data_length == 0) {
 		wl_resource_post_error(resource,
-				       XX_IMAGE_DESCRIPTION_CREATOR_ICC_V4_ERROR_INCOMPLETE_SET,
+				       WP_IMAGE_DESCRIPTION_CREATOR_ICC_V1_ERROR_INCOMPLETE_SET,
 				       "trying to create image description before " \
 				       "setting the ICC file");
 		return;
@@ -1075,7 +1198,7 @@ cm_creator_icc_destructor(struct wl_resource *resource)
 	free(cm_creator_icc);
 }
 
-static const struct xx_image_description_creator_icc_v4_interface
+static const struct wp_image_description_creator_icc_v1_interface
 cm_creator_icc_implementation = {
 	.create = cm_creator_icc_create,
 	.set_icc_file = cm_creator_icc_set_icc_file,
@@ -1085,8 +1208,9 @@ cm_creator_icc_implementation = {
  * Creates an ICC-based image description creator for the client.
  */
 static void
-cm_new_image_description_creator_icc(struct wl_client *client, struct wl_resource *cm_res,
-				     uint32_t cm_creator_icc_id)
+cm_create_image_description_creator_icc(struct wl_client *client,
+					struct wl_resource *cm_res,
+					uint32_t cm_creator_icc_id)
 {
 	struct cm_creator_icc *cm_creator_icc;
 	struct weston_compositor *compositor = wl_resource_get_user_data(cm_res);
@@ -1094,7 +1218,7 @@ cm_new_image_description_creator_icc(struct wl_client *client, struct wl_resourc
 	uint32_t version = wl_resource_get_version(cm_res);
 
 	if (!((cm->supported_color_features >> WESTON_COLOR_FEATURE_ICC) & 1)) {
-		wl_resource_post_error(cm_res, XX_COLOR_MANAGER_V4_ERROR_UNSUPPORTED_FEATURE,
+		wl_resource_post_error(cm_res, WP_COLOR_MANAGER_V1_ERROR_UNSUPPORTED_FEATURE,
 				       "creating ICC image descriptions is not supported");
 		return;
 	}
@@ -1105,7 +1229,7 @@ cm_new_image_description_creator_icc(struct wl_client *client, struct wl_resourc
 	cm_creator_icc->icc_profile_fd = -1;
 
 	cm_creator_icc->owner =
-		wl_resource_create(client, &xx_image_description_creator_icc_v4_interface,
+		wl_resource_create(client, &wp_image_description_creator_icc_v1_interface,
 				   version, cm_creator_icc_id);
 	if (!cm_creator_icc->owner)
 		goto err;
@@ -1131,17 +1255,17 @@ cm_creator_params_error_to_protocol(struct weston_compositor *compositor,
 {
 	switch(err) {
 	case WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_TF:
-		return XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INVALID_TF;
-	case WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_PRIMARIES:
-		return XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INVALID_PRIMARIES;
+		return WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INVALID_TF;
+	case WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_PRIMARIES_NAMED:
+		return WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INVALID_PRIMARIES_NAMED;
 	case WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE:
-		return XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INVALID_LUMINANCE;
+		return WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INVALID_LUMINANCE;
 	case WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INCOMPLETE_SET:
-		return XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INCOMPLETE_SET;
+		return WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INCOMPLETE_SET;
 	case WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_ALREADY_SET:
-		return XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_ALREADY_SET;
+		return WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_ALREADY_SET;
 	case WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_UNSUPPORTED:
-		return XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_UNSUPPORTED_FEATURE;
+		return WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_UNSUPPORTED_FEATURE;
 	case WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_CREATE_FAILED:
 	case WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_CIE_XY_OUT_OF_RANGE:
 		/* These are not protocol errors, but should result in graceful
@@ -1192,7 +1316,7 @@ cm_creator_params_set_primaries_named(struct wl_client *client, struct wl_resour
 	primaries_info = weston_color_primaries_info_from_protocol(primaries_named);
 	if (!primaries_info) {
 		wl_resource_post_error(resource,
-				       XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INVALID_PRIMARIES,
+				       WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INVALID_PRIMARIES_NAMED,
 				       "invalid primaries named: %u", primaries_named);
 		return;
 	}
@@ -1205,7 +1329,7 @@ cm_creator_params_set_primaries_named(struct wl_client *client, struct wl_resour
 /**
  * Set primaries for parametric-based image description creator object.
  *
- * The primaries we receive from clients is multiplied by 10000.
+ * The primaries we receive from clients are multiplied by 1000000.
  */
 static void
 cm_creator_params_set_primaries(struct wl_client *client, struct wl_resource *resource,
@@ -1218,14 +1342,14 @@ cm_creator_params_set_primaries(struct wl_client *client, struct wl_resource *re
 		wl_resource_get_user_data(resource);
 	struct weston_color_gamut primaries;
 
-	primaries.primary[0].x = r_x / 10000.0f;
-	primaries.primary[0].y = r_y / 10000.0f;
-	primaries.primary[1].x = g_x / 10000.0f;
-	primaries.primary[1].y = g_y / 10000.0f;
-	primaries.primary[2].x = b_x / 10000.0f;
-	primaries.primary[2].y = b_y / 10000.0f;
-	primaries.white_point.x = w_x / 10000.0f;
-	primaries.white_point.y = w_y / 10000.0f;
+	primaries.primary[0].x = r_x / 1000000.0f;
+	primaries.primary[0].y = r_y / 1000000.0f;
+	primaries.primary[1].x = g_x / 1000000.0f;
+	primaries.primary[1].y = g_y / 1000000.0f;
+	primaries.primary[2].x = b_x / 1000000.0f;
+	primaries.primary[2].y = b_y / 1000000.0f;
+	primaries.white_point.x = w_x / 1000000.0f;
+	primaries.white_point.y = w_y / 1000000.0f;
 
 	if (!weston_color_profile_param_builder_set_primaries(cm_creator_params->builder,
 							      &primaries))
@@ -1246,7 +1370,7 @@ cm_creator_params_set_tf_named(struct wl_client *client, struct wl_resource *res
 	tf_info = weston_color_tf_info_from_protocol(tf_named);
 	if (!tf_info) {
 		wl_resource_post_error(resource,
-				       XX_IMAGE_DESCRIPTION_CREATOR_PARAMS_V4_ERROR_INVALID_TF,
+				       WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INVALID_TF,
 				       "invalid tf named: %u", tf_named);
 		return;
 	}
@@ -1295,7 +1419,7 @@ cm_creator_params_set_luminances(struct wl_client *client, struct wl_resource *r
 /**
  * Set mastering display primaries for parametric-based image description creator object.
  *
- * The primaries we receive from clients is multiplied by 10000.
+ * The primaries we receive from clients are multiplied by 1000000.
  */
 static void
 cm_creator_params_set_mastering_display_primaries(struct wl_client *client,
@@ -1309,14 +1433,14 @@ cm_creator_params_set_mastering_display_primaries(struct wl_client *client,
 		wl_resource_get_user_data(resource);
 	struct weston_color_gamut primaries;
 
-	primaries.primary[0].x = r_x / 10000.0f;
-	primaries.primary[0].y = r_y / 10000.0f;
-	primaries.primary[1].x = g_x / 10000.0f;
-	primaries.primary[1].y = g_y / 10000.0f;
-	primaries.primary[2].x = b_x / 10000.0f;
-	primaries.primary[2].y = b_y / 10000.0f;
-	primaries.white_point.x = w_x / 10000.0f;
-	primaries.white_point.y = w_y / 10000.0f;
+	primaries.primary[0].x = r_x / 1000000.0f;
+	primaries.primary[0].y = r_y / 1000000.0f;
+	primaries.primary[1].x = g_x / 1000000.0f;
+	primaries.primary[1].y = g_y / 1000000.0f;
+	primaries.primary[2].x = b_x / 1000000.0f;
+	primaries.primary[2].y = b_y / 1000000.0f;
+	primaries.white_point.x = w_x / 1000000.0f;
+	primaries.white_point.y = w_y / 1000000.0f;
 
 	if (!weston_color_profile_param_builder_set_target_primaries(cm_creator_params->builder,
 								     &primaries))
@@ -1407,7 +1531,7 @@ cm_creator_params_create(struct wl_client *client, struct wl_resource *resource,
 	cm_creator_params->builder = NULL;
 
 	if (cm_image_desc->cprof) {
-		xx_image_description_v4_send_ready(cm_image_desc->owner,
+		wp_image_description_v1_send_ready(cm_image_desc->owner,
 						   cm_image_desc->cprof->id);
 	} else {
 		protocol_err = cm_creator_params_error_to_protocol(compositor, err);
@@ -1415,8 +1539,8 @@ cm_creator_params_create(struct wl_client *client, struct wl_resource *resource,
 			wl_resource_post_error(cm_creator_params->owner,
 					       protocol_err, "%s", err_msg);
 		else
-			xx_image_description_v4_send_failed(cm_image_desc->owner,
-							    XX_IMAGE_DESCRIPTION_V4_CAUSE_UNSUPPORTED,
+			wp_image_description_v1_send_failed(cm_image_desc->owner,
+							    WP_IMAGE_DESCRIPTION_V1_CAUSE_UNSUPPORTED,
 							    err_msg);
 		free(err_msg);
 
@@ -1448,7 +1572,7 @@ cm_creator_params_destructor(struct wl_resource *resource)
 	free(cm_creator_params);
 }
 
-static const struct xx_image_description_creator_params_v4_interface
+static const struct wp_image_description_creator_params_v1_interface
 cm_creator_params_implementation = {
 	.set_primaries_named = cm_creator_params_set_primaries_named,
 	.set_primaries = cm_creator_params_set_primaries,
@@ -1466,8 +1590,9 @@ cm_creator_params_implementation = {
  * Creates a parametric image description creator for the client.
  */
 static void
-cm_new_image_description_creator_params(struct wl_client *client, struct wl_resource *cm_res,
-					uint32_t cm_creator_params_id)
+cm_create_image_description_creator_params(struct wl_client *client,
+					   struct wl_resource *cm_res,
+					   uint32_t cm_creator_params_id)
 {
 	struct cm_creator_params *cm_creator_params;
 	struct weston_compositor *compositor = wl_resource_get_user_data(cm_res);
@@ -1475,7 +1600,7 @@ cm_new_image_description_creator_params(struct wl_client *client, struct wl_reso
 	uint32_t version = wl_resource_get_version(cm_res);
 
 	if (!((cm->supported_color_features >> WESTON_COLOR_FEATURE_PARAMETRIC) & 1)) {
-		wl_resource_post_error(cm_res, XX_COLOR_MANAGER_V4_ERROR_UNSUPPORTED_FEATURE,
+		wl_resource_post_error(cm_res, WP_COLOR_MANAGER_V1_ERROR_UNSUPPORTED_FEATURE,
 				       "creating parametric image descriptions " \
 				       "is not supported");
 		return;
@@ -1489,7 +1614,7 @@ cm_new_image_description_creator_params(struct wl_client *client, struct wl_reso
 		weston_color_profile_param_builder_create(compositor);
 
 	cm_creator_params->owner =
-		wl_resource_create(client, &xx_image_description_creator_params_v4_interface,
+		wl_resource_create(client, &wp_image_description_creator_params_v1_interface,
 				   version, cm_creator_params_id);
 	if (!cm_creator_params->owner)
 		goto err;
@@ -1505,6 +1630,15 @@ err:
 	wl_resource_post_no_memory(cm_res);
 }
 
+static void
+cm_create_windows_scrgb(struct wl_client *client, struct wl_resource *cm_res,
+			uint32_t image_description)
+{
+	wl_resource_post_error(cm_res,
+			       WP_COLOR_MANAGER_V1_ERROR_UNSUPPORTED_FEATURE,
+			       "creating windows scrgb is not supported");
+}
+
 /**
  * Client will not use the color management object anymore, so we destroy its
  * resource. That should not affect the other objects in any way.
@@ -1515,14 +1649,15 @@ cm_destroy(struct wl_client *client, struct wl_resource *cm_res)
 	wl_resource_destroy(cm_res);
 }
 
-static const struct xx_color_manager_v4_interface
+static const struct wp_color_manager_v1_interface
 color_manager_implementation = {
 	.destroy = cm_destroy,
 	.get_output = cm_get_output,
 	.get_surface = cm_get_surface,
-	.get_feedback_surface = cm_get_feedback_surface,
-	.new_icc_creator = cm_new_image_description_creator_icc,
-	.new_parametric_creator = cm_new_image_description_creator_params,
+	.get_surface_feedback = cm_get_surface_feedback,
+	.create_icc_creator = cm_create_image_description_creator_icc,
+	.create_parametric_creator = cm_create_image_description_creator_params,
+	.create_windows_scrgb = cm_create_windows_scrgb,
 };
 
 /**
@@ -1541,7 +1676,7 @@ bind_color_management(struct wl_client *client, void *data, uint32_t version,
 	const struct weston_color_tf_info *tf;
 	unsigned int i;
 
-	resource = wl_resource_create(client, &xx_color_manager_v4_interface,
+	resource = wl_resource_create(client, &wp_color_manager_v1_interface,
 				      version, id);
 	if (!resource) {
 		wl_client_post_no_memory(client);
@@ -1556,7 +1691,7 @@ bind_color_management(struct wl_client *client, void *data, uint32_t version,
 		if (!((cm->supported_color_features >> i) & 1))
 			continue;
 		feature_info = weston_color_feature_info_from(compositor, i);
-		xx_color_manager_v4_send_supported_feature(resource,
+		wp_color_manager_v1_send_supported_feature(resource,
 							   feature_info->protocol_feature);
 	}
 
@@ -1565,7 +1700,7 @@ bind_color_management(struct wl_client *client, void *data, uint32_t version,
 		if (!((cm->supported_rendering_intents >> i) & 1))
 			continue;
 		render_intent = weston_render_intent_info_from(compositor, i);
-		xx_color_manager_v4_send_supported_intent(resource,
+		wp_color_manager_v1_send_supported_intent(resource,
 							  render_intent->protocol_intent);
 	}
 
@@ -1574,7 +1709,7 @@ bind_color_management(struct wl_client *client, void *data, uint32_t version,
 		if (!((cm->supported_primaries_named >> i) & 1))
 			continue;
 		primaries = weston_color_primaries_info_from(compositor, i);
-		xx_color_manager_v4_send_supported_primaries_named(resource,
+		wp_color_manager_v1_send_supported_primaries_named(resource,
 								   primaries->protocol_primaries);
 	}
 
@@ -1583,15 +1718,17 @@ bind_color_management(struct wl_client *client, void *data, uint32_t version,
 		if (!((cm->supported_tf_named >> i) & 1))
 			continue;
 		tf = weston_color_tf_info_from(compositor, i);
-		xx_color_manager_v4_send_supported_tf_named(resource,
+		wp_color_manager_v1_send_supported_tf_named(resource,
 							    tf->protocol_tf);
 	}
+
+	wp_color_manager_v1_send_done(resource);
 }
 
 /** Advertise color-management support
  *
  * Calling this initializes the color-management protocol support, so that
- * xx_color_manager_v4_interface will be advertised to clients. Essentially it
+ * wp_color_manager_v1_interface will be advertised to clients. Essentially it
  * creates a global. Do not call this function multiple times in the
  * compositor's lifetime. There is no way to deinit explicitly, globals will be
  * reaped when the wl_display gets destroyed.
@@ -1609,7 +1746,7 @@ weston_compositor_enable_color_management_protocol(struct weston_compositor *com
 				 WESTON_RENDER_INTENT_PERCEPTUAL);
 
 	if (!wl_global_create(compositor->wl_display,
-			      &xx_color_manager_v4_interface,
+			      &wp_color_manager_v1_interface,
 			      version, compositor, bind_color_management))
 		return -1;
 

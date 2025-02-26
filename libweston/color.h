@@ -540,6 +540,21 @@ struct weston_color_manager {
 	(*send_image_desc_info)(struct cm_image_desc_info *cm_image_desc_info,
 				struct weston_color_profile *cprof_base);
 
+	/** Given a color profile, returns a reference to a profile that is
+	 * guaranteed to be parametric and which is equivalent to the given
+	 * profile.
+	 *
+	 * \param cprof_base The color profile.
+	 * \param errmsg On success, untouched. On failure, a pointer to a
+	 * string describing the error is stored here. The string must be
+	 * free()'d.
+	 * \return A reference to an equivalent parametric color profile, or
+	 * NULL on failure.
+	 */
+	struct weston_color_profile *
+	(*get_parametric_color_profile)(struct weston_color_profile *cprof_base,
+					char **errmsg);
+
 	/** Destroy a color transform after refcount fell to zero */
 	void
 	(*destroy_color_transform)(struct weston_color_transform *xform);
