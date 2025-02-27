@@ -4683,6 +4683,8 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 		weston_compositor_add_screenshot_authority(wet.compositor,
 							   &wet.screenshot_auth,
 							   screenshot_allow_all);
+
+		weston_compositor_arm_surface_counter_fps(wet.compositor);
 	}
 
 	if (flight_rec)

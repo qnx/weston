@@ -9718,9 +9718,21 @@ weston_compositor_create_surface_counter_fps(struct weston_compositor *ec, uint3
 
 	ec->perf_surface_stats.frame_counter_timer =
 		wl_event_loop_add_timer(loop, surface_statistics_timer_handler, ec);
+}
 
+WL_EXPORT void
+weston_compositor_arm_surface_counter_fps(struct weston_compositor *ec)
+{
+	assert(ec->perf_surface_stats.frame_counter_timer);
 	wl_event_source_timer_update(ec->perf_surface_stats.frame_counter_timer,
 				     1000 * ec->perf_surface_stats.frame_counter_interval);
+}
+
+WL_EXPORT void
+weston_compositor_disarm_surface_counter_fps(struct weston_compositor *ec)
+{
+	assert(ec->perf_surface_stats.frame_counter_timer);
+	wl_event_source_timer_update(ec->perf_surface_stats.frame_counter_timer, 0);
 }
 
 /**

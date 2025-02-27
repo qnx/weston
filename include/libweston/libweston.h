@@ -2896,6 +2896,12 @@ weston_output_set_vrr_mode(struct weston_output *output,
 uint32_t
 weston_output_get_supported_vrr_modes(struct weston_output *output);
 
+void
+weston_compositor_arm_surface_counter_fps(struct weston_compositor *ec);
+
+void
+weston_compositor_disarm_surface_counter_fps(struct weston_compositor *ec);
+
 #ifdef  __cplusplus
 }
 #endif
