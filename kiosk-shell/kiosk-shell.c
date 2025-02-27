@@ -147,9 +147,6 @@ kiosk_shell_output_set_active_surface_tree(struct kiosk_shell_output *shoutput,
 static void
 kiosk_shell_output_raise_surface_subtree(struct kiosk_shell_output *shoutput,
 					 struct kiosk_shell_surface *shroot);
-static struct kiosk_shell_output *
-kiosk_shell_find_shell_output(struct kiosk_shell *shell,
-			      struct weston_output *output);
 
 static void
 kiosk_shell_surface_notify_parent_destroy(struct wl_listener *listener, void *data)
@@ -271,12 +268,11 @@ kiosk_shell_surface_find_best_output(struct kiosk_shell_surface *shsurf)
 
 	output = weston_shell_utils_get_focused_output(shsurf->shell->compositor);
 	if (output)
-		return kiosk_shell_find_shell_output(shsurf->shell,
-						     output);
+		return weston_output_get_shell_private(output);
+
 	output = weston_shell_utils_get_default_output(shsurf->shell->compositor);
 	if (output)
-		return kiosk_shell_find_shell_output(shsurf->shell,
-						     output);
+		return weston_output_get_shell_private(output);
 
 	return NULL;
 }
@@ -824,6 +820,8 @@ kiosk_shell_output_create(struct kiosk_shell *shell, struct weston_output *outpu
 
 	wl_list_insert(shell->output_list.prev, &shoutput->link);
 
+	weston_output_set_shell_private(output, shoutput);
+
 	kiosk_shell_output_recreate_background(shoutput);
 	kiosk_shell_output_configure(shoutput);
 
@@ -1136,7 +1134,7 @@ desktop_surface_fullscreen_requested(struct weston_desktop_surface *desktop_surf
 	struct kiosk_shell_surface *shsurf =
 		weston_desktop_surface_get_user_data(desktop_surface);
 	struct kiosk_shell_output *shoutput =
-		kiosk_shell_find_shell_output(shsurf->shell, output);
+		weston_output_get_shell_private(output);
 	/* We should normally be able to ignore fullscreen requests for
 	 * top-level surfaces, since we set them as fullscreen at creation
 	 * time. However, xwayland surfaces set their internal WM state
@@ -1234,20 +1232,6 @@ static const struct weston_desktop_api kiosk_shell_desktop_api = {
  * kiosk_shell
  */
 
-static struct kiosk_shell_output *
-kiosk_shell_find_shell_output(struct kiosk_shell *shell,
-			      struct weston_output *output)
-{
-	struct kiosk_shell_output *shoutput;
-
-	wl_list_for_each(shoutput, &shell->output_list, link) {
-		if (shoutput->output == output)
-			return shoutput;
-	}
-
-	return NULL;
-}
-
 static void
 kiosk_shell_activate_view(struct kiosk_shell *shell,
 			  struct weston_view *view,
@@ -1336,7 +1320,7 @@ kiosk_shell_handle_output_resized(struct wl_listener *listener, void *data)
 		container_of(listener, struct kiosk_shell, output_resized_listener);
 	struct weston_output *output = data;
 	struct kiosk_shell_output *shoutput =
-		kiosk_shell_find_shell_output(shell, output);
+		weston_output_get_shell_private(output);
 	struct weston_view *view;
 
 	kiosk_shell_output_recreate_background(shoutput);

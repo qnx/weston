@@ -261,3 +261,45 @@ weston_shell_utils_view_get_layer_position(struct weston_view *view)
 
 	return view->layer_link.layer->position;
 }
+
+/** Assign shell private data to an output
+ *
+ * Shells will have their own private structures for output management.
+ * Some callbacks will provide a weston_output to the shell, and the
+ * shell will need to map that to its internal abstraction. Allow the
+ * shell to assign private data to an output to make this mapping easier.
+ *
+ * This can only be done once for an output.
+ *
+ * \param output The output to assign private data to
+ * \param private_data The shell private data
+ *
+ * \ingroup shell-utils
+ */
+WL_EXPORT void
+weston_output_set_shell_private(struct weston_output *output,
+				void *private_data)
+{
+	assert(!output->shell_private);
+
+	output->shell_private = private_data;
+}
+
+/** Get private data for an output
+ *
+ * Allows the shell to retreive the private data it set for an output.
+ * The shell must have set private data previously, or an assert() is
+ * generated.
+ *
+ * \param output The output to get private data for
+ * \return The private data
+ *
+ * \ingroup shell-utils
+ */
+WL_EXPORT void *
+weston_output_get_shell_private(struct weston_output *output)
+{
+	assert(output->shell_private);
+
+	return output->shell_private;
+}

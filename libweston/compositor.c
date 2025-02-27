@@ -8194,6 +8194,7 @@ weston_output_init(struct weston_output *output,
 {
 	struct weston_color_manager *cm;
 
+	output->shell_private = NULL;
 	output->pos.c = weston_coord(0, 0);
 	output->compositor = compositor;
 	output->destroying = 0;

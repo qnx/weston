@@ -75,6 +75,13 @@ weston_shell_utils_curtain_destroy(struct weston_curtain *curtain);
 enum weston_layer_position
 weston_shell_utils_view_get_layer_position(struct weston_view *view);
 
+void
+weston_output_set_shell_private(struct weston_output *output,
+				 void *private_data);
+
+void *
+weston_output_get_shell_private(struct weston_output *output);
+
 #ifdef __cplusplus
 }
 #endif

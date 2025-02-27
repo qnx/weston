@@ -558,6 +558,8 @@ struct weston_output {
 	uint32_t id;
 	char *name;
 
+	void *shell_private;
+
 	struct weston_backend *backend;
 
 	/** Matches the lifetime from the user perspective */
