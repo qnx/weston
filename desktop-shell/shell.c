@@ -73,20 +73,6 @@ shell_surface_update_child_surface_layers(struct shell_surface *shsurf);
 static void
 get_maximized_size(struct shell_surface *shsurf, int32_t *width, int32_t *height);
 
-static struct shell_output *
-find_shell_output_from_weston_output(struct desktop_shell *shell,
-				     struct weston_output *output)
-{
-	struct shell_output *shell_output;
-
-	wl_list_for_each(shell_output, &shell->output_list, link) {
-		if (shell_output->output == output)
-			return shell_output;
-	}
-
-	return NULL;
-}
-
 static bool
 shsurf_is_max_or_fullscreen(struct shell_surface *shsurf)
 {
@@ -902,9 +888,10 @@ constrain_position(struct weston_move_grab *move)
 
 	if (shsurf->shell->panel_position ==
 	    WESTON_DESKTOP_SHELL_PANEL_POSITION_TOP) {
-		struct shell_output *shoutput =
-			find_shell_output_from_weston_output(shsurf->shell,
-							     surface->output);
+		struct shell_output *shoutput = NULL;
+
+		if (surface->output)
+			shoutput = weston_output_get_shell_private(surface->output);
 
 		get_output_work_area(shsurf->shell, shoutput, &area);
 		geometry =
@@ -1545,25 +1532,27 @@ static void
 shell_surface_set_output(struct shell_surface *shsurf,
                          struct weston_output *output)
 {
-	struct desktop_shell *shell = shsurf->shell;
 	struct weston_surface *es =
 		weston_desktop_surface_get_surface(shsurf->desktop_surface);
-	struct shell_output *shoutput =
-		find_shell_output_from_weston_output(shell, output);
+	struct shell_output *shoutput = NULL;
+
+	if (output)
+		shoutput = weston_output_get_shell_private(output);
 
 	/* get the default output, if the client set it as NULL
 	   check whether the output is available */
 	if (shoutput)
 		shsurf->output = shoutput;
 	else if (es->output)
-		shsurf->output = find_shell_output_from_weston_output(shell,
-								      es->output);
+		shsurf->output = weston_output_get_shell_private(es->output);
 	else {
+		struct shell_output *shoutput = NULL;
 		struct weston_output *w_output;
 
 		w_output = weston_shell_utils_get_default_output(es->compositor);
-		shsurf->output = find_shell_output_from_weston_output(shsurf->shell,
-								      w_output);
+		if (w_output)
+			shoutput = weston_output_get_shell_private(w_output);
+		shsurf->output = shoutput;
 	}
 
 	if (shsurf->output_destroy_listener.notify) {
@@ -2686,7 +2675,6 @@ desktop_shell_set_background(struct wl_client *client,
 			     struct wl_resource *output_resource,
 			     struct wl_resource *surface_resource)
 {
-	struct desktop_shell *shell = wl_resource_get_user_data(resource);
 	struct weston_surface *surface =
 		wl_resource_get_user_data(surface_resource);
 	struct shell_output *sh_output;
@@ -2703,7 +2691,7 @@ desktop_shell_set_background(struct wl_client *client,
 		return;
 
 	surface->output = head->output;
-	sh_output = find_shell_output_from_weston_output(shell, surface->output);
+	sh_output = weston_output_get_shell_private(surface->output);
 	if (sh_output->background_surface) {
 		wl_resource_post_error(surface_resource,
 				       WL_DISPLAY_ERROR_INVALID_OBJECT,
@@ -2805,7 +2793,6 @@ desktop_shell_set_panel(struct wl_client *client,
 			struct wl_resource *output_resource,
 			struct wl_resource *surface_resource)
 {
-	struct desktop_shell *shell = wl_resource_get_user_data(resource);
 	struct weston_surface *surface =
 		wl_resource_get_user_data(surface_resource);
 	struct shell_output *sh_output;
@@ -2822,7 +2809,7 @@ desktop_shell_set_panel(struct wl_client *client,
 		return;
 
 	surface->output = head->output;
-	sh_output = find_shell_output_from_weston_output(shell, surface->output);
+	sh_output = weston_output_get_shell_private(surface->output);
 
 	if (sh_output->panel_surface) {
 		wl_resource_post_error(surface_resource,
@@ -3968,7 +3955,8 @@ weston_view_set_initial_position(struct weston_view *view,
 	 * If this is negative it means that the surface is bigger than
 	 * output.
 	 */
-	shoutput = find_shell_output_from_weston_output(shell, target_output);
+	assert(target_output);
+	shoutput = weston_output_get_shell_private(target_output);
 	get_output_work_area(shell, shoutput, &area);
 
 	x = area.x;
@@ -4507,7 +4495,7 @@ handle_output_resized(struct wl_listener *listener, void *data)
 	struct desktop_shell *shell =
 		container_of(listener, struct desktop_shell, resized_listener);
 	struct weston_output *output = (struct weston_output *)data;
-	struct shell_output *sh_output = find_shell_output_from_weston_output(shell, output);
+	struct shell_output *sh_output = weston_output_get_shell_private(output);
 
 	handle_output_resized_shsurfs(shell);
 
@@ -4532,6 +4520,8 @@ create_shell_output(struct desktop_shell *shell,
 	shell_output = zalloc(sizeof *shell_output);
 	if (shell_output == NULL)
 		return;
+
+	weston_output_set_shell_private(output, shell_output);
 
 	shell_output->output = output;
 	shell_output->shell = shell;
