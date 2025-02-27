@@ -222,7 +222,7 @@ pageflip_timer_counter_handler(void *data)
 }
 
 static int
-drm_backend_pageflip_timer_create(struct drm_backend *b, uint32_t interval)
+drm_backend_pageflip_counter_timer_create(struct drm_backend *b, uint32_t interval)
 {
 	struct wl_event_loop *loop = NULL;
 	struct weston_compositor *ec = b->compositor;
@@ -241,11 +241,53 @@ drm_backend_pageflip_timer_create(struct drm_backend *b, uint32_t interval)
 
 	b->perf_page_flips_stats.frame_counter_interval = interval;
 
-	/* arm it w/ interval */
+	return 0;
+}
+
+static void
+drm_backend_pageflip_counter_timer_arm(struct drm_backend *b)
+{
+	if (!b->perf_page_flips_stats.pageflip_timer_counter)
+		return;
+
 	wl_event_source_timer_update(b->perf_page_flips_stats.pageflip_timer_counter,
 				     1000 * b->perf_page_flips_stats.frame_counter_interval);
 
-	return 0;
+	b->perf_page_flips_stats.timer_armed = true;
+}
+
+static void
+drm_backend_pageflip_counter_timer_disarm(struct drm_backend *b)
+{
+	if (!b->perf_page_flips_stats.pageflip_timer_counter)
+		return;
+
+	/* do not disarm the timer if there are subscriptions to this log scope */
+	if (weston_log_scope_is_enabled(b->debug))
+		return;
+
+	wl_event_source_timer_update(b->perf_page_flips_stats.pageflip_timer_counter, 0);
+
+	b->perf_page_flips_stats.timer_armed = false;
+}
+
+
+static void
+drm_backend_pageflip_counter_timer_disable_cb(struct weston_log_subscription *sub, void *data)
+{
+	struct drm_backend *b = data;
+	assert(b->perf_page_flips_stats.timer_armed);
+
+	drm_backend_pageflip_counter_timer_disarm(b);
+}
+
+static void
+drm_backend_pageflip_counter_timer_arm_cb(struct weston_log_subscription *sub, void *data)
+{
+	struct drm_backend *b = data;
+
+	if (!b->perf_page_flips_stats.timer_armed)
+		drm_backend_pageflip_counter_timer_arm(b);
 }
 
 /**
@@ -4128,7 +4170,9 @@ drm_backend_create(struct weston_compositor *compositor,
 
 	b->debug = weston_compositor_add_log_scope(compositor, "drm-backend",
 						   "Debug messages from DRM/KMS backend\n",
-						   NULL, NULL, NULL);
+						   drm_backend_pageflip_counter_timer_arm_cb,
+						   drm_backend_pageflip_counter_timer_disable_cb,
+						   b);
 
 	wl_list_insert(&compositor->backend_list, &b->base.link);
 
@@ -4327,7 +4371,10 @@ drm_backend_create(struct weston_compositor *compositor,
 		goto err_udev_monitor;
 	}
 
-	drm_backend_pageflip_timer_create(b, DEFAULT_FRAME_RATE_INTERVAL);
+	drm_backend_pageflip_counter_timer_create(b, DEFAULT_FRAME_RATE_INTERVAL);
+
+	if (weston_log_scope_is_enabled(b->debug))
+		drm_backend_pageflip_counter_timer_arm(b);
 
 	return b;
 

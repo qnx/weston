@@ -276,6 +276,7 @@ struct drm_backend {
 	struct {
 		uint32_t frame_counter_interval;
 		struct wl_event_source *pageflip_timer_counter;
+		bool timer_armed;
 	} perf_page_flips_stats;
 };
 
