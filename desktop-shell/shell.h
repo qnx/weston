@@ -113,8 +113,8 @@ struct shell_surface {
 		struct weston_curtain *black_view;
 	} fullscreen;
 
-	struct weston_output *fullscreen_output;
-	struct weston_output *output;
+	struct shell_output *fullscreen_output;
+	struct shell_output *output;
 	struct wl_listener output_destroy_listener;
 
 	struct surface_state {
@@ -345,12 +345,12 @@ get_current_workspace(struct desktop_shell *shell);
 
 void
 get_output_work_area(struct desktop_shell *shell,
-		     struct weston_output *output,
+		     struct shell_output *output,
 		     pixman_rectangle32_t *area);
 
 void
 lower_fullscreen_layer(struct desktop_shell *shell,
-		       struct weston_output *lowering_output);
+		       struct shell_output *lowering_output);
 
 void
 activate(struct desktop_shell *shell, struct weston_view *view,
