@@ -1010,6 +1010,9 @@ weston_surface_create(struct weston_compositor *compositor)
 
 	surface->compositor = compositor;
 	surface->ref_count = 1;
+	compositor->global_weston_surface_disambiguator++;
+	surface->s_id =
+		compositor->global_weston_surface_disambiguator;
 
 	surface->buffer_viewport.buffer.transform = WL_OUTPUT_TRANSFORM_NORMAL;
 	surface->buffer_viewport.buffer.scale = 1;

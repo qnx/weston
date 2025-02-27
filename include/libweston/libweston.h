@@ -1559,6 +1559,7 @@ struct weston_compositor {
 	struct wl_list debug_binding_list;
 
 	bool view_list_needs_rebuild;
+	int global_weston_surface_disambiguator; /* surface ids to avoid using PID-reuse */
 
 	uint32_t state;
 	struct wl_event_source *idle_source;
@@ -2071,6 +2072,7 @@ struct weston_surface {
 
 	bool is_mapped, is_unmapping, is_mapping;
 	bool is_opaque;
+	uint32_t s_id;
 
 	/* An list of per seat pointer constraints. */
 	struct wl_list pointer_constraints;
