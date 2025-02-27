@@ -57,7 +57,7 @@ struct kiosk_shell_surface {
 
 	struct kiosk_shell *shell;
 
-	struct weston_output *output;
+	struct kiosk_shell_output *output;
 	struct wl_listener output_destroy_listener;
 
 	struct wl_signal destroy_signal;
