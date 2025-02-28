@@ -34,7 +34,7 @@ exe_westinyplus = executable(
     sources: [ 'src/main.cpp' ],
     dependencies: [ dependency('wayland-server'),
     dependency('weston'),
-    dependency('libweston-14') ],
+    dependency('libweston-15') ],
     include_directories : include_directories('.'),
     install: false
 )
