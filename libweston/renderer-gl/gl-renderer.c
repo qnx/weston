@@ -4436,8 +4436,11 @@ gl_renderer_allocator_destroy(struct dmabuf_allocator *allocator)
 		return;
 
 #ifdef HAVE_GBM
-	if (allocator->gbm_device && allocator->has_own_device)
+	if (allocator->gbm_device && allocator->has_own_device) {
+		int fd = gbm_device_get_fd(allocator->gbm_device);
 		gbm_device_destroy(allocator->gbm_device);
+		close(fd);
+	}
 
 #else
 	assert(!allocator->has_own_device);
