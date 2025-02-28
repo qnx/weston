@@ -74,7 +74,7 @@
 #define WINDOW_TITLE "Weston Compositor"
 /* flight recorder size (in bytes) */
 #define DEFAULT_FLIGHT_REC_SIZE (5 * 1024 * 1024)
-#define DEFAULT_FLIGHT_REC_SCOPES "log,drm-backend"
+#define DEFAULT_FLIGHT_REC_SCOPES "log"
 
 struct wet_output_config {
 	int width;
@@ -4586,7 +4586,11 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 	free(cmdline);
 	log_uname();
 
-	weston_log("Flight recorder: %s\n", flight_rec ? "enabled" : "disabled");
+	weston_log("Flight recorder: %s", flight_rec ? "enabled" : "disabled");
+	if (flight_rec)
+		weston_log_continue(", scopes subscribed: %s", flight_rec_scopes);
+
+	weston_log_continue("\n");
 	verify_xdg_runtime_dir();
 
 	display = wl_display_create();
