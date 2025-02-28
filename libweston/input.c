@@ -2518,20 +2518,20 @@ notify_modifiers(struct weston_seat *seat, uint32_t serial)
 	/* Finally, notify the compositor that LEDs have changed. */
 	if (xkb_state_led_index_is_active(keyboard->xkb_state.state,
 					  keyboard->xkb_info->num_led))
-		leds |= LED_NUM_LOCK;
+		leds |= WESTON_LED_NUM_LOCK;
 	if (xkb_state_led_index_is_active(keyboard->xkb_state.state,
 					  keyboard->xkb_info->caps_led))
-		leds |= LED_CAPS_LOCK;
+		leds |= WESTON_LED_CAPS_LOCK;
 	if (xkb_state_led_index_is_active(keyboard->xkb_state.state,
 					  keyboard->xkb_info->scroll_led))
-		leds |= LED_SCROLL_LOCK;
+		leds |= WESTON_LED_SCROLL_LOCK;
 #ifdef HAVE_COMPOSE_AND_KANA
 	if (xkb_state_led_index_is_active(keyboard->xkb_state.state,
 					  keyboard->xkb_info->compose_led))
-		leds |= LED_COMPOSE;
+		leds |= WESTON_LED_COMPOSE;
 	if (xkb_state_led_index_is_active(keyboard->xkb_state.state,
 					  keyboard->xkb_info->kana_led))
-		leds |= LED_KANA;
+		leds |= WESTON_LED_KANA;
 #endif
 	if (leds != keyboard->xkb_state.leds && seat->led_update)
 		seat->led_update(seat, leds);

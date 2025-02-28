@@ -57,16 +57,16 @@ evdev_led_update(struct evdev_device *device, enum weston_led weston_leds)
 {
 	enum libinput_led leds = 0;
 
-	if (weston_leds & LED_NUM_LOCK)
+	if (weston_leds & WESTON_LED_NUM_LOCK)
 		leds |= LIBINPUT_LED_NUM_LOCK;
-	if (weston_leds & LED_CAPS_LOCK)
+	if (weston_leds & WESTON_LED_CAPS_LOCK)
 		leds |= LIBINPUT_LED_CAPS_LOCK;
-	if (weston_leds & LED_SCROLL_LOCK)
+	if (weston_leds & WESTON_LED_SCROLL_LOCK)
 		leds |= LIBINPUT_LED_SCROLL_LOCK;
 #ifdef HAVE_COMPOSE_AND_KANA
-	if (weston_leds & LED_COMPOSE)
+	if (weston_leds & WESTON_LED_COMPOSE)
 		leds |= LIBINPUT_LED_COMPOSE;
-	if (weston_leds & LED_KANA)
+	if (weston_leds & WESTON_LED_KANA)
 		leds |= LIBINPUT_LED_KANA;
 #endif
 	libinput_device_led_update(device->device, leds);

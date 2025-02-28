@@ -107,12 +107,12 @@ enum weston_keyboard_locks {
 };
 
 enum weston_led {
-	LED_NUM_LOCK = (1 << 0),
-	LED_CAPS_LOCK = (1 << 1),
-	LED_SCROLL_LOCK = (1 << 2),
+	WESTON_LED_NUM_LOCK = (1 << 0),
+	WESTON_LED_CAPS_LOCK = (1 << 1),
+	WESTON_LED_SCROLL_LOCK = (1 << 2),
 #ifdef HAVE_COMPOSE_AND_KANA
-	LED_COMPOSE = (1 << 3),
-	LED_KANA = (1 << 4),
+	WESTON_LED_COMPOSE = (1 << 3),
+	WESTON_LED_KANA = (1 << 4),
 #endif
 };
 
