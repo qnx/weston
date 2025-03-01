@@ -577,7 +577,7 @@ bool
 get_parametric_curveset_params(struct weston_compositor *compositor,
 			       _cmsStageToneCurvesData *trc_data,
 			       cmsInt32Number *type,
-			       float curveset_params[3][10],
+			       float curveset_params[3][MAX_PARAMS_LCMS_PARAM_CURVE],
 			       bool *clamped_input)
 {
 	const cmsCurveSegment *seg, *seg0, *seg1, *seg2;
@@ -639,7 +639,7 @@ get_parametric_curveset_params(struct weston_compositor *compositor,
 		 * don't use memcpy because we need to cast each cmsFloat64Number
 		 * to float. The precision loss doesn't matter. */
 		curve_types[i] = seg->Type;
-		for (j = 0; j < 10; j++)
+		for (j = 0; j < MAX_PARAMS_LCMS_PARAM_CURVE; j++)
 			curveset_params[i][j] = (float)seg->Params[j];
 	}
 

@@ -35,6 +35,11 @@
 #include "shared/helpers.h"
 #include "shared/os-compatibility.h"
 
+/**
+ * LittleCMS parametric curves may have up to 10 params.
+ */
+#define MAX_PARAMS_LCMS_PARAM_CURVE 10
+
 /*
  * Because cmsHPROFILE is a typedef of void*, it happily and implicitly
  * casts to and from any pointer at all. In order to bring some type

@@ -445,7 +445,8 @@ merge_curvesets(cmsPipeline **lut, cmsContext context_id)
 static bool
 linpow_from_type_1(struct weston_compositor *compositor,
 		   struct weston_color_curve *curve,
-		   const float type_1_params[3][10], bool clamped_input)
+		   const float type_1_params[3][MAX_PARAMS_LCMS_PARAM_CURVE],
+		   bool clamped_input)
 {
 	struct weston_color_curve_parametric *parametric = &curve->u.parametric;
 	unsigned int i;
@@ -484,7 +485,8 @@ linpow_from_type_1(struct weston_compositor *compositor,
 static bool
 linpow_from_type_1_inverse(struct weston_compositor *compositor,
 			   struct weston_color_curve *curve,
-			   const float type_1_params[3][10], bool clamped_input)
+			   const float type_1_params[3][MAX_PARAMS_LCMS_PARAM_CURVE],
+			   bool clamped_input)
 {
 	struct weston_color_manager_lcms *cm = to_cmlcms(compositor->color_manager);
 	struct weston_color_curve_parametric *parametric = &curve->u.parametric;
@@ -546,7 +548,8 @@ err:
 static bool
 linpow_from_type_4(struct weston_compositor *compositor,
 		   struct weston_color_curve *curve,
-		   const float type_4_params[3][10], bool clamped_input)
+		   const float type_4_params[3][MAX_PARAMS_LCMS_PARAM_CURVE],
+		   bool clamped_input)
 {
 	struct weston_color_manager_lcms *cm = to_cmlcms(compositor->color_manager);
 	struct weston_color_curve_parametric *parametric = &curve->u.parametric;
@@ -612,7 +615,8 @@ err:
 static bool
 powlin_from_type_4_inverse(struct weston_compositor *compositor,
 			   struct weston_color_curve *curve,
-			   const float type_4_params[3][10], bool clamped_input)
+			   const float type_4_params[3][MAX_PARAMS_LCMS_PARAM_CURVE],
+			   bool clamped_input)
 {
 	struct weston_color_manager_lcms *cm = to_cmlcms(compositor->color_manager);
 	struct weston_color_curve_parametric *parametric = &curve->u.parametric;
@@ -726,7 +730,7 @@ translate_curve_element_parametric(struct cmlcms_color_transform *xform,
 	struct weston_compositor *compositor = xform->base.cm->compositor;
 	struct weston_color_curve *curve;
 	cmsInt32Number type;
-	float lcms_curveset_params[3][10];
+	float lcms_curveset_params[3][MAX_PARAMS_LCMS_PARAM_CURVE];
 	bool clamped_input;
 	bool ret;
 

@@ -36,7 +36,7 @@ bool
 get_parametric_curveset_params(struct weston_compositor *compositor,
 			       _cmsStageToneCurvesData *trc_data,
 			       cmsInt32Number *type,
-			       float curveset_params[3][10],
+			       float curveset_params[3][MAX_PARAMS_LCMS_PARAM_CURVE],
 			       bool *clamped_input);
 
 void
@@ -58,7 +58,7 @@ static inline bool
 get_parametric_curveset_params(struct weston_compositor *compositor,
 			       _cmsStageToneCurvesData *trc_data,
 			       cmsInt32Number *type,
-			       float curveset_params[3][10],
+			       float curveset_params[3][MAX_PARAMS_LCMS_PARAM_CURVE],
 			       bool *clamped_input)
 {
 	return false;
