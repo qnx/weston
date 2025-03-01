@@ -33,6 +33,19 @@
 
 #include "backend-drm/drm-kms-enums.h"
 
+/**
+ * The only params curve we have are WESTON_COLOR_CURVE_TYPE_LINPOW and
+ * WESTON_COLOR_CURVE_TYPE_POWLIN, and they have exactly 5 params.
+ *
+ * WARNING: Keep this equal to fragment.glsl MAX_CURVE_PARAMS.
+ */
+#define MAX_PARAMS_PARAM_CURVE 5
+
+/**
+ * The only tf which is parametric (WESTON_TF_POWER) has a single parameter.
+ */
+#define MAX_PARAMS_TF 1
+
 enum weston_hdr_metadata_type1_groups {
 	/** weston_hdr_metadata_type1::primary is set */
 	WESTON_HDR_METADATA_TYPE1_GROUP_PRIMARIES	= 0x01,
@@ -140,7 +153,7 @@ struct weston_color_profile_params {
 	const struct weston_color_tf_info *tf_info;
 
 	/* Transfer characteristic's parameters; depends on tf_info. */
-	float tf_params[10];
+	float tf_params[MAX_PARAMS_TF];
 
 	/* Primary color volume luminance parameters cd/m²; always set. */
 	float min_luminance, max_luminance;
@@ -153,7 +166,7 @@ struct weston_color_profile_params {
 	float target_min_luminance, target_max_luminance;
 	float maxCLL, maxFALL;
 
-	char padding[4];
+	char padding[8];
 };
 
 /** Type or formula for a curve */
@@ -237,10 +250,9 @@ struct weston_color_curve_lut_3x1d {
 
 /** Parametric color curve parameters */
 struct weston_color_curve_parametric {
-	/* For each color channel we may have different curves. For each of
-	 * them, we can have up to 10 params, depending on the curve type. The
+	/* For each color channel we may have curves with different params. The
 	 * channels are in RGB order. */
-	float params[3][10];
+	float params[3][MAX_PARAMS_PARAM_CURVE];
 
 	/* The input of the curve should be clamped from 0.0 to 1.0? */
 	bool clamped_input;

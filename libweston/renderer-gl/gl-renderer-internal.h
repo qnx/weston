@@ -347,7 +347,7 @@ struct gl_shader_config {
 			GLfloat scale_offset[2];
 		} lut_3x1d;
 		struct {
-			GLfloat params[3][10];
+			GLfloat params[3][MAX_PARAMS_PARAM_CURVE];
 			GLboolean clamped_input;
 		} parametric;
 	} color_pre_curve;
@@ -366,7 +366,7 @@ struct gl_shader_config {
 			GLfloat scale_offset[2];
 		} lut_3x1d;
 		struct {
-			GLfloat params[3][10];
+			GLfloat params[3][MAX_PARAMS_PARAM_CURVE];
 			GLboolean clamped_input;
 		} parametric;
 	} color_post_curve;

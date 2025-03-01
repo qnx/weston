@@ -45,7 +45,7 @@ struct gl_renderer_color_curve {
 			float offset;
 		} lut_3x1d;
 		struct {
-			GLfloat params[3][10];
+			GLfloat params[3][MAX_PARAMS_PARAM_CURVE];
 			GLboolean clamped_input;
 		} parametric;
 	} u;
