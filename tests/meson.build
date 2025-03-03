@@ -128,6 +128,7 @@ tests = [
 	{	'name': 'drm-smoke', 'run_exclusive': true },
 	{	'name': 'drm-writeback-screenshot', 'run_exclusive': true },
 	{	'name': 'event', },
+	{	'name': 'idalloc', },
 	{
 		'name': 'keyboard',
 		'sources': [
