@@ -2117,8 +2117,13 @@ struct weston_surface {
 	 * reset after each frame counter interval */
 	unsigned int frame_commit_counter;
 
+	/** increments after an output repaint when parsing paint node list;
+	 * reset as frame_commit_counter  */
+	unsigned int painted_frame_counter;
+
 	/** computed after each frame_counter_interval */
 	float frame_commit_fps_counter;
+	float painted_frame_fps_counter;
 };
 
 struct weston_subsurface {

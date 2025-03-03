@@ -3828,8 +3828,18 @@ weston_output_repaint(struct weston_output *output, struct timespec *now)
 	output_update_visibility(output);
 
 	wl_list_for_each(pnode, &output->paint_node_z_order_list,
-			 z_order_link)
+			 z_order_link) {
+
+		/* we can't place this in the last paint node iteration list
+		 * because the paint node status are cleared after the late
+		 * update and in the same time we'd still need to check for
+		 * paint node occlusion */
+		if (pnode->status & PAINT_NODE_BUFFER_DIRTY &&
+		    pixman_region32_not_empty(&pnode->visible))
+			pnode->surface->painted_frame_counter++;
+
 		paint_node_update_late(pnode);
+	}
 
 	output_accumulate_damage(output);
 
@@ -4002,6 +4012,7 @@ surface_frame_rate_stats(void *data)
 	if (surf->resource) {
 		char surface_desc[512];
 		char p_counter_fc_counter[1024];
+		char p_counter_painted_counter[1024];
 
 		if (surf->get_label)
 			surf->get_label(surf, surface_desc, sizeof(surface_desc));
@@ -4021,9 +4032,20 @@ surface_frame_rate_stats(void *data)
 
 		WESTON_TRACE_SET_COUNTER(p_counter_fc_counter,
 					 surf->frame_commit_fps_counter);
+
+		surf->painted_frame_fps_counter =
+			(float) (surf->painted_frame_counter / frame_counter_interval);
+
+		snprintf(p_counter_painted_counter, sizeof(p_counter_painted_counter),
+			 "%s #%d (painted)", (char *) surface_desc, surf->s_id);
+
+		WESTON_TRACE_SET_COUNTER(p_counter_painted_counter,
+					 surf->painted_frame_fps_counter);
 	}
 
+
 	surf->frame_commit_counter = 0;
+	surf->painted_frame_counter = 0;
 }
 
 static void
@@ -9559,8 +9581,10 @@ debug_scene_view_print(FILE *fp, struct weston_view *view, int view_idx)
 	debug_scene_view_print_buffer(fp, view);
 
 	if (weston_surface_is_mapped(view->surface)) {
-		fprintf(fp, "\t\tCommit frame rate: %2.2f sampled interval: %dsec)\n",
+		fprintf(fp, "\t\tCommit frame rate: %2.2f, Painted frame "
+			     "rate: %2.2f (sampled interval: %dsec)\n",
 			     view->surface->frame_commit_fps_counter,
+			     view->surface->painted_frame_fps_counter,
 			     ec->perf_surface_stats.frame_counter_interval);
 	}
 
