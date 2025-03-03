@@ -106,6 +106,8 @@ update_lowest_free_bucket(struct weston_idalloc *idalloc)
 	weston_assert_uint32_gt(idalloc->compositor, next_num, idalloc->num_buckets);
 
 	idalloc->buckets = xrealloc(idalloc->buckets, next_num * sizeof(*idalloc->buckets));
+	memset(&idalloc->buckets[idalloc->num_buckets], 0,
+	       (next_num - idalloc->num_buckets) * sizeof(*idalloc->buckets));
 
 	/* The first one (from the new added) is the lowest free. */
 	idalloc->lowest_free_bucket = idalloc->num_buckets;
