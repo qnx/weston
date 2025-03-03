@@ -564,7 +564,6 @@ init_gl(struct window *window)
 
 	glBindAttribLocation(program, window->gl.pos, "pos");
 	glBindAttribLocation(program, window->gl.col, "color");
-	glLinkProgram(program);
 
 	window->gl.rotation_uniform =
 		glGetUniformLocation(program, "rotation");
