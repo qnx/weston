@@ -137,7 +137,7 @@ weston_idalloc_get_id(struct weston_idalloc *idalloc)
 			continue;
 
 		/* Found free id, take it and set it to 1 on the bucket. */
-		*bucket |= 1 << i;
+		*bucket |= (uint32_t)1 << i;
 		id = (32 * idalloc->lowest_free_bucket) + i;
 
 		/* Bucket may become full... */
