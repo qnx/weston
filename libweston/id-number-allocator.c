@@ -87,6 +87,7 @@ update_lowest_free_bucket(struct weston_idalloc *idalloc)
 {
 	uint32_t old_lowest_free_bucket = idalloc->lowest_free_bucket;
 	uint32_t *bucket;
+	uint32_t next_num;
 	unsigned int i;
 
 	for (i = old_lowest_free_bucket; i < idalloc->num_buckets; i++) {
@@ -100,12 +101,16 @@ update_lowest_free_bucket(struct weston_idalloc *idalloc)
 		return;
 	}
 
-	/* We didn't find any free bucket, so we need to add more buckets. The
-	 * first one (from the new added) will be the lowest free. */
+	/* We didn't find any free bucket, so we need to add more buckets. */
+	next_num = idalloc->num_buckets * 2;
+	weston_assert_uint32_gt(idalloc->compositor, next_num, idalloc->num_buckets);
+
+	idalloc->buckets = xrealloc(idalloc->buckets, next_num * sizeof(*idalloc->buckets));
+
+	/* The first one (from the new added) is the lowest free. */
 	idalloc->lowest_free_bucket = idalloc->num_buckets;
-	idalloc->num_buckets *= 2;
-	idalloc->buckets = xrealloc(idalloc->buckets,
-				    idalloc->num_buckets * sizeof(*idalloc->buckets));
+
+	idalloc->num_buckets = next_num;
 }
 
 /**
