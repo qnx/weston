@@ -1524,6 +1524,9 @@ out_no_xdg_shell:
 	if (display.compositor)
 		wl_compositor_destroy(display.compositor);
 
+	if (display.tearing_manager)
+		wp_tearing_control_manager_v1_destroy(display.tearing_manager);
+
 	if (display.viewporter)
 		wp_viewporter_destroy(display.viewporter);
 
