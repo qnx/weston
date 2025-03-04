@@ -172,6 +172,19 @@ if dep_lcms2.found()
 	config_h.set('HAVE_LCMS', '1')
 endif
 
+dep_libdisplay_info = dependency(
+	'libdisplay-info',
+	version: ['>= 0.1.1', '< 0.3.0'],
+	fallback: ['display-info', 'di_dep'],
+	default_options: [
+		'werror=false',
+	],
+	required: true,
+)
+if dep_libdisplay_info.version().version_compare('>= 0.2.0')
+	config_h.set('HAVE_LIBDISPLAY_INFO_HIGH_LEVEL_COLORIMETRY', '1')
+endif
+
 prog_python = import('python').find_installation('python3')
 files_xxd_py = files('tools/xxd.py')
 cmd_xxd = [ prog_python, files_xxd_py, '@INPUT@', '@OUTPUT@' ]
