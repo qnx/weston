@@ -457,7 +457,7 @@ lcms_curve_matches_any_tf(struct weston_compositor *compositor,
 	case 1:
 		/**
 		 * LittleCMS type 1 is the pure power-law curve, which is a
-		 * special case of LINPOW. See linpow_from_type_1().
+		 * special case of LINPOW. See init_curve_from_type_1().
 		 */
 		n_lcms_curve_params = 1;
 		curve.type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW;
@@ -465,7 +465,7 @@ lcms_curve_matches_any_tf(struct weston_compositor *compositor,
 	case 4:
 		/**
 		 * LittleCMS type 4 is almost exactly the same as LINPOW. See
-		 * linpow_from_type_4().
+		 * init_curve_from_type_4().
 		 */
 		n_lcms_curve_params = 5;
 		curve.type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW;
@@ -486,10 +486,10 @@ lcms_curve_matches_any_tf(struct weston_compositor *compositor,
 
 
 static bool
-linpow_from_type_1(struct weston_compositor *compositor,
-		   struct weston_color_curve *curve,
-		   const float type_1_params[3][MAX_PARAMS_LCMS_PARAM_CURVE],
-		   bool clamped_input)
+init_curve_from_type_1(struct weston_compositor *compositor,
+		       struct weston_color_curve *curve,
+		       const float type_1_params[3][MAX_PARAMS_LCMS_PARAM_CURVE],
+		       bool clamped_input)
 {
 	struct weston_color_curve_enum *enumerated = &curve->u.enumerated;
 	struct weston_color_curve_parametric *parametric = &curve->u.parametric;
@@ -552,10 +552,10 @@ linpow_from_type_1(struct weston_compositor *compositor,
 }
 
 static bool
-linpow_from_type_1_inverse(struct weston_compositor *compositor,
-			   struct weston_color_curve *curve,
-			   const float type_1_params[3][MAX_PARAMS_LCMS_PARAM_CURVE],
-			   bool clamped_input)
+init_curve_from_type_1_inverse(struct weston_compositor *compositor,
+			       struct weston_color_curve *curve,
+			       const float type_1_params[3][MAX_PARAMS_LCMS_PARAM_CURVE],
+			       bool clamped_input)
 {
 	struct weston_color_manager_lcms *cm = to_cmlcms(compositor->color_manager);
 	struct weston_color_curve_enum *enumerated = &curve->u.enumerated;
@@ -647,10 +647,10 @@ err:
 }
 
 static bool
-linpow_from_type_4(struct weston_compositor *compositor,
-		   struct weston_color_curve *curve,
-		   const float type_4_params[3][MAX_PARAMS_LCMS_PARAM_CURVE],
-		   bool clamped_input)
+init_curve_from_type_4(struct weston_compositor *compositor,
+		       struct weston_color_curve *curve,
+		       const float type_4_params[3][MAX_PARAMS_LCMS_PARAM_CURVE],
+		       bool clamped_input)
 {
 	struct weston_color_manager_lcms *cm = to_cmlcms(compositor->color_manager);
 	struct weston_color_curve_enum *enumerated = &curve->u.enumerated;
@@ -727,10 +727,10 @@ err:
 }
 
 static bool
-powlin_from_type_4_inverse(struct weston_compositor *compositor,
-			   struct weston_color_curve *curve,
-			   const float type_4_params[3][MAX_PARAMS_LCMS_PARAM_CURVE],
-			   bool clamped_input)
+init_curve_from_type_4_inverse(struct weston_compositor *compositor,
+			       struct weston_color_curve *curve,
+			       const float type_4_params[3][MAX_PARAMS_LCMS_PARAM_CURVE],
+			       bool clamped_input)
 {
 	struct weston_color_manager_lcms *cm = to_cmlcms(compositor->color_manager);
 	struct weston_color_curve_enum *enumerated = &curve->u.enumerated;
@@ -883,20 +883,20 @@ translate_curve_element_parametric(struct cmlcms_color_transform *xform,
 
 	switch (type) {
 	case 1:
-		ret = linpow_from_type_1(compositor, curve,
-					 lcms_curveset_params, clamped_input);
+		ret = init_curve_from_type_1(compositor, curve,
+					     lcms_curveset_params, clamped_input);
 		break;
 	case -1:
-		ret = linpow_from_type_1_inverse(compositor, curve,
-						 lcms_curveset_params, clamped_input);
+		ret = init_curve_from_type_1_inverse(compositor, curve,
+						     lcms_curveset_params, clamped_input);
 		break;
 	case 4:
-		ret = linpow_from_type_4(compositor, curve,
-					 lcms_curveset_params, clamped_input);
+		ret = init_curve_from_type_4(compositor, curve,
+					     lcms_curveset_params, clamped_input);
 		break;
 	case -4:
-		ret = powlin_from_type_4_inverse(compositor, curve,
-						 lcms_curveset_params, clamped_input);
+		ret = init_curve_from_type_4_inverse(compositor, curve,
+						     lcms_curveset_params, clamped_input);
 		break;
 	default:
 		/* We don't implement the curve. */
