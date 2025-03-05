@@ -106,6 +106,11 @@ TEST(asserts)
 	ret = weston_assert_double_eq(compositor, fifteen, 15);
 	abort_if_not(ret);
 
+	ret = weston_assert_uint32_lt_or_eq(compositor, 0, 0);
+	abort_if_not(ret);
+	ret = weston_assert_uint32_lt_or_eq(compositor, 1, 0);
+	abort_if_not(ret == false);
+
 	const char *nom = "bar";
 	ret = weston_assert_str_eq(compositor, nom, "bar");
 	abort_if_not(ret);

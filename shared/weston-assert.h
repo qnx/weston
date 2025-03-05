@@ -115,6 +115,9 @@ do {										\
 #define weston_assert_uint32_lt(compositor, a, b) \
 	weston_assert_(compositor, a, b, uint32_t, "%u", <)
 
+#define weston_assert_uint32_lt_or_eq(compositor, a, b) \
+	weston_assert_(compositor, a, b, uint32_t, "%u", <=)
+
 #define weston_assert_uint64_eq(compositor, a, b) \
 	weston_assert_(compositor, a, b, uint64_t, "%" PRIx64, ==)
 
