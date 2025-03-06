@@ -687,15 +687,6 @@ cmlcms_get_color_profile_from_params(struct weston_color_manager *cm_base,
 	struct weston_color_manager_lcms *cm = to_cmlcms(cm_base);
 	struct cmlcms_color_profile *cprof;
 	char *desc;
-	char *str;
-
-	/* TODO: add a helper similar to cmlcms_color_profile_create() but for
-	 * parametric color profiles. For now this just creates a cprof
-	 * boilerplate, just to help us to imagine how things would work.
-	 *
-	 * The color profile that this function creates is invalid and we won't
-	 * be able to do anything useful with that.
-	 */
 
 	cprof = cmlcms_find_color_profile_by_params(cm, params);
 	if (cprof) {
@@ -703,33 +694,17 @@ cmlcms_get_color_profile_from_params(struct weston_color_manager *cm_base,
 		return true;
 	}
 
-	cprof = xzalloc(sizeof(*cprof));
-	cprof->type = CMLCMS_PROFILE_TYPE_PARAMS;
-
-	cprof->params = xzalloc(sizeof(*cprof->params));
-	memcpy(cprof->params, params, sizeof(*params));
-
 	str_printf(&desc, "Parametric (%s): %s, %s",
 			  name_part,
 			  params->primaries_info ? params->primaries_info->desc :
 						   "custom primaries",
 			  params->tf_info->desc);
 
-	weston_color_profile_init(&cprof->base, &cm->base);
-	cprof->base.description = desc;
-	wl_list_insert(&cm->color_profile_list, &cprof->link);
-
-	weston_log_scope_printf(cm->profiles_scope,
-				"New color profile: p%u. WARNING: this is a " \
-				"boilerplate color profile. We still do not fully " \
-				"support creating color profiles from params\n",
-				cprof->base.id);
-
-	str = cmlcms_color_profile_print(cprof);
-	weston_log_scope_printf(cm->profiles_scope, "%s", str);
-	free(str);
-
+	cprof = cmlcms_color_profile_alloc(cm, CMLCMS_PROFILE_TYPE_PARAMS, desc);
+	*cprof->params = *params;
+	cmlcms_color_profile_register(cprof);
 	*cprof_out = &cprof->base;
+
 	return true;
 }
 
