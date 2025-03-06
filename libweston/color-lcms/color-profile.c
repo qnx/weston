@@ -436,22 +436,31 @@ cmlcms_color_profile_print(const struct cmlcms_color_profile *cprof)
 }
 
 static struct cmlcms_color_profile *
-cmlcms_color_profile_create(struct weston_color_manager_lcms *cm,
-			    struct lcmsProfilePtr profile,
-			    char *desc,
-			    char **errmsg)
+cmlcms_color_profile_alloc(struct weston_color_manager_lcms *cm,
+			   enum cmlcms_profile_type type,
+			   char *desc)
 {
 	struct cmlcms_color_profile *cprof;
-	char *str;
 
-	cprof = zalloc(sizeof *cprof);
-	if (!cprof)
-		return NULL;
-
+	cprof = xzalloc(sizeof *cprof);
 	weston_color_profile_init(&cprof->base, &cm->base);
 	cprof->base.description = desc;
-	cprof->icc.profile = profile;
-	cmsGetHeaderProfileID(profile.p, cprof->icc.md5sum.bytes);
+	cprof->type = type;
+	wl_list_init(&cprof->link);
+
+	if (type == CMLCMS_PROFILE_TYPE_PARAMS)
+		cprof->params = xzalloc(sizeof(*cprof->params));
+
+	return cprof;
+}
+
+static void
+cmlcms_color_profile_register(struct cmlcms_color_profile *cprof)
+{
+	struct weston_color_manager_lcms *cm = to_cmlcms(cprof->base.cm);
+	char *str;
+
+	wl_list_remove(&cprof->link);
 	wl_list_insert(&cm->color_profile_list, &cprof->link);
 
 	weston_log_scope_printf(cm->profiles_scope,
@@ -460,8 +469,6 @@ cmlcms_color_profile_create(struct weston_color_manager_lcms *cm,
 	str = cmlcms_color_profile_print(cprof);
 	weston_log_scope_printf(cm->profiles_scope, "%s", str);
 	free(str);
-
-	return cprof;
 }
 
 void
@@ -469,7 +476,6 @@ cmlcms_color_profile_destroy(struct cmlcms_color_profile *cprof)
 {
 	struct weston_color_manager_lcms *cm = to_cmlcms(cprof->base.cm);
 
-	wl_list_remove(&cprof->link);
 	cmsCloseProfile(cprof->extract.vcgt.p);
 	cmsCloseProfile(cprof->extract.inv_eotf.p);
 	cmsCloseProfile(cprof->extract.eotf.p);
@@ -493,9 +499,13 @@ cmlcms_color_profile_destroy(struct cmlcms_color_profile *cprof)
 					  "unknown profile type");
 	}
 
-	weston_log_scope_printf(cm->profiles_scope, "Destroyed color profile p%u. " \
-				"Description: %s\n", cprof->base.id, cprof->base.description);
+	if (!wl_list_empty(&cprof->link)) {
+		weston_log_scope_printf(cm->profiles_scope, "Destroyed color profile p%u. "
+					"Description: %s\n", cprof->base.id,
+					cprof->base.description);
+	}
 
+	wl_list_remove(&cprof->link);
 	free(cprof->base.description);
 	free(cprof);
 }
@@ -566,15 +576,15 @@ cmlcms_create_stock_profile(struct weston_color_manager_lcms *cm)
 	if (!desc)
 		goto err_close;
 
-	cm->sRGB_profile = cmlcms_color_profile_create(cm, profile, desc, NULL);
-	if (!cm->sRGB_profile)
-		goto err_close;
-
-	cm->sRGB_profile->type = CMLCMS_PROFILE_TYPE_ICC;
+	cm->sRGB_profile = cmlcms_color_profile_alloc(cm, CMLCMS_PROFILE_TYPE_ICC, desc);
+	cm->sRGB_profile->icc.profile = profile;
+	cm->sRGB_profile->icc.md5sum = md5sum;
 
 	if (!ensure_output_profile_extract(cm->sRGB_profile, cm->lcms_ctx,
 					   cmlcms_reasonable_1D_points(), &err_msg))
 		goto err_close;
+
+	cmlcms_color_profile_register(cm->sRGB_profile);
 
 	return true;
 
@@ -582,8 +592,7 @@ err_close:
 	if (err_msg)
 		weston_log("%s\n", err_msg);
 
-	free(desc);
-	cmsCloseProfile(profile.p);
+	cmlcms_color_profile_destroy(cm->sRGB_profile);
 	return false;
 }
 
@@ -652,21 +661,17 @@ cmlcms_get_color_profile_from_icc(struct weston_color_manager *cm_base,
 	if (!prof_rofile)
 		goto err_close;
 
-	cprof = cmlcms_color_profile_create(cm, profile, desc, errmsg);
-	if (!cprof)
-		goto err_close;
-
-	cprof->type = CMLCMS_PROFILE_TYPE_ICC;
+	cprof = cmlcms_color_profile_alloc(cm, CMLCMS_PROFILE_TYPE_ICC, desc);
+	cprof->icc.profile = profile;
+	cmsGetHeaderProfileID(profile.p, cprof->icc.md5sum.bytes);
 	cprof->icc.prof_rofile = prof_rofile;
+
+	cmlcms_color_profile_register(cprof);
 
 	*cprof_out = &cprof->base;
 	return true;
 
 err_close:
-	if (prof_rofile)
-		os_ro_anonymous_file_destroy(prof_rofile);
-	if (cprof)
-		cmlcms_color_profile_destroy(cprof);
 	free(desc);
 	cmsCloseProfile(profile.p);
 	return false;
