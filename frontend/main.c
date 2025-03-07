@@ -4439,6 +4439,22 @@ weston_log_setup_scopes(struct weston_log_context *log_ctx,
 }
 
 static void
+weston_log_print_all_advertised_scopes(struct weston_compositor *ec)
+{
+	struct weston_log_scope *nscope = NULL;
+
+	weston_log("Currently advertised debug scopes:\n");
+
+	while ((nscope = weston_log_scopes_iterate(ec->weston_log_ctx, nscope))) {
+		const char *name = weston_log_scope_get_name(nscope);
+		const char *desc = weston_log_scope_get_description(nscope);
+
+		if (weston_log_scope_to_be_advertised(ec->weston_log_ctx, name)) 
+			weston_log_continue(STAMP_SPACE "'%s' - %s", name, desc);
+	}
+}
+
+static void
 flight_rec_key_binding_handler(struct weston_keyboard *keyboard,
 			       const struct timespec *time, uint32_t key,
 			       void *data)
@@ -4813,6 +4829,9 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 		goto out;
 
 	load_additional_modules(wet);
+
+	if (debug_protocol)
+		weston_log_print_all_advertised_scopes(wet.compositor);
 
 	section = weston_config_get_section(config, "keyboard", NULL, NULL);
 	weston_config_section_get_bool(section, "numlock-on", &numlock_on, false);

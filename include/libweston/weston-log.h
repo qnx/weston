@@ -146,6 +146,12 @@ struct weston_log_scope *
 weston_log_scopes_iterate(struct weston_log_context *log_ctx,
                           struct weston_log_scope *nscope);
 
+void
+weston_add_scope_to_advertised_list(struct weston_log_context *ctx,
+				      const char *name);
+bool
+weston_log_scope_to_be_advertised(struct weston_log_context *ctx, const char *name);
+
 #ifdef  __cplusplus
 }
 #endif

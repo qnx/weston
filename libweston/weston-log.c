@@ -69,6 +69,7 @@ struct weston_log_context {
 	struct wl_listener compositor_destroy_listener;
 	struct wl_list scope_list; /**< weston_log_scope::compositor_link */
 	struct wl_list pending_subscription_list; /**< weston_log_subscription::source_link */
+	struct wl_list advertised_debug_list; /** weston_debug_scope_advertised::link */
 };
 
 /** weston-log message scope
@@ -117,6 +118,15 @@ struct weston_log_subscription {
 
 	void *data;
 };
+
+struct weston_debug_scope_advertised {
+	const char *name;
+	struct wl_list link; /** weston_log_context::advertised_debug_list */
+};
+
+static void
+weston_destroy_scopes_from_advertised_list(struct weston_log_context *ctx);
+
 
 static struct weston_log_subscription *
 find_pending_subscription(struct weston_log_context *log_ctx,
@@ -372,8 +382,10 @@ weston_debug_protocol_advertise_scopes(struct weston_log_context *log_ctx,
 				       struct wl_resource *res)
 {
 	struct weston_log_scope *scope;
+
 	wl_list_for_each(scope, &log_ctx->scope_list, compositor_link)
-		weston_debug_v1_send_available(res, scope->name, scope->desc);
+		if (weston_log_scope_to_be_advertised(log_ctx, scope->name))
+			weston_debug_v1_send_available(res, scope->name, scope->desc);
 }
 
 /** Disable debug-protocol
@@ -413,6 +425,7 @@ weston_log_ctx_create(void)
 	wl_list_init(&log_ctx->scope_list);
 	wl_list_init(&log_ctx->pending_subscription_list);
 	wl_list_init(&log_ctx->compositor_destroy_listener.link);
+	wl_list_init(&log_ctx->advertised_debug_list);
 
 	return log_ctx;
 }
@@ -448,6 +461,8 @@ weston_log_ctx_destroy(struct weston_log_context *log_ctx)
 			      &log_ctx->pending_subscription_list, source_link) {
 		weston_log_subscription_destroy_pending(pending_sub);
 	}
+
+	weston_destroy_scopes_from_advertised_list(log_ctx);
 
 	/* pending_subscription_list should be empty at this point */
 
@@ -520,6 +535,22 @@ WL_EXPORT bool
 weston_compositor_is_debug_protocol_enabled(struct weston_compositor *wc)
 {
 	return wc->weston_log_ctx->global != NULL;
+}
+
+WL_EXPORT bool
+weston_log_scope_to_be_advertised(struct weston_log_context *ctx, const char *name)
+{
+	struct weston_debug_scope_advertised *entry;
+
+	if (wl_list_empty(&ctx->advertised_debug_list))
+		return true;
+
+	wl_list_for_each(entry, &ctx->advertised_debug_list, link) {
+		if (!strcmp(entry->name, name))
+			return true;
+	}
+
+	return false;
 }
 
 /** Register a new stream name, creating a log scope.
@@ -668,6 +699,33 @@ weston_compositor_add_log_scope(struct weston_compositor *compositor,
 					     destroy_subscription,
 					     user_data);
 	return scope;
+}
+
+WL_EXPORT void
+weston_add_scope_to_advertised_list(struct weston_log_context *ctx, const char *name)
+{
+	struct weston_debug_scope_advertised *advertised_scope;
+
+	if (!name || !*name)
+		return;
+
+	advertised_scope = zalloc(sizeof(*advertised_scope));
+	advertised_scope->name = strdup(name);
+
+	wl_list_insert(&ctx->advertised_debug_list, &advertised_scope->link);
+}
+
+static void
+weston_destroy_scopes_from_advertised_list(struct weston_log_context *ctx)
+{
+	struct weston_debug_scope_advertised *entry, *tmp_entry;
+
+	wl_list_for_each_safe(entry, tmp_entry, &ctx->advertised_debug_list, link) {
+		free((char *) entry->name);
+		wl_list_remove(&entry->link);
+		free(entry);
+	}
+
 }
 
 /** Destroy a log scope

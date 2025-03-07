@@ -244,6 +244,10 @@ weston_debug_subscribe(struct wl_client *client,
 	log_ctx = wl_resource_get_user_data(global_resource);
 	version = wl_resource_get_version(global_resource);
 
+	/* verify that we can actually bind to this scope name */
+	if (!weston_log_scope_to_be_advertised(log_ctx, name))
+		goto fail;
+
 	stream_resource = wl_resource_create(client,
 					&weston_debug_stream_v1_interface,
 					version, new_stream_id);
