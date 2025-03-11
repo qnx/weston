@@ -1,5 +1,5 @@
 /*
- * Copyright 2021-2022 Collabora, Ltd.
+ * Copyright 2021-2025 Collabora, Ltd.
  * Copyright 2021-2022 Advanced Micro Devices, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
@@ -1348,6 +1348,46 @@ failed:
 	return false;
 }
 
+static void
+weston_color_curve_set_from_params(struct weston_color_curve *curve,
+				   const struct weston_color_profile_params *p,
+				   enum weston_tf_direction dir)
+{
+	unsigned i;
+
+	curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
+	curve->u.enumerated.tf = p->tf_info;
+	curve->u.enumerated.tf_direction = dir;
+
+	for (i = 0; i < 3; i++)
+		ARRAY_COPY(curve->u.enumerated.params[i], p->tf_params);
+}
+
+static bool
+init_blend_to_parametric(struct cmlcms_color_transform *xform)
+{
+	struct weston_color_profile_params *out = xform->search_key.output_profile->params;
+
+	weston_assert_uint32_eq(xform->base.cm->compositor,
+				xform->search_key.output_profile->type,
+				CMLCMS_PROFILE_TYPE_PARAMS);
+
+	/*
+	 * For blend-to-output with a parametric output profile, all we need
+	 * is to electrically encode for the output with the inverse TF.
+	 *
+	 * In the input to the TF RGB 0,0,0 corresponds to min_luminance and
+	 * RGB 1,1,1 corresponds to max_luminance.
+	 */
+
+	weston_color_curve_set_from_params(&xform->base.pre_curve, out, WESTON_INVERSE_TF);
+	xform->base.mapping.type = WESTON_COLOR_MAPPING_TYPE_IDENTITY;
+	xform->base.post_curve.type = WESTON_COLOR_CURVE_TYPE_IDENTITY;
+	xform->base.steps_valid = true;
+
+	return true;
+}
+
 enum cmlcms_color_transform_type {
 	CMLCMS_BLEND_TO_ICC   = 0x0,
 	CMLCMS_BLEND_TO_PARAM = 0x1,
@@ -1638,6 +1678,7 @@ cmlcms_color_transform_create(struct weston_color_manager_lcms *cm,
 		ret = xform_realize_chain(xform);
 		break;
 	case CMLCMS_BLEND_TO_PARAM:
+		ret = init_blend_to_parametric(xform);
 		break;
 	case CMLCMS_ICC_TO_ICC:
 		ret = xform_realize_chain(xform);

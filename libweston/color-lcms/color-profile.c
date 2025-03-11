@@ -301,8 +301,7 @@ ensure_output_profile_extract(struct cmlcms_color_profile *cprof,
 			weston_assert_ptr_not_null(compositor, cprof->extract.eotf.p);
 		break;
 	case CMLCMS_PROFILE_TYPE_PARAMS:
-		/* TODO: need to address this when we create param profiles. */
-		ret = false;
+		ret = true;
 		break;
 	default:
 		weston_assert_not_reached(compositor, "unknown profile type");
