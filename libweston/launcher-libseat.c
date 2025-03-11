@@ -241,7 +241,6 @@ seat_open(struct weston_launcher **out, struct weston_compositor *compositor,
 	wl_list_init(&wl->devices);
 
 	libseat_debug_scope = compositor->libseat_debug;
-	assert(libseat_debug_scope);
 	libseat_set_log_handler(log_libseat);
 
 	/* includes (all) other log levels available <= LOG_LEVEL_DEBUG */
