@@ -159,6 +159,12 @@ to take screenshots of the outputs using weston-screenshooter application,
 which can lead to silently leaking the output contents.  This option should
 not be used in production.
 .TP
+\fB\-\^d\fIscope1,scope2\fR, \fB\-\-debug-scopes\fR=\fIscope1,scope2\fR
+Specify which debug scopes should be advertised over the weston-debug
+protocol. Not specifying this would allow advertising all possible debug
+scopes. Option would not implicitly turn --debug on, requiring that to be set
+in order for this option to take effect.
+.TP
 \fB\-\^f\fIscope1,scope2\fR, \fB\-\-flight-rec-scopes\fR=\fIscope1,scope2\fR
 Specify to which scopes should subscribe to. Useful to control which streams to
 write data into the flight recorder. Flight recorder has limited space, once

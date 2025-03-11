@@ -728,6 +728,12 @@ usage(int error_code)
 		"  --no-config\t\tDo not read weston.ini\n"
 		"  --wait-for-debugger\tRaise SIGSTOP on start-up\n"
 		"  --debug\t\tEnable debug extension\n"
+		"  -d, --debug-scopes=SCOPE\n\t\t\tSpecify which scopes to "
+			"be advertised to clients when using the weston-debug protocol."
+			"\n\t\t\tCan specify multiple scopes, "
+			"each followed by comma. \n\t\t\tBy default, --debug would "
+			"advertise all scopes created by libweston or by "
+			"other Weston frontends.\n"
 		"  -l, --logger-scopes=SCOPE\n\t\t\tSpecify log scopes to "
 			"subscribe to.\n\t\t\tCan specify multiple scopes, "
 			"each followed by comma\n"
@@ -4428,12 +4434,14 @@ weston_log_setup_scopes(struct weston_log_context *log_ctx,
 {
 	assert(log_ctx);
 	assert(subscriber);
+	char *saved_token = NULL;
 
 	char *tokenize = strdup(names);
-	char *token = strtok(tokenize, ",");
+	char *token = strtok_r(tokenize, ",", &saved_token);
+
 	while (token) {
 		weston_log_subscribe(log_ctx, subscriber, token);
-		token = strtok(NULL, ",");
+		token = strtok_r(NULL, ",", &saved_token);
 	}
 	free(tokenize);
 }
@@ -4455,6 +4463,24 @@ weston_log_print_all_advertised_scopes(struct weston_compositor *ec)
 }
 
 static void
+weston_log_setup_advertising_scopes(struct weston_log_context *log_ctx,
+				    const char *names)
+{
+	assert(log_ctx);
+
+	char *saved_token = NULL;
+
+	char *tokenize = strdup(names);
+	char *token = strtok_r(tokenize, ",", &saved_token);
+
+	while (token) {
+		weston_add_scope_to_advertised_list(log_ctx, token);
+		token = strtok_r(NULL, ",", &saved_token);
+	}
+	free(tokenize);
+}
+
+static void
 flight_rec_key_binding_handler(struct weston_keyboard *keyboard,
 			       const struct timespec *time, uint32_t key,
 			       void *data)
@@ -4468,8 +4494,12 @@ weston_log_subscribe_to_scopes(struct weston_log_context *log_ctx,
 			       struct weston_log_subscriber *logger,
 			       struct weston_log_subscriber *flight_rec,
 			       const char *log_scopes,
-			       const char *flight_rec_scopes)
+			       const char *flight_rec_scopes,
+			       const char *debug_scopes)
 {
+	if (debug_scopes)
+		weston_log_setup_advertising_scopes(log_ctx, debug_scopes);
+
 	if (logger && log_scopes)
 		weston_log_setup_scopes(log_ctx, logger, log_scopes);
 	else
@@ -4522,6 +4552,7 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 	int32_t version = 0;
 	int32_t noconfig = 0;
 	int32_t debug_protocol = 0;
+	char *debug_scopes = NULL;
 	bool numlock_on;
 	char *config_file = NULL;
 	struct weston_config *config = NULL;
@@ -4559,6 +4590,7 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 		{ WESTON_OPTION_STRING, "config", 'c', &config_file },
 		{ WESTON_OPTION_BOOLEAN, "wait-for-debugger", 0, &wait_for_debugger },
 		{ WESTON_OPTION_BOOLEAN, "debug", 0, &debug_protocol },
+		{ WESTON_OPTION_STRING, "debug-scopes", 'd', &debug_scopes },
 		{ WESTON_OPTION_STRING, "logger-scopes", 'l', &log_scopes },
 		{ WESTON_OPTION_STRING, "flight-rec-scopes", 'f', &flight_rec_scopes },
 	};
@@ -4605,8 +4637,10 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 	if (flight_rec_scopes && strlen(flight_rec_scopes) > 0)
 		flight_rec = weston_log_subscriber_create_flight_rec(DEFAULT_FLIGHT_REC_SIZE);
 
+
 	weston_log_subscribe_to_scopes(log_ctx, logger, flight_rec,
-				       log_scopes, flight_rec_scopes);
+				       log_scopes, flight_rec_scopes,
+				       debug_scopes);
 
 	weston_log("%s\n"
 		   STAMP_SPACE "%s\n"
