@@ -4616,12 +4616,7 @@ gl_renderer_display_create(struct weston_compositor *ec,
 
 	gr->renderer_scope = weston_compositor_add_log_scope(ec, "gl-renderer",
 		"GL-renderer verbose messages\n", NULL, NULL, gr);
-	if (!gr->renderer_scope)
-		goto fail;
-
 	gr->shader_scope = gl_shader_scope_create(gr);
-	if (!gr->shader_scope)
-		goto fail;
 
 	if (gl_renderer_setup_egl_client_extensions(gr) < 0)
 		goto fail;
