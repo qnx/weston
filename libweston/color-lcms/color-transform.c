@@ -1233,7 +1233,6 @@ xform_realize_chain(struct cmlcms_color_transform *xform)
 			chain[chain_len++] = output_profile->extract.vcgt;
 
 		/* Render intent does not apply here, but need to set something. */
-		weston_assert_ptr_null(cm->base.compositor, render_intent);
 		render_intent = weston_render_intent_info_from(cm->base.compositor,
 							       WESTON_RENDER_INTENT_ABSOLUTE);
 		break;
@@ -1404,6 +1403,19 @@ cmlcms_color_transform_get(struct weston_color_manager_lcms *cm,
 			   const struct cmlcms_color_transform_search_param *param)
 {
 	struct cmlcms_color_transform *xform;
+
+	weston_assert_ptr_not_null(cm->base.compositor, param->output_profile);
+	switch (param->category) {
+	case CMLCMS_CATEGORY_BLEND_TO_OUTPUT:
+		weston_assert_ptr_null(cm->base.compositor, param->render_intent);
+		weston_assert_ptr_null(cm->base.compositor, param->input_profile);
+		break;
+	case CMLCMS_CATEGORY_INPUT_TO_OUTPUT:
+	case CMLCMS_CATEGORY_INPUT_TO_BLEND:
+		weston_assert_ptr_not_null(cm->base.compositor, param->render_intent);
+		weston_assert_ptr_not_null(cm->base.compositor, param->input_profile);
+		break;
+	}
 
 	wl_list_for_each(xform, &cm->color_transform_list, link) {
 		if (transform_matches_params(xform, param)) {
