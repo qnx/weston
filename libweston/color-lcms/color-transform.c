@@ -1363,6 +1363,15 @@ weston_color_curve_set_from_params(struct weston_color_curve *curve,
 		ARRAY_COPY(curve->u.enumerated.params[i], p->tf_params);
 }
 
+static void
+weston_color_mapping_set_from_m4f(struct weston_color_mapping *mapping,
+				  struct weston_mat4f mat)
+{
+	mapping->type = WESTON_COLOR_MAPPING_TYPE_MATRIX;
+	mapping->u.mat.matrix = weston_m3f_from_m4f_xyz(mat);
+	mapping->u.mat.offset = weston_v3f_from_v4f_xyz(mat.col[3]);
+}
+
 static bool
 init_blend_to_parametric(struct cmlcms_color_transform *xform)
 {
@@ -1383,6 +1392,204 @@ init_blend_to_parametric(struct cmlcms_color_transform *xform)
 	weston_color_curve_set_from_params(&xform->base.pre_curve, out, WESTON_INVERSE_TF);
 	xform->base.mapping.type = WESTON_COLOR_MAPPING_TYPE_IDENTITY;
 	xform->base.post_curve.type = WESTON_COLOR_CURVE_TYPE_IDENTITY;
+	xform->base.steps_valid = true;
+
+	return true;
+}
+
+struct rendering_intent_flags {
+	bool black_point_compensation;
+	bool white_point_adaptation;
+	bool perceptual;
+	bool saturate;
+};
+
+static struct rendering_intent_flags
+rendering_intent_to_flags(enum weston_render_intent intent)
+{
+	struct rendering_intent_flags flags = {0};
+
+	switch (intent) {
+	case WESTON_RENDER_INTENT_ABSOLUTE:
+		break;
+	case WESTON_RENDER_INTENT_RELATIVE:
+		flags.white_point_adaptation = true;
+		break;
+	case WESTON_RENDER_INTENT_RELATIVE_BPC:
+		flags.white_point_adaptation = true;
+		flags.black_point_compensation = true;
+		break;
+	case WESTON_RENDER_INTENT_PERCEPTUAL:
+		flags.white_point_adaptation = true;
+		flags.black_point_compensation = true;
+		flags.perceptual = true;
+		break;
+	case WESTON_RENDER_INTENT_SATURATION:
+		flags.white_point_adaptation = true;
+		flags.black_point_compensation = true;
+		flags.saturate = true;
+		break;
+	}
+
+	return flags;
+}
+
+static bool
+rgb_to_rgb_matrix(struct weston_mat4f *mat,
+		  const struct weston_color_profile_params *in,
+		  const struct weston_color_profile_params *out,
+		  enum weston_render_intent intent,
+		  char **errmsg)
+{
+	struct rendering_intent_flags flags = rendering_intent_to_flags(intent);
+
+	/**
+	 * The matrix input is optical where RGB 0,0,0 corresponds to
+	 * min_luminance and RGB 1,1,1 corresponds to max_luminance.
+	 *
+	 * The matrix output shall be the same except with output
+	 * min_luminance and max_luminance.
+	 */
+	struct weston_mat4f M;
+
+	struct weston_mat3f npm_in;
+	struct weston_mat3f npm_out_inv;
+	struct weston_mat3f p2p;
+	float v;
+
+	/* Convert input [0, 1] scale to cd/m² */
+	v = in->max_luminance - in->min_luminance;
+	M = weston_m4f_scaling(v, v, v);
+	v = in->min_luminance;
+	M = weston_m4f_mul_m4f(weston_m4f_translation(v, v, v), M);
+
+	if (flags.black_point_compensation) {
+		/* With BPC, map input [target_min, reference] to [0, 1]. */
+		v = -in->target_min_luminance;
+		M = weston_m4f_mul_m4f(weston_m4f_translation(v, v, v), M);
+		v = 1.0f / (in->reference_white_luminance - in->target_min_luminance);
+		M = weston_m4f_mul_m4f(weston_m4f_scaling(v, v, v), M);
+	} else {
+		/* Without BPC, map [0, input reference] to [0, 1]. */
+		v = 1.0f / in->reference_white_luminance;
+		M = weston_m4f_mul_m4f(weston_m4f_scaling(v, v, v), M);
+	}
+
+	/* Color space conversion */
+	if (!weston_normalized_primary_matrix_init(&npm_in,
+						   &in->primaries, WESTON_NPM_FORWARD)) {
+		str_printf(errmsg, "Could not compute NPM from input primaries. "
+				   "The primaries or white point may be invalid.");
+		return false;
+	}
+	if (!weston_normalized_primary_matrix_init(&npm_out_inv,
+						   &out->primaries, WESTON_NPM_INVERSE)) {
+		str_printf(errmsg, "Could not compute inverse NPM from output primaries. "
+				   "The primaries or white point may be invalid.");
+		return false;
+	}
+
+	p2p = npm_in;
+	if (flags.white_point_adaptation) {
+		struct weston_mat3f chad =
+			weston_bradford_adaptation(in->primaries.white_point,
+						   out->primaries.white_point);
+		p2p = weston_m3f_mul_m3f(chad, p2p);
+	}
+	p2p = weston_m3f_mul_m3f(npm_out_inv, p2p);
+	M = weston_m4f_mul_m4f(weston_m4f_from_m3f_v3f(p2p, WESTON_VEC3F_ZERO), M);
+
+	if (flags.perceptual) {
+		/* TODO: Dynamic range adjustment */
+		/* TODO: target color volume */
+	}
+
+	/* TODO: flags.saturation */
+
+	/*
+	 * The input reference white luminance is RGB 1,1,1. To map input
+	 * reference to output reference, we reinterpret RGB 1,1,1 as the output
+	 * reference white luminance. RGB 0,0,0 is 0 cd/m² at this point.
+	 * The reinterpretation is a significant semantic action, but it
+	 * requires no code to implement.
+	 */
+
+	if (flags.black_point_compensation) {
+		/* With BPC, map [0, 1] to output [target_min, reference]. */
+		v = out->reference_white_luminance - out->target_min_luminance;
+		M = weston_m4f_mul_m4f(weston_m4f_scaling(v, v, v), M);
+		v = out->target_min_luminance;
+		M = weston_m4f_mul_m4f(weston_m4f_translation(v, v, v), M);
+	} else {
+		/* Without BPC, map [0, 1] to [0, output reference]. */
+		v = out->reference_white_luminance;
+		M = weston_m4f_mul_m4f(weston_m4f_scaling(v, v, v), M);
+	}
+
+	/* Convert cd/m² to output [0, 1] scale. */
+	v = -out->min_luminance;
+	M = weston_m4f_mul_m4f(weston_m4f_translation(v, v, v), M);
+	v = 1.0f / (out->max_luminance - out->min_luminance);
+	M = weston_m4f_mul_m4f(weston_m4f_scaling(v, v, v), M);
+
+	*mat = M;
+	return true;
+}
+
+static bool
+init_parametric_to_parametric(struct cmlcms_color_transform *xform)
+{
+	const struct cmlcms_color_transform_recipe *recipe = &xform->search_key;
+	struct weston_color_manager_lcms *cm = to_cmlcms(xform->base.cm);
+	struct weston_mat4f mat;
+	char *errmsg = NULL;
+
+	weston_assert_uint32_eq(cm->base.compositor,
+				recipe->input_profile->type,
+				CMLCMS_PROFILE_TYPE_PARAMS);
+	weston_assert_uint32_eq(cm->base.compositor,
+				recipe->output_profile->type,
+				CMLCMS_PROFILE_TYPE_PARAMS);
+
+	/*
+	 * Decode input TF
+	 *
+	 * The TF is assumed to map pixel values to [0, 1] range where
+	 * RGB 0,0,0 corresponds to min_luminance and
+	 * RGB 1,1,1 corresponds to max_luminance.
+	 */
+	weston_color_curve_set_from_params(&xform->base.pre_curve,
+					   recipe->input_profile->params, WESTON_FORWARD_TF);
+
+	if (!rgb_to_rgb_matrix(&mat,
+			       recipe->input_profile->params,
+			       recipe->output_profile->params,
+			       recipe->render_intent->intent,
+			       &errmsg)) {
+		weston_log_scope_printf(cm->transforms_scope, "%s\n", errmsg);
+		free(errmsg);
+		return false;
+	}
+
+	weston_color_mapping_set_from_m4f(&xform->base.mapping, mat);
+
+	/* TODO: Use HLG OOTF for gamma correction? */
+	/* TODO: try https://gitlab.freedesktop.org/pq/color-and-hdr/-/issues/45 */
+
+	switch (recipe->category) {
+	case CMLCMS_CATEGORY_INPUT_TO_BLEND:
+		xform->base.post_curve.type = WESTON_COLOR_CURVE_TYPE_IDENTITY;
+		break;
+	case CMLCMS_CATEGORY_INPUT_TO_OUTPUT:
+		weston_color_curve_set_from_params(&xform->base.post_curve,
+						   recipe->output_profile->params,
+						   WESTON_INVERSE_TF);
+		break;
+	case CMLCMS_CATEGORY_BLEND_TO_OUTPUT:
+		weston_assert_not_reached(xform->base.cm->compositor,
+					  "blend-to-output handled elsewhere");
+	}
+
 	xform->base.steps_valid = true;
 
 	return true;
@@ -1688,6 +1895,7 @@ cmlcms_color_transform_create(struct weston_color_manager_lcms *cm,
 	case CMLCMS_PARAM_TO_ICC:
 		break;
 	case CMLCMS_PARAM_TO_PARAM:
+		ret = init_parametric_to_parametric(xform);
 		break;
 	}
 

@@ -81,6 +81,13 @@ weston_m3f_from_m4f_xyz(struct weston_mat4f M)
 	);
 }
 
+/** Drop w from vec4f */
+static inline struct weston_vec3f
+weston_v3f_from_v4f_xyz(struct weston_vec4f v)
+{
+	return WESTON_VEC3F(v.x, v.y, v.z);
+}
+
 /** 3-vector dot product */
 static inline float
 weston_v3f_dot_v3f(struct weston_vec3f a, struct weston_vec3f b)
