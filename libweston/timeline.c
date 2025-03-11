@@ -377,6 +377,9 @@ weston_timeline_refresh_subscription_objects(struct weston_compositor *wc,
 {
 	struct weston_log_subscription *sub = NULL;
 
+	if (!weston_log_scope_is_enabled(wc->timeline))
+		return;
+
 	while ((sub = weston_log_subscription_iterate(wc->timeline, sub))) {
 		struct weston_timeline_subscription_object *sub_obj;
 
