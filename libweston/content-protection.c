@@ -343,8 +343,8 @@ weston_compositor_enable_content_protection(struct weston_compositor *compositor
 
 	cp->destroy_listener.notify = cp_destroy_listener;
 	wl_signal_add(&compositor->destroy_signal, &cp->destroy_listener);
-	cp->debug = weston_compositor_add_log_scope(compositor, "content-protection-debug",
-						    "debug-logs for content-protection",
+	cp->debug = weston_compositor_add_log_scope(compositor, "content-protection",
+						    "debug-logs for content-protection\n",
 						    NULL, NULL, NULL);
 	return 0;
 }
