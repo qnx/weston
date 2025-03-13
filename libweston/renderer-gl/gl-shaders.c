@@ -68,7 +68,10 @@ union gl_shader_color_mapping_uniforms {
 		GLint tex_uniform;
 		GLint scale_offset_uniform;
 	} lut3d;
-	GLint matrix_uniform;
+	struct {
+		GLint matrix_uniform;
+		GLint offset_uniform;
+	} mat;
 };
 
 struct gl_shader {
@@ -457,9 +460,12 @@ gl_shader_create(struct gl_renderer *gr,
 					     "color_mapping_lut_scale_offset");
 		break;
 	case SHADER_COLOR_MAPPING_MATRIX:
-		shader->color_mapping.matrix_uniform =
+		shader->color_mapping.mat.matrix_uniform =
 			glGetUniformLocation(shader->program,
 					     "color_mapping_matrix");
+		shader->color_mapping.mat.offset_uniform =
+			glGetUniformLocation(shader->program,
+					     "color_mapping_offset");
 		break;
 	case SHADER_COLOR_MAPPING_IDENTITY:
 		break;
@@ -701,9 +707,12 @@ gl_shader_load_config_mapping(struct weston_compositor *compositor,
 			    sconf->lut3d.scale, sconf->lut3d.offset);
 		return;
 	case SHADER_COLOR_MAPPING_MATRIX:
-		assert(unif->matrix_uniform != -1);
-		glUniformMatrix3fv(unif->matrix_uniform,
+		assert(unif->mat.matrix_uniform != -1);
+		assert(unif->mat.offset_uniform != -1);
+
+		glUniformMatrix3fv(unif->mat.matrix_uniform,
 				   1, GL_FALSE, sconf->mat.matrix.colmaj);
+		glUniform3fv(unif->mat.offset_uniform, 1, sconf->mat.offset.el);
 		return;
 	}
 

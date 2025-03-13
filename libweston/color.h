@@ -389,6 +389,7 @@ struct weston_color_mapping_3dlut {
  */
 struct weston_color_mapping_matrix {
 	struct weston_mat3f matrix;
+	struct weston_vec3f offset;
 };
 
 /**

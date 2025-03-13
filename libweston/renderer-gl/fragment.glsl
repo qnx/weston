@@ -159,6 +159,7 @@ uniform HIGHPRECISION sampler3D color_mapping_lut_3d;
 uniform HIGHPRECISION vec2 color_mapping_lut_scale_offset;
 #endif
 uniform HIGHPRECISION mat3 color_mapping_matrix;
+uniform HIGHPRECISION vec3 color_mapping_offset;
 
 /*
  * 2D texture sampler abstracting away the lack of swizzles on OpenGL ES 2. This
@@ -450,7 +451,7 @@ color_mapping(vec3 color)
 	else if (c_color_mapping == SHADER_COLOR_MAPPING_3DLUT)
 		return sample_color_mapping_lut_3d(color);
 	else if (c_color_mapping == SHADER_COLOR_MAPPING_MATRIX)
-		return color_mapping_matrix * color.rgb;
+		return color_mapping_matrix * color.rgb + color_mapping_offset;
 	else /* Never reached, bad c_color_mapping. */
 		return vec3(1.0, 0.3, 1.0);
 }
