@@ -208,23 +208,10 @@ stage_matrix_get_mat4(const _cmsStageMatrixData *smd)
 }
 
 static bool
-is_matrix_stage_with_zero_offset(const cmsStage *stage)
+is_matrix_stage(const cmsStage *stage)
 {
-	const _cmsStageMatrixData *data;
-	int rows;
-	int r;
-
 	if (!stage || cmsStageType(stage) != cmsSigMatrixElemType)
 		return false;
-
-	data = cmsStageData(stage);
-	if (!data->Offset)
-		return true;
-
-	rows = cmsStageOutputChannels(stage);
-	for (r = 0; r < rows; r++)
-		if (data->Offset[r] != 0.0f)
-			return false;
 
 	return true;
 }
@@ -235,7 +222,7 @@ is_identity_matrix_stage(const cmsStage *stage)
 	const _cmsStageMatrixData *data;
 	struct weston_mat4f M;
 
-	if (!is_matrix_stage_with_zero_offset(stage))
+	if (!is_matrix_stage(stage))
 		return false;
 
 	data = cmsStageData(stage);
@@ -287,8 +274,7 @@ merge_matrices(cmsPipeline **lut, cmsContext context_id)
 
 	elem = cmsPipelineGetPtrToFirstStage(*lut);
 	do {
-		if (is_matrix_stage_with_zero_offset(prev) &&
-		    is_matrix_stage_with_zero_offset(elem)) {
+		if (is_matrix_stage(prev) && is_matrix_stage(elem)) {
 			/* replace the two matrices with a merged one */
 			prev = multiply_matrix_stages(context_id, elem, prev);
 			if (freeme)
@@ -973,9 +959,6 @@ translate_matrix_element(struct weston_color_mapping *map, cmsStage *elem)
 	_cmsStageMatrixData *data = cmsStageData(elem);
 	int c, r;
 
-	if (!is_matrix_stage_with_zero_offset(elem))
-		return false;
-
 	if (cmsStageInputChannels(elem) != 3 ||
 	    cmsStageOutputChannels(elem) != 3)
 		return false;
@@ -989,6 +972,11 @@ translate_matrix_element(struct weston_color_mapping *map, cmsStage *elem)
 	for (c = 0; c < 3; c++)
 		for (r = 0; r < 3; r++)
 			map->u.mat.matrix.col[c].el[r] = data->Double[r * 3 + c];
+
+	if (data->Offset) {
+		for (r = 0; r < 3; r++)
+			map->u.mat.offset.el[r] = data->Offset[r];
+	}
 
 	return true;
 }
