@@ -53,6 +53,9 @@ struct lcmsVEC3 {
 	float n[3];
 };
 
+/*
+ * While LittleCMS' cmsMAT3 is row-major, this here is colum-major.
+ */
 struct lcmsMAT3 {
 	/* array of columns */
 	struct lcmsVEC3 v[3];

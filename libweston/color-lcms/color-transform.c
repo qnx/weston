@@ -192,7 +192,7 @@ matrix_inf_norm(const cmsMAT3 *mat)
 		double sum = 0.0;
 
 		for (col = 0; col < 3; col++)
-			sum += fabs(mat->v[col].n[row]);
+			sum += fabs(mat->v[row].n[col]);
 
 		if (infnorm < sum)
 			infnorm = sum;
@@ -222,9 +222,9 @@ matrix_is_identity(const cmsMAT3 *mat, int bits_precision)
 }
 
 static const cmsMAT3 *
-stage_matrix_transpose(const _cmsStageMatrixData *smd)
+stage_matrix(const _cmsStageMatrixData *smd)
 {
-	/* smd is row-major, cmsMAT3 is column-major */
+	/* Both are row-major. */
 	return (const cmsMAT3 *)smd->Double;
 }
 
@@ -259,7 +259,7 @@ is_identity_matrix_stage(const cmsStage *stage)
 		return false;
 
 	data = cmsStageData(stage);
-	return matrix_is_identity(stage_matrix_transpose(data),
+	return matrix_is_identity(stage_matrix(data),
 				  MATRIX_PRECISION_BITS);
 }
 
@@ -274,15 +274,7 @@ multiply_matrix_stages(cmsContext context_id, cmsStage *next, cmsStage *prev)
 	prev_ = cmsStageData(prev);
 	next_ = cmsStageData(next);
 
-	/* res = prev^T * next^T */
-	_cmsMAT3per(&res, stage_matrix_transpose(next_),
-		    stage_matrix_transpose(prev_));
-
-	/*
-	 * res is column-major while Alloc function takes row-major;
-	 * the cast effectively transposes the matrix.
-	 * We return (prev^T * next^T)^T = next * prev.
-	 */
+	_cmsMAT3per(&res, stage_matrix(next_), stage_matrix(prev_));
 	ret = cmsStageAllocMatrix(context_id, 3, 3,
 				  (const cmsFloat64Number*)&res, NULL);
 	abort_oom_if_null(ret);
