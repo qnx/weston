@@ -1267,11 +1267,11 @@ xform_realize_chain(struct cmlcms_color_transform *xform)
 	struct lcmsProfilePtr extra = { NULL };
 	cmsUInt32Number dwFlags;
 
-	/* TODO: address this when we implement param color profiles.*/
-	if (output_profile->type == CMLCMS_PROFILE_TYPE_PARAMS ||
-	    (xform->search_key.input_profile &&
-	     xform->search_key.input_profile->type == CMLCMS_PROFILE_TYPE_PARAMS))
-		return false;
+	weston_assert_uint32_eq(cm->base.compositor, output_profile->type, CMLCMS_PROFILE_TYPE_ICC);
+	if (xform->search_key.input_profile) {
+		weston_assert_uint32_eq(cm->base.compositor, xform->search_key.input_profile->type,
+					CMLCMS_PROFILE_TYPE_ICC);
+	}
 
 	render_intent = xform->search_key.render_intent;
 
@@ -1346,6 +1346,44 @@ failed:
 	xform->lcms_ctx = NULL;
 
 	return false;
+}
+
+enum cmlcms_color_transform_type {
+	CMLCMS_BLEND_TO_ICC   = 0x0,
+	CMLCMS_BLEND_TO_PARAM = 0x1,
+	CMLCMS_ICC_TO_ICC     = 0x2,
+	CMLCMS_ICC_TO_PARAM   = 0x3,
+	CMLCMS_PARAM_TO_ICC   = 0x4,
+	CMLCMS_PARAM_TO_PARAM = 0x5
+};
+
+static enum cmlcms_color_transform_type
+get_transform_type(const struct cmlcms_color_transform *xform)
+{
+	const struct cmlcms_color_transform_recipe *recipe = &xform->search_key;
+	unsigned t = 0x0;
+
+	switch (recipe->output_profile->type) {
+	case CMLCMS_PROFILE_TYPE_ICC:
+		t += 0x0;
+		break;
+	case CMLCMS_PROFILE_TYPE_PARAMS:
+		t += 0x1;
+		break;
+	}
+
+	if (recipe->input_profile) {
+		switch (recipe->input_profile->type) {
+		case CMLCMS_PROFILE_TYPE_ICC:
+			t += 0x2;
+			break;
+		case CMLCMS_PROFILE_TYPE_PARAMS:
+			t += 0x4;
+			break;
+		}
+	}
+
+	return (enum cmlcms_color_transform_type)t;
 }
 
 char *
@@ -1576,6 +1614,7 @@ cmlcms_color_transform_create(struct weston_color_manager_lcms *cm,
 {
 	struct cmlcms_color_transform *xform;
 	const char *err_msg = NULL;
+	bool ret = false;
 	char *str;
 
 	xform = xzalloc(sizeof *xform);
@@ -1594,8 +1633,25 @@ cmlcms_color_transform_create(struct weston_color_manager_lcms *cm,
 					   cmlcms_reasonable_1D_points(), &err_msg))
 		goto error;
 
-	if (!xform_realize_chain(xform)) {
-		err_msg = "xform_realize_chain failed";
+	switch (get_transform_type(xform)) {
+	case CMLCMS_BLEND_TO_ICC:
+		ret = xform_realize_chain(xform);
+		break;
+	case CMLCMS_BLEND_TO_PARAM:
+		break;
+	case CMLCMS_ICC_TO_ICC:
+		ret = xform_realize_chain(xform);
+		break;
+	case CMLCMS_ICC_TO_PARAM:
+		break;
+	case CMLCMS_PARAM_TO_ICC:
+		break;
+	case CMLCMS_PARAM_TO_PARAM:
+		break;
+	}
+
+	if (!ret) {
+		err_msg = "creating color transformation failed";
 		goto error;
 	}
 
