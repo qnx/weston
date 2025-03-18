@@ -139,6 +139,10 @@ tests = [
 		],
 	},
 	{
+		'name': 'linalg',
+		'dep_objs': [ dep_libm ]
+	},
+	{
 		'name': 'linux-explicit-synchronization',
 		'sources': [
 			'linux-explicit-synchronization-test.c',
