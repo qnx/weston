@@ -1,6 +1,9 @@
 install_headers(
 	'config-parser.h',
 	'libweston.h',
+	'linalg.h',
+	'linalg-4.h',
+	'linalg-types.h',
 	'desktop.h',
 	'matrix.h',
 	'plugin-registry.h',
