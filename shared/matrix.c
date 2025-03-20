@@ -35,6 +35,7 @@
 #include <wayland-server.h>
 #include <libweston/matrix.h>
 #include <libweston/linalg-4.h>
+#include <libweston/linalg-3.h>
 
 /*
  * Matrices are stored in column-major order, that is the array indices are:
@@ -381,6 +382,126 @@ weston_m4f_invert(struct weston_mat4f *out, struct weston_mat4f M)
 	*out = WESTON_MAT4F_IDENTITY;
 	for (c = 0; c < 4; ++c)
 		m4f_LU_inverse_transform(LU, perm, &out->col[c]);
+
+	return true;
+}
+
+static inline void
+swap_rows3(double *restrict a, double *restrict b)
+{
+	unsigned k;
+	double tmp;
+
+	for (k = 0; k < 7; k += 3) {
+		tmp = a[k];
+		a[k] = b[k];
+		b[k] = tmp;
+	}
+}
+
+static inline unsigned
+find_pivot3(double *column, unsigned k)
+{
+	unsigned p = k;
+	for (++k; k < 3; ++k)
+		if (fabs(column[p]) < fabs(column[k]))
+			p = k;
+
+	return p;
+}
+
+static inline bool
+m3f_LU_decompose(double *restrict LU, unsigned *restrict p, struct weston_mat3f M)
+{
+	unsigned i, j, k;
+	unsigned pivot;
+	double pv;
+
+	for (i = 0; i < 3; ++i)
+		p[i] = i;
+	for (i = 9; i--; )
+		LU[i] = M.colmaj[i];
+
+	/* LU decomposition with partial pivoting */
+	for (k = 0; k < 3; ++k) {
+		pivot = find_pivot3(&LU[k * 3], k);
+		if (pivot != k) {
+			swap_unsigned(&p[k], &p[pivot]);
+			swap_rows3(&LU[k], &LU[pivot]);
+		}
+
+		pv = LU[k * 3 + k];
+		if (fabs(pv) < 1e-9)
+			return false; /* zero pivot, error */
+
+		for (i = k + 1; i < 3; ++i) {
+			LU[i + k * 3] /= pv;
+
+			for (j = k + 1; j < 3; ++j)
+				LU[i + j * 3] -= LU[i + k * 3] * LU[k + j * 3];
+		}
+	}
+
+	return true;
+}
+
+static inline void
+m3f_LU_inverse_transform(const double *restrict A,
+			const unsigned *restrict p,
+			struct weston_vec3f *restrict v)
+{
+	/* Solve A * x = v, when we have P * A = L * U.
+	 * P * A * x = P * v  =>  L * U * x = P * v
+	 * Let U * x = b, then L * b = P * v.
+	 */
+	double b[3];
+	unsigned j;
+
+	/* Forward substitution, column version, solves L * b = P * v */
+	/* The diagonal of L is all ones, and not explicitly stored. */
+	b[0] = v->el[p[0]];
+	b[1] = v->el[p[1]] - b[0] * A[1 + 0 * 3];
+	b[2] = v->el[p[2]] - b[0] * A[2 + 0 * 3] - b[1] * A[2 + 1 * 3];
+
+	/* backward substitution, column version, solves U * y = b */
+	for (j = 2; j > 0; --j) {
+		unsigned k;
+		b[j] /= A[j + j * 3];
+		for (k = 0; k < j; ++k)
+			b[k] -= b[j] * A[k + j * 3];
+	}
+
+	b[0] /= A[0 + 0 * 3];
+
+	/* the result */
+	for (j = 0; j < 3; ++j)
+		v->el[j] = b[j];
+}
+
+/** Invert 3x3 matrix
+ *
+ * reference: Gene H. Golub and Charles F. van Loan. Matrix computations.
+ * 3rd ed. The Johns Hopkins University Press. 1996.
+ * LU decomposition, forward and back substitution: Chapter 3.
+ *
+ * \param[out] out Destination to save the inverted matrix.
+ * \param M The matrix to invert.
+ * \return True for success, false for failure. On failure,
+ * \c *out remains unchanged.
+ */
+WL_EXPORT bool
+weston_m3f_invert(struct weston_mat3f *out, struct weston_mat3f M)
+{
+	double LU[9];		/* column-major */
+	unsigned perm[3];	/* permutation */
+	unsigned c;
+
+	if (!m3f_LU_decompose(LU, perm, M))
+		return false;
+
+	*out = WESTON_MAT3F_IDENTITY;
+	for (c = 0; c < 3; ++c)
+		m3f_LU_inverse_transform(LU, perm, &out->col[c]);
 
 	return true;
 }

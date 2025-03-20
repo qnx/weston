@@ -25,6 +25,30 @@
 
 #pragma once
 
+/** Column 3-vector */
+struct weston_vec3f {
+	union {
+		float el[3];
+		struct {
+			float x, y, z;
+		};
+		struct {
+			float r, g, b;
+		};
+		struct {
+			float Y, Cb, Cr;
+		};
+	};
+};
+
+/** 3x3 matrix, column-major */
+struct weston_mat3f {
+	union {
+		struct weston_vec3f col[3];
+		float colmaj[3 * 3];
+	};
+};
+
 /** Column 4-vector */
 struct weston_vec4f {
 	union {

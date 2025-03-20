@@ -96,6 +96,17 @@ weston_m4f_rotation_xy(float cos_th, float sin_th)
 		  0.0f,    0.0f, 0.0f, 1.0f);
 }
 
+static inline struct weston_mat4f
+weston_m4f_from_m3f_v3f(struct weston_mat3f R, struct weston_vec3f t)
+{
+	return WESTON_MAT4F(
+		R.col[0].el[0], R.col[1].el[0], R.col[2].el[0], t.el[0],
+		R.col[0].el[1], R.col[1].el[1], R.col[2].el[1], t.el[1],
+		R.col[0].el[2], R.col[1].el[2], R.col[2].el[2], t.el[2],
+		          0.0f,           0.0f,           0.0f,    1.0f
+	);
+}
+
 /** 4-vector dot product */
 static inline float
 weston_v4f_dot_v4f(struct weston_vec4f a, struct weston_vec4f b)
