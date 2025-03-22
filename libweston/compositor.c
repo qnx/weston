@@ -239,6 +239,10 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 		pnode->draw_solid = true;
 		pnode->is_fully_opaque = true;
 		pnode->is_fully_blended = false;
+
+		if (buffer->direct_display)
+			pnode->is_direct = true;
+
 		pnode->solid = (struct weston_solid_buffer_values) {
 			               0.0, 0.0, 0.0, 0.0
 		               };
