@@ -34,6 +34,7 @@
 #include <pixman.h>
 
 #include <wayland-client-protocol.h>
+#include "linux-dmabuf-unstable-v1-client-protocol.h"
 #include "weston-test-runner.h"
 #include "weston-test-client-protocol.h"
 #include "viewporter-client-protocol.h"
@@ -53,6 +54,7 @@ struct client {
 	struct wl_registry *wl_registry;
 	struct wl_compositor *wl_compositor;
 	struct wl_shm *wl_shm;
+	struct zwp_linux_dmabuf_v1 *dmabuf;
 	struct test *test;
 	/* the seat that is actually used for input events */
 	struct input *input;
@@ -65,6 +67,7 @@ struct client {
 	struct output *output;
 	struct surface *surface;
 	struct wl_array shm_formats;
+	struct wl_array drm_formats;
 	struct wl_list global_list;
 	struct wl_list output_list; /* struct output::link */
 };
@@ -223,6 +226,9 @@ create_shm_buffer(struct client *client, int width, int height,
 
 struct buffer *
 create_shm_buffer_a8r8g8b8(struct client *client, int width, int height);
+
+bool
+support_drm_format(struct client *client, uint32_t format, uint64_t modifier);
 
 void
 buffer_destroy(struct buffer *buf);

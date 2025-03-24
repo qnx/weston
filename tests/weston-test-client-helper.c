@@ -53,6 +53,11 @@
 #define min(a, b) (((a) > (b)) ? (b) : (a))
 #define clip(x, a, b)  min(max(x, a), b)
 
+struct drm_format {
+	uint32_t format;
+	uint64_t modifier;
+};
+
 int
 surface_contains(struct surface *surface, int x, int y)
 {
@@ -601,6 +606,45 @@ struct wl_shm_listener shm_listener = {
 	shm_format
 };
 
+bool
+support_drm_format(struct client *client, uint32_t format, uint64_t modifier)
+{
+	struct drm_format *p;
+
+	wl_array_for_each(p, &client->drm_formats)
+		if (p->format == format && p->modifier == modifier)
+			return true;
+
+	return false;
+}
+
+static void
+dmabuf_modifier(void *data, struct zwp_linux_dmabuf_v1 *zwp_linux_dmabuf,
+		 uint32_t format, uint32_t modifier_hi, uint32_t modifier_lo)
+{
+	struct client *client = data;
+	uint64_t modifier = u64_from_u32s(modifier_hi, modifier_lo);
+	struct drm_format *p;
+
+	p = wl_array_add(&client->drm_formats, sizeof *p);
+	assert(p);
+	p->format = format;
+	p->modifier = modifier;
+}
+
+
+static void
+dmabuf_format(void *data, struct zwp_linux_dmabuf_v1 *zwp_linux_dmabuf,
+              uint32_t format)
+{
+	/* deprecated */
+}
+
+static const struct zwp_linux_dmabuf_v1_listener dmabuf_listener = {
+	dmabuf_format,
+	dmabuf_modifier
+};
+
 static void
 test_handle_pointer_position(void *data, struct weston_test *weston_test,
 			     wl_fixed_t x, wl_fixed_t y)
@@ -858,6 +902,12 @@ handle_global(void *data, struct wl_registry *registry,
 			wl_registry_bind(registry, id,
 					 &wl_shm_interface, version);
 		wl_shm_add_listener(client->wl_shm, &shm_listener, client);
+	} else if (strcmp(interface, zwp_linux_dmabuf_v1_interface.name) == 0) {
+		client->dmabuf =
+			wl_registry_bind(registry, id,
+					 &zwp_linux_dmabuf_v1_interface, 3);
+		zwp_linux_dmabuf_v1_add_listener(client->dmabuf,
+						 &dmabuf_listener, client);
 	} else if (strcmp(interface, "wl_output") == 0) {
 		output = xzalloc(sizeof *output);
 		output->wl_output =
@@ -1038,6 +1088,7 @@ create_client(void)
 	client->wl_display = wl_display_connect(NULL);
 	test_assert_ptr_not_null(client->wl_display);
 	wl_array_init(&client->shm_formats);
+	wl_array_init(&client->drm_formats);
 	wl_list_init(&client->global_list);
 	wl_list_init(&client->inputs);
 	wl_list_init(&client->output_list);
@@ -1156,6 +1207,7 @@ client_destroy(struct client *client)
 		surface_destroy(client->surface);
 
 	wl_array_release(&client->shm_formats);
+	wl_array_release(&client->drm_formats);
 
 	while (!wl_list_empty(&client->inputs)) {
 		input_destroy(container_of(client->inputs.next,
@@ -1179,6 +1231,8 @@ client_destroy(struct client *client)
 
 	if (client->wl_shm)
 		wl_shm_destroy(client->wl_shm);
+	if (client->dmabuf)
+		zwp_linux_dmabuf_v1_destroy(client->dmabuf);
 	if (client->wl_compositor)
 		wl_compositor_destroy(client->wl_compositor);
 	if (client->wl_registry)
