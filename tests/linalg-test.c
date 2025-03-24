@@ -31,6 +31,194 @@
 #include "weston-test-assert.h"
 
 static void
+print_mat3(struct weston_mat3f M)
+{
+	unsigned r, c;
+
+	for (r = 0; r < 3; ++r) {
+		for (c = 0; c < 3; ++c)
+			testlog(" %14.6e", M.col[c].el[r]);
+		testlog("\n");
+	}
+}
+
+/*
+ * Test various ways of accessing the vector elements,
+ * make sure they are consistent.
+ */
+TEST(vec3_layout)
+{
+	struct weston_vec3f v;
+	unsigned i;
+
+	static_assert(sizeof(v) == 3 * sizeof(float), "vec3 storage");
+
+	v = WESTON_VEC3F(1, 2, 3);
+	test_assert_f64_eq(v.x, 1);
+	test_assert_f64_eq(v.y, 2);
+	test_assert_f64_eq(v.z, 3);
+
+	for (i = 0; i < 3; i++)
+		test_assert_f64_eq(v.el[i], i + 1);
+}
+
+/*
+ * Test various ways of accessing the matrix elements,
+ * make sure they are consistent.
+ */
+TEST(mat3_layout)
+{
+	struct weston_mat3f M;
+	unsigned row, col, i;
+
+	static_assert(sizeof(M.col) == sizeof(M.colmaj), "mat3 storage");
+
+	M = WESTON_MAT3F(
+		1, 2, 3,
+		4, 5, 6,
+		7, 8, 9
+	);
+
+	for (row = 0; row < 3; row++)
+		for (col = 0; col < 3; col++)
+			test_assert_f64_eq(M.col[col].el[row], 1 + col + 3 * row);
+
+	M = weston_m3f_transpose(M);
+
+	for (i = 0; i < 9; i++)
+		test_assert_f64_eq(M.colmaj[i], i + 1);
+}
+
+TEST(mat3_inf_norm)
+{
+	struct weston_mat3f M = WESTON_MAT3F(
+		1, 2, 3,
+		13, 14, 15, /* <- sum */
+		5, 6, 7
+	);
+
+	test_assert_f64_eq(weston_m3f_inf_norm(M), 42.0);
+}
+
+struct test_matrix3 {
+	/* the matrix to test */
+	struct weston_mat3f M;
+
+	/*
+	 * Residual error limit; inf norm(M * inv(M) - I) < err_limit
+	 * The residual error as calculated here represents the relative
+	 * error added by transforming a vector with inv(M).
+	 */
+	double err_limit;
+};
+
+static const struct test_matrix3 matrices3[] = {
+	/* A very trivial case. */
+	{
+		.M = WESTON_MAT3F(
+			1, 0, 0,
+		        0, 2, 0,
+		        0, 0, 3),
+		.err_limit = 0.0,
+	},
+
+	/* See the description in matrices4[] */
+	{
+		.M = WESTON_MAT3F(
+			1, 0, 1980,
+		        0, 1, 1080,
+		        0, 0, 1),
+		.err_limit = 0.0,
+	},
+
+	/*
+	 * If you want to verify the matrices in Octave, type this:
+	 * M = [ <paste the series of numbers> ]
+	 * mat = reshape(M, 3, 3)
+	 * det(mat)
+	 * cond(mat)
+	 */
+
+	/* cond = 1e3, abs det = 1 */
+	{
+		.M = WESTON_MAT3F(
+			-3.85619916,  -7.33213522, -17.39592142,
+			3.68083576,   6.9908134,   16.69315075,
+			2.24593119,   6.73273163,  15.43687958
+		),
+		.err_limit = 1e-4,
+	},
+
+	/* cond = 1e3, abs det = 15 */
+	{
+		.M = WESTON_MAT3F(
+			-24.17876224,  31.41542335,  29.67758047,
+ 			27.80376451, -37.71058091, -35.15458289,
+			4.70529412, -10.23486155,  -8.8383264
+		),
+		.err_limit = 1e-4,
+	},
+
+	/* cond = 700, abs det = 1e-6, invertible regardless of det */
+	{
+		.M = WESTON_MAT3F(
+			-0.1494663,   0.15094259, -0.0227504,
+			-0.03434422,  0.03261981,  0.00269234,
+			-0.10630476,  0.10418501, -0.00725791
+		),
+		.err_limit = 1e-4,
+	},
+
+	/* cond = 1e6, abs det = 1, this is a little more challenging */
+	{
+		.M = WESTON_MAT3F(
+			-4.76473003, -247.24422465,  181.83067879,
+			-8.99040059, -502.78411442,  370.79353696,
+			11.30800122,  578.40401799, -425.14300652
+		),
+		.err_limit = 0.02,
+	},
+
+	/* cond = 15, abs det = 1e-9, should be well invertible */
+	{
+		.M = WESTON_MAT3F(
+			-0.00114829, -0.00051657,  0.00126965,
+			-0.00181574,  0.00044979,  0.00049775,
+			-0.00234378,  0.00010053,  0.00190233
+		),
+		.err_limit = 1e-6,
+	},
+};
+
+TEST_P(mat3_inversion_precision, matrices3)
+{
+	const struct test_matrix3 *tm = data;
+	struct weston_mat3f rr;
+	double err;
+
+	/* Compute rr = M * inv(M) */
+	test_assert_true(weston_m3f_invert(&rr, tm->M));
+	rr = weston_m3f_mul_m3f(tm->M, rr);
+
+	/* Residual: subtract identity matrix (expected result) */
+	rr = weston_m3f_sub_m3f(rr, WESTON_MAT3F_IDENTITY);
+
+	/*
+	 * Infinity norm of the residual is our measure.
+	 * See https://gitlab.freedesktop.org/pq/fourbyfour/-/blob/master/README.d/precision_testing.md
+	 */
+	err = weston_m3f_inf_norm(rr);
+	testlog("Residual error %g (%.1f bits precision), limit %g.\n",
+		err, -log2(err), tm->err_limit);
+
+	if (err > tm->err_limit) {
+		testlog("Error is too high for matrix\n");
+		print_mat3(tm->M);
+		test_assert_true(false);
+	}
+}
+
+static void
 print_mat4(struct weston_mat4f M)
 {
 	unsigned r, c;
