@@ -152,15 +152,15 @@ weston_matrix_to_pixman_transform(pixman_transform_t *pt,
 {
 	/* Pixman supports only 2D transform matrix, but Weston uses 3D, *
 	 * so we're omitting Z coordinate here. */
-	pt->matrix[0][0] = pixman_double_to_fixed(wm->d[0]);
-	pt->matrix[0][1] = pixman_double_to_fixed(wm->d[4]);
-	pt->matrix[0][2] = pixman_double_to_fixed(wm->d[12]);
-	pt->matrix[1][0] = pixman_double_to_fixed(wm->d[1]);
-	pt->matrix[1][1] = pixman_double_to_fixed(wm->d[5]);
-	pt->matrix[1][2] = pixman_double_to_fixed(wm->d[13]);
-	pt->matrix[2][0] = pixman_double_to_fixed(wm->d[3]);
-	pt->matrix[2][1] = pixman_double_to_fixed(wm->d[7]);
-	pt->matrix[2][2] = pixman_double_to_fixed(wm->d[15]);
+	pt->matrix[0][0] = pixman_double_to_fixed(wm->M.col[0].x);
+	pt->matrix[0][1] = pixman_double_to_fixed(wm->M.col[1].x);
+	pt->matrix[0][2] = pixman_double_to_fixed(wm->M.col[3].x);
+	pt->matrix[1][0] = pixman_double_to_fixed(wm->M.col[0].y);
+	pt->matrix[1][1] = pixman_double_to_fixed(wm->M.col[1].y);
+	pt->matrix[1][2] = pixman_double_to_fixed(wm->M.col[3].y);
+	pt->matrix[2][0] = pixman_double_to_fixed(wm->M.col[0].w);
+	pt->matrix[2][1] = pixman_double_to_fixed(wm->M.col[1].w);
+	pt->matrix[2][2] = pixman_double_to_fixed(wm->M.col[3].w);
 }
 
 static bool

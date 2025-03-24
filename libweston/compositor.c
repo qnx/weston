@@ -1798,14 +1798,14 @@ weston_view_update_transform_disable(struct weston_view *view)
 
 	/* Otherwise identity matrix, but with x and y translation. */
 	view->transform.position.matrix.type = WESTON_MATRIX_TRANSFORM_TRANSLATE;
-	view->transform.position.matrix.d[12] = view->geometry.pos_offset.x;
-	view->transform.position.matrix.d[13] = view->geometry.pos_offset.y;
+	view->transform.position.matrix.M.col[3].x = view->geometry.pos_offset.x;
+	view->transform.position.matrix.M.col[3].y = view->geometry.pos_offset.y;
 
 	view->transform.matrix = view->transform.position.matrix;
 
 	view->transform.inverse = view->transform.position.matrix;
-	view->transform.inverse.d[12] = -view->geometry.pos_offset.x;
-	view->transform.inverse.d[13] = -view->geometry.pos_offset.y;
+	view->transform.inverse.M.col[3].x = -view->geometry.pos_offset.x;
+	view->transform.inverse.M.col[3].y = -view->geometry.pos_offset.y;
 
 	pixman_region32_init_rect(&view->transform.boundingbox,
 				  0, 0,
@@ -1850,8 +1850,8 @@ weston_view_update_transform_enable(struct weston_view *view)
 
 	/* Otherwise identity matrix, but with x and y translation. */
 	view->transform.position.matrix.type = WESTON_MATRIX_TRANSFORM_TRANSLATE;
-	view->transform.position.matrix.d[12] = view->geometry.pos_offset.x;
-	view->transform.position.matrix.d[13] = view->geometry.pos_offset.y;
+	view->transform.position.matrix.M.col[3].x = view->geometry.pos_offset.x;
+	view->transform.position.matrix.M.col[3].y = view->geometry.pos_offset.y;
 
 	weston_matrix_init(matrix);
 	wl_list_for_each(tform, &view->geometry.transformation_list, link)
@@ -1889,8 +1889,8 @@ weston_view_update_transform_enable(struct weston_view *view)
 							  &view->transform.opaque,
 							  &view->geometry.scissor);
 			pixman_region32_translate(&view->transform.opaque,
-						  matrix->d[12],
-						  matrix->d[13]);
+						  matrix->M.col[3].x,
+						  matrix->M.col[3].y);
 		}
 	} else if (view->alpha == 1.0 &&
 		 matrix->type < WESTON_MATRIX_TRANSFORM_ROTATE &&
@@ -10751,7 +10751,7 @@ weston_output_finish_frame_from_timer(struct weston_output *output)
 }
 
 /** Retrieve the backend type of as described in enum
- * weston_compositor_backend. 
+ * weston_compositor_backend.
  *
  * Note that the backend must be loaded, with weston_compositor_load_backend
  *

@@ -663,11 +663,11 @@ gl_shader_load_config(struct gl_renderer *gr,
 	int i, j;
 
 	glUniformMatrix4fv(shader->proj_uniform,
-			   1, GL_FALSE, sconf->projection.d);
+			   1, GL_FALSE, sconf->projection.M.colmaj);
 
 	if (shader->surface_to_buffer_uniform != -1)
 		glUniformMatrix4fv(shader->surface_to_buffer_uniform,
-			           1, GL_FALSE, sconf->surface_to_buffer.d);
+			           1, GL_FALSE, sconf->surface_to_buffer.M.colmaj);
 
 	if (shader->color_uniform != -1)
 		glUniform4fv(shader->color_uniform, 1, sconf->unicolor);

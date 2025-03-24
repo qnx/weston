@@ -48,66 +48,37 @@
 WL_EXPORT void
 weston_matrix_init(struct weston_matrix *matrix)
 {
-	static const struct weston_matrix identity = {
-		.d = { 1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1 },
-		.type = 0,
-	};
-
-	memcpy(matrix, &identity, sizeof identity);
+	matrix->M = WESTON_MAT4F_IDENTITY;
+	matrix->type = 0;
 }
 
 /* m <- n * m, that is, m is multiplied on the LEFT. */
 WL_EXPORT void
 weston_matrix_multiply(struct weston_matrix *m, const struct weston_matrix *n)
 {
-	struct weston_matrix tmp;
-	const float *row, *column;
-	int i, j, k;
-
-	for (i = 0; i < 4; i++) {
-		row = m->d + i * 4;
-		for (j = 0; j < 4; j++) {
-			tmp.d[4 * i + j] = 0;
-			column = n->d + j;
-			for (k = 0; k < 4; k++)
-				tmp.d[4 * i + j] += row[k] * column[k * 4];
-		}
-	}
-	tmp.type = m->type | n->type;
-	memcpy(m, &tmp, sizeof tmp);
+	m->M = weston_m4f_mul_m4f(n->M, m->M);
+	m->type |= n->type;
 }
 
 WL_EXPORT void
 weston_matrix_translate(struct weston_matrix *matrix, float x, float y, float z)
 {
-	struct weston_matrix translate = {
-		.d = { 1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  x, y, z, 1 },
-		.type = WESTON_MATRIX_TRANSFORM_TRANSLATE,
-	};
-
-	weston_matrix_multiply(matrix, &translate);
+	matrix->M = weston_m4f_mul_m4f(weston_m4f_translation(x, y, z), matrix->M);
+	matrix->type = WESTON_MATRIX_TRANSFORM_TRANSLATE;
 }
 
 WL_EXPORT void
 weston_matrix_scale(struct weston_matrix *matrix, float x, float y,float z)
 {
-	struct weston_matrix scale = {
-		.d = { x, 0, 0, 0,  0, y, 0, 0,  0, 0, z, 0,  0, 0, 0, 1 },
-		.type = WESTON_MATRIX_TRANSFORM_SCALE,
-	};
-
-	weston_matrix_multiply(matrix, &scale);
+	matrix->M = weston_m4f_mul_m4f(weston_m4f_scaling(x, y, z), matrix->M);
+	matrix->type = WESTON_MATRIX_TRANSFORM_SCALE;
 }
 
 WL_EXPORT void
 weston_matrix_rotate_xy(struct weston_matrix *matrix, float cos, float sin)
 {
-	struct weston_matrix translate = {
-		.d = { cos, sin, 0, 0,  -sin, cos, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1 },
-		.type = WESTON_MATRIX_TRANSFORM_ROTATE,
-	};
-
-	weston_matrix_multiply(matrix, &translate);
+	matrix->M = weston_m4f_mul_m4f(weston_m4f_rotation_xy(cos, sin), matrix->M);
+	matrix->type = WESTON_MATRIX_TRANSFORM_ROTATE;
 }
 
 /* v <- m * v */
@@ -115,16 +86,7 @@ WL_EXPORT void
 weston_matrix_transform(const struct weston_matrix *matrix,
 			struct weston_vector *v)
 {
-	int i, j;
-	struct weston_vector t;
-
-	for (i = 0; i < 4; i++) {
-		t.f[i] = 0;
-		for (j = 0; j < 4; j++)
-			t.f[i] += v->f[j] * matrix->d[i + j * 4];
-	}
-
-	*v = t;
+	v->v = weston_m4f_mul_v4f(matrix->M, v->v);
 }
 
 WL_EXPORT struct weston_coord
@@ -132,15 +94,27 @@ weston_matrix_transform_coord(const struct weston_matrix *matrix,
 			      struct weston_coord c)
 {
 	struct weston_coord out;
-	struct weston_vector t = { { c.x, c.y, 0.0, 1.0 } };
+	struct weston_vector t = { .v.el = { c.x, c.y, 0.0, 1.0 } };
 
 	weston_matrix_transform(matrix, &t);
 
-	assert(fabsf(t.f[3]) > 1e-6);
+	assert(fabsf(t.v.el[3]) > 1e-6);
 
-	out.x = t.f[0] / t.f[3];
-	out.y = t.f[1] / t.f[3];
+	out.x = t.v.el[0] / t.v.el[3];
+	out.y = t.v.el[1] / t.v.el[3];
 	return out;
+}
+
+WL_EXPORT int
+weston_matrix_invert(struct weston_matrix *inverse,
+		     const struct weston_matrix *matrix)
+{
+	if (weston_m4f_invert(&inverse->M, matrix->M)) {
+		inverse->type = matrix->type;
+		return 0;
+	}
+
+	return -1;
 }
 
 static inline void
@@ -175,118 +149,6 @@ find_pivot(double *column, unsigned k)
 			p = k;
 
 	return p;
-}
-
-/*
- * reference: Gene H. Golub and Charles F. van Loan. Matrix computations.
- * 3rd ed. The Johns Hopkins University Press. 1996.
- * LU decomposition, forward and back substitution: Chapter 3.
- */
-
-static int
-matrix_invert(double *A, unsigned *p, const struct weston_matrix *matrix)
-{
-	unsigned i, j, k;
-	unsigned pivot;
-	double pv;
-
-	for (i = 0; i < 4; ++i)
-		p[i] = i;
-	for (i = 16; i--; )
-		A[i] = matrix->d[i];
-
-	/* LU decomposition with partial pivoting */
-	for (k = 0; k < 4; ++k) {
-		pivot = find_pivot(&A[k * 4], k);
-		if (pivot != k) {
-			swap_unsigned(&p[k], &p[pivot]);
-			swap_rows(&A[k], &A[pivot]);
-		}
-
-		pv = A[k * 4 + k];
-		if (fabs(pv) < 1e-9)
-			return -1; /* zero pivot, not invertible */
-
-		for (i = k + 1; i < 4; ++i) {
-			A[i + k * 4] /= pv;
-
-			for (j = k + 1; j < 4; ++j)
-				A[i + j * 4] -= A[i + k * 4] * A[k + j * 4];
-		}
-	}
-
-	return 0;
-}
-
-static void
-inverse_transform(const double *LU, const unsigned *p, float *v)
-{
-	/* Solve A * x = v, when we have P * A = L * U.
-	 * P * A * x = P * v  =>  L * U * x = P * v
-	 * Let U * x = b, then L * b = P * v.
-	 */
-	double b[4];
-	unsigned j;
-
-	/* Forward substitution, column version, solves L * b = P * v */
-	/* The diagonal of L is all ones, and not explicitly stored. */
-	b[0] = v[p[0]];
-	b[1] = (double)v[p[1]] - b[0] * LU[1 + 0 * 4];
-	b[2] = (double)v[p[2]] - b[0] * LU[2 + 0 * 4];
-	b[3] = (double)v[p[3]] - b[0] * LU[3 + 0 * 4];
-	b[2] -= b[1] * LU[2 + 1 * 4];
-	b[3] -= b[1] * LU[3 + 1 * 4];
-	b[3] -= b[2] * LU[3 + 2 * 4];
-
-	/* backward substitution, column version, solves U * y = b */
-#if 1
-	/* hand-unrolled, 25% faster for whole function */
-	b[3] /= LU[3 + 3 * 4];
-	b[0] -= b[3] * LU[0 + 3 * 4];
-	b[1] -= b[3] * LU[1 + 3 * 4];
-	b[2] -= b[3] * LU[2 + 3 * 4];
-
-	b[2] /= LU[2 + 2 * 4];
-	b[0] -= b[2] * LU[0 + 2 * 4];
-	b[1] -= b[2] * LU[1 + 2 * 4];
-
-	b[1] /= LU[1 + 1 * 4];
-	b[0] -= b[1] * LU[0 + 1 * 4];
-
-	b[0] /= LU[0 + 0 * 4];
-#else
-	for (j = 3; j > 0; --j) {
-		unsigned k;
-		b[j] /= LU[j + j * 4];
-		for (k = 0; k < j; ++k)
-			b[k] -= b[j] * LU[k + j * 4];
-	}
-
-	b[0] /= LU[0 + 0 * 4];
-#endif
-
-	/* the result */
-	for (j = 0; j < 4; ++j)
-		v[j] = b[j];
-}
-
-WL_EXPORT int
-weston_matrix_invert(struct weston_matrix *inverse,
-		     const struct weston_matrix *matrix)
-{
-	double LU[16];		/* column-major */
-	unsigned perm[4];	/* permutation */
-	unsigned c;
-
-	if (matrix_invert(LU, perm, matrix) < 0)
-		return -1;
-
-	weston_matrix_init(inverse);
-	for (c = 0; c < 4; ++c)
-		inverse_transform(LU, perm, &inverse->d[c * 4]);
-	inverse->type = matrix->type;
-
-	return 0;
 }
 
 static bool
@@ -521,7 +383,7 @@ get_el(const struct weston_matrix *matrix, int row, int col)
 	assert(row >= 0 && row <= 3);
 	assert(col >= 0 && col <= 3);
 
-	return matrix->d[col * 4 + row];
+	return matrix->M.col[col].el[row];
 }
 
 static bool

@@ -330,9 +330,9 @@ compute_calibration(struct calibrator *cal, float *result)
 	 */
 	weston_matrix_init(&m);
 	for (i = 0; i < 3; i++) {
-		m.d[i + 0] = cal->samples[i].touched.x;
-		m.d[i + 4] = cal->samples[i].touched.y;
-		m.d[i + 8] = 1.0f;
+		m.M.col[0].el[i] = cal->samples[i].touched.x;
+		m.M.col[1].el[i] = cal->samples[i].touched.y;
+		m.M.col[2].el[i] = 1.0f;
 	}
 	m.type = WESTON_MATRIX_TRANSFORM_OTHER;
 
@@ -342,20 +342,20 @@ compute_calibration(struct calibrator *cal, float *result)
 	}
 
 	for (i = 0; i < 3; i++) {
-		x_calib.f[i] = cal->samples[i].drawn_cal.x;
-		y_calib.f[i] = cal->samples[i].drawn_cal.y;
+		x_calib.v.el[i] = cal->samples[i].drawn_cal.x;
+		y_calib.v.el[i] = cal->samples[i].drawn_cal.y;
 	}
-	x_calib.f[3] = 0.0f;
-	y_calib.f[3] = 0.0f;
+	x_calib.v.el[3] = 0.0f;
+	y_calib.v.el[3] = 0.0f;
 
 	/* Multiples into the vector */
 	weston_matrix_transform(&inverse, &x_calib);
 	weston_matrix_transform(&inverse, &y_calib);
 
 	for (i = 0; i < 3; i++)
-		result[i] = x_calib.f[i];
+		result[i] = x_calib.v.el[i];
 	for (i = 0; i < 3; i++)
-		result[i + 3] = y_calib.f[i];
+		result[i + 3] = y_calib.v.el[i];
 
 	return 0;
 }

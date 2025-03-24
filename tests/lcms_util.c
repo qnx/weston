@@ -32,6 +32,7 @@
 #include <stdlib.h>
 
 #include <libweston/matrix.h>
+#include <libweston/linalg-4.h>
 #include "shared/helpers.h"
 #include "color_util.h"
 #include "lcms_util.h"
@@ -281,11 +282,9 @@ roundtrip_verification(cmsPipeline *DToB, cmsPipeline *BToD, float tolerance)
 	test_assert_f32_lt(stat.two_norm.max, tolerance);
 }
 
-static const struct weston_vector ZEROS = {
-	.f = { 0.0, 0.0, 0.0, 1.0 }
-};
+static const struct weston_vector ZEROS = { .v = WESTON_VEC4F_ZERO };
 static const struct weston_vector PCS_BLACK = {
-	.f = {
+	.v.el = {
 		cmsPERCEPTUAL_BLACK_X,
 		cmsPERCEPTUAL_BLACK_Y,
 		cmsPERCEPTUAL_BLACK_Z,
@@ -310,19 +309,19 @@ static cmsInt32Number
 transform_sampler(const float src[], float dst[], void *cargo)
 {
 	const struct transform_sampler_context *tsc = cargo;
-	struct weston_vector stmp = { .f = { src[0], src[1], src[2], 1.0 } };
-	struct weston_vector dtmp = { .f = { 0.0, 0.0, 0.0, 1.0 } };
+	struct weston_vector stmp = { .v.el = { src[0], src[1], src[2], 1.0 } };
+	struct weston_vector dtmp = { .v.el = { 0.0, 0.0, 0.0, 1.0 } };
 
 	if (tsc->dir == BPC_DIR_BTOD)
 		weston_matrix_transform(&tsc->bpc, &stmp);
 
-	cmsDoTransform(tsc->t, stmp.f, dtmp.f, 1);
+	cmsDoTransform(tsc->t, stmp.v.el, dtmp.v.el, 1);
 
 	if (tsc->dir == BPC_DIR_DTOB)
 		weston_matrix_transform(&tsc->bpc, &dtmp);
 
 	for (int i = 0; i < 3; i++)
-		dst[i] = dtmp.f[i];
+		dst[i] = dtmp.v.el[i];
 
 	return 1; /* Success. */
 }
@@ -346,17 +345,17 @@ ComputeBlackPointCompensation(struct weston_matrix *m,
 	// a = (bpout - D50) / (bpin - D50)
 	// b = - D50* (bpout - bpin) / (bpin - D50)
 
-	tx = src_bp->f[0] - cmsD50_XYZ()->X;
-	ty = src_bp->f[1] - cmsD50_XYZ()->Y;
-	tz = src_bp->f[2] - cmsD50_XYZ()->Z;
+	tx = src_bp->v.x - cmsD50_XYZ()->X;
+	ty = src_bp->v.y - cmsD50_XYZ()->Y;
+	tz = src_bp->v.z - cmsD50_XYZ()->Z;
 
-	ax = (dst_bp->f[0] - cmsD50_XYZ()->X) / tx;
-	ay = (dst_bp->f[1] - cmsD50_XYZ()->Y) / ty;
-	az = (dst_bp->f[2] - cmsD50_XYZ()->Z) / tz;
+	ax = (dst_bp->v.x - cmsD50_XYZ()->X) / tx;
+	ay = (dst_bp->v.y - cmsD50_XYZ()->Y) / ty;
+	az = (dst_bp->v.z - cmsD50_XYZ()->Z) / tz;
 
-	bx = - cmsD50_XYZ()-> X * (dst_bp->f[0] - src_bp->f[0]) / tx;
-	by = - cmsD50_XYZ()-> Y * (dst_bp->f[1] - src_bp->f[1]) / ty;
-	bz = - cmsD50_XYZ()-> Z * (dst_bp->f[2] - src_bp->f[2]) / tz;
+	bx = - cmsD50_XYZ()-> X * (dst_bp->v.x - src_bp->v.x) / tx;
+	by = - cmsD50_XYZ()-> Y * (dst_bp->v.y - src_bp->v.y) / ty;
+	bz = - cmsD50_XYZ()-> Z * (dst_bp->v.z - src_bp->v.z) / tz;
 
 	/*
 	 *     [ax,  0,  0, bx ]

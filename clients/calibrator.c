@@ -117,11 +117,11 @@ finish_calibration (struct calibrator *calibrator)
 	 */
 	memset(&m, 0, sizeof(m));
 	for (i = 0; i < (int)ARRAY_LENGTH(test_ratios); i++) {
-		m.d[i] = calibrator->tests[i].clicked_x;
-		m.d[i + 4] = calibrator->tests[i].clicked_y;
-		m.d[i + 8] = 1;
+		m.M.col[0].el[i] = calibrator->tests[i].clicked_x;
+		m.M.col[1].el[i] = calibrator->tests[i].clicked_y;
+		m.M.col[2].el[i] = 1;
 	}
-	m.d[15] = 1;
+	m.M.col[3].el[3] = 1;
 
 	weston_matrix_invert(&inverse, &m);
 
@@ -129,8 +129,8 @@ finish_calibration (struct calibrator *calibrator)
 	memset(&y_calib, 0, sizeof(y_calib));
 
 	for (i = 0; i < (int)ARRAY_LENGTH(test_ratios); i++) {
-		x_calib.f[i] = calibrator->tests[i].drawn_x;
-		y_calib.f[i] = calibrator->tests[i].drawn_y;
+		x_calib.v.el[i] = calibrator->tests[i].drawn_x;
+		y_calib.v.el[i] = calibrator->tests[i].drawn_y;
 	}
 
 	/* Multiples into the vector */
@@ -138,8 +138,8 @@ finish_calibration (struct calibrator *calibrator)
 	weston_matrix_transform(&inverse, &y_calib);
 
 	printf ("Calibration values: %f %f %f %f %f %f\n",
-		x_calib.f[0], x_calib.f[1], x_calib.f[2],
-		y_calib.f[0], y_calib.f[1], y_calib.f[2]);
+		x_calib.v.el[0], x_calib.v.el[1], x_calib.v.el[2],
+		y_calib.v.el[0], y_calib.v.el[1], y_calib.v.el[2]);
 
 	exit(0);
 }

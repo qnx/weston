@@ -31,6 +31,7 @@
 #include <stdbool.h>
 
 #include <wayland-server-protocol.h>
+#include <libweston/linalg-types.h>
 
 #ifdef  __cplusplus
 extern "C" {
@@ -44,12 +45,12 @@ enum weston_matrix_transform_type {
 };
 
 struct weston_matrix {
-	float d[16];
+	struct weston_mat4f M;
 	unsigned int type;
 };
 
 struct weston_vector {
-	float f[4];
+	struct weston_vec4f v;
 };
 
 /** Arbitrary coordinates in any space */

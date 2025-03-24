@@ -940,10 +940,10 @@ redraw(struct window *window)
 		angle = ((time - window->initial_frame_time) / speed_div)
 			% 360 * M_PI / 180.0;
 	}
-	rotation.d[0] =   cos(angle);
-	rotation.d[2] =   sin(angle);
-	rotation.d[8] =  -sin(angle);
-	rotation.d[10] =  cos(angle);
+	rotation.M.col[0].el[0] =  cos(angle);
+	rotation.M.col[0].el[2] =  sin(angle);
+	rotation.M.col[2].el[0] = -sin(angle);
+	rotation.M.col[2].el[2] =  cos(angle);
 
 	switch (window->buffer_transform) {
 	case WL_OUTPUT_TRANSFORM_FLIPPED:
@@ -982,7 +982,7 @@ redraw(struct window *window)
 	glViewport(0, 0, window->buffer_size.width, window->buffer_size.height);
 
 	glUniformMatrix4fv(window->gl.rotation_uniform, 1, GL_FALSE,
-			   (GLfloat *) rotation.d);
+			   (GLfloat *) rotation.M.colmaj);
 
 	if (window->opaque || window->fullscreen)
 		glClearColor(0.0, 0.0, 0.0, 1);

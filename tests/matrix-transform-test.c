@@ -34,6 +34,7 @@
 #include <wayland-client.h>
 #include "libweston-internal.h"
 #include "libweston/matrix.h"
+#include <libweston/linalg-4.h>
 
 #include "weston-test-client-helper.h"
 #include "weston-test-assert.h"
@@ -382,40 +383,40 @@ simple_transform_vector(struct weston_output *output, struct weston_vector in)
 
 	switch (output->transform) {
 	case WL_OUTPUT_TRANSFORM_NORMAL:
-		out.f[0] = (-output->pos.c.x + in.f[0]) * scale;
-		out.f[1] = (-output->pos.c.y + in.f[1]) * scale;
+		out.v.el[0] = (-output->pos.c.x + in.v.el[0]) * scale;
+		out.v.el[1] = (-output->pos.c.y + in.v.el[1]) * scale;
 		break;
 	case WL_OUTPUT_TRANSFORM_FLIPPED:
-		out.f[0] = (output->pos.c.x + output->width - in.f[0]) * scale;
-		out.f[1] = (-output->pos.c.y + in.f[1]) * scale;
+		out.v.el[0] = (output->pos.c.x + output->width - in.v.el[0]) * scale;
+		out.v.el[1] = (-output->pos.c.y + in.v.el[1]) * scale;
 		break;
 	case WL_OUTPUT_TRANSFORM_90:
-		out.f[0] = (-output->pos.c.y + in.f[1]) * scale;
-		out.f[1] = (output->pos.c.x + output->width - in.f[0]) * scale;
+		out.v.el[0] = (-output->pos.c.y + in.v.el[1]) * scale;
+		out.v.el[1] = (output->pos.c.x + output->width - in.v.el[0]) * scale;
 		break;
 	case WL_OUTPUT_TRANSFORM_FLIPPED_90:
-		out.f[0] = (-output->pos.c.y + in.f[1]) * scale;
-		out.f[1] = (-output->pos.c.x + in.f[0]) * scale;
+		out.v.el[0] = (-output->pos.c.y + in.v.el[1]) * scale;
+		out.v.el[1] = (-output->pos.c.x + in.v.el[0]) * scale;
 		break;
 	case WL_OUTPUT_TRANSFORM_180:
-		out.f[0] = (output->pos.c.x + output->width - in.f[0]) * scale;
-		out.f[1] = (output->pos.c.y + output->height - in.f[1]) * scale;
+		out.v.el[0] = (output->pos.c.x + output->width - in.v.el[0]) * scale;
+		out.v.el[1] = (output->pos.c.y + output->height - in.v.el[1]) * scale;
 		break;
 	case WL_OUTPUT_TRANSFORM_FLIPPED_180:
-		out.f[0] = (-output->pos.c.x + in.f[0]) * scale;
-		out.f[1] = (output->pos.c.y + output->height - in.f[1]) * scale;
+		out.v.el[0] = (-output->pos.c.x + in.v.el[0]) * scale;
+		out.v.el[1] = (output->pos.c.y + output->height - in.v.el[1]) * scale;
 		break;
 	case WL_OUTPUT_TRANSFORM_270:
-		out.f[0] = (output->pos.c.y + output->height - in.f[1]) * scale;
-		out.f[1] = (-output->pos.c.x + in.f[0]) * scale;
+		out.v.el[0] = (output->pos.c.y + output->height - in.v.el[1]) * scale;
+		out.v.el[1] = (-output->pos.c.x + in.v.el[0]) * scale;
 		break;
 	case WL_OUTPUT_TRANSFORM_FLIPPED_270:
-		out.f[0] = (output->pos.c.y + output->height - in.f[1]) * scale;
-		out.f[1] = (output->pos.c.x + output->width - in.f[0]) * scale;
+		out.v.el[0] = (output->pos.c.y + output->height - in.v.el[1]) * scale;
+		out.v.el[1] = (output->pos.c.x + output->width - in.v.el[0]) * scale;
 		break;
 	}
-	out.f[2] = 0;
-	out.f[3] = 1;
+	out.v.el[2] = 0;
+	out.v.el[3] = 1;
 
 	return out;
 }
@@ -426,7 +427,7 @@ output_test_all_transforms(struct weston_output *output,
 {
 	int i;
 	int transform;
-	struct weston_vector t = { { 7.0, 13.0, 0.0, 1.0 } };
+	struct weston_vector t = { .v = WESTON_VEC4F(7.0, 13.0, 0.0, 1.0) };
 	struct weston_vector v, sv;
 
 	for (transform = WL_OUTPUT_TRANSFORM_NORMAL;
@@ -443,7 +444,7 @@ output_test_all_transforms(struct weston_output *output,
 		weston_matrix_transform(&output->matrix, &v);
 		sv = simple_transform_vector(output, t);
 		for (i = 0; i < 4; i++)
-			test_assert_f32_eq (sv.f[i], v.f[i]);
+			test_assert_f32_eq(sv.v.el[i], v.v.el[i]);
 	}
 }
 

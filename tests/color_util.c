@@ -366,7 +366,7 @@ weston_matrix_from_lcmsMAT3(struct weston_matrix *w, const struct lcmsMAT3 *m)
 
 	for (c = 0; c < 3; c++) {
 		for (r = 0; r < 3; r++)
-			w->d[c * 4 + r] = m->v[c].n[r];
+			w->M.col[c].el[r] = m->v[c].n[r];
 	}
 }
 
@@ -377,7 +377,7 @@ lcmsMAT3_from_weston_matrix(struct lcmsMAT3 *m, const struct weston_matrix *w)
 
 	for (c = 0; c < 3; c++) {
 		for (r = 0; r < 3; r++)
-			m->v[c].n[r] = w->d[c * 4 + r];
+			m->v[c].n[r] = w->M.col[c].el[r];
 	}
 }
 

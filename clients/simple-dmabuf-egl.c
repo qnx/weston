@@ -815,7 +815,7 @@ render(struct window *window, struct buffer *buffer)
 
 	glUniform1f(window->gl.offset_uniform, offset);
 	glUniformMatrix4fv(window->gl.reflection_uniform, 1, GL_FALSE,
-			   (GLfloat *) reflection.d);
+			   (GLfloat *) reflection.M.colmaj);
 
 	glClearColor(0.0,0.0, 0.0, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -864,7 +864,7 @@ render_mandelbrot(struct window *window, struct buffer *buffer)
 
 	glUniform1f(window->gl.offset_uniform, offset);
 	glUniformMatrix4fv(window->gl.reflection_uniform, 1, GL_FALSE,
-			   (GLfloat *) reflection.d);
+			   (GLfloat *) reflection.M.colmaj);
 
 	glClearColor(0.6, 0.6, 0.6, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT);

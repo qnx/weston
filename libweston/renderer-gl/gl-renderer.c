@@ -43,6 +43,8 @@
 #include <gbm.h>
 #endif
 
+#include <libweston/linalg-4.h>
+
 #include "linux-sync-file.h"
 #include "timeline.h"
 
@@ -2343,12 +2345,12 @@ blit_shadow_to_output(struct weston_output *output,
 			.input_is_premult = true,
 		},
 		.projection = {
-			.d = { /* transpose */
-				 2.0f,	0.0f,              0.0f, 0.0f,
-				 0.0f,  go->y_flip * 2.0f, 0.0f, 0.0f,
-				 0.0f,  0.0f,              1.0f, 0.0f,
-				-1.0f, -go->y_flip,        0.0f, 1.0f
-			},
+			.M = WESTON_MAT4F(
+				2.0,              0.0, 0.0,        -1.0,
+				0.0, go->y_flip * 2.0, 0.0, -go->y_flip,
+				0.0,              0.0, 1.0,         0.0,
+				0.0,              0.0, 0.0,         1.0
+			),
 			.type = WESTON_MATRIX_TRANSFORM_SCALE |
 				WESTON_MATRIX_TRANSFORM_TRANSLATE,
 		},
@@ -3926,9 +3928,9 @@ gl_renderer_surface_copy_content(struct weston_surface *surface,
 	glViewport(0, 0, cw, ch);
 	set_blend_state(gr, false);
 	if (buffer->buffer_origin == ORIGIN_TOP_LEFT)
-		ARRAY_COPY(sconf.projection.d, projmat_normal);
+		ARRAY_COPY(sconf.projection.M.colmaj, projmat_normal);
 	else
-		ARRAY_COPY(sconf.projection.d, projmat_yinvert);
+		ARRAY_COPY(sconf.projection.M.colmaj, projmat_yinvert);
 	sconf.projection.type = WESTON_MATRIX_TRANSFORM_SCALE |
 				WESTON_MATRIX_TRANSFORM_TRANSLATE;
 

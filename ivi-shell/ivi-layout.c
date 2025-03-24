@@ -463,33 +463,33 @@ calc_inverse_matrix_transform(const struct weston_matrix *matrix,
 	}
 
 	/* The vectors and matrices involved will always produce f[3] == 1.0. */
-	top_left.f[0] = rect_input->x;
-	top_left.f[1] = rect_input->y;
-	top_left.f[2] = 0.0f;
-	top_left.f[3] = 1.0f;
+	top_left.v.el[0] = rect_input->x;
+	top_left.v.el[1] = rect_input->y;
+	top_left.v.el[2] = 0.0f;
+	top_left.v.el[3] = 1.0f;
 
-	bottom_right.f[0] = rect_input->x + rect_input->width;
-	bottom_right.f[1] = rect_input->y + rect_input->height;
-	bottom_right.f[2] = 0.0f;
-	bottom_right.f[3] = 1.0f;
+	bottom_right.v.el[0] = rect_input->x + rect_input->width;
+	bottom_right.v.el[1] = rect_input->y + rect_input->height;
+	bottom_right.v.el[2] = 0.0f;
+	bottom_right.v.el[3] = 1.0f;
 
 	weston_matrix_transform(&m, &top_left);
 	weston_matrix_transform(&m, &bottom_right);
 
-	if (top_left.f[0] < bottom_right.f[0]) {
-		rect_output->x = floorf(top_left.f[0]);
-		rect_output->width = ceilf(bottom_right.f[0] - rect_output->x);
+	if (top_left.v.el[0] < bottom_right.v.el[0]) {
+		rect_output->x = floor(top_left.v.el[0]);
+		rect_output->width = ceil(bottom_right.v.el[0] - rect_output->x);
 	} else {
-		rect_output->x = floorf(bottom_right.f[0]);
-		rect_output->width = ceilf(top_left.f[0] - rect_output->x);
+		rect_output->x = floor(bottom_right.v.el[0]);
+		rect_output->width = ceil(top_left.v.el[0] - rect_output->x);
 	}
 
-	if (top_left.f[1] < bottom_right.f[1]) {
-		rect_output->y = floorf(top_left.f[1]);
-		rect_output->height = ceilf(bottom_right.f[1] - rect_output->y);
+	if (top_left.v.el[1] < bottom_right.v.el[1]) {
+		rect_output->y = floor(top_left.v.el[1]);
+		rect_output->height = ceil(bottom_right.v.el[1] - rect_output->y);
 	} else {
-		rect_output->y = floorf(bottom_right.f[1]);
-		rect_output->height = ceilf(top_left.f[1] - rect_output->y);
+		rect_output->y = floor(bottom_right.v.el[1]);
+		rect_output->height = ceil(top_left.v.el[1] - rect_output->y);
 	}
 
 	ivi_rectangle_intersect(rect_output, boundingbox, rect_output);
