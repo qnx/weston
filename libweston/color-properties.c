@@ -483,3 +483,42 @@ weston_color_tf_info_from_protocol(uint32_t protocol_tf)
 
         return NULL;
 }
+
+WL_EXPORT const struct weston_color_tf_info *
+weston_color_tf_info_from_parametric_curve(struct weston_color_curve_parametric *curve)
+{
+	const struct weston_color_tf_info *tf_info;
+	float PRECISION = 1e-5;
+	unsigned int i, j, k;
+	bool params_match;
+
+	for (i = 0; i < ARRAY_LENGTH(color_tf_info_table); i++) {
+		tf_info = &color_tf_info_table[i];
+
+		/**
+		 * Ignore parametric TF's; we can't compare a curve with them,
+		 * as they are not pre-defined, but parametric.
+		 */
+		if (tf_info->count_parameters > 0)
+			continue;
+
+		if (tf_info->curve.type != curve->type)
+			continue;
+
+		if (tf_info->curve.clamped_input != curve->clamped_input)
+			continue;
+
+		for (j = 0, params_match = true; j < 3 && params_match == true; j++) {
+			for (k = 0; k < MAX_PARAMS_PARAM_CURVE && params_match == true; k++) {
+				if (fabsf(tf_info->curve.params[j][k] - curve->params[j][k]) > PRECISION)
+					params_match = false;
+			}
+		}
+		if (!params_match)
+			continue;
+
+		return tf_info;
+	}
+
+	return NULL;
+}

@@ -149,4 +149,7 @@ weston_color_tf_info_from(struct weston_compositor *compositor,
 const struct weston_color_tf_info *
 weston_color_tf_info_from_protocol(uint32_t protocol_tf);
 
+const struct weston_color_tf_info *
+weston_color_tf_info_from_parametric_curve(struct weston_color_curve_parametric *curve);
+
 #endif /* WESTON_COLOR_PROPERTIES_H */

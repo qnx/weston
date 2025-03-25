@@ -442,15 +442,83 @@ merge_curvesets(cmsPipeline **lut, cmsContext context_id)
 	return modified;
 }
 
+static const struct weston_color_tf_info *
+lcms_curve_matches_any_tf(struct weston_compositor *compositor,
+			  uint32_t lcms_curve_type, bool clamped_input,
+			  const float lcms_curve_params[3][MAX_PARAMS_LCMS_PARAM_CURVE])
+{
+	struct weston_color_curve_parametric curve = { 0 };
+	unsigned int i, j;
+	uint32_t n_lcms_curve_params;
+
+	curve.clamped_input = clamped_input;
+
+	switch(lcms_curve_type) {
+	case 1:
+		/**
+		 * LittleCMS type 1 is the pure power-law curve, which is a
+		 * special case of LINPOW. See linpow_from_type_1().
+		 */
+		n_lcms_curve_params = 1;
+		curve.type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW;
+		break;
+	case 4:
+		/**
+		 * LittleCMS type 4 is almost exactly the same as LINPOW. See
+		 * linpow_from_type_4().
+		 */
+		n_lcms_curve_params = 5;
+		curve.type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW;
+		break;
+	default:
+		return NULL;
+	}
+
+	weston_assert_uint32_lt_or_eq(compositor,
+				      n_lcms_curve_params, MAX_PARAMS_LCMS_PARAM_CURVE);
+
+	for (i = 0; i < 3; i++)
+		for (j = 0; j < n_lcms_curve_params; j++)
+			curve.params[i][j] = lcms_curve_params[i][j];
+
+	return weston_color_tf_info_from_parametric_curve(&curve);
+}
+
+
 static bool
 linpow_from_type_1(struct weston_compositor *compositor,
 		   struct weston_color_curve *curve,
 		   const float type_1_params[3][MAX_PARAMS_LCMS_PARAM_CURVE],
 		   bool clamped_input)
 {
+	struct weston_color_curve_enum *enumerated = &curve->u.enumerated;
 	struct weston_color_curve_parametric *parametric = &curve->u.parametric;
+	const struct weston_color_tf_info *tf_info;
 	unsigned int i;
 
+	/* Check if LittleCMS curve matches any TF (except the parametric TF's). */
+	tf_info = lcms_curve_matches_any_tf(compositor, 1, clamped_input, type_1_params);
+	if (tf_info) {
+		curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
+		enumerated->tf = tf_info;
+		enumerated->tf_direction = WESTON_FORWARD_TF;
+		return true;
+	}
+
+	/* This is a pure power-law with custom exp. If clamped_input == false,
+	 * this matches WESTON_TF_POWER (parametric TF that is not clamped). */
+	if (!clamped_input) {
+		curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
+		enumerated->tf = weston_color_tf_info_from(compositor,
+							   WESTON_TF_POWER);
+		enumerated->tf_direction = WESTON_FORWARD_TF;
+		for (i = 0; i < 3; i++)
+			enumerated->params[i][0] = type_1_params[i][0];
+		return true;
+	}
+
+	/* Pure power-law with custom exp and clamped_input. We don't have any
+	 * TF that matches this, so let's use a parametric curve. */
 	curve->type = WESTON_COLOR_CURVE_TYPE_PARAMETRIC;
 
 	/* LittleCMS type 1 is the pure power-law curve, which is a special case
@@ -472,7 +540,7 @@ linpow_from_type_1(struct weston_compositor *compositor,
 	parametric->type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW;
 	parametric->clamped_input = clamped_input;
 
-	for (i = 0; i < ARRAY_LENGTH(parametric->params); i++) {
+	for (i = 0; i < 3; i++) {
 		parametric->params[i][0] = type_1_params[i][0]; /* g */
 		parametric->params[i][1] = 1.0f; /* a */
 		parametric->params[i][2] = 0.0f; /* b */
@@ -490,11 +558,44 @@ linpow_from_type_1_inverse(struct weston_compositor *compositor,
 			   bool clamped_input)
 {
 	struct weston_color_manager_lcms *cm = to_cmlcms(compositor->color_manager);
+	struct weston_color_curve_enum *enumerated = &curve->u.enumerated;
 	struct weston_color_curve_parametric *parametric = &curve->u.parametric;
+	const struct weston_color_tf_info *tf_info;
 	float g;
 	const char *err_msg;
 	unsigned int i;
 
+	/* Check if LittleCMS curve matches any TF (except the parametric TF's). */
+	tf_info = lcms_curve_matches_any_tf(compositor, 1, clamped_input, type_1_params);
+	if (tf_info) {
+		curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
+		enumerated->tf = tf_info;
+		enumerated->tf_direction = WESTON_INVERSE_TF;
+		return true;
+	}
+
+	/* This is the inverse of a pure power-law with custom exp. If
+	 * clamped_input == false, this matches WESTON_TF_POWER (parametric TF
+	 * that is not clamped). */
+	if (!clamped_input) {
+		curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
+		enumerated->tf = weston_color_tf_info_from(compositor,
+							   WESTON_TF_POWER);
+		enumerated->tf_direction = WESTON_INVERSE_TF;
+		for (i = 0; i < 3; i++) {
+			g = type_1_params[i][0];
+			if (g == 0.0f) {
+				err_msg = "WARNING: xform has a LittleCMS type -1 curve " \
+					  "(inverse of pure power-law) with exponent 1 " \
+					  "divided by 0, which is invalid";
+				goto err;
+			}
+			enumerated->params[i][0] = g;
+		}
+	}
+
+	/* Inverse of pure power-law with custom exp and clamped_input. We don't
+	 * have any TF that matches this, so let's use a parametric curve. */
 	curve->type = WESTON_COLOR_CURVE_TYPE_PARAMETRIC;
 
 	/* LittleCMS type -1 (inverse of type 1) is the inverse of the pure
@@ -523,16 +624,14 @@ linpow_from_type_1_inverse(struct weston_compositor *compositor,
 	parametric->type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW;
 	parametric->clamped_input = clamped_input;
 
-	for (i = 0; i < ARRAY_LENGTH(parametric->params); i++) {
+	for (i = 0; i < 3; i++) {
 		g = type_1_params[i][0];
-
 		if (g == 0.0f) {
 			err_msg = "WARNING: xform has a LittleCMS type -1 curve " \
 				  "(inverse of pure power-law) with exponent 1 " \
 				  "divided by 0, which is invalid";
 			goto err;
 		}
-
 		parametric->params[i][0] = 1.0f / g;
 		parametric->params[i][1] = 1.0f; /* a */
 		parametric->params[i][2] = 0.0f; /* b */
@@ -554,11 +653,23 @@ linpow_from_type_4(struct weston_compositor *compositor,
 		   bool clamped_input)
 {
 	struct weston_color_manager_lcms *cm = to_cmlcms(compositor->color_manager);
+	struct weston_color_curve_enum *enumerated = &curve->u.enumerated;
 	struct weston_color_curve_parametric *parametric = &curve->u.parametric;
+	const struct weston_color_tf_info *tf_info;
 	float g, a, b, c, d;
 	const char *err_msg;
 	unsigned int i;
 
+	/* Check if LittleCMS curve matches any TF (except the parametric TF's). */
+	tf_info = lcms_curve_matches_any_tf(compositor, 4, clamped_input, type_4_params);
+	if (tf_info) {
+		curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
+		enumerated->tf = tf_info;
+		enumerated->tf_direction = WESTON_FORWARD_TF;
+		return true;
+	}
+
+	/* No TF's matches this curve, so let's put it in a parametric curve. */
 	curve->type = WESTON_COLOR_CURVE_TYPE_PARAMETRIC;
 
 	/* LittleCMS type 4 is almost exactly the same as LINPOW. So simply copy
@@ -576,7 +687,7 @@ linpow_from_type_4(struct weston_compositor *compositor,
 	parametric->type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW;
 	parametric->clamped_input = clamped_input;
 
-	for (i = 0; i < ARRAY_LENGTH(parametric->params); i++) {
+	for (i = 0; i < 3; i++) {
 		g = type_4_params[i][0];
 		a = type_4_params[i][1];
 		b = type_4_params[i][2];
@@ -622,11 +733,23 @@ powlin_from_type_4_inverse(struct weston_compositor *compositor,
 			   bool clamped_input)
 {
 	struct weston_color_manager_lcms *cm = to_cmlcms(compositor->color_manager);
+	struct weston_color_curve_enum *enumerated = &curve->u.enumerated;
 	struct weston_color_curve_parametric *parametric = &curve->u.parametric;
+	const struct weston_color_tf_info *tf_info;
 	float g, a, b, c, d;
 	const char *err_msg;
 	unsigned int i;
 
+	/* Check if LittleCMS curve matches any TF (except the parametric ones). */
+	tf_info = lcms_curve_matches_any_tf(compositor, 4, clamped_input, type_4_params);
+	if (tf_info) {
+		curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
+		enumerated->tf = tf_info;
+		enumerated->tf_direction = WESTON_INVERSE_TF;
+		return true;
+	}
+
+	/* No TF's matches this curve, so let's put it in a parametric curve. */
 	curve->type = WESTON_COLOR_CURVE_TYPE_PARAMETRIC;
 
 	/* LittleCMS type -4 (inverse of type 4) fits into POWLIN. We need to
@@ -679,7 +802,7 @@ powlin_from_type_4_inverse(struct weston_compositor *compositor,
 	parametric->type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN;
 	parametric->clamped_input = clamped_input;
 
-	for (i = 0; i < ARRAY_LENGTH(parametric->params); i++) {
+	for (i = 0; i < 3; i++) {
 		g = type_4_params[i][0];
 		a = type_4_params[i][1];
 		b = type_4_params[i][2];
