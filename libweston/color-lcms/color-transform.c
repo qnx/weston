@@ -28,6 +28,7 @@
 
 #include <assert.h>
 #include <libweston/libweston.h>
+#include <libweston/linalg.h>
 #include <lcms2_plugin.h>
 
 #include "color.h"
@@ -176,56 +177,34 @@ cmlcms_color_transform_destroy(struct cmlcms_color_transform *xform)
 	free(xform);
 }
 
-/**
- * Matrix infinity norm
- *
- * http://www.netlib.org/lapack/lug/node75.html
- */
-static double
-matrix_inf_norm(const cmsMAT3 *mat)
-{
-	unsigned row;
-	double infnorm = -1.0;
-
-	for (row = 0; row < 3; row++) {
-		unsigned col;
-		double sum = 0.0;
-
-		for (col = 0; col < 3; col++)
-			sum += fabs(mat->v[row].n[col]);
-
-		if (infnorm < sum)
-			infnorm = sum;
-	}
-
-	return infnorm;
-}
-
 /*
  * The method of testing for identity matrix is from
  * https://gitlab.freedesktop.org/pq/fourbyfour/-/blob/master/README.d/precision_testing.md#inversion-error
  */
 static bool
-matrix_is_identity(const cmsMAT3 *mat, int bits_precision)
+matrix_is_identity(struct weston_mat4f M, int bits_precision)
 {
-	cmsMAT3 tmp = *mat;
-	double err;
-	int i;
-
-	/* subtract identity matrix */
-	for (i = 0; i < 3; i++)
-		tmp.v[i].n[i] -= 1.0;
-
-	err = matrix_inf_norm(&tmp);
-
-	return -log2(err) >= bits_precision;
+	M = weston_m4f_sub_m4f(M, WESTON_MAT4F_IDENTITY);
+	return -log2(weston_m4f_inf_norm(M)) >= bits_precision;
 }
 
-static const cmsMAT3 *
-stage_matrix(const _cmsStageMatrixData *smd)
+static struct weston_mat4f
+stage_matrix_get_mat4(const _cmsStageMatrixData *smd)
 {
-	/* Both are row-major. */
-	return (const cmsMAT3 *)smd->Double;
+	const double *p = smd->Offset;
+	const double *d = smd->Double;
+	struct weston_vec3f t = WESTON_VEC3F_ZERO;
+	struct weston_mat3f A = WESTON_MAT3F(
+		/* smd is row-major. */
+		d[0], d[1], d[2],
+		d[3], d[4], d[5],
+		d[6], d[7], d[8]
+	);
+
+	if (p)
+		t = WESTON_VEC3F(p[0], p[1], p[2]);
+
+	return weston_m4f_from_m3f_v3f(A, t);
 }
 
 static bool
@@ -253,30 +232,37 @@ is_matrix_stage_with_zero_offset(const cmsStage *stage)
 static bool
 is_identity_matrix_stage(const cmsStage *stage)
 {
-	_cmsStageMatrixData *data;
+	const _cmsStageMatrixData *data;
+	struct weston_mat4f M;
 
 	if (!is_matrix_stage_with_zero_offset(stage))
 		return false;
 
 	data = cmsStageData(stage);
-	return matrix_is_identity(stage_matrix(data),
-				  MATRIX_PRECISION_BITS);
+	M = stage_matrix_get_mat4(data);
+
+	return matrix_is_identity(M, MATRIX_PRECISION_BITS);
 }
 
 /* Returns the matrix (next * prev). */
 static cmsStage *
 multiply_matrix_stages(cmsContext context_id, cmsStage *next, cmsStage *prev)
 {
-	_cmsStageMatrixData *prev_, *next_;
-	cmsMAT3 res;
+	struct weston_mat4f M_prev = stage_matrix_get_mat4(cmsStageData(prev));
+	struct weston_mat4f M_next = stage_matrix_get_mat4(cmsStageData(next));
+	struct weston_mat4f R = weston_m4f_mul_m4f(M_next, M_prev);
+	double A[9] = {
+		/* row-major */
+		R.col[0].el[0], R.col[1].el[0], R.col[2].el[0],
+		R.col[0].el[1], R.col[1].el[1], R.col[2].el[1],
+		R.col[0].el[2], R.col[1].el[2], R.col[2].el[2]
+	};
+	double t[3] = {
+		R.col[3].el[0], R.col[3].el[1], R.col[3].el[2]
+	};
 	cmsStage *ret;
 
-	prev_ = cmsStageData(prev);
-	next_ = cmsStageData(next);
-
-	_cmsMAT3per(&res, stage_matrix(next_), stage_matrix(prev_));
-	ret = cmsStageAllocMatrix(context_id, 3, 3,
-				  (const cmsFloat64Number*)&res, NULL);
+	ret = cmsStageAllocMatrix(context_id, 3, 3, A, t);
 	abort_oom_if_null(ret);
 	return ret;
 }
