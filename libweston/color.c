@@ -44,6 +44,7 @@
 #include "shared/string-helpers.h"
 #include "shared/helpers.h"
 #include "shared/xalloc.h"
+#include "shared/weston-assert.h"
 
 /**
  * Increase reference count of the color profile object
@@ -189,6 +190,54 @@ weston_color_profile_params_to_str(struct weston_color_profile_params *params,
 }
 
 /**
+ * Given an enumerated color curve, returns an equivalent parametric curve.
+ *
+ * \param compositor The compositor instance.
+ * \param curve The enumerated color curve.
+ * \param out Where this stores the parametric curve.
+ * \return True on success, false otherwise.
+ */
+WL_EXPORT bool
+weston_color_curve_enum_get_parametric(struct weston_compositor *compositor,
+				       const struct weston_color_curve_enum *curve,
+				       struct weston_color_curve_parametric *out)
+{
+	unsigned int i;
+
+	memset(out, 0, sizeof(*out));
+
+	/* This one is special, the only parametric TF we currently have. */
+	if (curve->tf->tf == WESTON_TF_POWER) {
+		out->type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW;
+		out->clamped_input = false;
+		for (i = 0; i < 3; i++) {
+			float exp = curve->params[i][0];
+			/* LINPOW with such params matches pure power-law */
+			out->params[i][0] = (curve->tf_direction == WESTON_FORWARD_TF) ?
+					    exp : 1.0f / exp; /* g */
+			out->params[i][1] = 1.0; /* a */
+			out->params[i][2] = 0.0; /* b */
+			out->params[i][3] = 1.0; /* c */
+			out->params[i][4] = 0.0; /* d */
+		}
+		return true;
+	}
+
+	/* No other TF's have params. */
+	weston_assert_uint32_eq(compositor, curve->tf->count_parameters, 0);
+
+	if (!curve->tf->curve_params_valid)
+		return false;
+
+	if (curve->tf_direction == WESTON_FORWARD_TF)
+		*out = curve->tf->curve;
+	else
+		*out = curve->tf->inverse_curve;
+
+	return true;
+}
+
+/**
  * Increase reference count of the color transform object
  *
  * \param xform The color transform. NULL is accepted too.
@@ -266,6 +315,8 @@ curve_type_to_str(enum weston_color_curve_type curve_type)
 		return "identity";
 	case WESTON_COLOR_CURVE_TYPE_LUT_3x1D:
 		return "3x1D LUT";
+	case WESTON_COLOR_CURVE_TYPE_ENUM:
+		return "enumerated";
 	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
 		return "parametric";
 	}
@@ -313,6 +364,10 @@ weston_color_transform_string(const struct weston_color_transform *xform)
 		fprintf(fp, "%spre %s", sep, curve_type_to_str(pre_type));
 		if (pre_type == WESTON_COLOR_CURVE_TYPE_LUT_3x1D)
 			fprintf(fp, " [%u]", xform->pre_curve.u.lut_3x1d.optimal_len);
+		else if (pre_type == WESTON_COLOR_CURVE_TYPE_ENUM)
+			fprintf(fp, " [%s%s]",
+				(xform->pre_curve.u.enumerated.tf_direction == WESTON_INVERSE_TF) ? "inverse " : "",
+				xform->pre_curve.u.enumerated.tf->desc);
 		else if (pre_type == WESTON_COLOR_CURVE_TYPE_PARAMETRIC)
 			fprintf(fp, " [%s]",
 				param_curve_type_to_str(xform->pre_curve.u.parametric.type));
@@ -330,6 +385,10 @@ weston_color_transform_string(const struct weston_color_transform *xform)
 		fprintf(fp, "%spost %s", sep, curve_type_to_str(post_type));
 		if (post_type == WESTON_COLOR_CURVE_TYPE_LUT_3x1D)
 			fprintf(fp, " [%u]", xform->post_curve.u.lut_3x1d.optimal_len);
+		else if (post_type == WESTON_COLOR_CURVE_TYPE_ENUM)
+			fprintf(fp, " [%s%s]",
+				(xform->post_curve.u.enumerated.tf_direction == WESTON_INVERSE_TF) ? "inverse " : "",
+				xform->post_curve.u.enumerated.tf->desc);
 		else if (post_type == WESTON_COLOR_CURVE_TYPE_PARAMETRIC)
 			fprintf(fp, " [%s]",
 				param_curve_type_to_str(xform->post_curve.u.parametric.type));

@@ -225,6 +225,9 @@ enum weston_color_curve_type {
 	/** Three-channel, one-dimensional look-up table */
 	WESTON_COLOR_CURVE_TYPE_LUT_3x1D,
 
+	/** Enumerated color curve */
+	WESTON_COLOR_CURVE_TYPE_ENUM,
+
 	/** Parametric color curve */
 	WESTON_COLOR_CURVE_TYPE_PARAMETRIC,
 };
@@ -253,6 +256,24 @@ struct weston_color_curve_lut_3x1d {
 
 	/** Optimal 1D LUT length for storage vs. precision */
 	unsigned optimal_len;
+};
+
+/** Direct or inverse of a tf. */
+enum weston_tf_direction {
+	WESTON_FORWARD_TF,
+	WESTON_INVERSE_TF,
+};
+
+/** Enumerated color curve */
+struct weston_color_curve_enum {
+	const struct weston_color_tf_info *tf;
+
+	/* Determines if the direct or inverse of the tf should be used. */
+	enum weston_tf_direction tf_direction;
+
+	/* Some tf are parametric, and we keep the params here. They may be
+	 * different for each color channel, and channels are in RGB order. */
+	float params[3][MAX_PARAMS_TF];
 };
 
 /** Parametric color curve parameters */
@@ -286,6 +307,7 @@ struct weston_color_curve {
 	union {
 		/* identity: no parameters */
 		struct weston_color_curve_lut_3x1d lut_3x1d;
+		struct weston_color_curve_enum enumerated;
 		struct weston_color_curve_parametric parametric;
 	} u;
 };
@@ -619,6 +641,11 @@ weston_color_profile_init(struct weston_color_profile *cprof,
 char *
 weston_color_profile_params_to_str(struct weston_color_profile_params *params,
 				   const char *ident);
+
+bool
+weston_color_curve_enum_get_parametric(struct weston_compositor *compositor,
+				       const struct weston_color_curve_enum *curve,
+				       struct weston_color_curve_parametric *out);
 
 struct weston_color_transform *
 weston_color_transform_ref(struct weston_color_transform *xform);

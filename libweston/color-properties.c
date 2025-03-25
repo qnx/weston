@@ -255,24 +255,62 @@ static const struct weston_color_primaries_info color_primaries_info_table[] = {
 	},
 };
 
+#define POWER_LAW_PARAMS(g) { g, 1.0, 0.0, 1.0, 0.0 }
+#define SRGB_PIECE_WISE_PARAMS { 2.4, 1.0f / 1.055f, 0.055f / 1.055f, 1.0f / 12.92f, 0.04045 }
+#define INVERSE_SRGB_PIECE_WISE_PARAMS { 1.0f / 2.4f, 1.055, -0.055, 12.92, 0.0031308 }
+
+#define POWER_LAW(g, clamp) {				      \
+	.type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW,    \
+	.clamped_input = (clamp),			      \
+	.params = { POWER_LAW_PARAMS(g), POWER_LAW_PARAMS(g), \
+		    POWER_LAW_PARAMS(g), }		      \
+}
+
+#define SRGB_PIECE_WISE(clamp) {				    \
+	.type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW, 	    \
+	.clamped_input = (clamp), 				    \
+	.params = { SRGB_PIECE_WISE_PARAMS, SRGB_PIECE_WISE_PARAMS, \
+		    SRGB_PIECE_WISE_PARAMS, }			    \
+}
+
+#define INVERSE_SRGB_PIECE_WISE(clamp) {					    \
+	.type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN,			    \
+	.clamped_input = (clamp),						    \
+	.params = { INVERSE_SRGB_PIECE_WISE_PARAMS, INVERSE_SRGB_PIECE_WISE_PARAMS, \
+		    INVERSE_SRGB_PIECE_WISE_PARAMS, }				    \
+}
+
 static const struct weston_color_tf_info color_tf_info_table[] = {
 	{
 		.tf = WESTON_TF_BT1886,
 		.desc = "BT.1886 transfer function",
 		.protocol_tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_BT1886,
 		.count_parameters = 0,
+		/**
+		 * NOTE: This is the BT.1886 special case of L_B = 0 and
+		 * L_W = 1.
+		 */
+		.curve_params_valid = true,
+		.curve = POWER_LAW(2.4, true),
+		.inverse_curve = POWER_LAW(1.0f / 2.4f, true),
 	},
 	{
 		.tf = WESTON_TF_GAMMA22,
 		.desc = "Assumed display gamma 2.2 transfer function",
 		.protocol_tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22,
 		.count_parameters = 0,
+		.curve_params_valid = true,
+		.curve = POWER_LAW(2.2, true),
+		.inverse_curve = POWER_LAW(1.0f / 2.2f, true),
 	},
 	{
 		.tf = WESTON_TF_GAMMA28,
 		.desc = "Assumed display gamma 2.8 transfer function",
 		.protocol_tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA28,
 		.count_parameters = 0,
+		.curve_params_valid = true,
+		.curve = POWER_LAW(2.8, true),
+		.inverse_curve = POWER_LAW(1.0f / 2.8f, true),
 	},
 	{
 		.tf = WESTON_TF_EXT_LINEAR,
@@ -285,12 +323,18 @@ static const struct weston_color_tf_info color_tf_info_table[] = {
 		.desc = "sRGB piece-wise transfer function",
 		.protocol_tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
 		.count_parameters = 0,
+		.curve_params_valid = true,
+		.curve = SRGB_PIECE_WISE(true),
+		.inverse_curve = INVERSE_SRGB_PIECE_WISE(true),
 	},
 	{
 		.tf = WESTON_TF_EXT_SRGB,
 		.desc = "Extended sRGB piece-wise transfer function",
 		.protocol_tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_EXT_SRGB,
 		.count_parameters = 0,
+		.curve_params_valid = true,
+		.curve = SRGB_PIECE_WISE(false),
+		.inverse_curve = INVERSE_SRGB_PIECE_WISE(false),
 	},
 	{
 		.tf = WESTON_TF_ST240,

@@ -168,6 +168,38 @@ gl_color_curve_parametric(struct gl_renderer *gr,
 }
 
 static bool
+gl_color_curve_enum(struct gl_renderer *gr,
+		    struct gl_renderer_color_curve *gl_curve,
+		    const struct weston_color_curve *curve)
+{
+	struct weston_color_curve_parametric parametric;
+	bool ret;
+
+	/* Lower TF to a parametric curve. */
+	ret = weston_color_curve_enum_get_parametric(gr->compositor,
+						     &curve->u.enumerated,
+						     &parametric);
+	if (!ret)
+		return false;
+
+	/* Handle parametric curve that we got from TF. */
+
+	ARRAY_COPY(gl_curve->u.parametric.params, parametric.params);
+	gl_curve->u.parametric.clamped_input = parametric.clamped_input;
+
+	switch(parametric.type) {
+	case WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW:
+		gl_curve->type = SHADER_COLOR_CURVE_LINPOW;
+		return true;
+	case WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN:
+		gl_curve->type = SHADER_COLOR_CURVE_POWLIN;
+		return true;
+	}
+
+	weston_assert_not_reached(gr->compositor, "unknown parametric color curve");
+}
+
+static bool
 gl_color_curve_lut_3x1d(struct gl_renderer *gr,
 			struct gl_renderer_color_curve *gl_curve,
 			const struct weston_color_curve *curve,
@@ -285,6 +317,10 @@ gl_renderer_color_transform_from(struct gl_renderer *gr,
 		ok = gl_color_curve_parametric(gr, &gl_xform->pre_curve,
 					       &xform->pre_curve);
 		break;
+	case WESTON_COLOR_CURVE_TYPE_ENUM:
+		ok = gl_color_curve_enum(gr, &gl_xform->pre_curve,
+					 &xform->pre_curve);
+		break;
 	}
 	if (!ok) {
 		gl_renderer_color_transform_destroy(gl_xform);
@@ -322,6 +358,10 @@ gl_renderer_color_transform_from(struct gl_renderer *gr,
 	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
 		ok = gl_color_curve_parametric(gr, &gl_xform->post_curve,
 					       &xform->post_curve);
+		break;
+	case WESTON_COLOR_CURVE_TYPE_ENUM:
+		ok = gl_color_curve_enum(gr, &gl_xform->post_curve,
+					 &xform->post_curve);
 		break;
 	}
 	if (!ok) {

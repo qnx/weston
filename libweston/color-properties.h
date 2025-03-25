@@ -29,6 +29,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "color.h"
 #include <libweston/libweston.h>
 
 struct weston_compositor;
@@ -113,6 +114,13 @@ struct weston_color_tf_info {
 	 * certain known functions that clients can define passing arbitrary
 	 * parameters. */
 	bool count_parameters;
+
+	/** Are curve and inverse_curve valid? */
+	bool curve_params_valid;
+
+	/** Parametric curves to which we can map the tf and its inverse. */
+	struct weston_color_curve_parametric curve;
+	struct weston_color_curve_parametric inverse_curve;
 };
 
 const struct weston_color_feature_info *
