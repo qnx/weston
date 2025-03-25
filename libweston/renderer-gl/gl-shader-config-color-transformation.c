@@ -34,6 +34,7 @@
 #include "gl-renderer.h"
 #include "gl-renderer-internal.h"
 
+#include "shared/weston-assert.h"
 #include "shared/weston-egl-ext.h"
 
 struct gl_renderer_color_curve {
@@ -144,35 +145,26 @@ gl_renderer_color_transform_get(struct weston_color_transform *xform)
 			    destroy_listener);
 }
 
-static void
-gl_color_curve_parametric(struct gl_renderer_color_curve *gl_curve,
+static bool
+gl_color_curve_parametric(struct gl_renderer *gr,
+			  struct gl_renderer_color_curve *gl_curve,
 			  const struct weston_color_curve *curve)
 {
 	const struct weston_color_curve_parametric *parametric = &curve->u.parametric;
 
 	ARRAY_COPY(gl_curve->u.parametric.params, parametric->params);
-
 	gl_curve->u.parametric.clamped_input = parametric->clamped_input;
-}
 
-static bool
-gl_color_curve_linpow(struct gl_renderer_color_curve *gl_curve,
-		      const struct weston_color_curve *curve)
-{
-	gl_curve->type = SHADER_COLOR_CURVE_LINPOW;
-	gl_color_curve_parametric(gl_curve, curve);
+	switch(parametric->type) {
+	case WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW:
+		gl_curve->type = SHADER_COLOR_CURVE_LINPOW;
+		return true;
+	case WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN:
+		gl_curve->type = SHADER_COLOR_CURVE_POWLIN;
+		return true;
+	}
 
-	return true;
-}
-
-static bool
-gl_color_curve_powlin(struct gl_renderer_color_curve *gl_curve,
-		      const struct weston_color_curve *curve)
-{
-	gl_curve->type = SHADER_COLOR_CURVE_POWLIN;
-	gl_color_curve_parametric(gl_curve, curve);
-
-	return true;
+	weston_assert_not_reached(gr->compositor, "unknown parametric color curve");
 }
 
 static bool
@@ -289,13 +281,9 @@ gl_renderer_color_transform_from(struct gl_renderer *gr,
 		ok = gl_color_curve_lut_3x1d(gr, &gl_xform->pre_curve,
 					     &xform->pre_curve, xform);
 		break;
-	case WESTON_COLOR_CURVE_TYPE_LINPOW:
-		ok = gl_color_curve_linpow(&gl_xform->pre_curve,
-					   &xform->pre_curve);
-		break;
-	case WESTON_COLOR_CURVE_TYPE_POWLIN:
-		ok = gl_color_curve_powlin(&gl_xform->pre_curve,
-					   &xform->pre_curve);
+	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
+		ok = gl_color_curve_parametric(gr, &gl_xform->pre_curve,
+					       &xform->pre_curve);
 		break;
 	}
 	if (!ok) {
@@ -331,13 +319,9 @@ gl_renderer_color_transform_from(struct gl_renderer *gr,
 		ok = gl_color_curve_lut_3x1d(gr, &gl_xform->post_curve,
 					     &xform->post_curve, xform);
 		break;
-	case WESTON_COLOR_CURVE_TYPE_LINPOW:
-		ok = gl_color_curve_linpow(&gl_xform->post_curve,
-					   &xform->post_curve);
-		break;
-	case WESTON_COLOR_CURVE_TYPE_POWLIN:
-		ok = gl_color_curve_powlin(&gl_xform->post_curve,
-					   &xform->post_curve);
+	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
+		ok = gl_color_curve_parametric(gr, &gl_xform->post_curve,
+					       &xform->post_curve);
 		break;
 	}
 	if (!ok) {

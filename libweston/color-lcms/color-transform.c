@@ -451,9 +451,7 @@ linpow_from_type_1(struct weston_compositor *compositor,
 	struct weston_color_curve_parametric *parametric = &curve->u.parametric;
 	unsigned int i;
 
-	curve->type = WESTON_COLOR_CURVE_TYPE_LINPOW;
-
-	parametric->clamped_input = clamped_input;
+	curve->type = WESTON_COLOR_CURVE_TYPE_PARAMETRIC;
 
 	/* LittleCMS type 1 is the pure power-law curve, which is a special case
 	 * of LINPOW.
@@ -471,6 +469,9 @@ linpow_from_type_1(struct weston_compositor *compositor,
 	 * negative values raised to fractional exponents results in complex
 	 * numbers), this is exactly the pure power-law curve.
 	 */
+	parametric->type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW;
+	parametric->clamped_input = clamped_input;
+
 	for (i = 0; i < ARRAY_LENGTH(parametric->params); i++) {
 		parametric->params[i][0] = type_1_params[i][0]; /* g */
 		parametric->params[i][1] = 1.0f; /* a */
@@ -494,9 +495,7 @@ linpow_from_type_1_inverse(struct weston_compositor *compositor,
 	const char *err_msg;
 	unsigned int i;
 
-	curve->type = WESTON_COLOR_CURVE_TYPE_LINPOW;
-
-	parametric->clamped_input = clamped_input;
+	curve->type = WESTON_COLOR_CURVE_TYPE_PARAMETRIC;
 
 	/* LittleCMS type -1 (inverse of type 1) is the inverse of the pure
 	 * power-law curve, which is a special case of LINPOW.
@@ -521,6 +520,9 @@ linpow_from_type_1_inverse(struct weston_compositor *compositor,
 	 * If we take the param g from type -1 and invert it, we can fit type -1
 	 * into the curve above.
 	 */
+	parametric->type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW;
+	parametric->clamped_input = clamped_input;
+
 	for (i = 0; i < ARRAY_LENGTH(parametric->params); i++) {
 		g = type_1_params[i][0];
 
@@ -557,9 +559,7 @@ linpow_from_type_4(struct weston_compositor *compositor,
 	const char *err_msg;
 	unsigned int i;
 
-	curve->type = WESTON_COLOR_CURVE_TYPE_LINPOW;
-
-	parametric->clamped_input = clamped_input;
+	curve->type = WESTON_COLOR_CURVE_TYPE_PARAMETRIC;
 
 	/* LittleCMS type 4 is almost exactly the same as LINPOW. So simply copy
 	 * the params. No need to adjust anything.
@@ -573,6 +573,9 @@ linpow_from_type_4(struct weston_compositor *compositor,
 	 * y = (a * x + b) ^ g | x >= d
 	 * y = c * x           | 0 <= x < d
 	 */
+	parametric->type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW;
+	parametric->clamped_input = clamped_input;
+
 	for (i = 0; i < ARRAY_LENGTH(parametric->params); i++) {
 		g = type_4_params[i][0];
 		a = type_4_params[i][1];
@@ -624,9 +627,7 @@ powlin_from_type_4_inverse(struct weston_compositor *compositor,
 	const char *err_msg;
 	unsigned int i;
 
-	curve->type = WESTON_COLOR_CURVE_TYPE_POWLIN;
-
-	parametric->clamped_input = clamped_input;
+	curve->type = WESTON_COLOR_CURVE_TYPE_PARAMETRIC;
 
 	/* LittleCMS type -4 (inverse of type 4) fits into POWLIN. We need to
 	 * adjust the params that LittleCMS gives us, like below. Do not forget
@@ -675,6 +676,9 @@ powlin_from_type_4_inverse(struct weston_compositor *compositor,
 	 * There's nothing we can do regarding that, so we'll arbitrarily choose
 	 * one of the segments to compute the output.
 	 */
+	parametric->type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN;
+	parametric->clamped_input = clamped_input;
+
 	for (i = 0; i < ARRAY_LENGTH(parametric->params); i++) {
 		g = type_4_params[i][0];
 		a = type_4_params[i][1];

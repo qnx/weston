@@ -34,8 +34,9 @@
 #include "backend-drm/drm-kms-enums.h"
 
 /**
- * The only params curve we have are WESTON_COLOR_CURVE_TYPE_LINPOW and
- * WESTON_COLOR_CURVE_TYPE_POWLIN, and they have exactly 5 params.
+ * The only params curve we have are WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW
+ * and WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN, and they have exactly 5
+ * params.
  *
  * WARNING: Keep this equal to fragment.glsl MAX_CURVE_PARAMS.
  */
@@ -169,14 +170,8 @@ struct weston_color_profile_params {
 	char padding[8];
 };
 
-/** Type or formula for a curve */
-enum weston_color_curve_type {
-	/** Identity function, no-op */
-	WESTON_COLOR_CURVE_TYPE_IDENTITY = 0,
-
-	/** Three-channel, one-dimensional look-up table */
-	WESTON_COLOR_CURVE_TYPE_LUT_3x1D,
-
+/** Type for parametric curves */
+enum weston_color_curve_parametric_type {
 	/** Transfer function named LINPOW
 	 *
 	 * y = (a * x + b) ^ g | x >= d
@@ -197,7 +192,7 @@ enum weston_color_curve_type {
 	 * If the input is not clamped and LINPOW needs to evaluate a negative
 	 * input value, it uses mirroring (i.e. -f(-x)).
 	 */
-	WESTON_COLOR_CURVE_TYPE_LINPOW,
+	WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW,
 
 	/** Transfer function named POWLIN
 	 *
@@ -219,7 +214,19 @@ enum weston_color_curve_type {
 	 * If the input is not clamped and POWLIN needs to evaluate a negative
 	 * input value, it uses mirroring (i.e. -f(-x)).
 	 */
-	WESTON_COLOR_CURVE_TYPE_POWLIN,
+	WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN,
+};
+
+/** Type or formula for a curve */
+enum weston_color_curve_type {
+	/** Identity function, no-op */
+	WESTON_COLOR_CURVE_TYPE_IDENTITY = 0,
+
+	/** Three-channel, one-dimensional look-up table */
+	WESTON_COLOR_CURVE_TYPE_LUT_3x1D,
+
+	/** Parametric color curve */
+	WESTON_COLOR_CURVE_TYPE_PARAMETRIC,
 };
 
 /** LUT_3x1D parameters */
@@ -250,6 +257,8 @@ struct weston_color_curve_lut_3x1d {
 
 /** Parametric color curve parameters */
 struct weston_color_curve_parametric {
+	enum weston_color_curve_parametric_type type;
+
 	/* For each color channel we may have curves with different params. The
 	 * channels are in RGB order. */
 	float params[3][MAX_PARAMS_PARAM_CURVE];

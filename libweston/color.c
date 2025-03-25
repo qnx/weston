@@ -247,6 +247,18 @@ weston_color_transform_init(struct weston_color_transform *xform,
 }
 
 static const char *
+param_curve_type_to_str(enum weston_color_curve_parametric_type type)
+{
+	switch(type) {
+	case WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW:
+		return "linpow";
+	case WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN:
+		return "powlin";
+	}
+	return "???";
+}
+
+static const char *
 curve_type_to_str(enum weston_color_curve_type curve_type)
 {
 	switch (curve_type) {
@@ -254,10 +266,8 @@ curve_type_to_str(enum weston_color_curve_type curve_type)
 		return "identity";
 	case WESTON_COLOR_CURVE_TYPE_LUT_3x1D:
 		return "3x1D LUT";
-	case WESTON_COLOR_CURVE_TYPE_LINPOW:
-		return "linpow";
-	case WESTON_COLOR_CURVE_TYPE_POWLIN:
-		return "powlin";
+	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
+		return "parametric";
 	}
 	return "???";
 }
@@ -303,6 +313,9 @@ weston_color_transform_string(const struct weston_color_transform *xform)
 		fprintf(fp, "%spre %s", sep, curve_type_to_str(pre_type));
 		if (pre_type == WESTON_COLOR_CURVE_TYPE_LUT_3x1D)
 			fprintf(fp, " [%u]", xform->pre_curve.u.lut_3x1d.optimal_len);
+		else if (pre_type == WESTON_COLOR_CURVE_TYPE_PARAMETRIC)
+			fprintf(fp, " [%s]",
+				param_curve_type_to_str(xform->pre_curve.u.parametric.type));
 		sep = ", ";
 	}
 
@@ -317,6 +330,9 @@ weston_color_transform_string(const struct weston_color_transform *xform)
 		fprintf(fp, "%spost %s", sep, curve_type_to_str(post_type));
 		if (post_type == WESTON_COLOR_CURVE_TYPE_LUT_3x1D)
 			fprintf(fp, " [%u]", xform->post_curve.u.lut_3x1d.optimal_len);
+		else if (post_type == WESTON_COLOR_CURVE_TYPE_PARAMETRIC)
+			fprintf(fp, " [%s]",
+				param_curve_type_to_str(xform->post_curve.u.parametric.type));
 		sep = ", ";
 	}
 

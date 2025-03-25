@@ -259,7 +259,7 @@ lut_texcoord(vec3 pos, vec2 scale_offset)
 float
 linpow(float x, float g, float a, float b, float c, float d)
 {
-	/* See WESTON_COLOR_CURVE_TYPE_LINPOW for details about LINPOW. */
+	/* See WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW for details about LINPOW. */
 
 	if (x >= d)
 		return pow((a * x) + b, g);
@@ -305,7 +305,7 @@ sample_linpow_vec3(float params[MAX_CURVESET_PARAMS], bool must_clamp,
 float
 powlin(float x, float g, float a, float b, float c, float d)
 {
-	/* See WESTON_COLOR_CURVE_TYPE_POWLIN for details about POWLIN. */
+	/* See WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN for details about POWLIN. */
 
 	if (x >= d)
 		return a * pow(x, g) + b;
