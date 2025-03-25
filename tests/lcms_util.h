@@ -26,6 +26,7 @@
 #pragma once
 
 #include <lcms2.h>
+#include <libweston/linalg-types.h>
 
 #include "color_util.h"
 
@@ -46,7 +47,7 @@ struct lcms_pipeline {
 	/**
 	 * Transform matrix from sRGB to target chromaticities in prim_output
 	 */
-	struct lcmsMAT3 mat;
+	struct weston_mat3f mat;
 	/**
 	 * tone curve enum
 	 */

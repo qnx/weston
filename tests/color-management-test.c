@@ -25,6 +25,8 @@
 
 #include "config.h"
 
+#include <libweston/linalg-3.h>
+
 #include "color-properties.h"
 #include "weston-test-client-helper.h"
 #include "weston-test-fixture-compositor.h"
@@ -60,9 +62,7 @@ const struct lcms_pipeline pipeline_sRGB = {
 		.Blue =  { 0.150, 0.060, 1.0 }
 	},
 	.pre_fn = TRANSFER_FN_SRGB_EOTF,
-	.mat = LCMSMAT3(1.0, 0.0, 0.0,
-			0.0, 1.0, 0.0,
-			0.0, 0.0, 1.0),
+	.mat = WESTON_MAT3F_IDENTITY,
 	.post_fn = TRANSFER_FN_SRGB_EOTF_INVERSE
 };
 

@@ -27,6 +27,7 @@
 #include "config.h"
 
 #include <lcms2.h>
+#include <libweston/linalg-3.h>
 
 #include "weston-test-client-helper.h"
 #include "weston-test-assert.h"
@@ -57,9 +58,7 @@ const struct lcms_pipeline pipeline_sRGB = {
 		.Blue =  { 0.150, 0.060, 1.0 }
 	},
 	.pre_fn = TRANSFER_FN_SRGB_EOTF,
-	.mat = LCMSMAT3(1.0, 0.0, 0.0,
-			0.0, 1.0, 0.0,
-			0.0, 0.0, 1.0),
+	.mat = WESTON_MAT3F_IDENTITY,
 	.post_fn = TRANSFER_FN_SRGB_EOTF_INVERSE
 };
 
@@ -71,7 +70,8 @@ const struct lcms_pipeline pipeline_adobeRGB = {
 		.Blue =  { 0.150, 0.060, 1.0 }
 	},
 	.pre_fn = TRANSFER_FN_SRGB_EOTF,
-	.mat = LCMSMAT3( 0.715127, 0.284868, 0.000005,
+	.mat = WESTON_MAT3F(
+			 0.715127, 0.284868, 0.000005,
 			 0.000001, 0.999995, 0.000004,
 			-0.000003, 0.041155, 0.958848),
 	.post_fn = TRANSFER_FN_ADOBE_RGB_EOTF_INVERSE
@@ -85,7 +85,8 @@ const struct lcms_pipeline pipeline_BT2020 = {
 		.Blue =  { 0.131, 0.046, 1.0 }
 	},
 	.pre_fn = TRANSFER_FN_SRGB_EOTF,
-	.mat = LCMSMAT3(0.627402, 0.329292, 0.043306,
+	.mat = WESTON_MAT3F(
+			0.627402, 0.329292, 0.043306,
 			0.069095, 0.919544, 0.011360,
 			0.016394, 0.088028, 0.895578),
 	/* this is equivalent to BT.1886 with zero black level */
@@ -354,7 +355,7 @@ process_pipeline_comparison(const struct buffer *src_buf,
 			pix_shot = a8r8g8b8_to_float(row_ptr_shot[x]);
 
 			process_pixel_using_pipeline(arg->pipeline->pre_fn,
-						     &arg->pipeline->mat,
+						     arg->pipeline->mat,
 						     arg->pipeline->post_fn,
 						     arg->vcgt_exponents,
 						     &pix_src, &pix_src_pipeline);
@@ -437,7 +438,7 @@ convert_to_blending_space(const struct lcms_pipeline *pip,
 	 * or simply output space without the non-linear encoding
 	 */
 	cf = color_float_apply_curve(pip->pre_fn, cf);
-	return color_float_apply_matrix(&pip->mat, cf);
+	return color_float_apply_matrix(pip->mat, cf);
 }
 
 static void

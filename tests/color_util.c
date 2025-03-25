@@ -32,7 +32,7 @@
 #include <string.h>
 #include <stddef.h>
 
-#include <libweston/matrix.h>
+#include <libweston/linalg-3.h>
 #include "color_util.h"
 #include "weston-test-runner.h"
 #include "weston-test-assert.h"
@@ -303,23 +303,14 @@ color_float_unpremult(struct color_float in)
  * Returns the result of the matrix-vector multiplication mat * c.
  */
 struct color_float
-color_float_apply_matrix(const struct lcmsMAT3 *mat, struct color_float c)
+color_float_apply_matrix(struct weston_mat3f mat, struct color_float c)
 {
-	struct color_float result;
-	unsigned i, j;
+	struct weston_vec3f v = weston_m3f_mul_v3f(mat, WESTON_VEC3F(c.r, c.g, c.b));
 
-	/*
-	 * The matrix has an array of columns, hence i indexes to rows and
-	 * j indexes to columns.
-	 */
-	for (i = 0; i < 3; i++) {
-		result.rgb[i] = 0.0f;
-		for (j = 0; j < 3; j++)
-			result.rgb[i] += mat->v[j].n[i] * c.rgb[j];
-	}
-
-	result.a = c.a;
-	return result;
+	return (struct color_float){
+		.rgb = { v.r, v.g, v.b },
+		.a = c.a,
+	};
 }
 
 bool
@@ -336,7 +327,7 @@ should_include_vcgt(const double vcgt_exponents[COLOR_CHAN_NUM])
 
 void
 process_pixel_using_pipeline(enum transfer_fn pre_curve,
-			     const struct lcmsMAT3 *mat,
+			     struct weston_mat3f mat,
 			     enum transfer_fn post_curve,
 			     const double vcgt_exponents[COLOR_CHAN_NUM],
 			     const struct color_float *in,
@@ -354,44 +345,6 @@ process_pixel_using_pipeline(enum transfer_fn pre_curve,
 			cf.rgb[i] = pow(cf.rgb[i], vcgt_exponents[i]);
 
 	*out = cf;
-}
-
-static void
-weston_matrix_from_lcmsMAT3(struct weston_matrix *w, const struct lcmsMAT3 *m)
-{
-	unsigned r, c;
-
-	/* column-major */
-	weston_matrix_init(w);
-
-	for (c = 0; c < 3; c++) {
-		for (r = 0; r < 3; r++)
-			w->M.col[c].el[r] = m->v[c].n[r];
-	}
-}
-
-static void
-lcmsMAT3_from_weston_matrix(struct lcmsMAT3 *m, const struct weston_matrix *w)
-{
-	unsigned r, c;
-
-	for (c = 0; c < 3; c++) {
-		for (r = 0; r < 3; r++)
-			m->v[c].n[r] = w->M.col[c].el[r];
-	}
-}
-
-void
-lcmsMAT3_invert(struct lcmsMAT3 *result, const struct lcmsMAT3 *mat)
-{
-	struct weston_matrix inv;
-	struct weston_matrix w;
-	int ret;
-
-	weston_matrix_from_lcmsMAT3(&w, mat);
-	ret = weston_matrix_invert(&inv, &w);
-	test_assert_int_eq(ret, 0);
-	lcmsMAT3_from_weston_matrix(result, &inv);
 }
 
 /** Update scalar statistics
