@@ -31,8 +31,7 @@
 #include <lcms2.h>
 #include <stdlib.h>
 
-#include <libweston/matrix.h>
-#include <libweston/linalg-4.h>
+#include <libweston/linalg.h>
 #include "shared/helpers.h"
 #include "color_util.h"
 #include "lcms_util.h"
@@ -282,15 +281,11 @@ roundtrip_verification(cmsPipeline *DToB, cmsPipeline *BToD, float tolerance)
 	test_assert_f32_lt(stat.two_norm.max, tolerance);
 }
 
-static const struct weston_vector ZEROS = { .v = WESTON_VEC4F_ZERO };
-static const struct weston_vector PCS_BLACK = {
-	.v.el = {
-		cmsPERCEPTUAL_BLACK_X,
-		cmsPERCEPTUAL_BLACK_Y,
-		cmsPERCEPTUAL_BLACK_Z,
-		1.0
-	}
-};
+static const struct weston_vec3f PCS_BLACK = WESTON_VEC3F(
+	cmsPERCEPTUAL_BLACK_X,
+	cmsPERCEPTUAL_BLACK_Y,
+	cmsPERCEPTUAL_BLACK_Z
+);
 
 /* Whether BPC matrix applies never, after or before transformation */
 enum bpc_dir {
@@ -301,7 +296,7 @@ enum bpc_dir {
 
 struct transform_sampler_context {
 	cmsHTRANSFORM t;
-	struct weston_matrix bpc;
+	struct weston_mat4f bpc;
 	enum bpc_dir dir;
 };
 
@@ -309,19 +304,19 @@ static cmsInt32Number
 transform_sampler(const float src[], float dst[], void *cargo)
 {
 	const struct transform_sampler_context *tsc = cargo;
-	struct weston_vector stmp = { .v.el = { src[0], src[1], src[2], 1.0 } };
-	struct weston_vector dtmp = { .v.el = { 0.0, 0.0, 0.0, 1.0 } };
+	struct weston_vec4f stmp = WESTON_VEC4F(src[0], src[1], src[2], 1.0);
+	struct weston_vec4f dtmp = WESTON_VEC4F(0.0, 0.0, 0.0, 1.0);
 
 	if (tsc->dir == BPC_DIR_BTOD)
-		weston_matrix_transform(&tsc->bpc, &stmp);
+		stmp = weston_m4f_mul_v4f(tsc->bpc, stmp);
 
-	cmsDoTransform(tsc->t, stmp.v.el, dtmp.v.el, 1);
+	cmsDoTransform(tsc->t, stmp.el, dtmp.el, 1);
 
 	if (tsc->dir == BPC_DIR_DTOB)
-		weston_matrix_transform(&tsc->bpc, &dtmp);
+		dtmp = weston_m4f_mul_v4f(tsc->bpc, dtmp);
 
 	for (int i = 0; i < 3; i++)
-		dst[i] = dtmp.v.el[i];
+		dst[i] = dtmp.el[i];
 
 	return 1; /* Success. */
 }
@@ -330,12 +325,12 @@ transform_sampler(const float src[], float dst[], void *cargo)
  * Black point compensation, copied from LittleCMS 2.16, cmscnvrt.c
  * Adapted to Weston code base.
  */
-static void
-ComputeBlackPointCompensation(struct weston_matrix *m,
-			      const struct weston_vector *src_bp,
-			      const struct weston_vector *dst_bp)
+static struct weston_mat4f
+ComputeBlackPointCompensation(struct weston_vec3f src_bp,
+			      struct weston_vec3f dst_bp)
 {
-	double ax, ay, az, bx, by, bz, tx, ty, tz;
+	struct weston_vec3f D50 = WESTON_VEC3F(cmsD50_XYZ()->X, cmsD50_XYZ()->Y, cmsD50_XYZ()->Z);
+	struct weston_vec3f a, b, t;
 
 	// Now we need to compute a matrix plus an offset m and of such of
 	// [m]*bpin + off = bpout
@@ -345,27 +340,24 @@ ComputeBlackPointCompensation(struct weston_matrix *m,
 	// a = (bpout - D50) / (bpin - D50)
 	// b = - D50* (bpout - bpin) / (bpin - D50)
 
-	tx = src_bp->v.x - cmsD50_XYZ()->X;
-	ty = src_bp->v.y - cmsD50_XYZ()->Y;
-	tz = src_bp->v.z - cmsD50_XYZ()->Z;
+	t.x = src_bp.x - D50.x;
+	t.y = src_bp.y - D50.y;
+	t.z = src_bp.z - D50.z;
 
-	ax = (dst_bp->v.x - cmsD50_XYZ()->X) / tx;
-	ay = (dst_bp->v.y - cmsD50_XYZ()->Y) / ty;
-	az = (dst_bp->v.z - cmsD50_XYZ()->Z) / tz;
+	a.x = (dst_bp.x - D50.x) / t.x;
+	a.y = (dst_bp.y - D50.y) / t.y;
+	a.z = (dst_bp.z - D50.z) / t.z;
 
-	bx = - cmsD50_XYZ()-> X * (dst_bp->v.x - src_bp->v.x) / tx;
-	by = - cmsD50_XYZ()-> Y * (dst_bp->v.y - src_bp->v.y) / ty;
-	bz = - cmsD50_XYZ()-> Z * (dst_bp->v.z - src_bp->v.z) / tz;
+	b.x = - D50.x * (dst_bp.x - src_bp.x) / t.x;
+	b.y = - D50.y * (dst_bp.y - src_bp.y) / t.y;
+	b.z = - D50.z * (dst_bp.z - src_bp.z) / t.z;
 
-	/*
-	 *     [ax,  0,  0, bx ]
-	 * m = [ 0, ay,  0, by ]
-	 *     [ 0,  0, az, bz ]
-	 *     [ 0,  0,  0,  1 ]
-	 */
-	weston_matrix_init(m);
-	weston_matrix_scale(m, ax, ay, az);
-	weston_matrix_translate(m, bx, by, bz);
+	return WESTON_MAT4F(
+		a.x, 0.0, 0.0, b.x,
+		0.0, a.y, 0.0, b.y,
+		0.0, 0.0, a.z, b.z,
+		0.0, 0.0, 0.0, 1.0
+	);
 }
 
 static cmsStage *
@@ -382,13 +374,13 @@ create_cLUT_from_transform(cmsContext context_id, const cmsHTRANSFORM t,
 	tsc.dir = dir;
 	switch (tsc.dir) {
 	case BPC_DIR_NONE:
-		weston_matrix_init(&tsc.bpc);
+		tsc.bpc = WESTON_MAT4F_IDENTITY;
 		break;
 	case BPC_DIR_DTOB:
-		ComputeBlackPointCompensation(&tsc.bpc, &ZEROS, &PCS_BLACK);
+		tsc.bpc = ComputeBlackPointCompensation(WESTON_VEC3F_ZERO, PCS_BLACK);
 		break;
 	case BPC_DIR_BTOD:
-		ComputeBlackPointCompensation(&tsc.bpc, &PCS_BLACK, &ZEROS);
+		tsc.bpc = ComputeBlackPointCompensation(PCS_BLACK, WESTON_VEC3F_ZERO);
 		break;
 	}
 
