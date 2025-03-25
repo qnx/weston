@@ -1906,13 +1906,14 @@ atomic_flip_handler(int fd, unsigned int frame, unsigned int sec,
 	assert(crtc);
 
 	output = crtc->output;
-	output->page_flips_counted++;
 
 	/* During the initial modeset, we can disable CRTCs which we don't
 	 * actually handle during normal operation; this will give us events
 	 * for unknown outputs. Ignore them. */
 	if (!output || !output->base.enabled)
 		return;
+
+	output->page_flips_counted++;
 
 	drm_output_update_msc(output, frame);
 
