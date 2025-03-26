@@ -46,6 +46,8 @@
 #define SHADER_COLOR_CURVE_LUT_3x1D 1
 #define SHADER_COLOR_CURVE_LINPOW 2
 #define SHADER_COLOR_CURVE_POWLIN 3
+#define SHADER_COLOR_CURVE_PQ 4
+#define SHADER_COLOR_CURVE_PQ_INVERSE 5
 
 /* enum gl_shader_color_mapping */
 #define SHADER_COLOR_MAPPING_IDENTITY 0
@@ -348,6 +350,62 @@ sample_powlin_vec3(float params[MAX_CURVESET_PARAMS], bool must_clamp,
 		    sample_powlin(params, must_clamp, color.b, 2));
 }
 
+float
+perceptual_quantizer(float x)
+{
+	float aux, c1, c2, c3, m1_inv, m2_inv;
+
+	m1_inv = 1.0 / 0.1593017578125;
+	m2_inv = 1.0 / 78.84375;
+	c1 = 0.8359375;
+	c2 = 18.8515625;
+	c3 = 18.6875;
+	aux = pow(x, m2_inv);
+
+	/* Normalized result. We don't take into consideration the luminance
+	 * levels, as that's only useful when converting the optical values to
+	 * nits, but we return them in the [0, 1] range. */
+	return pow(max(aux - c1, 0.0) / (c2 - c3 * aux), m1_inv);
+}
+
+float
+perceptual_quantizer_inverse(float x)
+{
+	float aux, c1, c2, c3, m1, m2;
+
+	m1 = 0.1593017578125;
+	m2 = 78.84375;
+	c1 = 0.8359375;
+	c2 = 18.8515625;
+	c3 = 18.6875;
+	aux = pow(x, m1);
+
+	/* Normalized result. We don't take into consideration the luminance
+	 * levels, as we don't receive the input as nits, but normalized in the
+	 * [0, 1] range. */
+	return pow((c1 + c2 * aux) / (1.0 + c3 * aux), m2);
+}
+
+float
+sample_perceptual_quantizer(compile_const bool inverse, float x)
+{
+	/* PQ and its inverse are only defined for input values in this range. */
+	x = clamp(x, 0.0, 1.0);
+
+	if (inverse)
+		return perceptual_quantizer_inverse(x);
+
+	return perceptual_quantizer(x);
+}
+
+vec3
+sample_perceptual_quantizer_vec3(compile_const bool inverse, vec3 color)
+{
+	return vec3(sample_perceptual_quantizer(inverse, color.r),
+		    sample_perceptual_quantizer(inverse, color.g),
+		    sample_perceptual_quantizer(inverse, color.b));
+}
+
 vec3
 color_pre_curve(vec3 color)
 {
@@ -365,6 +423,12 @@ color_pre_curve(vec3 color)
 		return sample_powlin_vec3(color_pre_curve_params,
 					  color_pre_curve_clamped_input,
 					  color);
+	} else if (c_color_pre_curve == SHADER_COLOR_CURVE_PQ) {
+		return sample_perceptual_quantizer_vec3(false, /* not inverse */
+							color);
+	} else if (c_color_pre_curve == SHADER_COLOR_CURVE_PQ_INVERSE) {
+		return sample_perceptual_quantizer_vec3(true, /* inverse */
+							color);
 	} else {
 		/* Never reached, bad c_color_pre_curve. */
 		return vec3(1.0, 0.3, 1.0);
@@ -412,6 +476,12 @@ color_post_curve(vec3 color)
 		return sample_powlin_vec3(color_post_curve_params,
 					  color_post_curve_clamped_input,
 					  color);
+	} else if (c_color_post_curve == SHADER_COLOR_CURVE_PQ) {
+		return sample_perceptual_quantizer_vec3(false, /* not inverse */
+							color);
+	} else if (c_color_post_curve == SHADER_COLOR_CURVE_PQ_INVERSE) {
+		return sample_perceptual_quantizer_vec3(true, /* inverse */
+							color);
 	} else {
 		/* Never reached, bad c_color_post_curve. */
 		return vec3(1.0, 0.3, 1.0);

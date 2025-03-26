@@ -26,6 +26,7 @@
 #include "config.h"
 
 #include "color.h"
+#include "color-properties.h"
 #include "color-operations.h"
 
 #include "shared/helpers.h"
@@ -122,6 +123,63 @@ sample_powlin(float params[3][MAX_PARAMS_PARAM_CURVE], uint32_t ch,
 	}
 }
 
+static float
+perceptual_quantizer(float x)
+{
+	float aux, c1, c2, c3, m1_inv, m2_inv;
+
+	m1_inv = 1.0 / 0.1593017578125;
+	m2_inv = 1.0 / 78.84375;
+	c1 = 0.8359375;
+	c2 = 18.8515625;
+	c3 = 18.6875;
+	aux = pow(x, m2_inv);
+
+	/* Normalized result. We don't take into consideration the luminance
+	 * levels, as we don't receive the input as nits, but normalized in the
+	 * [0, 1] range. */
+	return pow(MAX(aux - c1, 0.0) / (c2 - c3 * aux), m1_inv);
+}
+
+static float
+perceptual_quantizer_inverse(float x)
+{
+	float aux, c1, c2, c3, m1, m2;
+
+	m1 = 0.1593017578125;
+	m2 = 78.84375;
+	c1 = 0.8359375;
+	c2 = 18.8515625;
+	c3 = 18.6875;
+	aux = pow(x, m1);
+
+	/* Normalized result. We don't take into consideration the luminance
+	 * levels, as we don't receive the input as nits, but normalized in the
+	 * [0, 1] range. */
+	return pow((c1 + c2 * aux) / (1.0 + c3 * aux), m2);
+}
+
+static void
+sample_pq(enum weston_tf_direction tf_direction, uint32_t ch, uint32_t len,
+	  float *in, float *out)
+{
+	unsigned int i;
+	float x;
+
+	for (i = 0; i < len; i++) {
+		/**
+		 * PQ and inverse PQ are always clamped, undefined for values
+		 * out of [0, 1] range.
+		 */
+		x = ensure_unorm(in[i]);
+
+		if (tf_direction == WESTON_FORWARD_TF)
+			out[i] = perceptual_quantizer(x);
+		else
+			out[i] = perceptual_quantizer_inverse(x);
+	}
+}
+
 /**
 * Given a color curve and a channel, sample an input.
 *
@@ -146,13 +204,23 @@ weston_color_curve_sample(struct weston_compositor *compositor,
 
 	switch(curve->type) {
 	case WESTON_COLOR_CURVE_TYPE_ENUM:
-		/* Lower the enum curve to a param curve and we'll handle that below. */
-		ret = weston_color_curve_enum_get_parametric(compositor,
-							     &curve->u.enumerated,
-							     &parametric);
-		if (!ret)
-			return false;
-		goto param;
+		/**
+		 * If the TF of the enum curve is implemented, sample from that.
+		 * Otherwise, fallback to a parametric curve and we'll handle
+		 * that below.
+		 */
+		switch(curve->u.enumerated.tf->tf) {
+		case WESTON_TF_ST2084_PQ:
+			sample_pq(curve->u.enumerated.tf_direction, ch, len, in, out);
+			return true;
+		default:
+			ret = weston_color_curve_enum_get_parametric(compositor,
+								     &curve->u.enumerated,
+								     &parametric);
+			if (!ret)
+				return false;
+			goto param;
+		}
 	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
 		/* Parametric curve, let's copy it and we'll handle that below. */
 		parametric = curve->u.parametric;

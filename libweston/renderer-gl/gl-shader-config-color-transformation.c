@@ -31,6 +31,7 @@
 
 #include <libweston/libweston.h>
 #include "color.h"
+#include "color-properties.h"
 #include "gl-renderer.h"
 #include "gl-renderer-internal.h"
 
@@ -77,6 +78,8 @@ gl_renderer_color_curve_fini(struct gl_renderer_color_curve *gl_curve)
 {
 	switch (gl_curve->type) {
 	case SHADER_COLOR_CURVE_IDENTITY:
+	case SHADER_COLOR_CURVE_PQ:
+	case SHADER_COLOR_CURVE_PQ_INVERSE:
 	case SHADER_COLOR_CURVE_LINPOW:
 	case SHADER_COLOR_CURVE_POWLIN:
 		break;
@@ -175,12 +178,23 @@ gl_color_curve_enum(struct gl_renderer *gr,
 	struct weston_color_curve_parametric parametric;
 	bool ret;
 
-	/* Lower TF to a parametric curve. */
-	ret = weston_color_curve_enum_get_parametric(gr->compositor,
-						     &curve->u.enumerated,
-						     &parametric);
-	if (!ret)
-		return false;
+	/**
+	 * Handle enum curve (if TF is implemented) or fallback to a parametric
+	 * curve.
+	 */
+	switch(curve->u.enumerated.tf->tf) {
+	case WESTON_TF_ST2084_PQ:
+		gl_curve->type = (curve->u.enumerated.tf_direction == WESTON_FORWARD_TF) ?
+				 SHADER_COLOR_CURVE_PQ : SHADER_COLOR_CURVE_PQ_INVERSE;
+		return true;
+	default:
+		ret = weston_color_curve_enum_get_parametric(gr->compositor,
+							     &curve->u.enumerated,
+							     &parametric);
+		if (!ret)
+			return false;
+		break;
+	}
 
 	/* Handle parametric curve that we got from TF. */
 
@@ -387,6 +401,8 @@ gl_shader_config_set_color_transform(struct gl_renderer *gr,
 	sconf->req.color_pre_curve = gl_xform->pre_curve.type;
 	switch (gl_xform->pre_curve.type) {
 	case SHADER_COLOR_CURVE_IDENTITY:
+	case SHADER_COLOR_CURVE_PQ:
+	case SHADER_COLOR_CURVE_PQ_INVERSE:
 		break;
 	case SHADER_COLOR_CURVE_LUT_3x1D:
 		sconf->color_pre_curve.lut_3x1d.tex = gl_xform->pre_curve.u.lut_3x1d.tex;
@@ -406,6 +422,8 @@ gl_shader_config_set_color_transform(struct gl_renderer *gr,
 	sconf->req.color_post_curve = gl_xform->post_curve.type;
 	switch (gl_xform->post_curve.type) {
 	case SHADER_COLOR_CURVE_IDENTITY:
+	case SHADER_COLOR_CURVE_PQ:
+	case SHADER_COLOR_CURVE_PQ_INVERSE:
 		break;
 	case SHADER_COLOR_CURVE_LUT_3x1D:
 		sconf->color_post_curve.lut_3x1d.tex = gl_xform->post_curve.u.lut_3x1d.tex;
