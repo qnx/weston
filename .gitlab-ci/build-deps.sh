@@ -149,10 +149,12 @@ rm -rf drm
 # features from Mesa then bump this version and $FDO_DISTRIBUTION_TAG, however
 # please be prepared for some of the tests to change output, which will need to
 # be manually inspected for correctness.
-git clone --branch 23.0 --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
+git clone --branch mesa-25.0.3 --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
 cd mesa
 meson setup build --wrap-mode=nofallback -Dauto_features=disabled \
-	-Dgallium-drivers=swrast -Dvulkan-drivers= -Ddri-drivers=
+	-Dgallium-drivers=llvmpipe -Dvulkan-drivers= -Dvideo-codecs= \
+	-Degl=enabled -Dgbm=enabled -Dgles2=enabled -Dllvm=enabled \
+	-Dshared-glapi=enabled
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf mesa
