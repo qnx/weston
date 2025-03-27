@@ -49,6 +49,11 @@ static const struct setup_args my_setup_args[] = {
 		.renderer = WESTON_RENDERER_GL,
 		.expected_drm_format = DRM_FORMAT_ARGB8888,
 	},
+	{
+		.meta.name = "Vulkan",
+		.renderer = WESTON_RENDERER_VULKAN,
+		.expected_drm_format = DRM_FORMAT_ARGB8888,
+	},
 };
 
 static enum test_result_code

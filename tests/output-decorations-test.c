@@ -39,6 +39,10 @@ static const struct setup_args my_setup_args[] = {
 		.meta.name = "GL",
 		.renderer = WESTON_RENDERER_GL,
 	},
+	{
+		.renderer = WESTON_RENDERER_VULKAN,
+		.meta.name = "Vulkan",
+	},
 };
 
 static enum test_result_code

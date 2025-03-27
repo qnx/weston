@@ -227,6 +227,7 @@ renderer_to_str(enum weston_renderer_type t)
 		[WESTON_RENDERER_NOOP] = "noop",
 		[WESTON_RENDERER_PIXMAN] = "pixman",
 		[WESTON_RENDERER_GL] = "gl",
+		[WESTON_RENDERER_VULKAN] = "vulkan",
 	};
 	test_assert_true(t >= 0 && t <= ARRAY_LENGTH(names));
 	return names[t];
@@ -410,6 +411,13 @@ execute_compositor(const struct compositor_setup *setup,
 #ifndef ENABLE_EGL
 	if (setup->renderer == WESTON_RENDERER_GL) {
 		fprintf(stderr, "GL-renderer required but not built, skipping.\n");
+		ret = RESULT_SKIP;
+	}
+#endif
+
+#ifndef ENABLE_VULKAN
+	if (setup->renderer == WESTON_RENDERER_VULKAN) {
+		fprintf(stderr, "Vulkan renderer required but not built, skipping.\n");
 		ret = RESULT_SKIP;
 	}
 #endif

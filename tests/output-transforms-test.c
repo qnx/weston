@@ -48,6 +48,13 @@
 		.transform = WL_OUTPUT_TRANSFORM_ ## t,			\
 		.transform_name = #t,					\
 		.meta.name = "GL " #s " " #t,				\
+	},								\
+	{								\
+		.renderer = WESTON_RENDERER_VULKAN,			\
+		.scale = s,						\
+		.transform = WL_OUTPUT_TRANSFORM_ ## t,			\
+		.transform_name = #t,					\
+		.meta.name = "Vulkan " #s " " #t,			\
 	}
 
 struct setup_args {

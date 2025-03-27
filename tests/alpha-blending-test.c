@@ -60,6 +60,11 @@ static const struct setup_args my_setup_args[] = {
 		.color_management = true,
 		.meta.name = "GL sRGB EOTF"
 	},
+	{
+		.renderer = WESTON_RENDERER_VULKAN,
+		.color_management = false,
+		.meta.name = "Vulkan"
+	},
 };
 
 static enum test_result_code
