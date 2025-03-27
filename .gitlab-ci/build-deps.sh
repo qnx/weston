@@ -25,7 +25,7 @@ esac
 
 # Build and install Meson. Generally we want to keep this in sync with what
 # we require inside meson.build.
-pip3 install $PIP_ARGS git+https://github.com/mesonbuild/meson.git@1.0.0
+pip3 install $PIP_ARGS git+https://github.com/mesonbuild/meson.git@1.1.1
 export PATH=$HOME/.local/bin:$PATH
 
 # Our docs are built using Sphinx (top-level organisation and final HTML/CSS
@@ -114,8 +114,7 @@ fi
 git clone --branch 1.22.0 --depth=1 https://gitlab.freedesktop.org/wayland/wayland
 cd wayland
 git show -s HEAD
-mkdir build
-meson build --wrap-mode=nofallback -Ddocumentation=false
+meson setup build --wrap-mode=nofallback -Ddocumentation=false
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf wayland
@@ -126,7 +125,7 @@ rm -rf wayland
 git clone --branch 1.41 --depth=1 https://gitlab.freedesktop.org/wayland/wayland-protocols
 cd wayland-protocols
 git show -s HEAD
-meson build --wrap-mode=nofallback -Dtests=false
+meson setup build --wrap-mode=nofallback -Dtests=false
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf wayland-protocols
@@ -137,7 +136,7 @@ rm -rf wayland-protocols
 # Bump to 2.4.118 to include DRM_FORMAT_NV{15,20,30}
 git clone --branch libdrm-2.4.118 --depth=1 https://gitlab.freedesktop.org/mesa/drm.git
 cd drm
-meson build --wrap-mode=nofallback -Dauto_features=disabled \
+meson setup build --wrap-mode=nofallback -Dauto_features=disabled \
 	-Dvc4=disabled -Dfreedreno=disabled -Detnaviv=disabled
 ninja ${NINJAFLAGS} -C build install
 cd ..
@@ -152,7 +151,7 @@ rm -rf drm
 # be manually inspected for correctness.
 git clone --branch 23.0 --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
 cd mesa
-meson build --wrap-mode=nofallback -Dauto_features=disabled \
+meson setup build --wrap-mode=nofallback -Dauto_features=disabled \
 	-Dgallium-drivers=swrast -Dvulkan-drivers= -Ddri-drivers=
 ninja ${NINJAFLAGS} -C build install
 cd ..
@@ -166,7 +165,7 @@ rm -rf mesa
 git clone --single-branch --branch master https://gitlab.freedesktop.org/pipewire/pipewire.git pipewire-src
 cd pipewire-src
 git checkout -b snapshot bf112940d0bf8f526dd6229a619c1283835b49c2
-meson build --wrap-mode=nofallback
+meson setup build --wrap-mode=nofallback
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf pipewire-src
@@ -175,7 +174,7 @@ rm -rf pipewire-src
 # We use this for our tests using the DRM backend.
 git clone --depth=1 --branch 0.6.1 https://git.sr.ht/~kennylevinsen/seatd
 cd seatd
-meson build --wrap-mode=nofallback -Dauto_features=disabled \
+meson setup build --wrap-mode=nofallback -Dauto_features=disabled \
 	-Dlibseat-seatd=enabled -Dlibseat-logind=systemd -Dserver=enabled
 ninja ${NINJAFLAGS} -C build install
 cd ..
@@ -184,13 +183,13 @@ rm -rf seatd
 # Build and install aml and neatvnc, which are required for the VNC backend
 git clone --branch v0.3.0 --depth=1 https://github.com/any1/aml.git
 cd aml
-meson build --wrap-mode=nofallback
+meson setup build --wrap-mode=nofallback
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf aml
 git clone --branch v0.7.0 --depth=1 https://github.com/any1/neatvnc.git
 cd neatvnc
-meson build --wrap-mode=nofallback -Dauto_features=disabled
+meson setup build --wrap-mode=nofallback -Dauto_features=disabled
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf neatvnc
@@ -198,7 +197,7 @@ rm -rf neatvnc
 # Build and install libdisplay-info, used by drm-backend
 git clone --branch 0.2.0 --depth=1 https://gitlab.freedesktop.org/emersion/libdisplay-info.git
 cd libdisplay-info
-meson build --wrap-mode=nofallback
+meson setup build --wrap-mode=nofallback
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf libdisplay-info
@@ -207,7 +206,7 @@ rm -rf libdisplay-info
 git clone --branch master https://github.com/mm2/Little-CMS.git lcms2
 cd lcms2
 git checkout -b snapshot lcms2.16
-meson build --wrap-mode=nofallback
+meson setup build --wrap-mode=nofallback
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm  -rf lcms2
