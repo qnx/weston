@@ -13,9 +13,6 @@ export LIBSEAT_BACKEND=seatd
 # change across each boot. That's why we have this one-liner shell script to get
 # the appropriate node for VKMS.
 export WESTON_TEST_SUITE_DRM_DEVICE=$(basename /sys/devices/platform/vkms/drm/card*)
-# To run tests in the CI that exercise the zwp_linux_dmabuf_v1 implementation in
-# Weston, we use VGEM to allocate buffers.
-export WESTON_TEST_SUITE_ALLOC_DEVICE=$(basename /sys/devices/platform/vgem/drm/card*)
 
 # ninja test depends on meson, and meson itself looks for its modules on folder
 # $HOME/.local/lib/pythonX.Y/site-packages (the Python version may differ).
