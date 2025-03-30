@@ -45,6 +45,7 @@ apt-get -y --no-install-recommends install \
 	graphviz \
 	gcovr \
 	git \
+	glslang-tools \
 	hwdata \
 	lcov \
 	libasound2-dev \
@@ -115,6 +116,7 @@ apt-get -y --no-install-recommends install \
 	python3-setuptools \
 	qemu-system \
 	sysvinit-core \
+	vulkan-validationlayers-dev \
 	x11proto-dev \
 	xwayland \
 	python3-argcomplete \

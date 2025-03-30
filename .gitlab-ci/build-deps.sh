@@ -153,7 +153,7 @@ git clone --single-branch --branch main https://gitlab.freedesktop.org/mesa/mesa
 cd mesa
 git checkout -b snapshot 7b68e1da91732b7d9bb9bf620cf8d4f63a48ea8c
 meson setup build --wrap-mode=nofallback -Dauto_features=disabled \
-	-Dgallium-drivers=llvmpipe -Dvulkan-drivers= -Dvideo-codecs= \
+	-Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast -Dvideo-codecs= \
 	-Degl=enabled -Dgbm=enabled -Dgles2=enabled -Dllvm=enabled \
 	-Dshared-glapi=enabled
 ninja ${NINJAFLAGS} -C build install
