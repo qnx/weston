@@ -79,7 +79,7 @@ stages:
   - "Pre Base container"
   - "Base container"
   - "Full build and test"
-  - "No-GL build and test"
+  - "No-GL/Vulkan build and test"
   - "Other builds"
   - pages
 
@@ -267,6 +267,7 @@ aarch64-debian-container_prep:
   - export PATH=~/.local/bin:$PATH
   - export XDG_RUNTIME_DIR="$(mktemp -p $(pwd) -d xdg-runtime-XXXXXX)"
   - export TESTS_RES_PATH="$BUILDDIR/tests-res.txt"
+  - export VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation
   - mkdir "$BUILDDIR" "$PREFIX"
   - mkdir "$BUILDDIR_WESTINY" "$PREFIX_WESTINY"
 
@@ -464,10 +465,22 @@ aarch64-debian-container_prep:
       -Dwerror=true
       -Dtest-skip-is-failure=true
 
+# Full build, (without vulkan-renderer, gcov and perfetto)
+# Current debian lts is too old to build vulkan-renderer
+#  test-skip-is-failure  is also taken out as we do skip Vulkan tests
+.build-options-full-v3:
+  stage: "Full build and test"
+  variables:
+    MESON_OPTIONS: >
+      -Doptimization=0
+      -Dwerror=true
+      -Dtest-skip-is-failure=false
+      -Drenderer-vulkan=false
+
 x86_64-debian-lts-full-build:
   extends:
     - .test-env-debian-lts-x86_64
-    - .build-options-full-v2
+    - .build-options-full-v3
 
 x86_64-debian-full-build:
   extends:
@@ -482,7 +495,7 @@ x86_64-debian-full-build:
 aarch64-debian-lts-full-build:
   extends:
     - .test-env-debian-lts-aarch64
-    - .build-options-full-v2
+    - .build-options-full-v3
 
 aarch64-debian-full-build:
   extends:
@@ -493,7 +506,7 @@ x86_64-clang-debian-lts-full-build:
   extends:
     - .test-env-debian-lts-x86_64
     - .build-with-clang
-    - .build-options-full-v2
+    - .build-options-full-v3
 
 x86_64-clang-debian-full-build:
   extends:
@@ -505,7 +518,7 @@ aarch64-clang-debian-lts-full-build:
   extends:
     - .test-env-debian-lts-aarch64
     - .build-with-clang
-    - .build-options-full-v2
+    - .build-options-full-v3
 
 aarch64-clang-debian-full-build:
   extends:
@@ -525,9 +538,20 @@ docs-build:
     - .build-env-debian-x86_64
     - .build-no-test
 
-# Building without gl-renderer, to make sure this keeps working.
+# Building without gl-renderer and/or vulkan-renderer, to make sure this keeps working.
+.build-options-no-gl-no-vulkan:
+  stage: "No-GL/Vulkan build and test"
+  variables:
+    MESON_OPTIONS: >
+      -Dsimple-clients=damage,im,shm,touch,dmabuf-v4l
+      -Drenderer-gl=false
+      -Drenderer-vulkan=false
+      -Dremoting=false
+      -Dpipewire=false
+      -Dwerror=true
+
 .build-options-no-gl:
-  stage: "No-GL build and test"
+  stage: "No-GL/Vulkan build and test"
   variables:
     MESON_OPTIONS: >
       -Dsimple-clients=damage,im,shm,touch,dmabuf-v4l
@@ -536,51 +560,72 @@ docs-build:
       -Dpipewire=false
       -Dwerror=true
 
-x86_64-debian-lts-no-gl-build:
+.build-options-no-vulkan:
+  stage: "No-GL/Vulkan build and test"
+  variables:
+    MESON_OPTIONS: >
+      -Dsimple-clients=damage,im,shm,touch,dmabuf-v4l
+      -Drenderer-vulkan=false
+      -Dremoting=false
+      -Dpipewire=false
+      -Dwerror=true
+
+x86_64-debian-lts-no-gl-no-vulkan-build:
   extends:
     - .test-env-debian-lts-x86_64
-    - .build-options-no-gl
+    - .build-options-no-gl-no-vulkan
+
+x86_64-debian-no-gl-no-vulkan-build:
+  extends:
+    - .test-env-debian-x86_64
+    - .build-options-no-gl-no-vulkan
+
+armv7-debian-lts-no-gl-no-vulkan-build:
+  extends:
+    - .build-env-debian-lts-armv7
+    - .build-no-test
+    - .build-options-no-gl-no-vulkan
+
+armv7-debian-no-gl-no-vulkan-build:
+  extends:
+    - .build-env-debian-armv7
+    - .build-no-test
+    - .build-options-no-gl-no-vulkan
+
+armv7-clang-debian-lts-no-gl-no-vulkan-build:
+  extends:
+    - .build-env-debian-lts-armv7
+    - .build-with-clang
+    - .build-no-test
+    - .build-options-no-gl-no-vulkan
+
+armv7-clang-debian-no-gl-no-vulkan-build:
+  extends:
+    - .build-env-debian-armv7
+    - .build-with-clang
+    - .build-no-test
+    - .build-options-no-gl-no-vulkan
+
+aarch64-debian-lts-no-gl-no-vulkan-build:
+  extends:
+    - .test-env-debian-lts-aarch64
+    - .build-options-no-gl-no-vulkan
+
+aarch64-debian-no-gl-no-vulkan-build:
+  extends:
+    - .test-env-debian-aarch64
+    - .build-options-no-gl-no-vulkan
 
 x86_64-debian-no-gl-build:
   extends:
     - .test-env-debian-x86_64
     - .build-options-no-gl
 
-armv7-debian-lts-no-gl-build:
+x86_64-debian-no-vulkan-build:
   extends:
-    - .build-env-debian-lts-armv7
-    - .build-no-test
-    - .build-options-no-gl
+    - .test-env-debian-x86_64
+    - .build-options-no-vulkan
 
-armv7-debian-no-gl-build:
-  extends:
-    - .build-env-debian-armv7
-    - .build-no-test
-    - .build-options-no-gl
-
-armv7-clang-debian-lts-no-gl-build:
-  extends:
-    - .build-env-debian-lts-armv7
-    - .build-with-clang
-    - .build-no-test
-    - .build-options-no-gl
-
-armv7-clang-debian-no-gl-build:
-  extends:
-    - .build-env-debian-armv7
-    - .build-with-clang
-    - .build-no-test
-    - .build-options-no-gl
-
-aarch64-debian-lts-no-gl-build:
-  extends:
-    - .test-env-debian-lts-aarch64
-    - .build-options-no-gl
-
-aarch64-debian-no-gl-build:
-  extends:
-    - .test-env-debian-aarch64
-    - .build-options-no-gl
 
 # Expose docs and coverage reports, so we can show users any changes to these
 # inside their merge requests, letting us check them before merge.

@@ -670,6 +670,7 @@ main(int argc, char *argv[])
 	enum test_result_code result = RESULT_OK;
 	const struct fixture_setup_array *fsa;
 	const char *leak_dl_handle;
+	const char *leak_dl_handle_lvp;
 	int fi;
 	int fi_end;
 
@@ -685,6 +686,13 @@ main(int argc, char *argv[])
 	leak_dl_handle = getenv("WESTON_CI_LEAK_DL_HANDLE");
 	if (leak_dl_handle)
 		(void) dlopen(leak_dl_handle, RTLD_LAZY | RTLD_GLOBAL | RTLD_NODELETE);
+
+	/* ... and this hack works so well that it also solved the obscure leak
+	 * reports for lavapipe, so we copied it!
+	 */
+	leak_dl_handle_lvp = getenv("WESTON_CI_LEAK_DL_HANDLE_LVP");
+	if (leak_dl_handle_lvp)
+		(void) dlopen(leak_dl_handle_lvp, RTLD_LAZY | RTLD_GLOBAL | RTLD_NODELETE);
 
 	harness = weston_test_harness_create(argc, argv);
 

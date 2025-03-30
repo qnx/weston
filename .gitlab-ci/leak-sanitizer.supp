@@ -14,3 +14,9 @@ leak:/ld-*.so*
 
 # Add all of perfetto, since it's not easy to clean up after it
 leak:perfetto
+
+# lavapipe inexplicably leaks when Vulkan physical devices are enumerated,
+# despite us a) not using that device and b) freeing the instance. This is
+# apparently a known issue. (Also when ASan creates threads ...)
+leak:vkEnumeratePhysicalDevices
+leak:asan_thread_start
