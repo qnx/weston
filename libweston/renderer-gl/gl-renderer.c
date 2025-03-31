@@ -656,7 +656,6 @@ timeline_submit_render_sync(struct gl_renderer *gr,
 static void
 gl_renderbuffer_init(struct gl_renderbuffer *renderbuffer,
 		     enum gl_renderbuffer_type type,
-		     enum gl_border_status border_status,
 		     GLuint framebuffer,
 		     weston_renderbuffer_discarded_func discarded_cb,
 		     void *user_data,
@@ -668,7 +667,7 @@ gl_renderbuffer_init(struct gl_renderbuffer *renderbuffer,
 	renderbuffer->type = type;
 	pixman_region32_init(&renderbuffer->damage);
 	pixman_region32_copy(&renderbuffer->damage, &output->region);
-	renderbuffer->border_status = border_status;
+	renderbuffer->border_status = BORDER_ALL_DIRTY;
 	renderbuffer->fb = framebuffer;
 	renderbuffer->discarded_cb = discarded_cb;
 	renderbuffer->user_data = user_data;
@@ -807,8 +806,7 @@ gl_renderer_get_renderbuffer_window(struct weston_output *output)
 	/* or create a new window renderbuffer (window renderbuffers use the
 	 * default surface framebuffer 0). */
 	rb = xzalloc(sizeof(*rb));
-	gl_renderbuffer_init(rb, RENDERBUFFER_WINDOW, BORDER_ALL_DIRTY, 0, NULL,
-			     NULL, output);
+	gl_renderbuffer_init(rb, RENDERBUFFER_WINDOW, 0, NULL, NULL, output);
 
 	return rb;
 }
@@ -861,9 +859,8 @@ gl_renderer_create_renderbuffer(struct weston_output *output,
 	renderbuffer->buffer.rb = rb;
 	renderbuffer->buffer.data = buffer;
 	renderbuffer->buffer.stride = stride;
-	gl_renderbuffer_init(renderbuffer, RENDERBUFFER_BUFFER,
-			     BORDER_STATUS_CLEAN, fb, discarded_cb, user_data,
-			     output);
+	gl_renderbuffer_init(renderbuffer, RENDERBUFFER_BUFFER, fb,
+			     discarded_cb, user_data, output);
 
 	return (weston_renderbuffer_t) renderbuffer;
 
@@ -904,9 +901,8 @@ gl_renderer_create_renderbuffer_dmabuf(struct weston_output *output,
 	renderbuffer->dmabuf.gr = gr;
 	renderbuffer->dmabuf.memory = dmabuf;
 	renderbuffer->dmabuf.image = image;
-	gl_renderbuffer_init(renderbuffer, RENDERBUFFER_DMABUF,
-			     BORDER_STATUS_CLEAN, fb, discarded_cb, user_data,
-			     output);
+	gl_renderbuffer_init(renderbuffer, RENDERBUFFER_DMABUF, fb,
+			     discarded_cb, user_data, output);
 
 	return (weston_renderbuffer_t) renderbuffer;
 }
@@ -2074,6 +2070,7 @@ update_borders_tex(struct gl_renderer *gr,
 	for (i = 0; i < 4; i++) {
 		struct gl_border_image *current = &go->borders_current[i];
 		struct gl_border_image *pending = &go->borders_pending[i];
+		void *p;
 
 		if (!(go->border_status & (1 << i)))
 			continue;
@@ -2083,23 +2080,29 @@ update_borders_tex(struct gl_renderer *gr,
 			if (go->borders_tex[i])
 				gl_texture_fini(&go->borders_tex[i]);
 
-			if (pending->data) {
-				gl_texture_2d_init(
-					gr, 1, GL_RGBA8, pending->tex_width,
-					pending->height, &go->borders_tex[i]);
-				gl_texture_parameters_init(
-					gr, &go->borders_param[i],
-					GL_TEXTURE_2D, NULL, NULL, swizzles,
-					false);
-			}
+			gl_texture_2d_init(gr, 1, GL_RGBA8, pending->tex_width,
+					   pending->height,
+					   &go->borders_tex[i]);
+			gl_texture_parameters_init(gr, &go->borders_param[i],
+						   GL_TEXTURE_2D, NULL, NULL,
+						   swizzles, false);
 		}
 
+		/* Default output borders and borders explicitly set to NULL by
+		 * backends are filled with transparent pixels. */
+		glBindTexture(GL_TEXTURE_2D, go->borders_tex[i]);
 		if (pending->data) {
-			glBindTexture(GL_TEXTURE_2D, go->borders_tex[i]);
 			gl_texture_2d_store(gr, 0, 0, 0, pending->tex_width,
 					    pending->height, GL_RGBA,
 					    GL_UNSIGNED_BYTE, pending->data);
+		} else {
+			p = xzalloc(pending->tex_width * pending->height * 4);
+			gl_texture_2d_store(gr, 0, 0, 0, pending->tex_width,
+					    pending->height, GL_RGBA,
+					    GL_UNSIGNED_BYTE, p);
+			free(p);
 		}
+
 		*current = *pending;
 	}
 }
@@ -2115,9 +2118,6 @@ draw_output_border_texture(struct gl_renderer *gr,
 	struct gl_border_image *img = &go->borders_current[side];
 	static GLushort indices [] = { 0, 1, 3, 3, 1, 2 };
 
-	/* An empty border image (as allowed by output_set_borders) would use
-	 * the default (incomplete) OpenGL ES texture which, per spec, returns
-	 * (0, 0, 0, 1) in the fragment shader. */
 	sconf->input_tex = &go->borders_tex[side];
 	sconf->input_param = &go->borders_param[side];
 	sconf->input_num = 1;
@@ -4113,9 +4113,9 @@ gl_renderer_output_set_border(struct weston_output *output,
 	struct gl_border_image *img = &go->borders_pending[side];
 	bool valid = width && height && tex_width && data;
 
-	img->width = valid ? width : 0;
-	img->height = valid ? height : 0;
-	img->tex_width = valid ? tex_width : 0;
+	img->width = valid ? width : 1;
+	img->height = valid ? height : 1;
+	img->tex_width = valid ? tex_width : 1;
 	img->data = valid ? data : NULL;
 
 	go->border_status |= 1 << side;
@@ -4209,6 +4209,7 @@ gl_renderer_output_create(struct weston_output *output,
 	struct gl_output_state *go;
 	struct gl_renderer *gr = get_renderer(output->compositor);
 	const struct weston_testsuite_quirks *quirks;
+	int i;
 
 	assert(!get_output_state(output));
 
@@ -4220,6 +4221,14 @@ gl_renderer_output_create(struct weston_output *output,
 
 	go->egl_surface = surface;
 	go->y_flip = surface == EGL_NO_SURFACE ? 1.0f : -1.0f;
+
+	go->border_status = BORDER_ALL_DIRTY;
+	for (i = 0; i < 4; i++) {
+		go->borders_pending[i].width = 1;
+		go->borders_pending[i].height = 1;
+		go->borders_pending[i].tex_width = 1;
+		go->borders_pending[i].data = NULL;
+	}
 
 	if (gl_features_has(gr, FEATURE_GPU_TIMELINE))
 		gr->gen_queries(1, &go->render_query);
