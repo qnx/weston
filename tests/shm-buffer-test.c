@@ -352,13 +352,13 @@ rgb888_create_buffer(struct client *client,
 			uint8_t b = src_row[x];
 
 			if (drm_format == DRM_FORMAT_RGB888) {
-				dst_row[x * 3 + 2] = b;
-				dst_row[x * 3 + 1] = g;
-				dst_row[x * 3 + 0] = r;
-			} else {
 				dst_row[x * 3 + 2] = r;
 				dst_row[x * 3 + 1] = g;
 				dst_row[x * 3 + 0] = b;
+			} else {
+				dst_row[x * 3 + 2] = b;
+				dst_row[x * 3 + 1] = g;
+				dst_row[x * 3 + 0] = r;
 			}
 		}
 	}

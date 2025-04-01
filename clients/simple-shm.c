@@ -612,11 +612,11 @@ paint_format(void *image, const struct format *format, int width, int height)
 			color = GET_COLOR(i);
 			for (j = 0; j < width; j++) {
 				img8[(i * width + j) * 3 + 0] =
-					(color >> 16) & 0xff;
+					(color >>  0) & 0xff;
 				img8[(i * width + j) * 3 + 1] =
 					(color >>  8) & 0xff;
 				img8[(i * width + j) * 3 + 2] =
-					(color >>  0) & 0xff;
+					(color >> 16) & 0xff;
 			}
 		}
 		break;
