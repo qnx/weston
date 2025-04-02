@@ -6528,11 +6528,10 @@ weston_head_remove_global(struct weston_head *head)
 {
 	struct wl_resource *resource, *tmp;
 
-	if (head->global)
+	if (head->global) {
+		wl_global_set_user_data(head->global, NULL);
 		weston_global_destroy_save(head->compositor, head->global);
-
-	wl_global_set_user_data(head->global, NULL);
-
+	}
 	head->global = NULL;
 
 	wl_resource_for_each_safe(resource, tmp, &head->resource_list) {
