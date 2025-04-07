@@ -25,18 +25,28 @@
 
 #include "config.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
-#include <math.h>
 #include <unistd.h>
 
+#include "test-config.h"
 #include "weston-test-client-helper.h"
 #include "weston-test-fixture-compositor.h"
 #include "image-iter.h"
 #include "shared/os-compatibility.h"
 #include "shared/weston-drm-fourcc.h"
 #include "shared/xalloc.h"
+
+/* Align buffers to 256 bytes - required by e.g. AMD GPUs */
+#define STRIDE_ALIGN_MASK 255
+
+static size_t
+get_aligned_stride(size_t width_bytes)
+{
+	return (width_bytes + STRIDE_ALIGN_MASK) & ~STRIDE_ALIGN_MASK;
+}
 
 /* XXX For formats with more than 8 bit pre component, we should ideally load a
  * 16-bit (or 32-bit) per component image and store into a 16-bit (or 32-bit)
@@ -60,10 +70,26 @@ fixture_setup(struct weston_test_harness *harness)
 }
 DECLARE_FIXTURE_SETUP(fixture_setup);
 
+enum buffer_type {
+	BUFFER_TYPE_SHM = 1,
+};
+
 struct client_buffer {
 	void *data;
 	size_t bytes;
-	struct wl_buffer *proxy;
+	struct wl_buffer *wl_buffer;
+	int fd;
+	int width;
+	int height;
+};
+
+struct client_buffer_create_data {
+	uint32_t drm_format;
+	enum buffer_type type;
+	size_t bytes;
+	size_t strides[3];
+	size_t offsets[3];
+	int n_planes;
 	int width;
 	int height;
 };
@@ -74,8 +100,21 @@ struct client_buffer_case {
 	int ref_seq_no;
 	struct client_buffer *(*create_buffer)(struct client *client,
 					       uint32_t drm_format,
+					       enum buffer_type type,
 					       pixman_image_t *rgb_image);
 };
+
+static struct client_buffer_create_data
+create_init(uint32_t drm_format, enum buffer_type type,
+	    const struct image_header *ih)
+{
+	return (struct client_buffer_create_data){
+		.drm_format = drm_format,
+		.type = type,
+		.width = ih->width,
+		.height = ih->height,
+	};
+}
 
 static struct client_buffer *
 shm_buffer_create(struct client *client,
@@ -97,10 +136,14 @@ shm_buffer_create(struct client *client,
 	else
 		shm_format = drm_format;
 
-	if (!support_shm_format(client, shm_format))
-	    return NULL;
+	if (!support_shm_format(client, shm_format)) {
+		testlog("%s: Skipped: format not supported by compositor for SHM\n",
+			get_test_name());
+		return NULL;
+	}
 
 	buf = xzalloc(sizeof *buf);
+	buf->fd = -1;
 	buf->bytes = bytes;
 	buf->width = width;
 	buf->height = height;
@@ -116,19 +159,39 @@ shm_buffer_create(struct client *client,
 	}
 
 	pool = wl_shm_create_pool(client->wl_shm, fd, buf->bytes);
-	buf->proxy = wl_shm_pool_create_buffer(pool, 0, buf->width, buf->height,
-					       stride_bytes, shm_format);
+	buf->wl_buffer = wl_shm_pool_create_buffer(pool, 0, buf->width,
+						   buf->height, stride_bytes,
+						   shm_format);
 	wl_shm_pool_destroy(pool);
 	close(fd);
 
 	return buf;
 }
 
+
+static struct client_buffer *
+client_buffer_create(struct client *client,
+		     struct client_buffer_create_data *create_data)
+{
+	switch (create_data->type) {
+	case BUFFER_TYPE_SHM:
+		return shm_buffer_create(client, create_data->bytes,
+					 create_data->width,
+					 create_data->height,
+					 create_data->strides[0],
+					 create_data->drm_format);
+	}
+
+	test_assert_not_reached("Unknown buffer type");
+}
+
 static void
 client_buffer_destroy(struct client_buffer *buf)
 {
-	wl_buffer_destroy(buf->proxy);
+	wl_buffer_destroy(buf->wl_buffer);
 	test_assert_int_eq(munmap(buf->data, buf->bytes), 0);
+	if (buf->fd > -1)
+		close(buf->fd);
 	free(buf);
 }
 
@@ -150,6 +213,7 @@ client_buffer_destroy(struct client_buffer *buf)
 static struct client_buffer *
 rgba4444_create_buffer(struct client *client,
 		       uint32_t drm_format,
+		       enum buffer_type type,
 		       pixman_image_t *rgb_image)
 {
 	static const int swizzles[][4] = {
@@ -160,6 +224,7 @@ rgba4444_create_buffer(struct client *client,
 	};
 
 	struct image_header src = image_header_from(rgb_image);
+	struct client_buffer_create_data args = create_init(drm_format, type, &src);
 	struct client_buffer *buf;
 	bool is_opaque;
 	int idx, x, y;
@@ -202,15 +267,22 @@ rgba4444_create_buffer(struct client *client,
 		test_assert_not_reached("Invalid format!");
 	};
 
-	buf = shm_buffer_create(client, src.width * src.height * 2, src.width,
-				src.height, src.width * 2, drm_format);
+	args.n_planes = 1;
+	args.strides[0] = get_aligned_stride(src.width * 2);
+	args.offsets[0] = 0;
+	args.bytes = args.strides[0] * src.height;
+
+	buf = client_buffer_create(client, &args);
+	if (!buf)
+		return NULL;
 
 	/* Store alpha as 0x0 to ensure the compositor correctly replaces it
 	 * with 0xf. */
 	a = is_opaque ? 0x0 : 0xf;
 
 	for (y = 0; y < src.height; y++) {
-		uint16_t *dst_row = (uint16_t*) buf->data + src.width * y;
+		uint16_t *dst_row =
+			(uint16_t*) buf->data + (args.strides[0] / sizeof(uint16_t)) * y;
 		uint32_t *src_row = image_header_get_row_u32(&src, y);
 
 		for (x = 0; x < src.width; x++) {
@@ -241,10 +313,13 @@ rgba4444_create_buffer(struct client *client,
 static struct client_buffer *
 rgba5551_create_buffer(struct client *client,
 		       uint32_t drm_format,
+		       enum buffer_type type,
 		       pixman_image_t *rgb_image)
 {
 	struct image_header src = image_header_from(rgb_image);
+	struct client_buffer_create_data args = create_init(drm_format, type, &src);
 	struct client_buffer *buf;
+
 	int x, y;
 	uint16_t a;
 
@@ -253,8 +328,14 @@ rgba5551_create_buffer(struct client *client,
 			 drm_format == DRM_FORMAT_BGRX5551 ||
 			 drm_format == DRM_FORMAT_BGRA5551);
 
-	buf = shm_buffer_create(client, src.width * src.height * 2, src.width,
-				src.height, src.width * 2, drm_format);
+	args.n_planes = 1;
+	args.strides[0] = get_aligned_stride(src.width * 2);
+	args.offsets[0] = 0;
+	args.bytes = args.strides[0] * src.height;
+
+	buf = client_buffer_create(client, &args);
+	if (!buf)
+		return NULL;
 
 	/* Store alpha as 0x0 to ensure the compositor correctly replaces it
 	 * with 0x1. */
@@ -262,7 +343,8 @@ rgba5551_create_buffer(struct client *client,
 		drm_format == DRM_FORMAT_RGBX5551 ? 0x0 : 0x1;
 
 	for (y = 0; y < src.height; y++) {
-		uint16_t *dst_row = (uint16_t*) buf->data + src.width * y;
+		uint16_t *dst_row =
+			(uint16_t*) buf->data + (args.strides[0] / sizeof(uint16_t)) * y;
 		uint32_t *src_row = image_header_get_row_u32(&src, y);
 
 		for (x = 0; x < src.width; x++) {
@@ -290,20 +372,29 @@ rgba5551_create_buffer(struct client *client,
 static struct client_buffer *
 rgb565_create_buffer(struct client *client,
 		     uint32_t drm_format,
+		     enum buffer_type type,
 		     pixman_image_t *rgb_image)
 {
 	struct image_header src = image_header_from(rgb_image);
+	struct client_buffer_create_data args = create_init(drm_format, type, &src);
 	struct client_buffer *buf;
 	int x, y;
 
 	test_assert_true(drm_format == DRM_FORMAT_RGB565 ||
 			 drm_format == DRM_FORMAT_BGR565);
 
-	buf = shm_buffer_create(client, src.width * src.height * 2, src.width,
-				src.height, src.width * 2, drm_format);
+	args.n_planes = 1;
+	args.strides[0] = get_aligned_stride(src.width * 2);
+	args.offsets[0] = 0;
+	args.bytes = args.strides[0] * src.height;
+
+	buf = client_buffer_create(client, &args);
+	if (!buf)
+		return NULL;
 
 	for (y = 0; y < src.height; y++) {
-		uint16_t *dst_row = (uint16_t*) buf->data + src.width * y;
+		uint16_t *dst_row =
+			(uint16_t*) buf->data + (args.strides[0] / sizeof(uint16_t)) * y;
 		uint32_t *src_row = image_header_get_row_u32(&src, y);
 
 		for (x = 0; x < src.width; x++) {
@@ -330,17 +421,25 @@ rgb565_create_buffer(struct client *client,
 static struct client_buffer *
 rgb888_create_buffer(struct client *client,
 		     uint32_t drm_format,
+		     enum buffer_type type,
 		     pixman_image_t *rgb_image)
 {
 	struct image_header src = image_header_from(rgb_image);
+	struct client_buffer_create_data args = create_init(drm_format, type, &src);
 	struct client_buffer *buf;
 	int x, y;
 
 	test_assert_true(drm_format == DRM_FORMAT_RGB888 ||
 			 drm_format == DRM_FORMAT_BGR888);
 
-	buf = shm_buffer_create(client, src.width * src.height * 3, src.width,
-				src.height, src.width * 3, drm_format);
+	args.n_planes = 1;
+	args.strides[0] = get_aligned_stride(src.width * 3);
+	args.offsets[0] = 0;
+	args.bytes = args.strides[0] * src.height;
+
+	buf = client_buffer_create(client, &args);
+	if (!buf)
+		return NULL;
 
 	for (y = 0; y < src.height; y++) {
 		uint8_t *dst_row = (uint8_t*) buf->data + src.width * 3 * y;
@@ -384,6 +483,7 @@ rgb888_create_buffer(struct client *client,
 static struct client_buffer *
 rgba8888_create_buffer(struct client *client,
 		       uint32_t drm_format,
+		       enum buffer_type type,
 		       pixman_image_t *rgb_image)
 {
 	static const int swizzles[][4] = {
@@ -394,6 +494,7 @@ rgba8888_create_buffer(struct client *client,
 	};
 
 	struct image_header src = image_header_from(rgb_image);
+	struct client_buffer_create_data args = create_init(drm_format, type, &src);
 	struct client_buffer *buf;
 	bool is_opaque;
 	int idx, x, y;
@@ -436,15 +537,22 @@ rgba8888_create_buffer(struct client *client,
 		test_assert_not_reached("Invalid format!");
 	};
 
-	buf = shm_buffer_create(client, src.width * src.height * 4, src.width,
-				src.height, src.width * 4, drm_format);
+	args.n_planes = 1;
+	args.strides[0] = get_aligned_stride(src.width * 4);
+	args.offsets[0] = 0;
+	args.bytes = args.strides[0] * src.height;
+
+	buf = client_buffer_create(client, &args);
+	if (!buf)
+		return NULL;
 
 	/* Store alpha as 0x00 to ensure the compositor correctly replaces it
 	 * with 0xff. */
 	a = is_opaque ? 0x00 : 0xff;
 
 	for (y = 0; y < src.height; y++) {
-		uint32_t *dst_row = (uint32_t*) buf->data + src.width * y;
+		uint32_t *dst_row =
+			(uint32_t*) buf->data + (args.strides[0] / sizeof(uint32_t)) * y;
 		uint32_t *src_row = image_header_get_row_u32(&src, y);
 
 		for (x = 0; x < src.width; x++) {
@@ -475,9 +583,11 @@ rgba8888_create_buffer(struct client *client,
 static struct client_buffer *
 rgba2101010_create_buffer(struct client *client,
 			  uint32_t drm_format,
+			  enum buffer_type type,
 			  pixman_image_t *rgb_image)
 {
 	struct image_header src = image_header_from(rgb_image);
+	struct client_buffer_create_data args = create_init(drm_format, type, &src);
 	struct client_buffer *buf;
 	int x, y;
 	uint32_t a;
@@ -487,8 +597,14 @@ rgba2101010_create_buffer(struct client *client,
 			 drm_format == DRM_FORMAT_XBGR2101010 ||
 			 drm_format == DRM_FORMAT_ABGR2101010);
 
-	buf = shm_buffer_create(client, src.width * src.height * 4, src.width,
-				src.height, src.width * 4, drm_format);
+	args.n_planes = 1;
+	args.strides[0] = get_aligned_stride(src.width * 4);
+	args.offsets[0] = 0;
+	args.bytes = args.strides[0] * src.height;
+
+	buf = client_buffer_create(client, &args);
+	if (!buf)
+		return NULL;
 
 	/* Store alpha as 0x0 to ensure the compositor correctly replaces it
 	 * with 0x3. */
@@ -496,7 +612,8 @@ rgba2101010_create_buffer(struct client *client,
 		drm_format == DRM_FORMAT_XRGB2101010 ? 0x0 : 0x3;
 
 	for (y = 0; y < src.height; y++) {
-		uint32_t *dst_row = (uint32_t*) buf->data + src.width * y;
+		uint32_t *dst_row =
+			(uint32_t*) buf->data + (args.strides[0] / sizeof(uint32_t)) * y;
 		uint32_t *src_row = image_header_get_row_u32(&src, y);
 
 		for (x = 0; x < src.width; x++) {
@@ -527,6 +644,7 @@ rgba2101010_create_buffer(struct client *client,
 static struct client_buffer *
 rgba16161616_create_buffer(struct client *client,
 			   uint32_t drm_format,
+			   enum buffer_type type,
 			   pixman_image_t *rgb_image)
 {
 	static const int swizzles[][4] = {
@@ -535,6 +653,7 @@ rgba16161616_create_buffer(struct client *client,
 	};
 
 	struct image_header src = image_header_from(rgb_image);
+	struct client_buffer_create_data args = create_init(drm_format, type, &src);
 	struct client_buffer *buf;
 	bool is_opaque;
 	int idx, x, y;
@@ -561,15 +680,22 @@ rgba16161616_create_buffer(struct client *client,
 		test_assert_not_reached("Invalid format!");
 	};
 
-	buf = shm_buffer_create(client, src.width * src.height * 8, src.width,
-				src.height, src.width * 8, drm_format);
+	args.n_planes = 1;
+	args.strides[0] = get_aligned_stride(src.width * 8);
+	args.offsets[0] = 0;
+	args.bytes = args.strides[0] * src.height;
+
+	buf = client_buffer_create(client, &args);
+	if (!buf)
+		return NULL;
 
 	/* Store alpha as 0x0000 to ensure the compositor correctly replaces it
 	 * with 0xffff. */
 	a = is_opaque ? 0x0000 : 0xffff;
 
 	for (y = 0; y < src.height; y++) {
-		uint64_t *dst_row = (uint64_t*) buf->data + src.width * y;
+		uint64_t *dst_row =
+			(uint64_t*) buf->data + (args.strides[0] / sizeof(uint64_t)) * y;
 		uint32_t *src_row = image_header_get_row_u32(&src, y);
 
 		for (x = 0; x < src.width; x++) {
@@ -623,6 +749,7 @@ binary16_from_binary32(float binary32)
 static struct client_buffer *
 rgba16161616f_create_buffer(struct client *client,
 			    uint32_t drm_format,
+			    enum buffer_type type,
 			    pixman_image_t *rgb_image)
 {
 	static const int swizzles[][4] = {
@@ -631,6 +758,7 @@ rgba16161616f_create_buffer(struct client *client,
 	};
 
 	struct image_header src = image_header_from(rgb_image);
+	struct client_buffer_create_data args = create_init(drm_format, type, &src);
 	struct client_buffer *buf;
 	bool is_opaque;
 	int idx, x, y;
@@ -657,8 +785,14 @@ rgba16161616f_create_buffer(struct client *client,
 		test_assert_not_reached("Invalid format!");
 	};
 
-	buf = shm_buffer_create(client, src.width * src.height * 8, src.width,
-				src.height, src.width * 8, drm_format);
+	args.n_planes = 1;
+	args.strides[0] = get_aligned_stride(src.width * 8);
+	args.offsets[0] = 0;
+	args.bytes = args.strides[0] * src.height;
+
+	buf = client_buffer_create(client, &args);
+	if (!buf)
+		return NULL;
 
 	/* Store alpha as 0.0 to ensure the compositor correctly replaces it
 	 * with 1.0. */
@@ -667,7 +801,8 @@ rgba16161616f_create_buffer(struct client *client,
 		binary16_from_binary32(1.0f);
 
 	for (y = 0; y < src.height; y++) {
-		uint64_t *dst_row = (uint64_t*) buf->data + src.width * y;
+		uint64_t *dst_row =
+			(uint64_t*) buf->data + (args.strides[0] / sizeof(uint64_t)) * y;
 		uint32_t *src_row = image_header_get_row_u32(&src, y);
 
 		for (x = 0; x < src.width; x++) {
@@ -780,11 +915,12 @@ x8r8g8b8_to_ycbcr16_bt709(uint32_t xrgb, int depth,
 static struct client_buffer *
 y_u_v_create_buffer(struct client *client,
 		    uint32_t drm_format,
+		    enum buffer_type type,
 		    pixman_image_t *rgb_image)
 {
-	struct image_header rgb = image_header_from(rgb_image);
+	struct image_header src = image_header_from(rgb_image);
+	struct client_buffer_create_data args = create_init(drm_format, type, &src);
 	struct client_buffer *buf;
-	size_t bytes;
 	int x, y;
 	uint32_t *rgb_row;
 	uint8_t *y_base;
@@ -794,40 +930,77 @@ y_u_v_create_buffer(struct client *client,
 	uint8_t *u_row;
 	uint8_t *v_row;
 	uint32_t argb;
-	int sub = (drm_format == DRM_FORMAT_YUV420 ||
-		   drm_format == DRM_FORMAT_YVU420) ? 2 : 1;
+	int sub_x;
+	int sub_y;
 
-	test_assert_true(drm_format == DRM_FORMAT_YUV420 ||
-			 drm_format == DRM_FORMAT_YVU420 ||
-			 drm_format == DRM_FORMAT_YUV444 ||
-			 drm_format == DRM_FORMAT_YVU444);
-
-	/* Full size Y plus quarter U and V */
-	bytes = rgb.width * rgb.height +
-		(rgb.width / sub) * (rgb.height / sub) * 2;
-	buf = shm_buffer_create(client, bytes, rgb.width, rgb.height,
-				rgb.width, drm_format);
-
-	y_base = buf->data;
-	if (drm_format == DRM_FORMAT_YUV420 ||
-	    drm_format == DRM_FORMAT_YUV444) {
-		u_base = y_base + rgb.width * rgb.height;
-		v_base = u_base + (rgb.width / sub) * (rgb.height / sub);
-	} else if (drm_format == DRM_FORMAT_YVU420 ||
-		   drm_format == DRM_FORMAT_YVU444) {
-		v_base = y_base + rgb.width * rgb.height;
-		u_base = v_base + (rgb.width / sub) * (rgb.height / sub);
-	} else {
+	switch (drm_format) {
+	case DRM_FORMAT_YUV420:
+	case DRM_FORMAT_YVU420:
+		sub_x = 2;
+		sub_y = 2;
+		break;
+	case DRM_FORMAT_YUV444:
+	case DRM_FORMAT_YVU444:
+		sub_x = 1;
+		sub_y = 1;
+		break;
+	default:
 		test_assert_not_reached("Invalid format!");
 	}
 
-	for (y = 0; y < rgb.height; y++) {
-		rgb_row = image_header_get_row_u32(&rgb, y / 2 * 2);
-		y_row = y_base + y * rgb.width;
-		u_row = u_base + (y / sub) * (rgb.width / sub);
-		v_row = v_base + (y / sub) * (rgb.width / sub);
+	switch (type) {
+	case BUFFER_TYPE_SHM:
+		args.strides[0] = src.width;
+		args.strides[1] = args.strides[2] = src.width / sub_x;
+		break;
+	}
 
-		for (x = 0; x < rgb.width; x++) {
+	args.n_planes = 3;
+	args.offsets[0] = 0;
+	args.offsets[1] = args.strides[0] * src.height;
+	args.offsets[2] = args.offsets[1] + args.strides[1] * (src.height / sub_y);
+
+	/* Full size Y plus quarter U and V */
+	args.bytes =
+		args.strides[0] * src.height +
+		args.strides[1] * (src.height / sub_y) * 2;
+
+	buf = client_buffer_create(client, &args);
+	if (!buf)
+		return NULL;
+
+	y_base = buf->data + args.offsets[0];
+	switch (drm_format) {
+	case DRM_FORMAT_YUV420:
+	case DRM_FORMAT_YUV444:
+		u_base = buf->data + args.offsets[1];
+		v_base = buf->data + args.offsets[2];
+		break;
+	case DRM_FORMAT_YVU420:
+	case DRM_FORMAT_YVU444:
+		v_base = buf->data + args.offsets[1];
+		u_base = buf->data + args.offsets[2];
+		break;
+	}
+
+	for (y = 0; y < src.height; y++) {
+		rgb_row = image_header_get_row_u32(&src, y / 2 *	 2);
+		y_row = y_base + y * args.strides[0];
+
+		switch (drm_format) {
+		case DRM_FORMAT_YUV420:
+		case DRM_FORMAT_YUV444:
+			u_row = u_base + (y / sub_y) * args.strides[1];
+			v_row = v_base + (y / sub_y) * args.strides[2];
+			break;
+		case DRM_FORMAT_YVU420:
+		case DRM_FORMAT_YVU444:
+			v_row = v_base + (y / sub_y) * args.strides[1];
+			u_row = u_base + (y / sub_y) * args.strides[2];
+			break;
+		}
+
+		for (x = 0; x < src.width; x++) {
 			/*
 			 * Sub-sample the source image instead, so that U and V
 			 * sub-sampling does not require proper
@@ -840,10 +1013,10 @@ y_u_v_create_buffer(struct client *client,
 			 * do the necessary filtering/averaging/siting or
 			 * alternate Cb/Cr rows.
 			 */
-			if ((y & (sub - 1)) == 0 && (x & (sub - 1)) == 0) {
+			if ((y & (sub_y - 1)) == 0 && (x & (sub_x - 1)) == 0) {
 				x8r8g8b8_to_ycbcr8_bt709(argb, y_row + x,
-							 u_row + x / sub,
-							 v_row + x / sub);
+							 u_row + x / sub_x,
+							 v_row + x / sub_x);
 			} else {
 				x8r8g8b8_to_ycbcr8_bt709(argb, y_row + x,
 							 NULL, NULL);
@@ -868,16 +1041,16 @@ y_u_v_create_buffer(struct client *client,
 static struct client_buffer *
 nv12_create_buffer(struct client *client,
 		   uint32_t drm_format,
+		   enum buffer_type type,
 		   pixman_image_t *rgb_image)
 {
 	static const int swizzles[][2] = {
 		{ 0, 1 }, /* NV12 */
 		{ 1, 0 }  /* NV21 */
 	};
-
-	struct image_header rgb = image_header_from(rgb_image);
+	struct image_header src = image_header_from(rgb_image);
+	struct client_buffer_create_data args = create_init(drm_format, type, &src);
 	struct client_buffer *buf;
-	size_t bytes;
 	int idx, x, y;
 	uint32_t *rgb_row;
 	uint8_t *y_base;
@@ -887,6 +1060,8 @@ nv12_create_buffer(struct client *client,
 	uint32_t argb;
 	uint8_t cr;
 	uint8_t cb;
+	int sub_x;
+	int sub_y;
 
 	switch (drm_format) {
 	case DRM_FORMAT_NV12:
@@ -899,21 +1074,33 @@ nv12_create_buffer(struct client *client,
 		test_assert_not_reached("Invalid format!");
 	};
 
-	/* Full size Y, quarter UV */
-	bytes = rgb.width * rgb.height +
-		(rgb.width / 2) * (rgb.height / 2) * sizeof(uint16_t);
-	buf = shm_buffer_create(client, bytes, rgb.width, rgb.height,
-				rgb.width, drm_format);
+	sub_x = sub_y = 2;
 
-	y_base = buf->data;
-	uv_base = (uint16_t *)(y_base + rgb.width * rgb.height);
+	args.n_planes = 2;
+	args.strides[0] = get_aligned_stride(src.width);
+	args.strides[1] = get_aligned_stride(src.width / sub_x * sizeof(uint16_t));
 
-	for (y = 0; y < rgb.height; y++) {
-		rgb_row = image_header_get_row_u32(&rgb, y / 2 * 2);
-		y_row = y_base + y * rgb.width;
-		uv_row = uv_base + (y / 2) * (rgb.width / 2);
+	args.offsets[0] = 0;
+	args.offsets[1] = args.strides[0] * src.height;
 
-		for (x = 0; x < rgb.width; x++) {
+	/* Full size Y plus quarter U and V */
+	args.bytes =
+		args.strides[0] * src.height +
+		args.strides[1] * (src.height / sub_y);
+
+	buf = client_buffer_create(client, &args);
+	if (!buf)
+		return NULL;
+
+	y_base = buf->data + args.offsets[0];
+	uv_base = (uint16_t *)(buf->data + args.offsets[1]);
+
+	for (y = 0; y < src.height; y++) {
+		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
+		y_row = y_base + y * args.strides[0];
+		uv_row = uv_base + (y / 2) * (args.strides[1] / sizeof(uint16_t));
+
+		for (x = 0; x < src.width; x++) {
 			/*
 			 * Sub-sample the source image instead, so that U and V
 			 * sub-sampling does not require proper
@@ -955,16 +1142,16 @@ nv12_create_buffer(struct client *client,
 static struct client_buffer *
 nv16_create_buffer(struct client *client,
 		   uint32_t drm_format,
+		   enum buffer_type type,
 		   pixman_image_t *rgb_image)
 {
 	static const int swizzles[][2] = {
 		{ 0, 1 }, /* NV16 */
 		{ 1, 0 }  /* NV61 */
 	};
-
-	struct image_header rgb = image_header_from(rgb_image);
+	struct image_header src = image_header_from(rgb_image);
+	struct client_buffer_create_data args = create_init(drm_format, type, &src);
 	struct client_buffer *buf;
-	size_t bytes;
 	int idx, x, y;
 	uint32_t *rgb_row;
 	uint8_t *y_base;
@@ -974,6 +1161,8 @@ nv16_create_buffer(struct client *client,
 	uint32_t argb;
 	uint8_t cr;
 	uint8_t cb;
+	int sub_x;
+	int sub_y;
 
 	switch (drm_format) {
 	case DRM_FORMAT_NV16:
@@ -986,21 +1175,34 @@ nv16_create_buffer(struct client *client,
 		test_assert_not_reached("Invalid format!");
 	};
 
+	sub_x = 2;
+	sub_y = 1;
+
+	args.n_planes = 2;
+	args.strides[0] = get_aligned_stride(src.width);
+	args.strides[1] = get_aligned_stride(src.width / sub_x * sizeof(uint16_t));
+
+	args.offsets[0] = 0;
+	args.offsets[1] = args.strides[0] * src.height;
+
 	/* Full size Y, horizontally subsampled UV */
-	bytes = rgb.width * rgb.height +
-		(rgb.width / 2) * rgb.height * sizeof(uint16_t);
-	buf = shm_buffer_create(client, bytes, rgb.width, rgb.height,
-				rgb.width, drm_format);
+	args.bytes =
+		args.strides[0] * src.height +
+		args.strides[1] * (src.height / sub_y);
 
-	y_base = buf->data;
-	uv_base = (uint16_t *)(y_base + rgb.width * rgb.height);
+	buf = client_buffer_create(client, &args);
+	if (!buf)
+		return NULL;
 
-	for (y = 0; y < rgb.height; y++) {
-		rgb_row = image_header_get_row_u32(&rgb, y / 2 * 2);
-		y_row = y_base + y * rgb.width;
-		uv_row = uv_base + y * (rgb.width / 2);
+	y_base = buf->data + args.offsets[0];
+	uv_base = (uint16_t *)(buf->data + args.offsets[1]);
 
-		for (x = 0; x < rgb.width; x++) {
+	for (y = 0; y < src.height; y++) {
+		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
+		y_row = y_base + y * args.strides[0];
+		uv_row = uv_base + y * (args.strides[1] / sizeof(uint16_t));
+
+		for (x = 0; x < src.width; x++) {
 			/*
 			 * 2x2 sub-sample the source image to get the same
 			 * result as the other YUV variants, so we can use the
@@ -1042,16 +1244,16 @@ nv16_create_buffer(struct client *client,
 static struct client_buffer *
 nv24_create_buffer(struct client *client,
 		   uint32_t drm_format,
+		   enum buffer_type type,
 		   pixman_image_t *rgb_image)
 {
 	static const int swizzles[][2] = {
 		{ 0, 1 }, /* NV24 */
 		{ 1, 0 }  /* NV42 */
 	};
-
-	struct image_header rgb = image_header_from(rgb_image);
+	struct image_header src = image_header_from(rgb_image);
+	struct client_buffer_create_data args = create_init(drm_format, type, &src);
 	struct client_buffer *buf;
-	size_t bytes;
 	int idx, x, y;
 	uint32_t *rgb_row;
 	uint8_t *y_base;
@@ -1061,6 +1263,8 @@ nv24_create_buffer(struct client *client,
 	uint32_t argb;
 	uint8_t cr;
 	uint8_t cb;
+	int sub_x;
+	int sub_y;
 
 	switch (drm_format) {
 	case DRM_FORMAT_NV24:
@@ -1073,21 +1277,34 @@ nv24_create_buffer(struct client *client,
 		test_assert_not_reached("Invalid format!");
 	};
 
+	sub_x = 1;
+	sub_y = 1;
+
+	args.n_planes = 2;
+	args.strides[0] = get_aligned_stride(src.width);
+	args.strides[1] = get_aligned_stride(src.width / sub_x * sizeof(uint16_t));
+
+	args.offsets[0] = 0;
+	args.offsets[1] = args.strides[0] * src.height;
+
 	/* Full size Y, non-subsampled UV */
-	bytes = rgb.width * rgb.height +
-		rgb.width * rgb.height * sizeof(uint16_t);
-	buf = shm_buffer_create(client, bytes, rgb.width, rgb.height,
-				rgb.width, drm_format);
+	args.bytes =
+		args.strides[0] * src.height +
+		args.strides[1] * (src.height / sub_y);
 
-	y_base = buf->data;
-	uv_base = (uint16_t *)(y_base + rgb.width * rgb.height);
+	buf = client_buffer_create(client, &args);
+	if (!buf)
+		return NULL;
 
-	for (y = 0; y < rgb.height; y++) {
-		rgb_row = image_header_get_row_u32(&rgb, y / 2 * 2);
-		y_row = y_base + y * rgb.width;
-		uv_row = uv_base + y * rgb.width;
+	y_base = buf->data + args.offsets[0];
+	uv_base = (uint16_t *)(buf->data + args.offsets[1]);
 
-		for (x = 0; x < rgb.width; x++) {
+	for (y = 0; y < src.height; y++) {
+		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
+		y_row = y_base + y * args.strides[0];
+		uv_row = uv_base + y * (args.strides[1] / sizeof(uint16_t));
+
+		for (x = 0; x < src.width; x++) {
 			/*
 			 * 2x2 sub-sample the source image to get the same
 			 * result as the other YUV variants, so we can use the
@@ -1124,6 +1341,7 @@ nv24_create_buffer(struct client *client,
 static struct client_buffer *
 yuyv_create_buffer(struct client *client,
 		   uint32_t drm_format,
+		   enum buffer_type type,
 		   pixman_image_t *rgb_image)
 {
 	static const int swizzles[][4] = {
@@ -1132,10 +1350,9 @@ yuyv_create_buffer(struct client *client,
 		{ 1, 0, 3, 2 }, /* UYVY */
 		{ 1, 2, 3, 0 }  /* VYUY */
 	};
-
-	struct image_header rgb = image_header_from(rgb_image);
+	struct image_header src = image_header_from(rgb_image);
+	struct client_buffer_create_data args = create_init(drm_format, type, &src);
 	struct client_buffer *buf;
-	size_t bytes;
 	int idx, x, y;
 	uint32_t *rgb_row;
 	uint32_t *yuv_base;
@@ -1161,18 +1378,24 @@ yuyv_create_buffer(struct client *client,
 		test_assert_not_reached("Invalid format!");
 	};
 
+	args.n_planes = 1;
+	args.strides[0] = get_aligned_stride(src.width / 2 * sizeof(uint32_t));
+	args.offsets[0] = 0;
+
 	/* Full size Y, horizontally subsampled UV, 2 pixels in 32 bits */
-	bytes = rgb.width / 2 * rgb.height * sizeof(uint32_t);
-	buf = shm_buffer_create(client, bytes, rgb.width, rgb.height,
-				rgb.width / 2 * sizeof(uint32_t), drm_format);
+	args.bytes = args.strides[0] * src.height;
+
+	buf = client_buffer_create(client, &args);
+	if (!buf)
+		return NULL;
 
 	yuv_base = buf->data;
 
-	for (y = 0; y < rgb.height; y++) {
-		rgb_row = image_header_get_row_u32(&rgb, y / 2 * 2);
-		yuv_row = yuv_base + y * (rgb.width / 2);
+	for (y = 0; y < src.height; y++) {
+		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
+		yuv_row = yuv_base + y * (args.strides[0] / sizeof(uint32_t));
 
-		for (x = 0; x < rgb.width; x += 2) {
+		for (x = 0; x < src.width; x += 2) {
 			/*
 			 * Sub-sample the source image instead, so that U and V
 			 * sub-sampling does not require proper
@@ -1199,11 +1422,12 @@ yuyv_create_buffer(struct client *client,
 static struct client_buffer *
 xyuv8888_create_buffer(struct client *client,
 		       uint32_t drm_format,
+		       enum buffer_type type,
 		       pixman_image_t *rgb_image)
 {
-	struct image_header rgb = image_header_from(rgb_image);
+	struct image_header src = image_header_from(rgb_image);
+	struct client_buffer_create_data args = create_init(drm_format, type, &src);
 	struct client_buffer *buf;
-	size_t bytes;
 	int x, y;
 	uint32_t *rgb_row;
 	uint32_t *yuv_base;
@@ -1214,18 +1438,24 @@ xyuv8888_create_buffer(struct client *client,
 
 	test_assert_enum(drm_format, DRM_FORMAT_XYUV8888);
 
+	args.n_planes = 1;
+	args.strides[0] = get_aligned_stride(src.width * sizeof(uint32_t));
+	args.offsets[0] = 0;
+
 	/* Full size, 32 bits per pixel */
-	bytes = rgb.width * rgb.height * sizeof(uint32_t);
-	buf = shm_buffer_create(client, bytes, rgb.width, rgb.height,
-				rgb.width * sizeof(uint32_t), drm_format);
+	args.bytes = args.strides[0] * src.height;
+
+	buf = client_buffer_create(client, &args);
+	if (!buf)
+		return NULL;
 
 	yuv_base = buf->data;
 
-	for (y = 0; y < rgb.height; y++) {
-		rgb_row = image_header_get_row_u32(&rgb, y / 2 * 2);
-		yuv_row = yuv_base + y * rgb.width;
+	for (y = 0; y < src.height; y++) {
+		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
+		yuv_row = yuv_base + y * (args.strides[0] / sizeof(uint32_t));
 
-		for (x = 0; x < rgb.width; x++) {
+		for (x = 0; x < src.width; x++) {
 			/*
 			 * 2x2 sub-sample the source image to get the same
 			 * result as the other YUV variants, so we can use the
@@ -1265,11 +1495,12 @@ xyuv8888_create_buffer(struct client *client,
 static struct client_buffer *
 p016_create_buffer(struct client *client,
 		   uint32_t drm_format,
+		   enum buffer_type type,
 		   pixman_image_t *rgb_image)
 {
-	struct image_header rgb = image_header_from(rgb_image);
+	struct image_header src = image_header_from(rgb_image);
+	struct client_buffer_create_data args = create_init(drm_format, type, &src);
 	struct client_buffer *buf;
-	size_t bytes;
 	int depth, x, y;
 	uint32_t *rgb_row;
 	uint16_t *y_base;
@@ -1279,6 +1510,8 @@ p016_create_buffer(struct client *client,
 	uint32_t argb;
 	uint16_t cr;
 	uint16_t cb;
+	int sub_x;
+	int sub_y;
 
 	switch (drm_format) {
 	case DRM_FORMAT_P016:
@@ -1294,21 +1527,33 @@ p016_create_buffer(struct client *client,
 		test_assert_not_reached("Invalid format!");
 	};
 
+	sub_x = sub_y = 2;
+
+	args.n_planes = 2;
+	args.strides[0] = get_aligned_stride(src.width * sizeof(uint16_t));
+	args.strides[1] = get_aligned_stride(src.width / sub_x * sizeof(uint32_t));
+
+	args.offsets[0] = 0;
+	args.offsets[1] = args.strides[0] * src.height;
+
 	/* Full size Y, quarter UV */
-	bytes = rgb.width * rgb.height * sizeof(uint16_t) +
-		(rgb.width / 2) * (rgb.height / 2) * sizeof(uint32_t);
-	buf = shm_buffer_create(client, bytes, rgb.width, rgb.height,
-				rgb.width * sizeof(uint16_t), drm_format);
+	args.bytes =
+		args.strides[0] * src.height +
+		args.strides[1] * (src.height / sub_y);
 
-	y_base = buf->data;
-	uv_base = (uint32_t *)(y_base + rgb.width * rgb.height);
+	buf = client_buffer_create(client, &args);
+	if (!buf)
+		return NULL;
 
-	for (y = 0; y < rgb.height; y++) {
-		rgb_row = image_header_get_row_u32(&rgb, y / 2 * 2);
-		y_row = y_base + y * rgb.width;
-		uv_row = uv_base + (y / 2) * (rgb.width / 2);
+	y_base = (uint16_t *)(buf->data + args.offsets[0]);
+	uv_base = (uint32_t *)(buf->data + args.offsets[1]);
 
-		for (x = 0; x < rgb.width; x++) {
+	for (y = 0; y < src.height; y++) {
+		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
+		y_row = y_base + y * (args.strides[0] / sizeof(uint16_t));
+		uv_row = uv_base + (y / 2) * (args.strides[1] / sizeof(uint32_t));
+
+		for (x = 0; x < src.width; x++) {
 			/*
 			 * Sub-sample the source image instead, so that U and V
 			 * sub-sampling does not require proper
@@ -1344,7 +1589,7 @@ show_window_with_client_buffer(struct client *client, struct client_buffer *buf)
 
 	weston_test_move_surface(client->test->weston_test, surface->wl_surface,
 				 4, 4);
-	wl_surface_attach(surface->wl_surface, buf->proxy, 0, 0);
+	wl_surface_attach(surface->wl_surface, buf->wl_buffer, 0, 0);
 	wl_surface_damage(surface->wl_surface, 0, 0, buf->width,
 			  buf->height);
 	frame_callback_set(surface->wl_surface, &done);
@@ -1407,9 +1652,9 @@ static const struct client_buffer_case client_buffer_cases[] = {
 	{ FMT(UYVY), 4, yuyv_create_buffer },
 	{ FMT(VYUY), 4, yuyv_create_buffer },
 	{ FMT(XYUV8888), 4, xyuv8888_create_buffer },
-	{ FMT(P016), 5, p016_create_buffer },
-	{ FMT(P012), 5, p016_create_buffer },
 	{ FMT(P010), 5, p016_create_buffer },
+	{ FMT(P012), 5, p016_create_buffer },
+	{ FMT(P016), 5, p016_create_buffer },
 #undef FMT
 };
 
@@ -1455,21 +1700,26 @@ TEST_P(client_buffer, client_buffer_cases)
 
 	client = create_client();
 	client->surface = create_test_surface(client);
-	buf = my_case->create_buffer(client, my_case->drm_format, img);
-	if (!buf) {
-		testlog("%s: Skipped: format %s not supported by compositor\n",
-			get_test_name(), my_case->drm_format_name);
-		goto format_not_supported;
+
+	buf = my_case->create_buffer(client, my_case->drm_format, BUFFER_TYPE_SHM, img);
+	if (buf) {
+		testlog("%s: testing SHM\n", get_test_name());
+
+		show_window_with_client_buffer(client, buf);
+
+		match = verify_screen_content(client, "client-buffer",
+					      my_case->ref_seq_no, NULL, 0,
+					      NULL);
+		test_assert_true(match);
+
+		client_buffer_destroy(buf);
 	}
-	show_window_with_client_buffer(client, buf);
+#if WESTON_TEST_SKIP_IS_FAILURE
+	else {
+		test_assert_not_reached("All SHM formats must pass");
+	}
+#endif
 
-	match = verify_screen_content(client, "client-buffer",
-				      my_case->ref_seq_no, NULL, 0, NULL);
-	test_assert_true(match);
-
-	client_buffer_destroy(buf);
-
- format_not_supported:
 	pixman_image_unref(img);
 	client_destroy(client);
 }
