@@ -25,7 +25,9 @@
 
 #include "config.h"
 
+#include <fcntl.h>
 #include <math.h>
+#include <sys/ioctl.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -72,6 +74,7 @@ DECLARE_FIXTURE_SETUP(fixture_setup);
 
 enum buffer_type {
 	BUFFER_TYPE_SHM = 1,
+	BUFFER_TYPE_DMABUF,
 };
 
 struct client_buffer {
@@ -102,6 +105,16 @@ struct client_buffer_case {
 					       uint32_t drm_format,
 					       enum buffer_type type,
 					       pixman_image_t *rgb_image);
+};
+
+#define UDMABUF_CREATE		_IOW('u', 0x42, struct udmabuf_create)
+#define UDMABUF_FLAGS_CLOEXEC	0x01
+
+struct udmabuf_create {
+  uint32_t memfd;
+  uint32_t flags;
+  uint64_t offset;
+  uint64_t size;
 };
 
 static struct client_buffer_create_data
@@ -168,6 +181,142 @@ shm_buffer_create(struct client *client,
 	return buf;
 }
 
+static void
+create_succeeded(void *data,
+		 struct zwp_linux_buffer_params_v1 *params,
+		 struct wl_buffer *new_buffer)
+{
+	struct client_buffer *buf = data;
+
+	buf->wl_buffer = new_buffer;
+	wl_proxy_set_queue ((struct wl_proxy *) buf->wl_buffer, NULL);
+
+	zwp_linux_buffer_params_v1_destroy(params);
+}
+
+static void
+create_failed(void *data, struct zwp_linux_buffer_params_v1 *params)
+{
+	zwp_linux_buffer_params_v1_destroy(params);
+	test_assert_not_reached("buffer creation failed");
+}
+
+static const struct zwp_linux_buffer_params_v1_listener params_listener = {
+	create_succeeded,
+	create_failed
+};
+
+static struct client_buffer *
+dmabuf_buffer_create(struct client *client,
+		     uint32_t drm_format,
+		     size_t bytes,
+		     int width,
+		     int height,
+		     int n_planes,
+		     size_t *strides_bytes,
+		     size_t *offsets_bytes)
+{
+	struct zwp_linux_buffer_params_v1 *params;
+	struct wl_event_queue *event_queue;
+	struct client_buffer *buf;
+	struct udmabuf_create create;
+	int udmabuf_fd;
+	int fd, orig_fd;
+
+	if (!support_drm_format(client, drm_format, DRM_FORMAT_MOD_LINEAR)) {
+		testlog("%s: Skipped: format not supported by compositor for DMABUF\n",
+			get_test_name());
+		return NULL;
+	}
+
+	udmabuf_fd = open ("/dev/udmabuf", O_RDWR | O_CLOEXEC, 0);
+	if (udmabuf_fd < 0) {
+		testlog("%s: Skipped: udmabuf not supported\n", get_test_name());
+		return NULL;
+	}
+
+	orig_fd = memfd_create ("udmabuf", MFD_CLOEXEC | MFD_ALLOW_SEALING);
+	if (orig_fd < 0) {
+		testlog("memfd_create() failed: %s", strerror (errno));
+		test_assert_not_reached("udmabuf creation failed");
+	}
+
+	if (ftruncate (orig_fd, bytes) < 0) {
+		testlog("ftruncate failed: %s", strerror (errno));
+		close (orig_fd);
+		test_assert_not_reached("udmabuf creation failed");
+	}
+
+	if (fcntl (orig_fd, F_ADD_SEALS, F_SEAL_SHRINK) < 0) {
+		testlog("adding seals failed: %s", strerror (errno));
+		close (orig_fd);
+		test_assert_not_reached("udmabuf creation failed");
+	}
+
+	create.memfd = orig_fd;
+	create.flags = UDMABUF_FLAGS_CLOEXEC;
+	create.offset = 0;
+	create.size = bytes;
+
+	fd = ioctl (udmabuf_fd, UDMABUF_CREATE, &create);
+	if (fd < 0) {
+		testlog("creating udmabuf failed: %s", strerror (errno));
+		close (orig_fd);
+		test_assert_not_reached("udmabuf creation failed");
+	}
+	/* The underlying memfd is kept as as a reference in the kernel. */
+	close (orig_fd);
+	close (udmabuf_fd);
+
+	test_assert_int_ge(fd, 0);
+
+	buf = xzalloc(sizeof *buf);
+	buf->bytes = bytes;
+	buf->fd = fd;
+	buf->width = width;
+	buf->height = height;
+
+	buf->data = mmap(NULL, buf->bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (buf->data == MAP_FAILED) {
+		testlog("mmap() failed: %s\n", strerror (errno));
+		close(fd);
+		test_assert_not_reached("udmabuf creation failed");
+	}
+
+	params = zwp_linux_dmabuf_v1_create_params(client->dmabuf);
+	event_queue = wl_display_create_queue (client->wl_display);
+	wl_proxy_set_queue ((struct wl_proxy *) params, event_queue);
+
+	for (int i = 0; i < n_planes; i++) {
+		zwp_linux_buffer_params_v1_add(params,
+					       buf->fd,
+					       i /* plane id */,
+					       offsets_bytes[i],
+					       strides_bytes[i],
+					       DRM_FORMAT_MOD_LINEAR >> 32,
+		                               DRM_FORMAT_MOD_LINEAR & 0xffffffff);
+	}
+
+	zwp_linux_buffer_params_v1_add_listener(params,
+						&params_listener,
+						buf);
+
+	zwp_linux_buffer_params_v1_create(params,
+					  buf->width,
+					  buf->height,
+					  drm_format,
+					  0 /* flags */);
+
+	while (!buf->wl_buffer) {
+		if (wl_display_dispatch_queue(client->wl_display, event_queue) == -1)
+			break;
+	}
+	test_assert_true(buf->wl_buffer);
+
+	wl_event_queue_destroy(event_queue);
+
+	return buf;
+}
 
 static struct client_buffer *
 client_buffer_create(struct client *client,
@@ -180,6 +329,14 @@ client_buffer_create(struct client *client,
 					 create_data->height,
 					 create_data->strides[0],
 					 create_data->drm_format);
+	case BUFFER_TYPE_DMABUF:
+		return dmabuf_buffer_create(client, create_data->drm_format,
+					    create_data->bytes,
+					    create_data->width,
+					    create_data->height,
+					    create_data->n_planes,
+					    create_data->strides,
+					    create_data->offsets);
 	}
 
 	test_assert_not_reached("Unknown buffer type");
@@ -958,6 +1115,10 @@ y_u_v_create_buffer(struct client *client,
 		args.strides[0] = src.width;
 		args.strides[1] = args.strides[2] = src.width / sub_x;
 		break;
+	case BUFFER_TYPE_DMABUF:
+		args.strides[0] = get_aligned_stride(src.width);
+		args.strides[1] = args.strides[2] = get_aligned_stride(src.width / sub_x);
+		break;
 	}
 
 	args.n_planes = 3;
@@ -1669,6 +1830,49 @@ static const struct client_buffer_case client_buffer_cases[] = {
 #undef FMT
 };
 
+#if WESTON_TEST_SKIP_IS_FAILURE
+static bool
+drm_format_must_pass(uint32_t drm_format)
+{
+	/* Formats supported by llvmpipe as of Mesa 25.0.4 */
+	switch (drm_format) {
+	case DRM_FORMAT_RGB565:
+	case DRM_FORMAT_XRGB8888:
+	case DRM_FORMAT_ARGB8888:
+	case DRM_FORMAT_XBGR8888:
+	case DRM_FORMAT_ABGR8888:
+	case DRM_FORMAT_XRGB2101010:
+	case DRM_FORMAT_ARGB2101010:
+	case DRM_FORMAT_XBGR2101010:
+	case DRM_FORMAT_ABGR2101010:
+	case DRM_FORMAT_XBGR16161616:
+	case DRM_FORMAT_ABGR16161616:
+	case DRM_FORMAT_XBGR16161616F:
+	case DRM_FORMAT_ABGR16161616F:
+	case DRM_FORMAT_YUV420:
+	case DRM_FORMAT_YVU420:
+	case DRM_FORMAT_YUV422:
+	case DRM_FORMAT_YVU422:
+	case DRM_FORMAT_YUV444:
+	case DRM_FORMAT_YVU444:
+	case DRM_FORMAT_NV12:
+	case DRM_FORMAT_NV21:
+	case DRM_FORMAT_NV16:
+	case DRM_FORMAT_YUYV:
+	case DRM_FORMAT_YVYU:
+	case DRM_FORMAT_UYVY:
+	case DRM_FORMAT_VYUY:
+	case DRM_FORMAT_XYUV8888:
+	case DRM_FORMAT_P010:
+	case DRM_FORMAT_P012:
+	case DRM_FORMAT_P016:
+		return true;
+	default:
+		return false;
+	}
+}
+#endif
+
 /*
  * Test that various pixel formats result in correct coloring on screen.
  */
@@ -1731,6 +1935,45 @@ TEST_P(client_buffer, client_buffer_cases)
 	}
 #endif
 
+	/* Skip tests for formats that crash with llvmpipe, see
+	 * https://gitlab.freedesktop.org/mesa/mesa/-/issues/12980
+	 */
+	if (my_case->drm_format == DRM_FORMAT_YVYU ||
+	    my_case->drm_format == DRM_FORMAT_VYUY) {
+		testlog("Skipping test for dmabuf, see "
+			"https://gitlab.freedesktop.org/mesa/mesa/-/issues/12980\n");
+		goto out;
+	}
+
+	buf = my_case->create_buffer(client, my_case->drm_format, BUFFER_TYPE_DMABUF, img);
+	if (buf) {
+		testlog("%s: testing DMABUF\n", get_test_name());
+
+		show_window_with_client_buffer(client, buf);
+
+		match = verify_screen_content(client, "client-buffer",
+					      my_case->ref_seq_no, NULL, 1,
+					      NULL);
+		switch (my_case->drm_format) {
+		case DRM_FORMAT_YUYV:
+		case DRM_FORMAT_UYVY:
+			if (!match)
+				testlog("Expected fail on llvmpipe, see "
+					"https://gitlab.freedesktop.org/mesa/mesa/-/issues/12980\n");
+			break;
+		default:
+			test_assert_true(match);
+		}
+
+		client_buffer_destroy(buf);
+	}
+#if WESTON_TEST_SKIP_IS_FAILURE
+	else {
+		test_assert_false(drm_format_must_pass(my_case->drm_format));
+	}
+#endif
+
+out:
 	pixman_image_unref(img);
 	client_destroy(client);
 }
