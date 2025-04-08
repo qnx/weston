@@ -2735,7 +2735,7 @@ gl_renderer_flush_damage(struct weston_paint_node *pnode)
 
 	data = wl_shm_buffer_get_data(buffer->shm_buffer);
 
-	if (gb->needs_full_upload || quirks->gl_force_full_upload) {
+	if (gb->needs_full_upload || quirks->force_full_upload) {
 		wl_shm_buffer_begin_access(buffer->shm_buffer);
 
 		for (j = 0; j < gb->num_textures; j++) {

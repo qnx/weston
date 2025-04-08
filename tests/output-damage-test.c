@@ -129,7 +129,7 @@ fixture_setup(struct weston_test_harness *harness, const struct setup_args *arg)
 	 * test failures due to reference image mismatch. What we actually
 	 * want to see is the crisp outline of the damage rectangles.
 	 */
-	setup.test_quirks.gl_force_full_upload = true;
+	setup.test_quirks.force_full_upload = true;
 
 	if (arg->gl_shadow_fb) {
 		/*
