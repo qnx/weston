@@ -62,10 +62,14 @@
 #include <time.h>
 
 #include <wayland-util.h>
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #include <GLES3/gl32.h>
 
+#include "color.h"
+#include "libweston-internal.h"
 #include "shared/weston-egl-ext.h"  /* for PFN* stuff */
 #include "shared/helpers.h"
 
