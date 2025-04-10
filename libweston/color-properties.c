@@ -255,29 +255,28 @@ static const struct weston_color_primaries_info color_primaries_info_table[] = {
 	},
 };
 
-#define POWER_LAW_PARAMS(g) { g, 1.0, 0.0, 1.0, 0.0 }
-#define SRGB_PIECE_WISE_PARAMS { 2.4, 1.0f / 1.055f, 0.055f / 1.055f, 1.0f / 12.92f, 0.04045 }
-#define INVERSE_SRGB_PIECE_WISE_PARAMS { 1.0f / 2.4f, 1.055, -0.055, 12.92, 0.0031308 }
+#define POWER_LAW_PARAMS(g) { .data = { g, 1.0, 0.0, 1.0, 0.0 } }
+#define SRGB_PIECE_WISE_PARAMS { .data = { 2.4, 1.0f / 1.055f, 0.055f / 1.055f, 1.0f / 12.92f, 0.04045 } }
+#define INVERSE_SRGB_PIECE_WISE_PARAMS { .data = { 1.0f / 2.4f, 1.055, -0.055, 12.92, 0.0031308 } }
 
 #define POWER_LAW(g, clamp) {				      \
 	.type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW,    \
 	.clamped_input = (clamp),			      \
-	.params = { POWER_LAW_PARAMS(g), POWER_LAW_PARAMS(g), \
-		    POWER_LAW_PARAMS(g), }		      \
+	.params.chan = { POWER_LAW_PARAMS(g), POWER_LAW_PARAMS(g), POWER_LAW_PARAMS(g), } \
 }
 
 #define SRGB_PIECE_WISE(clamp) {				    \
 	.type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW, 	    \
 	.clamped_input = (clamp), 				    \
-	.params = { SRGB_PIECE_WISE_PARAMS, SRGB_PIECE_WISE_PARAMS, \
-		    SRGB_PIECE_WISE_PARAMS, }			    \
+	.params.chan = { SRGB_PIECE_WISE_PARAMS, SRGB_PIECE_WISE_PARAMS, \
+			 SRGB_PIECE_WISE_PARAMS, }			 \
 }
 
 #define INVERSE_SRGB_PIECE_WISE(clamp) {					    \
 	.type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN,			    \
 	.clamped_input = (clamp),						    \
-	.params = { INVERSE_SRGB_PIECE_WISE_PARAMS, INVERSE_SRGB_PIECE_WISE_PARAMS, \
-		    INVERSE_SRGB_PIECE_WISE_PARAMS, }				    \
+	.params.chan = { INVERSE_SRGB_PIECE_WISE_PARAMS, INVERSE_SRGB_PIECE_WISE_PARAMS, \
+		    	 INVERSE_SRGB_PIECE_WISE_PARAMS, }				 \
 }
 
 static const struct weston_color_tf_info color_tf_info_table[] = {
@@ -489,7 +488,7 @@ weston_color_tf_info_from_parametric_curve(struct weston_color_curve_parametric 
 {
 	const struct weston_color_tf_info *tf_info;
 	float PRECISION = 1e-5;
-	unsigned int i, j, k;
+	unsigned int i, j;
 	bool params_match;
 
 	for (i = 0; i < ARRAY_LENGTH(color_tf_info_table); i++) {
@@ -508,11 +507,10 @@ weston_color_tf_info_from_parametric_curve(struct weston_color_curve_parametric 
 		if (tf_info->curve.clamped_input != curve->clamped_input)
 			continue;
 
-		for (j = 0, params_match = true; j < 3 && params_match == true; j++) {
-			for (k = 0; k < MAX_PARAMS_PARAM_CURVE && params_match == true; k++) {
-				if (fabsf(tf_info->curve.params[j][k] - curve->params[j][k]) > PRECISION)
-					params_match = false;
-			}
+		params_match = true;
+		for (j = 0; j < ARRAY_LENGTH(curve->params.array); j++) {
+			if (fabsf(tf_info->curve.params.array[j] - curve->params.array[j]) > PRECISION)
+				params_match = false;
 		}
 		if (!params_match)
 			continue;

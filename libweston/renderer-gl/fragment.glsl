@@ -135,7 +135,7 @@ uniform ivec4 swizzle_idx[3];
 uniform vec4 swizzle_mask[3];
 uniform vec4 swizzle_sub[3];
 
-#define MAX_CURVE_PARAMS 5 /* WARNING: keep this equal to MAX_PARAMS_PARAM_CURVE */
+/* #define MAX_CURVE_PARAMS is runtime generated. */
 #define MAX_CURVESET_PARAMS (MAX_CURVE_PARAMS * 3)
 
 uniform HIGHPRECISION sampler2D color_pre_curve_lut_2d;

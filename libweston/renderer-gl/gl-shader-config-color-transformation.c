@@ -47,7 +47,7 @@ struct gl_renderer_color_curve {
 			float offset;
 		} lut_3x1d;
 		struct {
-			GLfloat params[3][MAX_PARAMS_PARAM_CURVE];
+			union weston_color_curve_parametric_data params;
 			GLboolean clamped_input;
 		} parametric;
 	} u;
@@ -155,7 +155,7 @@ gl_color_curve_parametric(struct gl_renderer *gr,
 {
 	const struct weston_color_curve_parametric *parametric = &curve->u.parametric;
 
-	ARRAY_COPY(gl_curve->u.parametric.params, parametric->params);
+	gl_curve->u.parametric.params = parametric->params;
 	gl_curve->u.parametric.clamped_input = parametric->clamped_input;
 
 	switch(parametric->type) {
@@ -198,7 +198,7 @@ gl_color_curve_enum(struct gl_renderer *gr,
 
 	/* Handle parametric curve that we got from TF. */
 
-	ARRAY_COPY(gl_curve->u.parametric.params, parametric.params);
+	gl_curve->u.parametric.params = parametric.params;
 	gl_curve->u.parametric.clamped_input = parametric.clamped_input;
 
 	switch(parametric.type) {
@@ -411,9 +411,8 @@ gl_shader_config_set_color_transform(struct gl_renderer *gr,
 		break;
 	case SHADER_COLOR_CURVE_LINPOW:
 	case SHADER_COLOR_CURVE_POWLIN:
-		memcpy(sconf->color_pre_curve.parametric.params,
-		       gl_xform->pre_curve.u.parametric.params,
-		       sizeof(sconf->color_pre_curve.parametric.params));
+		sconf->color_pre_curve.parametric.params =
+		       	gl_xform->pre_curve.u.parametric.params;
 		sconf->color_pre_curve.parametric.clamped_input =
 			gl_xform->pre_curve.u.parametric.clamped_input;
 		break;

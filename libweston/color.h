@@ -34,15 +34,6 @@
 #include "backend-drm/drm-kms-enums.h"
 
 /**
- * The only params curve we have are WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW
- * and WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN, and they have exactly 5
- * params.
- *
- * WARNING: Keep this equal to fragment.glsl MAX_CURVE_PARAMS.
- */
-#define MAX_PARAMS_PARAM_CURVE 5
-
-/**
  * The only tf which is parametric (WESTON_TF_POWER) has a single parameter.
  */
 #define MAX_PARAMS_TF 1
@@ -276,13 +267,35 @@ struct weston_color_curve_enum {
 	float params[3][MAX_PARAMS_TF];
 };
 
+/**
+ * The only params curve we have are WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW
+ * and WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN, and they have exactly 5
+ * params.
+ */
+union weston_color_curve_parametric_chan_data {
+	struct {
+		float g, a, b, c, d;
+	};
+	float data[5];
+};
+
+union weston_color_curve_parametric_data {
+	/** Channels in RGB order. */
+	union weston_color_curve_parametric_chan_data chan[3];
+	float array[15];
+};
+
+static_assert(sizeof (union weston_color_curve_parametric_data){}.array ==
+	      sizeof (union weston_color_curve_parametric_data){}.chan,
+	      "union size error");
+
 /** Parametric color curve parameters */
 struct weston_color_curve_parametric {
 	enum weston_color_curve_parametric_type type;
 
 	/* For each color channel we may have curves with different params. The
 	 * channels are in RGB order. */
-	float params[3][MAX_PARAMS_PARAM_CURVE];
+	union weston_color_curve_parametric_data params;
 
 	/* The input of the curve should be clamped from 0.0 to 1.0? */
 	bool clamped_input;

@@ -260,6 +260,7 @@ create_fragment_shader_config_string(const struct gl_shader_requirements *req)
 	char *str;
 
 	size = asprintf(&str,
+			"#define MAX_CURVE_PARAMS %zu\n"
 			"#define DEF_TINT %s\n"
 			"#define DEF_INPUT_IS_PREMULT %s\n"
 			"#define DEF_WIREFRAME %s\n"
@@ -267,6 +268,7 @@ create_fragment_shader_config_string(const struct gl_shader_requirements *req)
 			"#define DEF_COLOR_MAPPING %s\n"
 			"#define DEF_COLOR_POST_CURVE %s\n"
 			"#define DEF_VARIANT %s\n",
+			ARRAY_LENGTH(((union weston_color_curve_parametric_chan_data){}).data),
 			req->tint ? "true" : "false",
 			req->input_is_premult ? "true" : "false",
 			req->wireframe ? "true" : "false",
@@ -732,9 +734,9 @@ gl_shader_load_config(struct gl_renderer *gr,
 		break;
 	case SHADER_COLOR_CURVE_LINPOW:
 	case SHADER_COLOR_CURVE_POWLIN:
-		n_params = sizeof(sconf->color_pre_curve.parametric.params) / sizeof(GLfloat);
+		n_params = ARRAY_LENGTH(sconf->color_pre_curve.parametric.params.array);
 		glUniform1fv(shader->color_pre_curve.parametric.params_uniform, n_params,
-			     &sconf->color_pre_curve.parametric.params[0][0]);
+			     sconf->color_pre_curve.parametric.params.array);
 		glUniform1i(shader->color_pre_curve.parametric.clamped_input_uniform,
 			    sconf->color_pre_curve.parametric.clamped_input);
 		break;
@@ -778,9 +780,9 @@ gl_shader_load_config(struct gl_renderer *gr,
 		break;
 	case SHADER_COLOR_CURVE_LINPOW:
 	case SHADER_COLOR_CURVE_POWLIN:
-		n_params = sizeof(sconf->color_post_curve.parametric.params) / sizeof(GLfloat);
+		n_params = ARRAY_LENGTH(sconf->color_post_curve.parametric.params.array);
 		glUniform1fv(shader->color_post_curve.parametric.params_uniform, n_params,
-			     &sconf->color_post_curve.parametric.params[0][0]);
+			     sconf->color_post_curve.parametric.params.array);
 		glUniform1i(shader->color_post_curve.parametric.clamped_input_uniform,
 			    sconf->color_post_curve.parametric.clamped_input);
 		break;

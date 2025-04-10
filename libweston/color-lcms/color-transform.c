@@ -479,7 +479,7 @@ lcms_curve_matches_any_tf(struct weston_compositor *compositor,
 
 	for (i = 0; i < 3; i++)
 		for (j = 0; j < n_lcms_curve_params; j++)
-			curve.params[i][j] = lcms_curve_params[i][j];
+			curve.params.chan[i].data[j] = lcms_curve_params[i][j];
 
 	return weston_color_tf_info_from_parametric_curve(&curve);
 }
@@ -541,11 +541,11 @@ init_curve_from_type_1(struct weston_compositor *compositor,
 	parametric->clamped_input = clamped_input;
 
 	for (i = 0; i < 3; i++) {
-		parametric->params[i][0] = type_1_params[i][0]; /* g */
-		parametric->params[i][1] = 1.0f; /* a */
-		parametric->params[i][2] = 0.0f; /* b */
-		parametric->params[i][3] = 1.0f; /* c */
-		parametric->params[i][4] = 0.0f; /* d */
+		parametric->params.chan[i].g = type_1_params[i][0];
+		parametric->params.chan[i].a = 1.0f;
+		parametric->params.chan[i].b = 0.0f;
+		parametric->params.chan[i].c = 1.0f;
+		parametric->params.chan[i].d = 0.0f;
 	}
 
 	return true;
@@ -632,11 +632,11 @@ init_curve_from_type_1_inverse(struct weston_compositor *compositor,
 				  "divided by 0, which is invalid";
 			goto err;
 		}
-		parametric->params[i][0] = 1.0f / g;
-		parametric->params[i][1] = 1.0f; /* a */
-		parametric->params[i][2] = 0.0f; /* b */
-		parametric->params[i][3] = 1.0f; /* c */
-		parametric->params[i][4] = 0.0f; /* d */
+		parametric->params.chan[i].g = 1.0f / g;
+		parametric->params.chan[i].a = 1.0f;
+		parametric->params.chan[i].b = 0.0f;
+		parametric->params.chan[i].c = 1.0f;
+		parametric->params.chan[i].d = 0.0f;
 	}
 
 	return true;
@@ -712,11 +712,11 @@ init_curve_from_type_4(struct weston_compositor *compositor,
 			goto err;
 		}
 
-		parametric->params[i][0] = g;
-		parametric->params[i][1] = a;
-		parametric->params[i][2] = b;
-		parametric->params[i][3] = c;
-		parametric->params[i][4] = d;
+		parametric->params.chan[i].g = g;
+		parametric->params.chan[i].a = a;
+		parametric->params.chan[i].b = b;
+		parametric->params.chan[i].c = c;
+		parametric->params.chan[i].d = d;
 	}
 
 	return true;
@@ -830,11 +830,11 @@ init_curve_from_type_4_inverse(struct weston_compositor *compositor,
 			goto err;
 		}
 
-		parametric->params[i][0] = 1.0f / g;
-		parametric->params[i][1] = 1.0f / a;
-		parametric->params[i][2] = -b / a;
-		parametric->params[i][3] = 1.0f / c;
-		parametric->params[i][4] = c * d;
+		parametric->params.chan[i].g = 1.0f / g;
+		parametric->params.chan[i].a = 1.0f / a;
+		parametric->params.chan[i].b = -b / a;
+		parametric->params.chan[i].c = 1.0f / c;
+		parametric->params.chan[i].d = c * d;
 	}
 
 	return true;

@@ -244,12 +244,12 @@ weston_color_curve_enum_get_parametric(struct weston_compositor *compositor,
 		for (i = 0; i < 3; i++) {
 			float exp = curve->params[i][0];
 			/* LINPOW with such params matches pure power-law */
-			out->params[i][0] = (curve->tf_direction == WESTON_FORWARD_TF) ?
-					    exp : 1.0f / exp; /* g */
-			out->params[i][1] = 1.0; /* a */
-			out->params[i][2] = 0.0; /* b */
-			out->params[i][3] = 1.0; /* c */
-			out->params[i][4] = 0.0; /* d */
+			out->params.chan[i].g = (curve->tf_direction == WESTON_FORWARD_TF) ?
+						exp : 1.0f / exp;
+			out->params.chan[i].a = 1.0;
+			out->params.chan[i].b = 0.0;
+			out->params.chan[i].c = 1.0;
+			out->params.chan[i].d = 0.0;
 		}
 		return true;
 	}
@@ -322,8 +322,7 @@ curve_to_lut_has_good_precision(struct weston_color_curve *curve)
 			 * Both LINPOW and POWLIN have bad precision if g < 1.0.
 			 */
 			for (i = 0; i < 3; i++) {
-				g = p->params[i][0];
-				if (g < 1.0f)
+				if (p->params.chan[i].g < 1.0f)
 					return false;
 			}
 			break;
