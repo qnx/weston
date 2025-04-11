@@ -2836,10 +2836,11 @@ drm_head_update_info(struct drm_head *head, drmModeConnector *conn)
 	int ret;
 
 	ret = drm_connector_assign_connector_info(&head->connector, conn);
-
-	update_head_from_connector(head);
-	weston_head_set_content_protection_status(&head->base,
-					drm_head_get_current_protection(head));
+	if (ret == 0) {
+		update_head_from_connector(head);
+		weston_head_set_content_protection_status(&head->base,
+						drm_head_get_current_protection(head));
+	}
 
 	return ret;
 }
