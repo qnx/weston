@@ -1133,8 +1133,11 @@ desktop_surface_fullscreen_requested(struct weston_desktop_surface *desktop_surf
 {
 	struct kiosk_shell_surface *shsurf =
 		weston_desktop_surface_get_user_data(desktop_surface);
-	struct kiosk_shell_output *shoutput =
+	struct kiosk_shell_output *shoutput = NULL;
+
+	if (output)
 		weston_output_get_shell_private(output);
+
 	/* We should normally be able to ignore fullscreen requests for
 	 * top-level surfaces, since we set them as fullscreen at creation
 	 * time. However, xwayland surfaces set their internal WM state
