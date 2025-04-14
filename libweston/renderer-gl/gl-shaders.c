@@ -729,8 +729,9 @@ gl_shader_load_config(struct gl_renderer *gr,
 		glBindTexture(GL_TEXTURE_2D, sconf->color_pre_curve.lut_3x1d.tex);
 		glUniform1i(shader->color_pre_curve.lut_3x1d.tex_2d_uniform,
 			    TEX_UNIT_COLOR_PRE_CURVE);
-		glUniform2fv(shader->color_pre_curve.lut_3x1d.scale_offset_uniform,
-			     1, sconf->color_pre_curve.lut_3x1d.scale_offset);
+		glUniform2f(shader->color_pre_curve.lut_3x1d.scale_offset_uniform,
+			    sconf->color_pre_curve.lut_3x1d.scale,
+			    sconf->color_pre_curve.lut_3x1d.offset);
 		break;
 	case SHADER_COLOR_CURVE_LINPOW:
 	case SHADER_COLOR_CURVE_POWLIN:
@@ -775,8 +776,9 @@ gl_shader_load_config(struct gl_renderer *gr,
 		glBindTexture(GL_TEXTURE_2D, sconf->color_post_curve.lut_3x1d.tex);
 		glUniform1i(shader->color_post_curve.lut_3x1d.tex_2d_uniform,
 			    TEX_UNIT_COLOR_POST_CURVE);
-		glUniform2fv(shader->color_post_curve.lut_3x1d.scale_offset_uniform,
-			     1, sconf->color_post_curve.lut_3x1d.scale_offset);
+		glUniform2f(shader->color_post_curve.lut_3x1d.scale_offset_uniform,
+			    sconf->color_post_curve.lut_3x1d.scale,
+			    sconf->color_post_curve.lut_3x1d.offset);
 		break;
 	case SHADER_COLOR_CURVE_LINPOW:
 	case SHADER_COLOR_CURVE_POWLIN:

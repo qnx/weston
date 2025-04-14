@@ -332,6 +332,18 @@ struct gl_shader;
 struct weston_color_transform;
 struct dmabuf_allocator;
 
+union gl_shader_config_color_curve {
+	struct {
+		GLuint tex;
+		float scale;
+		float offset;
+	} lut_3x1d;
+	struct {
+		union weston_color_curve_parametric_data params;
+		GLboolean clamped_input;
+	} parametric;
+};
+
 struct gl_shader_config {
 	struct gl_shader_requirements req;
 
@@ -347,16 +359,7 @@ struct gl_shader_config {
 
 	GLuint wireframe_tex;
 
-	union {
-		struct {
-			GLuint tex;
-			GLfloat scale_offset[2];
-		} lut_3x1d;
-		struct {
-			union weston_color_curve_parametric_data params;
-			GLboolean clamped_input;
-		} parametric;
-	} color_pre_curve;
+	union gl_shader_config_color_curve color_pre_curve;
 
 	union {
 		struct {
@@ -366,16 +369,7 @@ struct gl_shader_config {
 		GLfloat matrix[9];
 	} color_mapping;
 
-	union {
-		struct {
-			GLuint tex;
-			GLfloat scale_offset[2];
-		} lut_3x1d;
-		struct {
-			union weston_color_curve_parametric_data params;
-			GLboolean clamped_input;
-		} parametric;
-	} color_post_curve;
+	union gl_shader_config_color_curve color_post_curve;
 };
 
 struct gl_renderer {

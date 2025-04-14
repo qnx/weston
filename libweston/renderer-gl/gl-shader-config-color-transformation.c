@@ -40,17 +40,7 @@
 
 struct gl_renderer_color_curve {
 	enum gl_shader_color_curve type;
-	union {
-		struct {
-			GLuint tex;
-			float scale;
-			float offset;
-		} lut_3x1d;
-		struct {
-			union weston_color_curve_parametric_data params;
-			GLboolean clamped_input;
-		} parametric;
-	} u;
+	union gl_shader_config_color_curve u;
 };
 
 struct gl_renderer_color_mapping {
@@ -399,45 +389,10 @@ gl_shader_config_set_color_transform(struct gl_renderer *gr,
 		return false;
 
 	sconf->req.color_pre_curve = gl_xform->pre_curve.type;
-	switch (gl_xform->pre_curve.type) {
-	case SHADER_COLOR_CURVE_IDENTITY:
-	case SHADER_COLOR_CURVE_PQ:
-	case SHADER_COLOR_CURVE_PQ_INVERSE:
-		break;
-	case SHADER_COLOR_CURVE_LUT_3x1D:
-		sconf->color_pre_curve.lut_3x1d.tex = gl_xform->pre_curve.u.lut_3x1d.tex;
-		sconf->color_pre_curve.lut_3x1d.scale_offset[0] = gl_xform->pre_curve.u.lut_3x1d.scale;
-		sconf->color_pre_curve.lut_3x1d.scale_offset[1] = gl_xform->pre_curve.u.lut_3x1d.offset;
-		break;
-	case SHADER_COLOR_CURVE_LINPOW:
-	case SHADER_COLOR_CURVE_POWLIN:
-		sconf->color_pre_curve.parametric.params =
-		       	gl_xform->pre_curve.u.parametric.params;
-		sconf->color_pre_curve.parametric.clamped_input =
-			gl_xform->pre_curve.u.parametric.clamped_input;
-		break;
-	}
+	sconf->color_pre_curve = gl_xform->pre_curve.u;
 
 	sconf->req.color_post_curve = gl_xform->post_curve.type;
-	switch (gl_xform->post_curve.type) {
-	case SHADER_COLOR_CURVE_IDENTITY:
-	case SHADER_COLOR_CURVE_PQ:
-	case SHADER_COLOR_CURVE_PQ_INVERSE:
-		break;
-	case SHADER_COLOR_CURVE_LUT_3x1D:
-		sconf->color_post_curve.lut_3x1d.tex = gl_xform->post_curve.u.lut_3x1d.tex;
-		sconf->color_post_curve.lut_3x1d.scale_offset[0] = gl_xform->post_curve.u.lut_3x1d.scale;
-		sconf->color_post_curve.lut_3x1d.scale_offset[1] = gl_xform->post_curve.u.lut_3x1d.offset;
-		break;
-	case SHADER_COLOR_CURVE_LINPOW:
-	case SHADER_COLOR_CURVE_POWLIN:
-		memcpy(&sconf->color_post_curve.parametric.params,
-		       &gl_xform->post_curve.u.parametric.params,
-		       sizeof(sconf->color_post_curve.parametric.params));
-		sconf->color_post_curve.parametric.clamped_input =
-			gl_xform->post_curve.u.parametric.clamped_input;
-		break;
-	}
+	sconf->color_post_curve = gl_xform->post_curve.u;
 
 	sconf->req.color_mapping = gl_xform->mapping.type;
 	switch (gl_xform->mapping.type) {
