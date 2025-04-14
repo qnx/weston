@@ -757,20 +757,20 @@ gl_shader_load_config(struct gl_renderer *gr,
 		break;
 	case SHADER_COLOR_MAPPING_3DLUT:
 		assert(shader->color_mapping.lut3d.tex_uniform != -1);
-		assert(sconf->color_mapping.lut3d.tex != 0);
+		assert(sconf->color_mapping.lut3d.tex3d != 0);
 		assert(shader->color_mapping.lut3d.scale_offset_uniform != -1);
 		glActiveTexture(GL_TEXTURE0 + TEX_UNIT_COLOR_MAPPING);
-		glBindTexture(GL_TEXTURE_3D, sconf->color_mapping.lut3d.tex);
+		glBindTexture(GL_TEXTURE_3D, sconf->color_mapping.lut3d.tex3d);
 		glUniform1i(shader->color_mapping.lut3d.tex_uniform,
 			    TEX_UNIT_COLOR_MAPPING);
-		glUniform2fv(shader->color_mapping.lut3d.scale_offset_uniform,
-			     1, sconf->color_mapping.lut3d.scale_offset);
+		glUniform2f(shader->color_mapping.lut3d.scale_offset_uniform,
+			    sconf->color_mapping.lut3d.scale, sconf->color_mapping.lut3d.offset);
 		break;
 	case SHADER_COLOR_MAPPING_MATRIX:
 		assert(shader->color_mapping.matrix_uniform != -1);
 		glUniformMatrix3fv(shader->color_mapping.matrix_uniform,
 				   1, GL_FALSE,
-				   sconf->color_mapping.matrix);
+				   sconf->color_mapping.mat.matrix.colmaj);
 		break;
 	}
 

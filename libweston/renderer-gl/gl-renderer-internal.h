@@ -344,6 +344,15 @@ union gl_shader_config_color_curve {
 	} parametric;
 };
 
+union gl_shader_config_color_mapping {
+	struct {
+		GLuint tex3d;
+		float scale;
+		float offset;
+	} lut3d;
+	struct weston_color_mapping_matrix mat;
+};
+
 struct gl_shader_config {
 	struct gl_shader_requirements req;
 
@@ -360,15 +369,7 @@ struct gl_shader_config {
 	GLuint wireframe_tex;
 
 	union gl_shader_config_color_curve color_pre_curve;
-
-	union {
-		struct {
-			GLuint tex;
-			GLfloat scale_offset[2];
-		} lut3d;
-		GLfloat matrix[9];
-	} color_mapping;
-
+	union gl_shader_config_color_mapping color_mapping;
 	union gl_shader_config_color_curve color_post_curve;
 };
 
