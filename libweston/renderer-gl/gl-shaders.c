@@ -51,6 +51,17 @@
 /* static const char fragment_shader[]; fragment.glsl */
 #include "fragment-shader.h"
 
+union gl_shader_color_curve_uniforms {
+	struct {
+		GLint tex_2d_uniform;
+		GLint scale_offset_uniform;
+	} lut_3x1d;
+	struct {
+		GLint params_uniform;
+		GLint clamped_input_uniform;
+	} parametric;
+};
+
 struct gl_shader {
 	struct wl_list link; /* gl_renderer::shader_list */
 	struct timespec last_used;
@@ -67,16 +78,7 @@ struct gl_shader {
 	GLint view_alpha_uniform;
 	GLint color_uniform;
 	GLint tint_uniform;
-	union {
-		struct {
-			GLint tex_2d_uniform;
-			GLint scale_offset_uniform;
-		} lut_3x1d;
-		struct {
-			GLint params_uniform;
-			GLint clamped_input_uniform;
-		} parametric;
-	} color_pre_curve;
+	union gl_shader_color_curve_uniforms color_pre_curve;
 	union {
 		struct {
 			GLint tex_uniform;
@@ -84,16 +86,7 @@ struct gl_shader {
 		} lut3d;
 		GLint matrix_uniform;
 	} color_mapping;
-	union {
-		struct {
-			GLint tex_2d_uniform;
-			GLint scale_offset_uniform;
-		} lut_3x1d;
-		struct {
-			GLint params_uniform;
-			GLint clamped_input_uniform;
-		} parametric;
-	} color_post_curve;
+	union gl_shader_color_curve_uniforms color_post_curve;
 };
 
 static const char *
