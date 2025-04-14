@@ -52,8 +52,8 @@ struct gl_renderer_color_mapping {
 			float offset;
 		} lut3d;
 		struct weston_color_mapping_matrix mat;
-	};
-} ;
+	} u;
+};
 
 struct gl_renderer_color_transform {
 	struct weston_color_transform *owner;
@@ -83,8 +83,8 @@ static void
 gl_renderer_color_mapping_fini(struct gl_renderer_color_mapping *gl_mapping)
 {
 	if (gl_mapping->type == SHADER_COLOR_MAPPING_3DLUT &&
-	    gl_mapping->lut3d.tex3d)
-		gl_texture_fini(&gl_mapping->lut3d.tex3d);
+	    gl_mapping->u.lut3d.tex3d)
+		gl_texture_fini(&gl_mapping->u.lut3d.tex3d);
 }
 
 static void
@@ -271,9 +271,9 @@ gl_3d_lut(struct gl_renderer *gr,
 
 	glBindTexture(GL_TEXTURE_3D, 0);
 	gl_xform->mapping.type = SHADER_COLOR_MAPPING_3DLUT;
-	gl_xform->mapping.lut3d.tex3d = tex3d;
-	gl_xform->mapping.lut3d.scale = (float)(dim_size - 1) / dim_size;
-	gl_xform->mapping.lut3d.offset = 0.5f / dim_size;
+	gl_xform->mapping.u.lut3d.tex3d = tex3d;
+	gl_xform->mapping.u.lut3d.scale = (float)(dim_size - 1) / dim_size;
+	gl_xform->mapping.u.lut3d.offset = 0.5f / dim_size;
 
 	free(lut);
 
@@ -341,7 +341,7 @@ gl_renderer_color_transform_from(struct gl_renderer *gr,
 		break;
 	case WESTON_COLOR_MAPPING_TYPE_MATRIX:
 		gl_xform->mapping.type = SHADER_COLOR_MAPPING_MATRIX;
-		gl_xform->mapping.mat = xform->mapping.u.mat;
+		gl_xform->mapping.u.mat = xform->mapping.u.mat;
 		ok = true;
 		break;
 	}
@@ -397,18 +397,18 @@ gl_shader_config_set_color_transform(struct gl_renderer *gr,
 	sconf->req.color_mapping = gl_xform->mapping.type;
 	switch (gl_xform->mapping.type) {
 	case SHADER_COLOR_MAPPING_3DLUT:
-		sconf->color_mapping.lut3d.tex = gl_xform->mapping.lut3d.tex3d;
+		sconf->color_mapping.lut3d.tex = gl_xform->mapping.u.lut3d.tex3d;
 		sconf->color_mapping.lut3d.scale_offset[0] =
-				gl_xform->mapping.lut3d.scale;
+				gl_xform->mapping.u.lut3d.scale;
 		sconf->color_mapping.lut3d.scale_offset[1] =
-				gl_xform->mapping.lut3d.offset;
+				gl_xform->mapping.u.lut3d.offset;
 		assert(sconf->color_mapping.lut3d.scale_offset[0] > 0.0);
 		assert(sconf->color_mapping.lut3d.scale_offset[1] > 0.0);
 		ret = true;
 		break;
 	case SHADER_COLOR_MAPPING_MATRIX:
 		assert(sconf->req.color_mapping == SHADER_COLOR_MAPPING_MATRIX);
-		ARRAY_COPY(sconf->color_mapping.matrix, gl_xform->mapping.mat.matrix.colmaj);
+		ARRAY_COPY(sconf->color_mapping.matrix, gl_xform->mapping.u.mat.matrix.colmaj);
 		ret = true;
 		break;
 	case SHADER_COLOR_MAPPING_IDENTITY:
