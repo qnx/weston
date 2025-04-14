@@ -916,8 +916,6 @@ drm_output_start_repaint_loop(struct weston_output *output_base)
 	struct drm_backend *backend = device->backend;
 	struct weston_compositor *compositor = backend->compositor;
 	struct timespec ts, tnow;
-	struct timespec vbl2now;
-	int64_t refresh_nsec;
 	uint32_t flags = WP_PRESENTATION_FEEDBACK_INVALID;
 	int ret;
 	drmVBlank vbl = {
@@ -958,19 +956,43 @@ drm_output_start_repaint_loop(struct weston_output *output_base)
 
 	/* Error ret or zero timestamp means failure to get valid timestamp */
 	if ((ret == 0) && (vbl.reply.tval_sec > 0 || vbl.reply.tval_usec > 0)) {
+		bool stale_timestamp = false;
+
 		ts.tv_sec = vbl.reply.tval_sec;
 		ts.tv_nsec = vbl.reply.tval_usec * 1000;
 
-		/* Valid timestamp for most recent vblank - not stale?
-		 * Stale ts could happen on Linux 3.17+, so make sure it
-		 * is not older than 1 refresh duration since now.
+		/* Between Linux 3.16 and Linux 4.1 there was a bug that
+		 * could result in a stale timestamp being returned. We
+		 * can catch that by checking if the timestamp we have
+		 * is older than 1 refresh duration since now, and use a
+		 * page flip to start the repaint loop.
+		 *
+		 * However, if we're using VRR, the time since the last
+		 * vblank could be the display's longest possible frame
+		 * time, which is longer than rfresh_nsec. That looks
+		 * exactly like the bug we need to work around here, and
+		 * the page flip workaround would result in an unnecessary
+		 * delay.
+		 *
+		 * We know that the kernel bug was fixed in v4.1, before the
+		 * much later introduction of the vrr_capable property we
+		 * use to detect VRR. So we only need the bug fix if we don't
+		 * have VRR.
 		 */
-		weston_compositor_read_presentation_clock(compositor,
-							  &tnow);
-		timespec_sub(&vbl2now, &tnow, &ts);
-		refresh_nsec =
-			millihz_to_nsec(output->base.current_mode->refresh);
-		if (timespec_to_nsec(&vbl2now) < refresh_nsec) {
+		if (output->base.vrr_mode == WESTON_VRR_MODE_NONE) {
+			struct timespec vbl2now;
+			int64_t refresh_nsec;
+
+			weston_compositor_read_presentation_clock(compositor,
+								  &tnow);
+			timespec_sub(&vbl2now, &tnow, &ts);
+			refresh_nsec =
+				millihz_to_nsec(output->base.current_mode->refresh);
+			if (timespec_to_nsec(&vbl2now) > refresh_nsec)
+				stale_timestamp = true;
+		}
+
+		if (!stale_timestamp) {
 			drm_output_update_msc(output, vbl.reply.sequence);
 			weston_output_finish_frame(output_base, &ts, flags);
 			return 0;
