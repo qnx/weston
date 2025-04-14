@@ -388,7 +388,7 @@ struct weston_color_mapping_3dlut {
  * A 3x3 matrix and data is arranged as column major
  */
 struct weston_color_mapping_matrix {
-	float matrix[9];
+	struct weston_mat3f matrix;
 };
 
 /**

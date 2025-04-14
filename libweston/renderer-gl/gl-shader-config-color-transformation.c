@@ -453,7 +453,7 @@ gl_shader_config_set_color_transform(struct gl_renderer *gr,
 		break;
 	case SHADER_COLOR_MAPPING_MATRIX:
 		assert(sconf->req.color_mapping == SHADER_COLOR_MAPPING_MATRIX);
-		ARRAY_COPY(sconf->color_mapping.matrix, gl_xform->mapping.mat.matrix);
+		ARRAY_COPY(sconf->color_mapping.matrix, gl_xform->mapping.mat.matrix.colmaj);
 		ret = true;
 		break;
 	case SHADER_COLOR_MAPPING_IDENTITY:

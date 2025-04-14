@@ -988,7 +988,7 @@ translate_matrix_element(struct weston_color_mapping *map, cmsStage *elem)
 	 */
 	for (c = 0; c < 3; c++)
 		for (r = 0; r < 3; r++)
-			map->u.mat.matrix[c * 3 + r] = data->Double[r * 3 + c];
+			map->u.mat.matrix.col[c].el[r] = data->Double[r * 3 + c];
 
 	return true;
 }
