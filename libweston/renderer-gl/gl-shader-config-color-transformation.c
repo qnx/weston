@@ -375,7 +375,6 @@ gl_shader_config_set_color_transform(struct gl_renderer *gr,
 				     struct weston_color_transform *xform)
 {
 	const struct gl_renderer_color_transform *gl_xform;
-	bool ret = false;
 
 	gl_xform = gl_renderer_color_transform_from(gr, xform);
 	if (!gl_xform)
@@ -389,20 +388,6 @@ gl_shader_config_set_color_transform(struct gl_renderer *gr,
 
 	sconf->req.color_mapping = gl_xform->mapping.type;
 	sconf->color_mapping = gl_xform->mapping.u;
-	switch (gl_xform->mapping.type) {
-	case SHADER_COLOR_MAPPING_3DLUT:
-		assert(sconf->color_mapping.lut3d.scale > 0.0);
-		assert(sconf->color_mapping.lut3d.offset > 0.0);
-		ret = true;
-		break;
-	case SHADER_COLOR_MAPPING_MATRIX:
-		assert(sconf->req.color_mapping == SHADER_COLOR_MAPPING_MATRIX);
-		ret = true;
-		break;
-	case SHADER_COLOR_MAPPING_IDENTITY:
-		ret = true;
-		break;
-	}
 
-	return ret;
+	return true;
 }

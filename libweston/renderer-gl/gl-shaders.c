@@ -672,8 +672,11 @@ gl_shader_load_config_mapping(struct weston_compositor *compositor,
 		return;
 	case SHADER_COLOR_MAPPING_3DLUT:
 		assert(unif->lut3d.tex_uniform != -1);
-		assert(sconf->lut3d.tex3d != 0);
 		assert(unif->lut3d.scale_offset_uniform != -1);
+		assert(sconf->lut3d.tex3d != 0);
+		assert(sconf->lut3d.scale > 0.0);
+		assert(sconf->lut3d.offset > 0.0);
+
 		glActiveTexture(GL_TEXTURE0 + TEX_UNIT_COLOR_MAPPING);
 		glBindTexture(GL_TEXTURE_3D, sconf->lut3d.tex3d);
 		glUniform1i(unif->lut3d.tex_uniform, TEX_UNIT_COLOR_MAPPING);
