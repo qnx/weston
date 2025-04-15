@@ -1136,7 +1136,7 @@ desktop_surface_fullscreen_requested(struct weston_desktop_surface *desktop_surf
 	struct kiosk_shell_output *shoutput = NULL;
 
 	if (output)
-		weston_output_get_shell_private(output);
+		shoutput = weston_output_get_shell_private(output);
 
 	/* We should normally be able to ignore fullscreen requests for
 	 * top-level surfaces, since we set them as fullscreen at creation
