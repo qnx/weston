@@ -639,9 +639,12 @@ gl_shader_load_config_curve(struct weston_compositor *compositor,
 	case SHADER_COLOR_CURVE_PQ_INVERSE:
 		return;
 	case SHADER_COLOR_CURVE_LUT_3x1D:
-		assert(sconf->lut_3x1d.tex != 0);
 		assert(unif->lut_3x1d.tex_2d_uniform != -1);
 		assert(unif->lut_3x1d.scale_offset_uniform != -1);
+		assert(sconf->lut_3x1d.tex != 0);
+		assert(sconf->lut_3x1d.scale > 0.0);
+		assert(sconf->lut_3x1d.offset > 0.0);
+
 		glActiveTexture(GL_TEXTURE0 + tex_unit);
 		glBindTexture(GL_TEXTURE_2D, sconf->lut_3x1d.tex);
 		glUniform1i(unif->lut_3x1d.tex_2d_uniform, tex_unit);
