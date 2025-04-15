@@ -263,94 +263,90 @@ lut_texcoord(vec3 pos, vec2 scale_offset)
 	return pos * scale_offset.s + scale_offset.t;
 }
 
-float
-linpow(float x, float g, float a, float b, float c, float d)
-{
-	/* See WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW for details about LINPOW. */
-
-	if (x >= d)
-		return pow((a * x) + b, g);
-
-	return c * x;
-}
-
-float
-sample_linpow(const parametric_curve_t par,
-	      float x, compile_const int color_channel)
-{
+struct gabcd_t {
 	float g, a, b, c, d;
+	bool clamp;
+};
 
+gabcd_t
+unpack_params(const parametric_curve_t par, compile_const int chan)
+{
 	/*
 	 * For each color channel we have MAX_CURVE_PARAMS parameters.
 	 * The parameters for the three curves are stored in RGB order.
 	 */
-	g = par.params[0 + color_channel * MAX_CURVE_PARAMS];
-	a = par.params[1 + color_channel * MAX_CURVE_PARAMS];
-	b = par.params[2 + color_channel * MAX_CURVE_PARAMS];
-	c = par.params[3 + color_channel * MAX_CURVE_PARAMS];
-	d = par.params[4 + color_channel * MAX_CURVE_PARAMS];
+	return gabcd_t(
+		par.params[0 + chan * MAX_CURVE_PARAMS],
+		par.params[1 + chan * MAX_CURVE_PARAMS],
+		par.params[2 + chan * MAX_CURVE_PARAMS],
+		par.params[3 + chan * MAX_CURVE_PARAMS],
+		par.params[4 + chan * MAX_CURVE_PARAMS],
+		par.clamped_input
+	);
+}
 
-	if (par.clamped_input)
+float
+linpow(float x, const gabcd_t p)
+{
+	/* See WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW for details about LINPOW. */
+
+	if (x >= p.d)
+		return pow((p.a * x) + p.b, p.g);
+
+	return p.c * x;
+}
+
+float
+sample_linpow(const gabcd_t p, float x)
+{
+	if (p.clamp)
 		x = clamp(x, 0.0, 1.0);
 
 	/* We use mirroring for negative input values. */
 	if (x < 0.0)
-		return -linpow(-x, g, a, b, c, d);
+		return -linpow(-x, p);
 
-	return linpow(x, g, a, b, c, d);
+	return linpow(x, p);
 }
 
 vec3
 sample_linpow_vec3(const parametric_curve_t par, vec3 color)
 {
-	return vec3(sample_linpow(par, color.r, 0),
-		    sample_linpow(par, color.g, 1),
-		    sample_linpow(par, color.b, 2));
+	return vec3(sample_linpow(unpack_params(par, 0), color.r),
+		    sample_linpow(unpack_params(par, 1), color.g),
+		    sample_linpow(unpack_params(par, 2), color.b));
 }
 
 float
-powlin(float x, float g, float a, float b, float c, float d)
+powlin(float x, const gabcd_t p)
 {
 	/* See WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN for details about POWLIN. */
 
-	if (x >= d)
-		return a * pow(x, g) + b;
+	if (x >= p.d)
+		return p.a * pow(x, p.g) + p.b;
 
-	return c * x;
+	return p.c * x;
 }
 
 float
-sample_powlin(const parametric_curve_t par,
-	      float x, compile_const int color_channel)
+sample_powlin(const gabcd_t p, float x)
 {
-	float g, a, b, c, d;
-
-	/*
-	 * For each color channel we have MAX_CURVE_PARAMS parameters.
-	 * The parameters for the three curves are stored in RGB order.
-	 */
-	g = par.params[0 + color_channel * MAX_CURVE_PARAMS];
-	a = par.params[1 + color_channel * MAX_CURVE_PARAMS];
-	b = par.params[2 + color_channel * MAX_CURVE_PARAMS];
-	c = par.params[3 + color_channel * MAX_CURVE_PARAMS];
-	d = par.params[4 + color_channel * MAX_CURVE_PARAMS];
-
-	if (par.clamped_input)
+	if (p.clamp)
 		x = clamp(x, 0.0, 1.0);
 
 	/* We use mirroring for negative input values. */
 	if (x < 0.0)
-		return -powlin(-x, g, a, b, c, d);
+		return -powlin(-x, p);
 
-	return powlin(x, g, a, b, c, d);
+	return powlin(x, p);
 }
 
 vec3
 sample_powlin_vec3(const parametric_curve_t par, vec3 color)
 {
-	return vec3(sample_powlin(par, color.r, 0),
-		    sample_powlin(par, color.g, 1),
-		    sample_powlin(par, color.b, 2));
+	return vec3(sample_powlin(unpack_params(par, 0), color.r),
+		    sample_powlin(unpack_params(par, 1), color.g),
+		    sample_powlin(unpack_params(par, 2), color.b));
 }
 
 float
