@@ -277,6 +277,49 @@ create_fragment_shader_config_string(const struct gl_shader_requirements *req)
 	return str;
 }
 
+static GLint
+get_uniform_location(struct gl_renderer *gr,
+		     GLuint program,
+		     const char *prefix,
+		     const char *field)
+{
+	char str[128];
+	int ret;
+
+	ret = snprintf(str, sizeof str, "%s_%s", prefix, field);
+	weston_assert_uint32_lt(gr->compositor, ret, sizeof str);
+
+	return glGetUniformLocation(program, str);
+}
+
+static void
+get_curve_uniform_locations(struct gl_renderer *gr,
+			    union gl_shader_color_curve_uniforms *out,
+			    enum gl_shader_color_curve type,
+			    GLuint program,
+			    const char *namespace)
+{
+	switch (type) {
+	case SHADER_COLOR_CURVE_IDENTITY:
+	case SHADER_COLOR_CURVE_PQ:
+	case SHADER_COLOR_CURVE_PQ_INVERSE:
+		return;
+	case SHADER_COLOR_CURVE_LINPOW:
+	case SHADER_COLOR_CURVE_POWLIN:
+		out->parametric.params_uniform =
+			get_uniform_location(gr, program, namespace, "params");
+		out->parametric.clamped_input_uniform =
+			get_uniform_location(gr, program, namespace, "clamped_input");
+		return;
+	case SHADER_COLOR_CURVE_LUT_3x1D:
+		out->lut_3x1d.tex_2d_uniform =
+			get_uniform_location(gr, program, namespace, "lut_2d");
+		out->lut_3x1d.scale_offset_uniform =
+			get_uniform_location(gr, program, namespace, "lut_scale_offset");
+		return;
+	}
+}
+
 static struct gl_shader *
 gl_shader_create(struct gl_renderer *gr,
 		 const struct gl_shader_requirements *requirements)
@@ -397,41 +440,12 @@ gl_shader_create(struct gl_renderer *gr,
 		shader->tint_uniform = -1;
 	}
 
-	switch(requirements->color_pre_curve) {
-	case SHADER_COLOR_CURVE_IDENTITY:
-		break;
-	case SHADER_COLOR_CURVE_LINPOW:
-	case SHADER_COLOR_CURVE_POWLIN:
-		shader->color_pre_curve.parametric.params_uniform =
-			glGetUniformLocation(shader->program, "color_pre_curve_params");
-		shader->color_pre_curve.parametric.clamped_input_uniform =
-			glGetUniformLocation(shader->program, "color_pre_curve_clamped_input");
-		break;
-	case SHADER_COLOR_CURVE_LUT_3x1D:
-		shader->color_pre_curve.lut_3x1d.tex_2d_uniform =
-			glGetUniformLocation(shader->program, "color_pre_curve_lut_2d");
-		shader->color_pre_curve.lut_3x1d.scale_offset_uniform =
-			glGetUniformLocation(shader->program, "color_pre_curve_lut_scale_offset");
-		break;
-	}
-
-	switch(requirements->color_post_curve) {
-	case SHADER_COLOR_CURVE_IDENTITY:
-		break;
-	case SHADER_COLOR_CURVE_LINPOW:
-	case SHADER_COLOR_CURVE_POWLIN:
-		shader->color_post_curve.parametric.params_uniform =
-			glGetUniformLocation(shader->program, "color_post_curve_params");
-		shader->color_post_curve.parametric.clamped_input_uniform =
-			glGetUniformLocation(shader->program, "color_post_curve_clamped_input");
-		break;
-	case SHADER_COLOR_CURVE_LUT_3x1D:
-		shader->color_post_curve.lut_3x1d.tex_2d_uniform =
-			glGetUniformLocation(shader->program, "color_post_curve_lut_2d");
-		shader->color_post_curve.lut_3x1d.scale_offset_uniform =
-			glGetUniformLocation(shader->program, "color_post_curve_lut_scale_offset");
-		break;
-	}
+	get_curve_uniform_locations(gr, &shader->color_pre_curve,
+				    requirements->color_pre_curve,
+				    shader->program, "color_pre_curve");
+	get_curve_uniform_locations(gr, &shader->color_post_curve,
+				    requirements->color_post_curve,
+				    shader->program, "color_post_curve");
 
 	switch(requirements->color_mapping) {
 	case SHADER_COLOR_MAPPING_3DLUT:
