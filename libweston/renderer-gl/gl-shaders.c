@@ -307,15 +307,15 @@ get_curve_uniform_locations(struct gl_renderer *gr,
 	case SHADER_COLOR_CURVE_LINPOW:
 	case SHADER_COLOR_CURVE_POWLIN:
 		out->parametric.params_uniform =
-			get_uniform_location(gr, program, namespace, "params");
+			get_uniform_location(gr, program, namespace, "par.params");
 		out->parametric.clamped_input_uniform =
-			get_uniform_location(gr, program, namespace, "clamped_input");
+			get_uniform_location(gr, program, namespace, "par.clamped_input");
 		return;
 	case SHADER_COLOR_CURVE_LUT_3x1D:
 		out->lut_3x1d.tex_2d_uniform =
-			get_uniform_location(gr, program, namespace, "lut_2d");
+			get_uniform_location(gr, program, namespace, "lut.lut_2d");
 		out->lut_3x1d.scale_offset_uniform =
-			get_uniform_location(gr, program, namespace, "lut_scale_offset");
+			get_uniform_location(gr, program, namespace, "lut.scale_offset");
 		return;
 	}
 }

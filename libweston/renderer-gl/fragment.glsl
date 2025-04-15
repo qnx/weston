@@ -138,15 +138,21 @@ uniform vec4 swizzle_sub[3];
 /* #define MAX_CURVE_PARAMS is runtime generated. */
 #define MAX_CURVESET_PARAMS (MAX_CURVE_PARAMS * 3)
 
-uniform HIGHPRECISION sampler2D color_pre_curve_lut_2d;
-uniform HIGHPRECISION vec2 color_pre_curve_lut_scale_offset;
-uniform HIGHPRECISION float color_pre_curve_params[MAX_CURVESET_PARAMS];
-uniform bool color_pre_curve_clamped_input;
+struct lut_2d_t {
+	HIGHPRECISION sampler2D lut_2d;
+	HIGHPRECISION vec2 scale_offset;
+};
 
-uniform HIGHPRECISION sampler2D color_post_curve_lut_2d;
-uniform HIGHPRECISION vec2 color_post_curve_lut_scale_offset;
-uniform HIGHPRECISION float color_post_curve_params[MAX_CURVESET_PARAMS];
-uniform bool color_post_curve_clamped_input;
+struct parametric_curve_t {
+	HIGHPRECISION float params[MAX_CURVESET_PARAMS];
+	bool clamped_input;
+};
+
+uniform lut_2d_t color_pre_curve_lut;
+uniform parametric_curve_t color_pre_curve_par;
+
+uniform lut_2d_t color_post_curve_lut;
+uniform parametric_curve_t color_post_curve_par;
 
 #if DEF_COLOR_MAPPING == SHADER_COLOR_MAPPING_3DLUT
 uniform HIGHPRECISION sampler3D color_mapping_lut_3d;
@@ -235,21 +241,20 @@ sample_input_texture()
  * The scale and offset are precomputed to achieve this mapping.
  */
 float
-sample_lut_1d(HIGHPRECISION sampler2D lut, vec2 scale_offset,
-	      float x, compile_const int row)
+sample_lut_1d(const lut_2d_t lut, float x, compile_const int row)
 {
-	float tx = x * scale_offset.s + scale_offset.t;
+	float tx = x * lut.scale_offset.s + lut.scale_offset.t;
 	float ty = (float(row) + 0.5) / 4.0;
 
-	return texture2D(lut, vec2(tx, ty)).x;
+	return texture2D(lut.lut_2d, vec2(tx, ty)).x;
 }
 
 vec3
-sample_lut_3x1d(HIGHPRECISION sampler2D lut, vec2 scale_offset, vec3 color)
+sample_lut_3x1d(const lut_2d_t lut, vec3 color)
 {
-	return vec3(sample_lut_1d(lut, scale_offset, color.r, 0),
-		    sample_lut_1d(lut, scale_offset, color.g, 1),
-		    sample_lut_1d(lut, scale_offset, color.b, 2));
+	return vec3(sample_lut_1d(lut, color.r, 0),
+		    sample_lut_1d(lut, color.g, 1),
+		    sample_lut_1d(lut, color.b, 2));
 }
 
 vec3
@@ -270,7 +275,7 @@ linpow(float x, float g, float a, float b, float c, float d)
 }
 
 float
-sample_linpow(float params[MAX_CURVESET_PARAMS], bool must_clamp,
+sample_linpow(const parametric_curve_t par,
 	      float x, compile_const int color_channel)
 {
 	float g, a, b, c, d;
@@ -279,13 +284,13 @@ sample_linpow(float params[MAX_CURVESET_PARAMS], bool must_clamp,
 	 * For each color channel we have MAX_CURVE_PARAMS parameters.
 	 * The parameters for the three curves are stored in RGB order.
 	 */
-	g = params[0 + color_channel * MAX_CURVE_PARAMS];
-	a = params[1 + color_channel * MAX_CURVE_PARAMS];
-	b = params[2 + color_channel * MAX_CURVE_PARAMS];
-	c = params[3 + color_channel * MAX_CURVE_PARAMS];
-	d = params[4 + color_channel * MAX_CURVE_PARAMS];
+	g = par.params[0 + color_channel * MAX_CURVE_PARAMS];
+	a = par.params[1 + color_channel * MAX_CURVE_PARAMS];
+	b = par.params[2 + color_channel * MAX_CURVE_PARAMS];
+	c = par.params[3 + color_channel * MAX_CURVE_PARAMS];
+	d = par.params[4 + color_channel * MAX_CURVE_PARAMS];
 
-	if (must_clamp)
+	if (par.clamped_input)
 		x = clamp(x, 0.0, 1.0);
 
 	/* We use mirroring for negative input values. */
@@ -296,12 +301,11 @@ sample_linpow(float params[MAX_CURVESET_PARAMS], bool must_clamp,
 }
 
 vec3
-sample_linpow_vec3(float params[MAX_CURVESET_PARAMS], bool must_clamp,
-		   vec3 color)
+sample_linpow_vec3(const parametric_curve_t par, vec3 color)
 {
-	return vec3(sample_linpow(params, must_clamp, color.r, 0),
-		    sample_linpow(params, must_clamp, color.g, 1),
-		    sample_linpow(params, must_clamp, color.b, 2));
+	return vec3(sample_linpow(par, color.r, 0),
+		    sample_linpow(par, color.g, 1),
+		    sample_linpow(par, color.b, 2));
 }
 
 float
@@ -316,7 +320,7 @@ powlin(float x, float g, float a, float b, float c, float d)
 }
 
 float
-sample_powlin(float params[MAX_CURVESET_PARAMS], bool must_clamp,
+sample_powlin(const parametric_curve_t par,
 	      float x, compile_const int color_channel)
 {
 	float g, a, b, c, d;
@@ -325,13 +329,13 @@ sample_powlin(float params[MAX_CURVESET_PARAMS], bool must_clamp,
 	 * For each color channel we have MAX_CURVE_PARAMS parameters.
 	 * The parameters for the three curves are stored in RGB order.
 	 */
-	g = params[0 + color_channel * MAX_CURVE_PARAMS];
-	a = params[1 + color_channel * MAX_CURVE_PARAMS];
-	b = params[2 + color_channel * MAX_CURVE_PARAMS];
-	c = params[3 + color_channel * MAX_CURVE_PARAMS];
-	d = params[4 + color_channel * MAX_CURVE_PARAMS];
+	g = par.params[0 + color_channel * MAX_CURVE_PARAMS];
+	a = par.params[1 + color_channel * MAX_CURVE_PARAMS];
+	b = par.params[2 + color_channel * MAX_CURVE_PARAMS];
+	c = par.params[3 + color_channel * MAX_CURVE_PARAMS];
+	d = par.params[4 + color_channel * MAX_CURVE_PARAMS];
 
-	if (must_clamp)
+	if (par.clamped_input)
 		x = clamp(x, 0.0, 1.0);
 
 	/* We use mirroring for negative input values. */
@@ -342,12 +346,11 @@ sample_powlin(float params[MAX_CURVESET_PARAMS], bool must_clamp,
 }
 
 vec3
-sample_powlin_vec3(float params[MAX_CURVESET_PARAMS], bool must_clamp,
-		   vec3 color)
+sample_powlin_vec3(const parametric_curve_t par, vec3 color)
 {
-	return vec3(sample_powlin(params, must_clamp, color.r, 0),
-		    sample_powlin(params, must_clamp, color.g, 1),
-		    sample_powlin(params, must_clamp, color.b, 2));
+	return vec3(sample_powlin(par, color.r, 0),
+		    sample_powlin(par, color.g, 1),
+		    sample_powlin(par, color.b, 2));
 }
 
 float
@@ -407,26 +410,23 @@ sample_perceptual_quantizer_vec3(compile_const bool inverse, vec3 color)
 }
 
 vec3
-color_pre_curve(vec3 color)
+color_curve(compile_const int curve_type,
+	    const lut_2d_t lut,
+	    const parametric_curve_t par,
+	    vec3 color)
 {
-	if (c_color_pre_curve == SHADER_COLOR_CURVE_IDENTITY) {
+	if (curve_type == SHADER_COLOR_CURVE_IDENTITY) {
 		return color;
-	} else if (c_color_pre_curve == SHADER_COLOR_CURVE_LUT_3x1D) {
-		return sample_lut_3x1d(color_pre_curve_lut_2d,
-				       color_pre_curve_lut_scale_offset,
-				       color);
-	} else if (c_color_pre_curve == SHADER_COLOR_CURVE_LINPOW) {
-		return sample_linpow_vec3(color_pre_curve_params,
-					  color_pre_curve_clamped_input,
-					  color);
-	} else if (c_color_pre_curve == SHADER_COLOR_CURVE_POWLIN) {
-		return sample_powlin_vec3(color_pre_curve_params,
-					  color_pre_curve_clamped_input,
-					  color);
-	} else if (c_color_pre_curve == SHADER_COLOR_CURVE_PQ) {
+	} else if (curve_type == SHADER_COLOR_CURVE_LUT_3x1D) {
+		return sample_lut_3x1d(lut, color);
+	} else if (curve_type == SHADER_COLOR_CURVE_LINPOW) {
+		return sample_linpow_vec3(par, color);
+	} else if (curve_type == SHADER_COLOR_CURVE_POWLIN) {
+		return sample_powlin_vec3(par, color);
+	} else if (curve_type == SHADER_COLOR_CURVE_PQ) {
 		return sample_perceptual_quantizer_vec3(false, /* not inverse */
 							color);
-	} else if (c_color_pre_curve == SHADER_COLOR_CURVE_PQ_INVERSE) {
+	} else if (curve_type == SHADER_COLOR_CURVE_PQ_INVERSE) {
 		return sample_perceptual_quantizer_vec3(true, /* inverse */
 							color);
 	} else {
@@ -459,35 +459,6 @@ color_mapping(vec3 color)
 		return vec3(1.0, 0.3, 1.0);
 }
 
-vec3
-color_post_curve(vec3 color)
-{
-	if (c_color_post_curve == SHADER_COLOR_CURVE_IDENTITY) {
-		return color;
-	} else if (c_color_post_curve == SHADER_COLOR_CURVE_LUT_3x1D) {
-		return sample_lut_3x1d(color_post_curve_lut_2d,
-				       color_post_curve_lut_scale_offset,
-				       color);
-	} else if (c_color_post_curve == SHADER_COLOR_CURVE_LINPOW) {
-		return sample_linpow_vec3(color_post_curve_params,
-					  color_post_curve_clamped_input,
-					  color);
-	} else if (c_color_post_curve == SHADER_COLOR_CURVE_POWLIN) {
-		return sample_powlin_vec3(color_post_curve_params,
-					  color_post_curve_clamped_input,
-					  color);
-	} else if (c_color_post_curve == SHADER_COLOR_CURVE_PQ) {
-		return sample_perceptual_quantizer_vec3(false, /* not inverse */
-							color);
-	} else if (c_color_post_curve == SHADER_COLOR_CURVE_PQ_INVERSE) {
-		return sample_perceptual_quantizer_vec3(true, /* inverse */
-							color);
-	} else {
-		/* Never reached, bad c_color_post_curve. */
-		return vec3(1.0, 0.3, 1.0);
-	}
-}
-
 vec4
 color_pipeline(vec4 color)
 {
@@ -499,9 +470,11 @@ color_pipeline(vec4 color)
 			color.rgb *= 1.0 / color.a;
 	}
 
-	color.rgb = color_pre_curve(color.rgb);
+	color.rgb = color_curve(c_color_pre_curve, color_pre_curve_lut,
+				color_pre_curve_par, color.rgb);
 	color.rgb = color_mapping(color.rgb);
-	color.rgb = color_post_curve(color.rgb);
+	color.rgb = color_curve(c_color_post_curve, color_post_curve_lut,
+				color_post_curve_par, color.rgb);
 
 	return color;
 }
