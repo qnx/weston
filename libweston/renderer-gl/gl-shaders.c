@@ -63,6 +63,14 @@ union gl_shader_color_curve_uniforms {
 	} parametric;
 };
 
+union gl_shader_color_mapping_uniforms {
+	struct {
+		GLint tex_uniform;
+		GLint scale_offset_uniform;
+	} lut3d;
+	GLint matrix_uniform;
+};
+
 struct gl_shader {
 	struct wl_list link; /* gl_renderer::shader_list */
 	struct timespec last_used;
@@ -80,13 +88,7 @@ struct gl_shader {
 	GLint color_uniform;
 	GLint tint_uniform;
 	union gl_shader_color_curve_uniforms color_pre_curve;
-	union {
-		struct {
-			GLint tex_uniform;
-			GLint scale_offset_uniform;
-		} lut3d;
-		GLint matrix_uniform;
-	} color_mapping;
+	union gl_shader_color_mapping_uniforms color_mapping;
 	union gl_shader_color_curve_uniforms color_post_curve;
 };
 
@@ -659,6 +661,35 @@ gl_shader_load_config_curve(struct weston_compositor *compositor,
 	weston_assert_not_reached(compositor, "unknown enum gl_shader_color_curve value");
 }
 
+static void
+gl_shader_load_config_mapping(struct weston_compositor *compositor,
+			      enum gl_shader_color_mapping mapping_type,
+			      const union gl_shader_config_color_mapping *sconf,
+			      const union gl_shader_color_mapping_uniforms *unif)
+{
+	switch (mapping_type) {
+	case SHADER_COLOR_MAPPING_IDENTITY:
+		return;
+	case SHADER_COLOR_MAPPING_3DLUT:
+		assert(unif->lut3d.tex_uniform != -1);
+		assert(sconf->lut3d.tex3d != 0);
+		assert(unif->lut3d.scale_offset_uniform != -1);
+		glActiveTexture(GL_TEXTURE0 + TEX_UNIT_COLOR_MAPPING);
+		glBindTexture(GL_TEXTURE_3D, sconf->lut3d.tex3d);
+		glUniform1i(unif->lut3d.tex_uniform, TEX_UNIT_COLOR_MAPPING);
+		glUniform2f(unif->lut3d.scale_offset_uniform,
+			    sconf->lut3d.scale, sconf->lut3d.offset);
+		return;
+	case SHADER_COLOR_MAPPING_MATRIX:
+		assert(unif->matrix_uniform != -1);
+		glUniformMatrix3fv(unif->matrix_uniform,
+				   1, GL_FALSE, sconf->mat.matrix.colmaj);
+		return;
+	}
+
+	weston_assert_not_reached(compositor, "unknown enum gl_shader_color_mapping value");
+}
+
 bool
 gl_shader_texture_variant_can_be_premult(enum gl_shader_texture_variant v)
 {
@@ -751,29 +782,8 @@ gl_shader_load_config(struct gl_renderer *gr,
 	gl_shader_load_config_curve(gr->compositor, sconf->req.color_pre_curve,
 				    &sconf->color_pre_curve, &shader->color_pre_curve,
 				    TEX_UNIT_COLOR_PRE_CURVE);
-
-	switch (sconf->req.color_mapping) {
-	case SHADER_COLOR_MAPPING_IDENTITY:
-		break;
-	case SHADER_COLOR_MAPPING_3DLUT:
-		assert(shader->color_mapping.lut3d.tex_uniform != -1);
-		assert(sconf->color_mapping.lut3d.tex3d != 0);
-		assert(shader->color_mapping.lut3d.scale_offset_uniform != -1);
-		glActiveTexture(GL_TEXTURE0 + TEX_UNIT_COLOR_MAPPING);
-		glBindTexture(GL_TEXTURE_3D, sconf->color_mapping.lut3d.tex3d);
-		glUniform1i(shader->color_mapping.lut3d.tex_uniform,
-			    TEX_UNIT_COLOR_MAPPING);
-		glUniform2f(shader->color_mapping.lut3d.scale_offset_uniform,
-			    sconf->color_mapping.lut3d.scale, sconf->color_mapping.lut3d.offset);
-		break;
-	case SHADER_COLOR_MAPPING_MATRIX:
-		assert(shader->color_mapping.matrix_uniform != -1);
-		glUniformMatrix3fv(shader->color_mapping.matrix_uniform,
-				   1, GL_FALSE,
-				   sconf->color_mapping.mat.matrix.colmaj);
-		break;
-	}
-
+	gl_shader_load_config_mapping(gr->compositor, sconf->req.color_mapping,
+				      &sconf->color_mapping, &shader->color_mapping);
 	gl_shader_load_config_curve(gr->compositor, sconf->req.color_post_curve,
 				    &sconf->color_post_curve, &shader->color_post_curve,
 				    TEX_UNIT_COLOR_POST_CURVE);
