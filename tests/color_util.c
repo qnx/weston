@@ -284,13 +284,13 @@ color_float_apply_curve(enum transfer_fn fn, struct color_float c)
 void
 sRGB_linearize(struct color_float *cf)
 {
-	*cf = color_float_apply_curve(TRANSFER_FN_SRGB, *cf);
+	*cf = color_float_apply_curve(TRANSFER_FN_POWER2_2_EOTF, *cf);
 }
 
 void
 sRGB_delinearize(struct color_float *cf)
 {
-	*cf = color_float_apply_curve(TRANSFER_FN_SRGB_INVERSE, *cf);
+	*cf = color_float_apply_curve(TRANSFER_FN_POWER2_2_EOTF_INVERSE, *cf);
 }
 
 struct color_float

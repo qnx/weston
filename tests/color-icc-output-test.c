@@ -57,9 +57,9 @@ const struct lcms_pipeline pipeline_sRGB = {
 		.Green = { 0.300, 0.600, 1.0 },
 		.Blue =  { 0.150, 0.060, 1.0 }
 	},
-	.pre_fn = TRANSFER_FN_SRGB,
+	.pre_fn = TRANSFER_FN_POWER2_2_EOTF,
 	.mat = WESTON_MAT3F_IDENTITY,
-	.post_fn = TRANSFER_FN_SRGB_INVERSE
+	.post_fn = TRANSFER_FN_POWER2_2_EOTF_INVERSE
 };
 
 const struct lcms_pipeline pipeline_adobeRGB = {
@@ -69,7 +69,7 @@ const struct lcms_pipeline pipeline_adobeRGB = {
 		.Green = { 0.210, 0.710, 1.0 },
 		.Blue =  { 0.150, 0.060, 1.0 }
 	},
-	.pre_fn = TRANSFER_FN_SRGB,
+	.pre_fn = TRANSFER_FN_POWER2_2_EOTF,
 	.mat = WESTON_MAT3F(
 			 0.715127, 0.284868, 0.000005,
 			 0.000001, 0.999995, 0.000004,
@@ -84,7 +84,7 @@ const struct lcms_pipeline pipeline_BT2020 = {
 		.Green = { 0.170, 0.797, 1.0 },
 		.Blue =  { 0.131, 0.046, 1.0 }
 	},
-	.pre_fn = TRANSFER_FN_SRGB,
+	.pre_fn = TRANSFER_FN_POWER2_2_EOTF,
 	.mat = WESTON_MAT3F(
 			0.627402, 0.329292, 0.043306,
 			0.069095, 0.919544, 0.011360,
@@ -131,12 +131,12 @@ struct setup_args {
 static const struct setup_args my_setup_args[] = {
 	/* name,                    ref img, pipeline,     tolerance, dim, profile type, clut tolerance, vcgt_exponents */
 	{ { "sRGB->sRGB MAT" },           0, &pipeline_sRGB,     0.0,  0, PTYPE_MATRIX_SHAPER },
-	{ { "sRGB->sRGB MAT VCGT" },      3, &pipeline_sRGB,     0.8,  0, PTYPE_MATRIX_SHAPER, 0.0000,   {1.1, 1.2, 1.3} },
+	{ { "sRGB->sRGB MAT VCGT" },      3, &pipeline_sRGB,     0.9,  0, PTYPE_MATRIX_SHAPER, 0.0000,   {1.1, 1.2, 1.3} },
 	{ { "sRGB->adobeRGB MAT" },       1, &pipeline_adobeRGB, 1.6,  0, PTYPE_MATRIX_SHAPER },
 	{ { "sRGB->adobeRGB MAT VCGT" },  4, &pipeline_adobeRGB, 1.0,  0, PTYPE_MATRIX_SHAPER, 0.0000,   {1.1, 1.2, 1.3} },
 	{ { "sRGB->BT2020 MAT" },         2, &pipeline_BT2020,   1.1,  0, PTYPE_MATRIX_SHAPER },
-	{ { "sRGB->sRGB CLUT" },          0, &pipeline_sRGB,     0.0, 17, PTYPE_CLUT,          0.0005 },
-	{ { "sRGB->sRGB CLUT VCGT" },     3, &pipeline_sRGB,     0.9, 17, PTYPE_CLUT,          0.0005,   {1.1, 1.2, 1.3} },
+	{ { "sRGB->sRGB CLUT" },          0, &pipeline_sRGB,     1.8, 17, PTYPE_CLUT,          0.01 },
+	{ { "sRGB->sRGB CLUT VCGT" },     3, &pipeline_sRGB,     1.3, 17, PTYPE_CLUT,          0.01,   {1.1, 1.2, 1.3} },
 	{ { "sRGB->adobeRGB CLUT" },      1, &pipeline_adobeRGB, 1.8, 17, PTYPE_CLUT,          0.0065 },
 	{ { "sRGB->adobeRGB CLUT VCGT" }, 4, &pipeline_adobeRGB, 1.1, 17, PTYPE_CLUT,          0.0065,   {1.1, 1.2, 1.3} },
 };
@@ -527,7 +527,7 @@ check_blend_pattern(struct buffer *bg_buf,
 		fclose(dump);
 
 	/* Test success condition: */
-	return diffstat.two_norm.max < 1.5f / 255.0f;
+	return diffstat.two_norm.max < 1.72f / 255.0f;
 }
 
 static uint32_t

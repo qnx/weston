@@ -550,24 +550,36 @@ make_icc_file_description(struct lcmsProfilePtr profile,
 }
 
 /**
+ * Build stock sRGB profile used as fallback
  *
- * Build stock profile which available for clients unaware of color management
+ * BT.709 primaries with gamma-2.2 transfer characteristic. This is the
+ * expected sRGB display response.
  */
 bool
 cmlcms_create_stock_profile(struct weston_color_manager_lcms *cm)
 {
-	struct lcmsProfilePtr profile;
+	static const cmsCIExyY D65 = { 0.3127, 0.3290, 1.0 };
+	static const cmsCIExyYTRIPLE bt709 = {
+		{ 0.6400, 0.3300, 1.0 },
+		{ 0.3000, 0.6000, 1.0 },
+		{ 0.1500, 0.0600, 1.0 }
+	};
+	cmsToneCurve *gamma22[3];
+	struct lcmsProfilePtr profile = { NULL };
 	struct cmlcms_md5_sum md5sum;
 	char *desc = NULL;
 	const char *err_msg = NULL;
 
-	profile.p = cmsCreate_sRGBProfileTHR(cm->lcms_ctx);
+	gamma22[0] = gamma22[1] = gamma22[2] = cmsBuildGamma(cm->lcms_ctx, 2.2);
+	if (gamma22[0])
+		profile.p = cmsCreateRGBProfileTHR(cm->lcms_ctx, &D65, &bt709, gamma22);
+	cmsFreeToneCurve(gamma22[0]);
 	if (!profile.p) {
-		weston_log("color-lcms: error: cmsCreate_sRGBProfileTHR failed\n");
+		weston_log("color-lcms: error: failed to create stock sRGB profile.\n");
 		return false;
 	}
 	if (!cmsMD5computeID(profile.p)) {
-		weston_log("Failed to compute MD5 for ICC profile\n");
+		weston_log("Failed to compute MD5 for stock sRGB profile.\n");
 		goto err_close;
 	}
 

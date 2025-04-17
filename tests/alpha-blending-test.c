@@ -221,17 +221,14 @@ check_blend_pattern(struct buffer *bg, struct buffer *fg, struct buffer *shot,
 #endif
 
 	/*
-	 * Allow for +/- 1.5 code points of error in non-linear 8-bit channel
-	 * value. This is necessary for the BLEND_LINEAR case.
+	 * Allow for +/- 1.72 code points of two-norm error in non-linear
+	 * 8-bit channel value. This is necessary for the BLEND_LINEAR case.
 	 *
-	 * With llvmpipe, we could go as low as +/- 0.65 code points of error
-	 * and still pass.
-	 *
-	 * AMD Polaris 11 would be ok with +/- 1.0 code points error threshold
+	 * llvmpipe would be ok with +/- 1.0 code points error threshold
 	 * if not for one particular case of blending (a=254, r=0) into r=255,
-	 * which results in error of 1.29 code points.
+	 * which results in error of 1.701 code points.
 	 */
-	const float tolerance = 1.5f / 255.f;
+	const float tolerance = 1.72f / 255.f;
 
 	uint32_t *bg_row = get_middle_row(bg);
 	uint32_t *fg_row = get_middle_row(fg);
