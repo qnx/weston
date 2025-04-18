@@ -63,6 +63,7 @@
 
 #include "frontend/weston.h"
 #include <libweston/libweston.h>
+#include <libweston/shell-utils.h>
 #include "ivi-shell.h"
 #include "ivi-layout-export.h"
 #include "ivi-layout-private.h"
@@ -90,6 +91,8 @@ struct ivi_layout_screen {
 		int dirty;
 		struct wl_list layer_list;	/* ivi_layout_layer::order.link */
 	} order;
+
+	struct weston_curtain *temporary_curtain;
 };
 
 struct ivi_rectangle
@@ -279,12 +282,14 @@ destroy_screen(struct ivi_layout_screen *iviscrn)
 
 	assert(wl_list_empty(&iviscrn->order.layer_list));
 
+	weston_shell_utils_curtain_destroy(iviscrn->temporary_curtain);
+
 	wl_list_remove(&iviscrn->link);
 	free(iviscrn);
 }
 
 static void
-output_destroyed_event(struct wl_listener *listener, void *data)
+output_destroy_iviscreen(struct wl_listener *listener, void *data)
 {
 	struct weston_output *destroyed_output = data;
 	struct ivi_layout_screen *iviscrn;
@@ -295,8 +300,8 @@ output_destroyed_event(struct wl_listener *listener, void *data)
 
 }
 
-static void
-add_screen(struct weston_output *output)
+static struct ivi_layout_screen *
+create_screen(struct weston_output *output)
 {
 	struct ivi_layout *layout = get_instance();
 	struct ivi_layout_screen *iviscrn = NULL;
@@ -309,26 +314,55 @@ add_screen(struct weston_output *output)
 	wl_list_init(&iviscrn->pending.layer_list);
 	wl_list_init(&iviscrn->order.layer_list);
 	wl_list_insert(&layout->screen_list, &iviscrn->link);
+
+	return iviscrn;
+}
+
+static int
+ivi_shell_temporary_curtain_get_label(struct weston_surface *surface,
+					  char *buf, size_t len)
+{
+	return snprintf(buf, len, "ivi-shell background placeholder");
 }
 
 static void
-output_created_event(struct wl_listener *listener, void *data)
+create_ivi_screen(struct ivi_layout *layout, struct weston_output *output)
 {
-	struct weston_output *created_output = data;
-	add_screen(created_output);
+	struct weston_curtain_params curtain_params = {};
+	struct ivi_layout_screen *iviscrn = NULL;
+
+	iviscrn = create_screen(output);
+
+	curtain_params.a = 1.0;
+	curtain_params.pos = output->pos;
+	curtain_params.width = output->width;
+	curtain_params.height = output->height;
+	curtain_params.capture_input = true;
+	curtain_params.get_label = ivi_shell_temporary_curtain_get_label;
+
+	iviscrn->temporary_curtain =
+		weston_shell_utils_curtain_create(output->compositor,
+						  &curtain_params);
+
+	weston_surface_set_role(iviscrn->temporary_curtain->view->surface,
+				"ivi-shell-background-placeholder", NULL, 0);
+
+	iviscrn->temporary_curtain->view->surface->output = output;
+
+	weston_view_move_to_layer(iviscrn->temporary_curtain->view,
+				  &layout->layout_layer.view_list);
+	weston_view_set_output(iviscrn->temporary_curtain->view, output);
+
 }
 
-/**
- * Internal API to initialize ivi_screens found from output_list of weston_compositor.
- * Called by ivi_layout_init.
- */
 static void
-create_screen(struct weston_compositor *ec)
+output_create_iviscreen(struct wl_listener *listener, void *data)
 {
-	struct weston_output *output = NULL;
+	struct ivi_layout *layout =
+		container_of(listener, struct ivi_layout, output_created);
+	struct weston_output *output = data;
 
-	wl_list_for_each(output, &ec->output_list, link)
-		add_screen(output);
+	create_ivi_screen(layout, output);
 }
 
 /**
@@ -2116,6 +2150,7 @@ void
 ivi_layout_init(struct weston_compositor *ec, struct ivi_shell *shell)
 {
 	struct ivi_layout *layout = get_instance();
+	struct weston_output *output;
 
 	layout->shell = shell;
 
@@ -2145,12 +2180,13 @@ ivi_layout_init(struct weston_compositor *ec, struct ivi_shell *shell)
 	weston_layer_set_position(&layout->layout_layer,
 				  WESTON_LAYER_POSITION_NORMAL);
 
-	create_screen(ec);
-
-	layout->output_created.notify = output_created_event;
+	layout->output_created.notify = output_create_iviscreen;
 	wl_signal_add(&ec->output_created_signal, &layout->output_created);
 
-	layout->output_destroyed.notify = output_destroyed_event;
+	wl_list_for_each(output, &ec->output_list, link)
+		create_ivi_screen(layout, output);
+
+	layout->output_destroyed.notify = output_destroy_iviscreen;
 	wl_signal_add(&ec->output_destroyed_signal, &layout->output_destroyed);
 
 	layout->transitions = ivi_layout_transition_set_create(ec);
@@ -2165,6 +2201,10 @@ void
 ivi_layout_fini(void)
 {
 	struct ivi_layout *layout = get_instance();
+	struct ivi_layout_screen *iviscrn, *iviscrn_tmp;
+
+	wl_list_for_each_safe(iviscrn, iviscrn_tmp, &layout->screen_list, link)
+		destroy_screen(iviscrn);
 
 	weston_layer_fini(&layout->layout_layer);
 
