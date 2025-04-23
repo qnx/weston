@@ -59,6 +59,11 @@ struct drm_format {
 	uint64_t modifier;
 };
 
+struct coefficients_and_range {
+	enum wp_color_representation_surface_v1_coefficients coefficients;
+	enum wp_color_representation_surface_v1_range range;
+};
+
 int
 surface_contains(struct surface *surface, int x, int y)
 {
@@ -638,6 +643,54 @@ static const struct zwp_linux_dmabuf_v1_listener dmabuf_listener = {
 	dmabuf_modifier
 };
 
+bool
+support_coefficients_and_range(struct client *client,
+			       enum wp_color_representation_surface_v1_coefficients coefficients,
+			       enum wp_color_representation_surface_v1_range range)
+{
+	struct coefficients_and_range *p;
+
+	wl_array_for_each(p, &client->coefficients_and_ranges)
+		if (p->coefficients == coefficients && p->range == range)
+			return true;
+
+	return false;
+}
+
+static void
+color_representation_supported_alpha_mode(void *data,
+					  struct wp_color_representation_manager_v1 *wp_color_representation_manager_v1,
+					  uint32_t alpha_mode)
+{
+}
+
+static void
+color_representation_supported_coefficients_and_ranges(void *data,
+						       struct wp_color_representation_manager_v1 *wp_color_representation_manager_v1,
+						       uint32_t coefficients,
+						       uint32_t range)
+{
+	struct client *client = data;
+	struct coefficients_and_range *p;
+
+	p = wl_array_add(&client->coefficients_and_ranges, sizeof *p);
+	assert(p);
+	p->coefficients = coefficients;
+	p->range = range;
+}
+
+static void
+color_representation_done(void *data,
+			  struct wp_color_representation_manager_v1 *wp_color_representation_manager_v1)
+{
+}
+
+static const struct wp_color_representation_manager_v1_listener color_representation_listener = {
+	.supported_alpha_mode = color_representation_supported_alpha_mode,
+	.supported_coefficients_and_ranges = color_representation_supported_coefficients_and_ranges,
+	.done = color_representation_done,
+};
+
 static void
 test_handle_pointer_position(void *data, struct weston_test *weston_test,
 			     wl_fixed_t x, wl_fixed_t y)
@@ -918,6 +971,13 @@ handle_global(void *data, struct wl_registry *registry,
 			wl_registry_bind(registry, id,
 					 &wp_single_pixel_buffer_manager_v1_interface,
 					 1);
+	} else if (strcmp(interface, wp_color_representation_manager_v1_interface.name) == 0) {
+		client->color_representation =
+			wl_registry_bind(registry, id,
+					 &wp_color_representation_manager_v1_interface, version);
+		wp_color_representation_manager_v1_add_listener (client->color_representation,
+								 &color_representation_listener,
+								 client);
 	} else if (strcmp(interface, "wl_output") == 0) {
 		output = xzalloc(sizeof *output);
 		output->wl_output =
@@ -1107,6 +1167,7 @@ create_client(void)
 	test_assert_ptr_not_null(client->wl_display);
 	wl_array_init(&client->shm_formats);
 	wl_array_init(&client->drm_formats);
+	wl_array_init(&client->coefficients_and_ranges);
 	wl_list_init(&client->global_list);
 	wl_list_init(&client->inputs);
 	wl_list_init(&client->output_list);
@@ -1220,6 +1281,7 @@ client_destroy(struct client *client)
 
 	wl_array_release(&client->shm_formats);
 	wl_array_release(&client->drm_formats);
+	wl_array_release(&client->coefficients_and_ranges);
 
 	while (!wl_list_empty(&client->inputs)) {
 		input_destroy(container_of(client->inputs.next,
@@ -1251,6 +1313,8 @@ client_destroy(struct client *client)
 		wp_presentation_destroy(client->presentation);
 	if (client->single_pixel_manager)
 		wp_single_pixel_buffer_manager_v1_destroy(client->single_pixel_manager);
+	if (client->color_representation)
+		wp_color_representation_manager_v1_destroy(client->color_representation);
 	if (client->wl_compositor)
 		wl_compositor_destroy(client->wl_compositor);
 	if (client->wl_subcompositor)

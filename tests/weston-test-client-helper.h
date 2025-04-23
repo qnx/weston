@@ -34,6 +34,7 @@
 #include <pixman.h>
 
 #include <wayland-client-protocol.h>
+#include "color-representation-v1-client-protocol.h"
 #include "linux-dmabuf-unstable-v1-client-protocol.h"
 #include "presentation-time-client-protocol.h"
 #include "shared/client-buffer-util.h"
@@ -64,6 +65,7 @@ struct client {
 	struct wp_presentation *presentation;
 	struct wp_single_pixel_buffer_manager_v1 *single_pixel_manager;
 	struct wp_viewporter *viewporter;
+	struct wp_color_representation_manager_v1 *color_representation;
 
 	struct test *test;
 	struct wp_fifo_manager_v1 *fifo_manager;
@@ -80,6 +82,7 @@ struct client {
 	struct surface *surface;
 	struct wl_array shm_formats;
 	struct wl_array drm_formats;
+	struct wl_array coefficients_and_ranges;
 	struct wl_list global_list;
 	struct wl_list output_list; /* struct output::link */
 
@@ -257,6 +260,11 @@ create_shm_buffer_solid(struct client *client, int width, int height,
 
 bool
 support_drm_format(struct client *client, uint32_t format, uint64_t modifier);
+
+bool
+support_coefficients_and_range(struct client *client,
+			       enum wp_color_representation_surface_v1_coefficients coefficients,
+			       enum wp_color_representation_surface_v1_range range);
 
 void
 buffer_destroy(struct buffer *buf);

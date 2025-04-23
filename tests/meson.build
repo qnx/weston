@@ -30,7 +30,9 @@ lib_test_client = static_library(
 	[
 		'weston-test-client-helper.c',
 		'weston-test-fixture-compositor.c',
-                'xdg-client-helper.c',
+		'xdg-client-helper.c',
+		color_representation_v1_client_protocol_h,
+		color_representation_v1_protocol_c,
 		commit_timing_v1_client_protocol_h,
 		commit_timing_v1_protocol_c,
 		fifo_v1_client_protocol_h,
