@@ -60,7 +60,7 @@ fixture_setup(struct weston_test_harness *harness)
 }
 DECLARE_FIXTURE_SETUP(fixture_setup);
 
-struct shm_buffer {
+struct client_buffer {
 	void *data;
 	size_t bytes;
 	struct wl_buffer *proxy;
@@ -68,16 +68,16 @@ struct shm_buffer {
 	int height;
 };
 
-struct shm_case {
+struct client_buffer_case {
 	uint32_t drm_format;
 	const char *drm_format_name;
 	int ref_seq_no;
-	struct shm_buffer *(*create_buffer)(struct client *client,
-					    uint32_t drm_format,
-					    pixman_image_t *rgb_image);
+	struct client_buffer *(*create_buffer)(struct client *client,
+					       uint32_t drm_format,
+					       pixman_image_t *rgb_image);
 };
 
-static struct shm_buffer *
+static struct client_buffer *
 shm_buffer_create(struct client *client,
 		  size_t bytes,
 		  int width,
@@ -86,7 +86,7 @@ shm_buffer_create(struct client *client,
 		  uint32_t drm_format)
 {
 	struct wl_shm_pool *pool;
-	struct shm_buffer *buf;
+	struct client_buffer *buf;
 	uint32_t shm_format;
 	int fd;
 
@@ -125,7 +125,7 @@ shm_buffer_create(struct client *client,
 }
 
 static void
-shm_buffer_destroy(struct shm_buffer *buf)
+client_buffer_destroy(struct client_buffer *buf)
 {
 	wl_buffer_destroy(buf->proxy);
 	test_assert_int_eq(munmap(buf->data, buf->bytes), 0);
@@ -147,7 +147,7 @@ shm_buffer_destroy(struct shm_buffer *buf)
  * XBGR4444: [15:0] x:B:G:R 4:4:4:4 little endian
  * ABGR4444: [15:0] A:B:G:R 4:4:4:4 little endian
  */
-static struct shm_buffer *
+static struct client_buffer *
 rgba4444_create_buffer(struct client *client,
 		       uint32_t drm_format,
 		       pixman_image_t *rgb_image)
@@ -160,7 +160,7 @@ rgba4444_create_buffer(struct client *client,
 	};
 
 	struct image_header src = image_header_from(rgb_image);
-	struct shm_buffer *buf;
+	struct client_buffer *buf;
 	bool is_opaque;
 	int idx, x, y;
 	uint16_t a;
@@ -238,13 +238,13 @@ rgba4444_create_buffer(struct client *client,
  * BGRX5551: [15:0] B:G:R:x 5:5:5:1 little endian
  * BGRA5551: [15:0] B:G:R:A 5:5:5:1 little endian
  */
-static struct shm_buffer *
+static struct client_buffer *
 rgba5551_create_buffer(struct client *client,
 		       uint32_t drm_format,
 		       pixman_image_t *rgb_image)
 {
 	struct image_header src = image_header_from(rgb_image);
-	struct shm_buffer *buf;
+	struct client_buffer *buf;
 	int x, y;
 	uint16_t a;
 
@@ -287,13 +287,13 @@ rgba5551_create_buffer(struct client *client,
  * RGB565: [15:0] R:G:B 5:6:5 little endian
  * BGR565: [15:0] B:G:R 5:6:5 little endian
  */
-static struct shm_buffer *
+static struct client_buffer *
 rgb565_create_buffer(struct client *client,
 		     uint32_t drm_format,
 		     pixman_image_t *rgb_image)
 {
 	struct image_header src = image_header_from(rgb_image);
-	struct shm_buffer *buf;
+	struct client_buffer *buf;
 	int x, y;
 
 	test_assert_true(drm_format == DRM_FORMAT_RGB565 ||
@@ -327,13 +327,13 @@ rgb565_create_buffer(struct client *client,
  * RGB888: [23:0] R:G:B 8:8:8 little endian
  * BGR888: [23:0] B:G:R 8:8:8 little endian
  */
-static struct shm_buffer *
+static struct client_buffer *
 rgb888_create_buffer(struct client *client,
 		     uint32_t drm_format,
 		     pixman_image_t *rgb_image)
 {
 	struct image_header src = image_header_from(rgb_image);
-	struct shm_buffer *buf;
+	struct client_buffer *buf;
 	int x, y;
 
 	test_assert_true(drm_format == DRM_FORMAT_RGB888 ||
@@ -381,7 +381,7 @@ rgb888_create_buffer(struct client *client,
  * XBGR8888: [31:0] x:B:G:R 8:8:8:8 little endian
  * ABGR8888: [31:0] A:B:G:R 8:8:8:8 little endian
  */
-static struct shm_buffer *
+static struct client_buffer *
 rgba8888_create_buffer(struct client *client,
 		       uint32_t drm_format,
 		       pixman_image_t *rgb_image)
@@ -394,7 +394,7 @@ rgba8888_create_buffer(struct client *client,
 	};
 
 	struct image_header src = image_header_from(rgb_image);
-	struct shm_buffer *buf;
+	struct client_buffer *buf;
 	bool is_opaque;
 	int idx, x, y;
 	uint32_t a;
@@ -472,13 +472,13 @@ rgba8888_create_buffer(struct client *client,
  * XBGR2101010: [31:0] x:B:G:R 2:10:10:10 little endian
  * ABGR2101010: [31:0] A:B:G:R 2:10:10:10 little endian
  */
-static struct shm_buffer *
+static struct client_buffer *
 rgba2101010_create_buffer(struct client *client,
 			  uint32_t drm_format,
 			  pixman_image_t *rgb_image)
 {
 	struct image_header src = image_header_from(rgb_image);
-	struct shm_buffer *buf;
+	struct client_buffer *buf;
 	int x, y;
 	uint32_t a;
 
@@ -524,7 +524,7 @@ rgba2101010_create_buffer(struct client *client,
  * XBGR16161616: [63:0] x:B:G:R 16:16:16:16 little endian
  * ABGR16161616: [63:0] A:B:G:R 16:16:16:16 little endian
  */
-static struct shm_buffer *
+static struct client_buffer *
 rgba16161616_create_buffer(struct client *client,
 			   uint32_t drm_format,
 			   pixman_image_t *rgb_image)
@@ -535,7 +535,7 @@ rgba16161616_create_buffer(struct client *client,
 	};
 
 	struct image_header src = image_header_from(rgb_image);
-	struct shm_buffer *buf;
+	struct client_buffer *buf;
 	bool is_opaque;
 	int idx, x, y;
 	uint64_t a;
@@ -620,7 +620,7 @@ binary16_from_binary32(float binary32)
  * XBGR16161616F: [63:0] x:B:G:R 16:16:16:16 little endian
  * ABGR16161616F: [63:0] A:B:G:R 16:16:16:16 little endian
  */
-static struct shm_buffer *
+static struct client_buffer *
 rgba16161616f_create_buffer(struct client *client,
 			    uint32_t drm_format,
 			    pixman_image_t *rgb_image)
@@ -631,7 +631,7 @@ rgba16161616f_create_buffer(struct client *client,
 	};
 
 	struct image_header src = image_header_from(rgb_image);
-	struct shm_buffer *buf;
+	struct client_buffer *buf;
 	bool is_opaque;
 	int idx, x, y;
 	uint64_t a;
@@ -777,13 +777,13 @@ x8r8g8b8_to_ycbcr16_bt709(uint32_t xrgb, int depth,
 
  * YVU444: no subsampling Cr (1) and Cb (2) planes
  */
-static struct shm_buffer *
+static struct client_buffer *
 y_u_v_create_buffer(struct client *client,
 		    uint32_t drm_format,
 		    pixman_image_t *rgb_image)
 {
 	struct image_header rgb = image_header_from(rgb_image);
-	struct shm_buffer *buf;
+	struct client_buffer *buf;
 	size_t bytes;
 	int x, y;
 	uint32_t *rgb_row;
@@ -865,7 +865,7 @@ y_u_v_create_buffer(struct client *client,
  *       plane 1 = Cb:Cr plane, [15:0] Cb:Cr little endian
  *       2x2 subsampled Cb:Cr plane
  */
-static struct shm_buffer *
+static struct client_buffer *
 nv12_create_buffer(struct client *client,
 		   uint32_t drm_format,
 		   pixman_image_t *rgb_image)
@@ -876,7 +876,7 @@ nv12_create_buffer(struct client *client,
 	};
 
 	struct image_header rgb = image_header_from(rgb_image);
-	struct shm_buffer *buf;
+	struct client_buffer *buf;
 	size_t bytes;
 	int idx, x, y;
 	uint32_t *rgb_row;
@@ -952,7 +952,7 @@ nv12_create_buffer(struct client *client,
  *       plane 1 = Cb:Cr plane, [15:0] Cb:Cr little endian
  *       2x1 subsampled Cb:Cr plane
  */
-static struct shm_buffer *
+static struct client_buffer *
 nv16_create_buffer(struct client *client,
 		   uint32_t drm_format,
 		   pixman_image_t *rgb_image)
@@ -963,7 +963,7 @@ nv16_create_buffer(struct client *client,
 	};
 
 	struct image_header rgb = image_header_from(rgb_image);
-	struct shm_buffer *buf;
+	struct client_buffer *buf;
 	size_t bytes;
 	int idx, x, y;
 	uint32_t *rgb_row;
@@ -1039,7 +1039,7 @@ nv16_create_buffer(struct client *client,
  *       plane 1 = Cb:Cr plane, [15:0] Cb:Cr little endian
  *       non-subsampled Cb:Cr plane
  */
-static struct shm_buffer *
+static struct client_buffer *
 nv24_create_buffer(struct client *client,
 		   uint32_t drm_format,
 		   pixman_image_t *rgb_image)
@@ -1050,7 +1050,7 @@ nv24_create_buffer(struct client *client,
 	};
 
 	struct image_header rgb = image_header_from(rgb_image);
-	struct shm_buffer *buf;
+	struct client_buffer *buf;
 	size_t bytes;
 	int idx, x, y;
 	uint32_t *rgb_row;
@@ -1121,7 +1121,7 @@ nv24_create_buffer(struct client *client,
  * VYUY: [31:0] Y1:Cb0:Y0:Cr0 8:8:8:8 little endian
  *       2x1 subsampled Cb:Cr plane
  */
-static struct shm_buffer *
+static struct client_buffer *
 yuyv_create_buffer(struct client *client,
 		   uint32_t drm_format,
 		   pixman_image_t *rgb_image)
@@ -1134,7 +1134,7 @@ yuyv_create_buffer(struct client *client,
 	};
 
 	struct image_header rgb = image_header_from(rgb_image);
-	struct shm_buffer *buf;
+	struct client_buffer *buf;
 	size_t bytes;
 	int idx, x, y;
 	uint32_t *rgb_row;
@@ -1196,13 +1196,13 @@ yuyv_create_buffer(struct client *client,
  * XYUV8888: [31:0] X:Y:Cb:Cr 8:8:8:8 little endian
  *           full resolution chroma
  */
-static struct shm_buffer *
+static struct client_buffer *
 xyuv8888_create_buffer(struct client *client,
 		       uint32_t drm_format,
 		       pixman_image_t *rgb_image)
 {
 	struct image_header rgb = image_header_from(rgb_image);
-	struct shm_buffer *buf;
+	struct client_buffer *buf;
 	size_t bytes;
 	int x, y;
 	uint32_t *rgb_row;
@@ -1262,13 +1262,13 @@ xyuv8888_create_buffer(struct client *client,
  *       index 1 = Cr:Cb plane, [31:0] Cr:x:Cb:x [10:6:10:6] little endian
  *       2x2 subsampled Cr:Cb plane 10 bits per channel
  */
-static struct shm_buffer *
+static struct client_buffer *
 p016_create_buffer(struct client *client,
 		   uint32_t drm_format,
 		   pixman_image_t *rgb_image)
 {
 	struct image_header rgb = image_header_from(rgb_image);
-	struct shm_buffer *buf;
+	struct client_buffer *buf;
 	size_t bytes;
 	int depth, x, y;
 	uint32_t *rgb_row;
@@ -1337,7 +1337,7 @@ p016_create_buffer(struct client *client,
 }
 
 static void
-show_window_with_shm(struct client *client, struct shm_buffer *buf)
+show_window_with_client_buffer(struct client *client, struct client_buffer *buf)
 {
 	struct surface *surface = client->surface;
 	int done;
@@ -1352,7 +1352,7 @@ show_window_with_shm(struct client *client, struct shm_buffer *buf)
 	frame_callback_wait(client, &done);
 }
 
-static const struct shm_case shm_cases[] = {
+static const struct client_buffer_case client_buffer_cases[] = {
 #define FMT(x) DRM_FORMAT_ ##x, #x
 	/* RGB */
 	{ FMT(RGBX4444), 0, rgba4444_create_buffer },
@@ -1414,15 +1414,15 @@ static const struct shm_case shm_cases[] = {
 };
 
 /*
- * Test that various sl_shm pixel formats result in correct coloring on screen.
+ * Test that various pixel formats result in correct coloring on screen.
  */
-TEST_P(shm_buffer, shm_cases)
+TEST_P(client_buffer, client_buffer_cases)
 {
-	const struct shm_case *my_case = data;
+	const struct client_buffer_case *my_case = data;
 	char *fname;
 	pixman_image_t *img;
 	struct client *client;
-	struct shm_buffer *buf;
+	struct client_buffer *buf;
 	bool match;
 
 	testlog("%s: format %s\n", get_test_name(), my_case->drm_format_name);
@@ -1461,13 +1461,13 @@ TEST_P(shm_buffer, shm_cases)
 			get_test_name(), my_case->drm_format_name);
 		goto format_not_supported;
 	}
-	show_window_with_shm(client, buf);
+	show_window_with_client_buffer(client, buf);
 
-	match = verify_screen_content(client, "shm-buffer", my_case->ref_seq_no,
-				      NULL, 0, NULL);
+	match = verify_screen_content(client, "client-buffer",
+				      my_case->ref_seq_no, NULL, 0, NULL);
 	test_assert_true(match);
 
-	shm_buffer_destroy(buf);
+	client_buffer_destroy(buf);
 
  format_not_supported:
 	pixman_image_unref(img);

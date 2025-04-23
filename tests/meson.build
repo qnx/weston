@@ -108,6 +108,13 @@ tests = [
 	{	'name': 'bad-buffer', },
 	{	'name': 'buffer-transforms', },
 	{
+		'name': 'client-buffer',
+		'dep_objs': [
+			dep_libdrm_headers,
+			dep_libm,
+		],
+	},
+	{
 		'name': 'color-metadata-errors',
 		'dep_objs': dep_libexec_weston,
 	},
@@ -223,13 +230,6 @@ tests = [
 	},
 	{	'name': 'viewporter', },
 	{	'name': 'viewporter-shot', },
-	{
-		'name': 'shm-buffer',
-		'dep_objs': [
-			dep_libdrm_headers,
-			dep_libm,
-		],
-	},
 	{	'name': 'safe-signal', },
 	{	'name': 'safe-signal-output-removal',
 		'sources': [
