@@ -61,9 +61,9 @@ const struct lcms_pipeline pipeline_sRGB = {
 		.Green = { 0.300, 0.600, 1.0 },
 		.Blue =  { 0.150, 0.060, 1.0 }
 	},
-	.pre_fn = TRANSFER_FN_SRGB_EOTF,
+	.pre_fn = TRANSFER_FN_SRGB,
 	.mat = WESTON_MAT3F_IDENTITY,
-	.post_fn = TRANSFER_FN_SRGB_EOTF_INVERSE
+	.post_fn = TRANSFER_FN_SRGB_INVERSE
 };
 
 struct image_description {

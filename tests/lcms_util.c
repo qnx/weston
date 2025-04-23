@@ -179,9 +179,9 @@ build_MPE_curve(cmsContext ctx, enum transfer_fn fn)
 		return build_MPE_curve_power(ctx, 2.4);
 	case TRANSFER_FN_POWER2_4_EOTF_INVERSE:
 		return build_MPE_curve_power(ctx, 1.0 / 2.4);
-	case TRANSFER_FN_SRGB_EOTF:
+	case TRANSFER_FN_SRGB:
 		return build_MPE_curve_sRGB(ctx);
-	case TRANSFER_FN_SRGB_EOTF_INVERSE:
+	case TRANSFER_FN_SRGB_INVERSE:
 		return build_MPE_curve_sRGB_inv(ctx);
 	default:
 		test_assert_not_reached("unimplemented MPE curve");

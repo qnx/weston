@@ -51,8 +51,8 @@ compare_pipeline_to_transfer_fn(cmsPipeline *pipeline, enum transfer_fn fn,
 }
 
 static const enum transfer_fn build_MPE_curves_test_set[] = {
-	TRANSFER_FN_SRGB_EOTF,
-	TRANSFER_FN_SRGB_EOTF_INVERSE,
+	TRANSFER_FN_SRGB,
+	TRANSFER_FN_SRGB_INVERSE,
 	TRANSFER_FN_ADOBE_RGB_EOTF,
 	TRANSFER_FN_ADOBE_RGB_EOTF_INVERSE,
 	TRANSFER_FN_POWER2_4_EOTF,

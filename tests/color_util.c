@@ -59,8 +59,8 @@ struct color_tone_curve {
 /* Mapping from enum transfer_fn to LittleCMS curve parameters. */
 const struct color_tone_curve arr_curves[] = {
 	{
-		.fn = TRANSFER_FN_SRGB_EOTF,
-		.inv_fn = TRANSFER_FN_SRGB_EOTF_INVERSE,
+		.fn = TRANSFER_FN_SRGB,
+		.inv_fn = TRANSFER_FN_SRGB_INVERSE,
 		.internal_type = 4,
 		.param = { 2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045 },
 	},
@@ -113,10 +113,10 @@ transfer_fn_invert(enum transfer_fn fn)
 		return TRANSFER_FN_POWER2_4_EOTF_INVERSE;
 	case TRANSFER_FN_POWER2_4_EOTF_INVERSE:
 		return TRANSFER_FN_POWER2_4_EOTF;
-	case TRANSFER_FN_SRGB_EOTF:
-		return TRANSFER_FN_SRGB_EOTF_INVERSE;
-	case TRANSFER_FN_SRGB_EOTF_INVERSE:
-		return TRANSFER_FN_SRGB_EOTF;
+	case TRANSFER_FN_SRGB:
+		return TRANSFER_FN_SRGB_INVERSE;
+	case TRANSFER_FN_SRGB_INVERSE:
+		return TRANSFER_FN_SRGB;
 	}
 	test_assert_not_reached("bad transfer_fn");
 	return 0;
@@ -136,10 +136,10 @@ transfer_fn_name(enum transfer_fn fn)
 		return "power 2.4";
 	case TRANSFER_FN_POWER2_4_EOTF_INVERSE:
 		return "inverse power 2.4";
-	case TRANSFER_FN_SRGB_EOTF:
-		return "sRGB EOTF";
-	case TRANSFER_FN_SRGB_EOTF_INVERSE:
-		return "inverse sRGB EOTF";
+	case TRANSFER_FN_SRGB:
+		return "sRGB two-piece";
+	case TRANSFER_FN_SRGB_INVERSE:
+		return "inverse sRGB two-piece";
 	}
 	test_assert_not_reached("bad transfer_fn");
 	return 0;
@@ -166,7 +166,7 @@ ensure_unit_range(float v)
 }
 
 static float
-sRGB_EOTF(float e)
+sRGB_two_piece(float e)
 {
 	e = ensure_unit_range(e);
 	if (e <= 0.04045)
@@ -176,7 +176,7 @@ sRGB_EOTF(float e)
 }
 
 static float
-sRGB_EOTF_inv(float o)
+sRGB_two_piece_inv(float o)
 {
 	o = ensure_unit_range(o);
 	if (o <= 0.04045 / 12.92)
@@ -222,11 +222,11 @@ apply_tone_curve(enum transfer_fn fn, float r)
 	case TRANSFER_FN_IDENTITY:
 		ret = r;
 		break;
-	case TRANSFER_FN_SRGB_EOTF:
-		ret = sRGB_EOTF(r);
+	case TRANSFER_FN_SRGB:
+		ret = sRGB_two_piece(r);
 		break;
-	case TRANSFER_FN_SRGB_EOTF_INVERSE:
-		ret = sRGB_EOTF_inv(r);
+	case TRANSFER_FN_SRGB_INVERSE:
+		ret = sRGB_two_piece_inv(r);
 		break;
 	case TRANSFER_FN_ADOBE_RGB_EOTF:
 		ret = AdobeRGB_EOTF(r);
@@ -272,13 +272,13 @@ color_float_apply_curve(enum transfer_fn fn, struct color_float c)
 void
 sRGB_linearize(struct color_float *cf)
 {
-	*cf = color_float_apply_curve(TRANSFER_FN_SRGB_EOTF, *cf);
+	*cf = color_float_apply_curve(TRANSFER_FN_SRGB, *cf);
 }
 
 void
 sRGB_delinearize(struct color_float *cf)
 {
-	*cf = color_float_apply_curve(TRANSFER_FN_SRGB_EOTF_INVERSE, *cf);
+	*cf = color_float_apply_curve(TRANSFER_FN_SRGB_INVERSE, *cf);
 }
 
 struct color_float

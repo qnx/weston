@@ -57,9 +57,9 @@ const struct lcms_pipeline pipeline_sRGB = {
 		.Green = { 0.300, 0.600, 1.0 },
 		.Blue =  { 0.150, 0.060, 1.0 }
 	},
-	.pre_fn = TRANSFER_FN_SRGB_EOTF,
+	.pre_fn = TRANSFER_FN_SRGB,
 	.mat = WESTON_MAT3F_IDENTITY,
-	.post_fn = TRANSFER_FN_SRGB_EOTF_INVERSE
+	.post_fn = TRANSFER_FN_SRGB_INVERSE
 };
 
 const struct lcms_pipeline pipeline_adobeRGB = {
@@ -69,7 +69,7 @@ const struct lcms_pipeline pipeline_adobeRGB = {
 		.Green = { 0.210, 0.710, 1.0 },
 		.Blue =  { 0.150, 0.060, 1.0 }
 	},
-	.pre_fn = TRANSFER_FN_SRGB_EOTF,
+	.pre_fn = TRANSFER_FN_SRGB,
 	.mat = WESTON_MAT3F(
 			 0.715127, 0.284868, 0.000005,
 			 0.000001, 0.999995, 0.000004,
@@ -84,7 +84,7 @@ const struct lcms_pipeline pipeline_BT2020 = {
 		.Green = { 0.170, 0.797, 1.0 },
 		.Blue =  { 0.131, 0.046, 1.0 }
 	},
-	.pre_fn = TRANSFER_FN_SRGB_EOTF,
+	.pre_fn = TRANSFER_FN_SRGB,
 	.mat = WESTON_MAT3F(
 			0.627402, 0.329292, 0.043306,
 			0.069095, 0.919544, 0.011360,
