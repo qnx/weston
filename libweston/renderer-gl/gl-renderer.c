@@ -253,6 +253,11 @@ struct yuv_format_descriptor {
 	struct yuv_plane_descriptor plane[3];
 };
 
+struct gl_color_egl_image {
+	EGLImageKHR image;
+	struct weston_color_representation import_color_rep;
+};
+
 struct gl_buffer_state {
 	struct gl_renderer *gr;
 
@@ -267,6 +272,19 @@ struct gl_buffer_state {
 	int num_images;
 	enum gl_shader_texture_variant shader_variant;
 
+	struct weston_color_representation egl_image_import_color_rep;
+
+	/* For non-default color representations we need to re-import
+	 * EGLImageKHR with different attributes for
+	 * EGL_YUV_COLOR_SPACE_HINT_EXT, EGL_SAMPLE_RANGE_HINT_EXT and, in the
+	 * future, EGL_YUV_CHROMA_HORIZONTAL_SITING_HINT_EXT and
+	 * EGL_YUV_CHROMA_VERTICAL_SITING_HINT_EXT */
+	struct wl_array reimported_egl_images;
+	struct gl_color_egl_image *active_reimported_egl_image;
+
+	/* These values can refer to the EGLImageKHR's in either images[3] or
+	 * active_reimported_egl_image->image. Textures will get destroyed and
+	 * recreated when switching. */
 	struct gl_format_info texture_format[3];
 	struct gl_texture_parameters parameters[3];
 	GLuint textures[3];
@@ -888,7 +906,9 @@ gl_renderer_create_renderbuffer(struct weston_output *output,
 }
 
 static EGLImageKHR
-import_simple_dmabuf(struct gl_renderer *, const struct dmabuf_attributes *);
+import_simple_dmabuf(struct gl_renderer *,
+		     const struct dmabuf_attributes *,
+		     const struct weston_color_representation *);
 
 static weston_renderbuffer_t
 gl_renderer_create_renderbuffer_dmabuf(struct weston_output *output,
@@ -899,10 +919,14 @@ gl_renderer_create_renderbuffer_dmabuf(struct weston_output *output,
 	struct gl_renderer *gr = get_renderer(output->compositor);
 	struct dmabuf_attributes *attributes = dmabuf->attributes;
 	struct gl_renderbuffer *renderbuffer;
+	const struct pixel_format_info *info;
 	EGLImageKHR image;
 	GLuint fb, rb;
 
-	image = import_simple_dmabuf(gr, attributes);
+	info = pixel_format_get_info(attributes->format);
+	assert(info->color_model != COLOR_MODEL_YUV);
+
+	image = import_simple_dmabuf(gr, attributes, NULL);
 	if (image == EGL_NO_IMAGE_KHR) {
 		weston_log("Failed to import dmabuf\n");
 		return NULL;
@@ -1443,7 +1467,8 @@ prepare_solid_draw(struct gl_shader_config *sconf,
 }
 
 static void
-recreate_and_specify_textures(struct gl_buffer_state *gb)
+recreate_and_specify_textures(struct gl_buffer_state *gb,
+			      EGLImageKHR *images)
 {
 	struct gl_renderer *gr = gb->gr;
 	GLenum target;
@@ -1465,12 +1490,116 @@ recreate_and_specify_textures(struct gl_buffer_state *gb)
 		glBindTexture(gb->parameters[i].target, gb->textures[i]);
 		if (gl_extensions_has(gr, EXTENSION_EXT_EGL_IMAGE_STORAGE)) {
 			gr->image_target_tex_storage(gb->parameters[i].target,
-				gb->images[i], NULL);
+				images[i], NULL);
 		} else {
 			gr->image_target_texture_2d(gb->parameters[i].target,
-				gb->images[i]);
+				images[i]);
 		}
 	}
+}
+
+static struct gl_color_egl_image *
+ensure_color_egl_image(struct gl_surface_state *gs,
+		       struct weston_color_representation *color_rep)
+{
+	struct weston_buffer *buffer = gs->buffer_ref.buffer;
+	struct gl_buffer_state *gb = gs->buffer;
+	struct gl_color_egl_image *color_egl_image = NULL;
+	struct gl_color_egl_image *color_egl_image_cand;
+
+	wl_array_for_each(color_egl_image_cand, &gb->reimported_egl_images) {
+		if (!weston_color_representation_equal(&color_egl_image_cand->import_color_rep,
+						       color_rep,
+						       WESTON_CR_COMPARISON_FLAG_IGNORE_ALPHA |
+						       WESTON_CR_COMPARISON_FLAG_IGNORE_CHROMA_LOCATION))
+			continue;
+
+		color_egl_image = color_egl_image_cand;
+		break;
+	}
+	if (!color_egl_image) {
+		struct linux_dmabuf_buffer *dmabuf;
+		EGLImageKHR image;
+
+		assert(buffer->dmabuf);
+		dmabuf = buffer->dmabuf;
+
+		image = import_simple_dmabuf(gb->gr,
+					     &dmabuf->attributes,
+					     color_rep);
+		if (image == EGL_NO_IMAGE_KHR)
+			return NULL;
+
+		color_egl_image = wl_array_add(&gb->reimported_egl_images,
+					       sizeof *color_egl_image);
+		assert(color_egl_image);
+		color_egl_image->image = image;
+		color_egl_image->import_color_rep = *color_rep;
+	}
+	return color_egl_image;
+}
+
+static void
+ensure_images_and_textures(struct gl_surface_state *gs)
+{
+	struct weston_surface *surface = gs->surface;
+	struct weston_compositor *compositor = surface->compositor;
+	struct weston_buffer *buffer = gs->buffer_ref.buffer;
+	const struct pixel_format_info *info = buffer->pixel_format;
+	struct gl_buffer_state *gb = gs->buffer;
+	struct weston_color_representation color_rep;
+
+	if (buffer->type != WESTON_BUFFER_DMABUF ||
+	    (gb->shader_variant != SHADER_VARIANT_RGBA &&
+	     gb->shader_variant != SHADER_VARIANT_EXTERNAL)) {
+		if (gb->num_textures == 0)
+			recreate_and_specify_textures(gb, gb->images);
+		return;
+	}
+
+	color_rep =
+		weston_fill_color_representation(&surface->color_representation,
+						 info);
+
+	/* Check if we need to re-import the EGLImage with non-default YCbCr
+	 * attributes. */
+	if (!weston_color_representation_equal(&gb->egl_image_import_color_rep,
+					       &color_rep,
+					       WESTON_CR_COMPARISON_FLAG_IGNORE_ALPHA |
+					       WESTON_CR_COMPARISON_FLAG_IGNORE_CHROMA_LOCATION)) {
+		struct gl_color_egl_image *color_egl_image = NULL;
+
+
+		color_egl_image = ensure_color_egl_image(gs, &color_rep);
+		if (!color_egl_image) {
+			weston_log("GL-renderer: failed to re-import EGLImageKHR\n");
+			goto out;
+		}
+
+		if (gb->active_reimported_egl_image == color_egl_image) {
+			weston_assert_int_gt(compositor, gb->num_textures, 0);
+			return;
+		}
+
+		weston_assert_int_eq(compositor, gb->num_images, 1);
+		recreate_and_specify_textures(gb, &color_egl_image->image);
+		gb->active_reimported_egl_image = color_egl_image;
+		return;
+	}
+
+	/* We switched from an EGLImage with non-default YCbCr attributes to
+	 * default values. Recreate and bind textures. */
+	if (gb->active_reimported_egl_image != NULL) {
+		weston_assert_int_eq(compositor, gb->num_images, 1);
+		recreate_and_specify_textures(gb, gb->images);
+		gb->active_reimported_egl_image = NULL;
+		return;
+	}
+
+out:
+	/* Ensure we create and bind textures. */
+	if (gb->num_textures == 0)
+		recreate_and_specify_textures(gb, gb->images);
 }
 
 static void
@@ -1499,9 +1628,7 @@ prepare_textured_draw(struct gl_shader_config *sconf,
 	GLint filter;
 	int i;
 
-	/* Ensure we create and bind textures. */
-	if (gb->num_textures == 0)
-		recreate_and_specify_textures(gb);
+	ensure_images_and_textures(gs);
 
 	*sconf = (struct gl_shader_config) {
 		.req.texcoord_input = SHADER_TEXCOORD_INPUT_SURFACE,
@@ -2915,12 +3042,17 @@ done:
 static void
 destroy_buffer_state(struct gl_buffer_state *gb)
 {
+	struct gl_color_egl_image *color_egl_image;
 	int i;
 
 	glDeleteTextures(gb->num_textures, gb->textures);
 
 	for (i = 0; i < gb->num_images; i++)
 		gb->gr->destroy_image(gb->gr->egl_display, gb->images[i]);
+
+	wl_array_for_each(color_egl_image, &gb->reimported_egl_images)
+		gb->gr->destroy_image(gb->gr->egl_display, color_egl_image->image);
+	wl_array_release(&gb->reimported_egl_images);
 
 	pixman_region32_fini(&gb->texture_damage);
 	wl_list_remove(&gb->destroy_listener.link);
@@ -3244,8 +3376,10 @@ gl_renderer_destroy_dmabuf(struct linux_dmabuf_buffer *dmabuf)
 
 static EGLImageKHR
 import_simple_dmabuf(struct gl_renderer *gr,
-                     const struct dmabuf_attributes *attributes)
+		     const struct dmabuf_attributes *attributes,
+		     const struct weston_color_representation *color_rep)
 {
+	const struct pixel_format_info *info;
 	EGLint attribs[53];
 	int atti = 0;
 	bool has_modifier;
@@ -3335,11 +3469,41 @@ import_simple_dmabuf(struct gl_renderer *gr,
 		}
 	}
 
-	attribs[atti++] = EGL_YUV_COLOR_SPACE_HINT_EXT;
-	attribs[atti++] = EGL_ITU_REC709_EXT;
+	info = pixel_format_get_info(attributes->format);
+	assert(info);
+	if (info->color_model == COLOR_MODEL_YUV) {
+		assert(color_rep);
 
-	attribs[atti++] = EGL_SAMPLE_RANGE_HINT_EXT;
-	attribs[atti++] = EGL_YUV_NARROW_RANGE_EXT;
+		attribs[atti++] = EGL_YUV_COLOR_SPACE_HINT_EXT;
+		switch (color_rep->matrix_coefficients) {
+		case WESTON_COLOR_MATRIX_COEF_BT601:
+			attribs[atti++] = EGL_ITU_REC601_EXT;
+			break;
+		case WESTON_COLOR_MATRIX_COEF_BT709:
+			attribs[atti++] = EGL_ITU_REC709_EXT;
+			break;
+		case WESTON_COLOR_MATRIX_COEF_BT2020:
+			attribs[atti++] = EGL_ITU_REC2020_EXT;
+			break;
+		case WESTON_COLOR_MATRIX_COEF_UNSET:
+		case WESTON_COLOR_MATRIX_COEF_IDENTITY:
+			weston_assert_not_reached(gr->compositor,
+				"invalid matrix coefficients");
+		}
+
+		attribs[atti++] = EGL_SAMPLE_RANGE_HINT_EXT;
+		switch (color_rep->quant_range) {
+		case WESTON_COLOR_QUANT_RANGE_LIMITED:
+			attribs[atti++] = EGL_YUV_NARROW_RANGE_EXT;
+			break;
+		case WESTON_COLOR_QUANT_RANGE_FULL:
+			attribs[atti++] = EGL_YUV_FULL_RANGE_EXT;
+			break;
+		case WESTON_COLOR_QUANT_RANGE_UNSET:
+			weston_assert_not_reached(gr->compositor,
+				"invalid quantization range");
+		}
+	}
 
 	attribs[atti++] = EGL_NONE;
 
@@ -3354,6 +3518,7 @@ import_dmabuf_single_plane(struct gl_renderer *gr,
 			   const struct dmabuf_attributes *attributes,
 			   const struct yuv_plane_descriptor *descriptor)
 {
+	const struct pixel_format_info *plane_info;
 	struct dmabuf_attributes plane;
 	EGLImageKHR image;
 	char fmt[4];
@@ -3369,7 +3534,10 @@ import_dmabuf_single_plane(struct gl_renderer *gr,
 	plane.stride[0] = attributes->stride[descriptor->plane_index];
 	plane.modifier = attributes->modifier;
 
-	image = import_simple_dmabuf(gr, &plane);
+	plane_info = pixel_format_get_info(plane.format);
+	assert(plane_info->color_model != COLOR_MODEL_YUV);
+
+	image = import_simple_dmabuf(gr, &plane, NULL);
 	if (image == EGL_NO_IMAGE_KHR) {
 		weston_log("Failed to import plane %d as %.4s\n",
 		           descriptor->plane_index,
@@ -3531,6 +3699,7 @@ import_dmabuf(struct gl_renderer *gr,
 	EGLImageKHR egl_image;
 	struct gl_buffer_state *gb;
 	const struct pixel_format_info *info;
+	struct weston_color_representation color_rep;
 	const struct weston_testsuite_quirks *quirks;
 
 	info = pixel_format_get_info(dmabuf->attributes.format);
@@ -3550,13 +3719,18 @@ import_dmabuf(struct gl_renderer *gr,
 	    info->color_model == COLOR_MODEL_YUV)
 		goto import_yuv;
 
-	egl_image = import_simple_dmabuf(gr, &dmabuf->attributes);
+	weston_reset_color_representation(&color_rep);
+	color_rep = weston_fill_color_representation(&color_rep, info);
+
+	egl_image = import_simple_dmabuf(gr, &dmabuf->attributes,
+					 &color_rep);
 	if (egl_image != EGL_NO_IMAGE_KHR) {
 		const GLint swizzles[] = { GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA };
 		GLenum target = choose_texture_target(gr, &dmabuf->attributes);
 
 		gb->num_images = 1;
 		gb->images[0] = egl_image;
+		gb->egl_image_import_color_rep = color_rep;
 
 		/* The driver defines its own swizzles internally in the case of
 		 * a successful dma-buf import so just set default values. */
