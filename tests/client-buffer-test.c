@@ -939,6 +939,11 @@ y_u_v_create_buffer(struct client *client,
 		sub_x = 2;
 		sub_y = 2;
 		break;
+	case DRM_FORMAT_YUV422:
+	case DRM_FORMAT_YVU422:
+		sub_x = 2;
+		sub_y = 1;
+		break;
 	case DRM_FORMAT_YUV444:
 	case DRM_FORMAT_YVU444:
 		sub_x = 1;
@@ -972,11 +977,13 @@ y_u_v_create_buffer(struct client *client,
 	y_base = buf->data + args.offsets[0];
 	switch (drm_format) {
 	case DRM_FORMAT_YUV420:
+	case DRM_FORMAT_YUV422:
 	case DRM_FORMAT_YUV444:
 		u_base = buf->data + args.offsets[1];
 		v_base = buf->data + args.offsets[2];
 		break;
 	case DRM_FORMAT_YVU420:
+	case DRM_FORMAT_YVU422:
 	case DRM_FORMAT_YVU444:
 		v_base = buf->data + args.offsets[1];
 		u_base = buf->data + args.offsets[2];
@@ -989,11 +996,13 @@ y_u_v_create_buffer(struct client *client,
 
 		switch (drm_format) {
 		case DRM_FORMAT_YUV420:
+		case DRM_FORMAT_YUV422:
 		case DRM_FORMAT_YUV444:
 			u_row = u_base + (y / sub_y) * args.strides[1];
 			v_row = v_base + (y / sub_y) * args.strides[2];
 			break;
 		case DRM_FORMAT_YVU420:
+		case DRM_FORMAT_YVU422:
 		case DRM_FORMAT_YVU444:
 			v_row = v_base + (y / sub_y) * args.strides[1];
 			u_row = u_base + (y / sub_y) * args.strides[2];
@@ -1639,6 +1648,8 @@ static const struct client_buffer_case client_buffer_cases[] = {
 	/* YUV */
 	{ FMT(YUV420), 4, y_u_v_create_buffer },
 	{ FMT(YVU420), 4, y_u_v_create_buffer },
+	{ FMT(YUV422), 4, y_u_v_create_buffer },
+	{ FMT(YVU422), 4, y_u_v_create_buffer },
 	{ FMT(YUV444), 4, y_u_v_create_buffer },
 	{ FMT(YVU444), 4, y_u_v_create_buffer },
 	{ FMT(NV12), 4, nv12_create_buffer },

@@ -511,6 +511,24 @@ static const struct yuv_format_descriptor yuv_formats[] = {
 			YUV_PLANE(R8, 1, R000)
 		}
 	}, {
+		.format = DRM_FORMAT_YUV422,
+		.output_planes = 3,
+		.shader_variant = SHADER_VARIANT_Y_U_V,
+		{
+			YUV_PLANE(R8, 0, R000),
+			YUV_PLANE(R8, 1, R000),
+			YUV_PLANE(R8, 2, R000)
+		}
+	}, {
+		.format = DRM_FORMAT_YVU422,
+		.output_planes = 3,
+		.shader_variant = SHADER_VARIANT_Y_U_V,
+		{
+			YUV_PLANE(R8, 0, R000),
+			YUV_PLANE(R8, 2, R000),
+			YUV_PLANE(R8, 1, R000)
+		}
+	}, {
 		.format = DRM_FORMAT_YUV444,
 		.output_planes = 3,
 		.shader_variant = SHADER_VARIANT_Y_U_V,
@@ -3479,6 +3497,7 @@ gl_renderer_query_dmabuf_formats(struct weston_compositor *wc,
 		DRM_FORMAT_YUYV,
 		DRM_FORMAT_NV12,
 		DRM_FORMAT_YUV420,
+		DRM_FORMAT_YUV422,
 		DRM_FORMAT_YUV444,
 		DRM_FORMAT_XYUV8888,
 	};
