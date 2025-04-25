@@ -47,6 +47,13 @@ static_assert(offsetof(struct color_float, g) == offsetof(struct color_float, rg
 static_assert(offsetof(struct color_float, b) == offsetof(struct color_float, rgb[COLOR_CHAN_B]),
 	      "unexpected offset for struct color_float::b");
 
+struct tone_curve_info {
+	enum transfer_fn fn;
+	enum transfer_fn inv_fn;
+	const char *name;
+	float (*apply)(float);
+};
+
 struct color_tone_curve {
 	enum transfer_fn fn;
 	enum transfer_fn inv_fn;
@@ -97,52 +104,6 @@ find_tone_curve_type(enum transfer_fn fn, int *type, double params[5])
 	}
 
 	return false;
-}
-
-enum transfer_fn
-transfer_fn_invert(enum transfer_fn fn)
-{
-	switch (fn) {
-	case TRANSFER_FN_ADOBE_RGB_EOTF:
-		return TRANSFER_FN_ADOBE_RGB_EOTF_INVERSE;
-	case TRANSFER_FN_ADOBE_RGB_EOTF_INVERSE:
-		return TRANSFER_FN_ADOBE_RGB_EOTF;
-	case TRANSFER_FN_IDENTITY:
-		return TRANSFER_FN_IDENTITY;
-	case TRANSFER_FN_POWER2_4_EOTF:
-		return TRANSFER_FN_POWER2_4_EOTF_INVERSE;
-	case TRANSFER_FN_POWER2_4_EOTF_INVERSE:
-		return TRANSFER_FN_POWER2_4_EOTF;
-	case TRANSFER_FN_SRGB:
-		return TRANSFER_FN_SRGB_INVERSE;
-	case TRANSFER_FN_SRGB_INVERSE:
-		return TRANSFER_FN_SRGB;
-	}
-	test_assert_not_reached("bad transfer_fn");
-	return 0;
-}
-
-const char *
-transfer_fn_name(enum transfer_fn fn)
-{
-	switch (fn) {
-	case TRANSFER_FN_ADOBE_RGB_EOTF:
-		return "AdobeRGB EOTF";
-	case TRANSFER_FN_ADOBE_RGB_EOTF_INVERSE:
-		return "inverse AdobeRGB EOTF";
-	case TRANSFER_FN_IDENTITY:
-		return "identity";
-	case TRANSFER_FN_POWER2_4_EOTF:
-		return "power 2.4";
-	case TRANSFER_FN_POWER2_4_EOTF_INVERSE:
-		return "inverse power 2.4";
-	case TRANSFER_FN_SRGB:
-		return "sRGB two-piece";
-	case TRANSFER_FN_SRGB_INVERSE:
-		return "inverse sRGB two-piece";
-	}
-	test_assert_not_reached("bad transfer_fn");
-	return 0;
 }
 
 /**
@@ -213,36 +174,87 @@ Power2_4_EOTF_inv(float o)
 	return pow(o, 1./2.4);
 }
 
+static float
+identity(float v)
+{
+	return v;
+}
+
+static const struct tone_curve_info tone_curves[] = {
+	[TRANSFER_FN_IDENTITY] = {
+		.fn = TRANSFER_FN_IDENTITY,
+		.name = "identity",
+		.inv_fn = TRANSFER_FN_IDENTITY,
+		.apply = identity,
+	},
+	[TRANSFER_FN_SRGB] = {
+		.fn = TRANSFER_FN_SRGB,
+		.name = "sRGB two-piece",
+		.inv_fn = TRANSFER_FN_SRGB_INVERSE,
+		.apply = sRGB_two_piece,
+	},
+	[TRANSFER_FN_SRGB_INVERSE] = {
+		.fn = TRANSFER_FN_SRGB_INVERSE,
+		.name = "inverse sRGB two-piece",
+		.inv_fn = TRANSFER_FN_SRGB,
+		.apply = sRGB_two_piece_inv,
+	},
+	[TRANSFER_FN_ADOBE_RGB_EOTF] = {
+		.fn = TRANSFER_FN_ADOBE_RGB_EOTF,
+		.name = "AdobeRGB EOTF",
+		.inv_fn = TRANSFER_FN_ADOBE_RGB_EOTF_INVERSE,
+		.apply = AdobeRGB_EOTF,
+	},
+	[TRANSFER_FN_ADOBE_RGB_EOTF_INVERSE] = {
+		.fn = TRANSFER_FN_ADOBE_RGB_EOTF_INVERSE,
+		.name = "inverse AdobeRGB EOTF",
+		.inv_fn = TRANSFER_FN_ADOBE_RGB_EOTF,
+		.apply = AdobeRGB_EOTF_inv,
+	},
+	[TRANSFER_FN_POWER2_4_EOTF] = {
+		.fn = TRANSFER_FN_POWER2_4_EOTF,
+		.name = "power 2.4",
+		.inv_fn = TRANSFER_FN_POWER2_4_EOTF_INVERSE,
+		.apply = Power2_4_EOTF,
+	},
+	[TRANSFER_FN_POWER2_4_EOTF_INVERSE] = {
+		.fn = TRANSFER_FN_POWER2_4_EOTF_INVERSE,
+		.name = "inverse power 2.4",
+		.inv_fn = TRANSFER_FN_POWER2_4_EOTF,
+		.apply = Power2_4_EOTF_inv,
+	},
+};
+
+static const struct tone_curve_info *
+find_tone_curve_info(enum transfer_fn fn)
+{
+	const struct tone_curve_info *tc;
+
+	test_assert_int_ge(fn, 0);
+	test_assert_int_lt(fn, ARRAY_LENGTH(tone_curves));
+
+	tc = &tone_curves[fn];
+	test_assert_int_eq(fn, tc->fn);
+
+	return tc;
+}
+
+enum transfer_fn
+transfer_fn_invert(enum transfer_fn fn)
+{
+	return find_tone_curve_info(fn)->inv_fn;
+}
+
+const char *
+transfer_fn_name(enum transfer_fn fn)
+{
+	return find_tone_curve_info(fn)->name;
+}
+
 float
 apply_tone_curve(enum transfer_fn fn, float r)
 {
-	float ret = 0;
-
-	switch(fn) {
-	case TRANSFER_FN_IDENTITY:
-		ret = r;
-		break;
-	case TRANSFER_FN_SRGB:
-		ret = sRGB_two_piece(r);
-		break;
-	case TRANSFER_FN_SRGB_INVERSE:
-		ret = sRGB_two_piece_inv(r);
-		break;
-	case TRANSFER_FN_ADOBE_RGB_EOTF:
-		ret = AdobeRGB_EOTF(r);
-		break;
-	case TRANSFER_FN_ADOBE_RGB_EOTF_INVERSE:
-		ret = AdobeRGB_EOTF_inv(r);
-		break;
-	case TRANSFER_FN_POWER2_4_EOTF:
-		ret = Power2_4_EOTF(r);
-		break;
-	case TRANSFER_FN_POWER2_4_EOTF_INVERSE:
-		ret = Power2_4_EOTF_inv(r);
-		break;
-	}
-
-	return ret;
+	return find_tone_curve_info(fn)->apply(r);
 }
 
 struct color_float
