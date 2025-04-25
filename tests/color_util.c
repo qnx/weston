@@ -52,59 +52,13 @@ struct tone_curve_info {
 	enum transfer_fn inv_fn;
 	const char *name;
 	float (*apply)(float);
+
+	/* LCMS2 API curve parameters */
+	struct {
+		int type;
+		double param[5];
+	} lcms2;
 };
-
-struct color_tone_curve {
-	enum transfer_fn fn;
-	enum transfer_fn inv_fn;
-
-	/* LCMS2 API */
-	int internal_type;
-	double param[5];
-};
-
-/* Mapping from enum transfer_fn to LittleCMS curve parameters. */
-const struct color_tone_curve arr_curves[] = {
-	{
-		.fn = TRANSFER_FN_SRGB,
-		.inv_fn = TRANSFER_FN_SRGB_INVERSE,
-		.internal_type = 4,
-		.param = { 2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045 },
-	},
-	{
-		.fn = TRANSFER_FN_ADOBE_RGB_EOTF,
-		.inv_fn = TRANSFER_FN_ADOBE_RGB_EOTF_INVERSE,
-		.internal_type = 1,
-		.param = { 563./256., 0.0, 0.0, 0.0 , 0.0 },
-	},
-	{
-		.fn = TRANSFER_FN_POWER2_4_EOTF,
-		.inv_fn = TRANSFER_FN_POWER2_4_EOTF_INVERSE,
-		.internal_type = 1,
-		.param = { 2.4, 0.0, 0.0, 0.0 , 0.0 },
-	}
-};
-
-bool
-find_tone_curve_type(enum transfer_fn fn, int *type, double params[5])
-{
-	const int size_arr = ARRAY_LENGTH(arr_curves);
-	const struct color_tone_curve *curve;
-
-	for (curve = &arr_curves[0]; curve < &arr_curves[size_arr]; curve++ ) {
-		if (curve->fn == fn )
-			*type = curve->internal_type;
-		else if (curve->inv_fn == fn)
-			*type = -curve->internal_type;
-		else
-			continue;
-
-		memcpy(params, curve->param, sizeof(curve->param));
-		return true;
-	}
-
-	return false;
-}
 
 /**
  * NaN comes out as is
@@ -192,36 +146,42 @@ static const struct tone_curve_info tone_curves[] = {
 		.name = "sRGB two-piece",
 		.inv_fn = TRANSFER_FN_SRGB_INVERSE,
 		.apply = sRGB_two_piece,
+		.lcms2 = { 4, { 2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045 }},
 	},
 	[TRANSFER_FN_SRGB_INVERSE] = {
 		.fn = TRANSFER_FN_SRGB_INVERSE,
 		.name = "inverse sRGB two-piece",
 		.inv_fn = TRANSFER_FN_SRGB,
 		.apply = sRGB_two_piece_inv,
+		.lcms2 = { -4, { 2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045 }},
 	},
 	[TRANSFER_FN_ADOBE_RGB_EOTF] = {
 		.fn = TRANSFER_FN_ADOBE_RGB_EOTF,
 		.name = "AdobeRGB EOTF",
 		.inv_fn = TRANSFER_FN_ADOBE_RGB_EOTF_INVERSE,
 		.apply = AdobeRGB_EOTF,
+		.lcms2 = { 1, { 563./256., 0.0, 0.0, 0.0 , 0.0 }},
 	},
 	[TRANSFER_FN_ADOBE_RGB_EOTF_INVERSE] = {
 		.fn = TRANSFER_FN_ADOBE_RGB_EOTF_INVERSE,
 		.name = "inverse AdobeRGB EOTF",
 		.inv_fn = TRANSFER_FN_ADOBE_RGB_EOTF,
 		.apply = AdobeRGB_EOTF_inv,
+		.lcms2 = { -1, { 563./256., 0.0, 0.0, 0.0 , 0.0 }},
 	},
 	[TRANSFER_FN_POWER2_4_EOTF] = {
 		.fn = TRANSFER_FN_POWER2_4_EOTF,
 		.name = "power 2.4",
 		.inv_fn = TRANSFER_FN_POWER2_4_EOTF_INVERSE,
 		.apply = Power2_4_EOTF,
+		.lcms2 = { 1, { 2.4, 0.0, 0.0, 0.0 , 0.0 }},
 	},
 	[TRANSFER_FN_POWER2_4_EOTF_INVERSE] = {
 		.fn = TRANSFER_FN_POWER2_4_EOTF_INVERSE,
 		.name = "inverse power 2.4",
 		.inv_fn = TRANSFER_FN_POWER2_4_EOTF,
 		.apply = Power2_4_EOTF_inv,
+		.lcms2 = { -1, { 2.4, 0.0, 0.0, 0.0 , 0.0 }},
 	},
 };
 
@@ -237,6 +197,18 @@ find_tone_curve_info(enum transfer_fn fn)
 	test_assert_int_eq(fn, tc->fn);
 
 	return tc;
+}
+
+void
+find_tone_curve_type(enum transfer_fn fn, int *type, double params[5])
+{
+	const struct tone_curve_info *t;
+
+	t = find_tone_curve_info(fn);
+	test_assert_ptr_not_null(t);
+
+	*type = t->lcms2.type;
+	memcpy(params, t->lcms2.param, sizeof (t->lcms2.param));
 }
 
 enum transfer_fn

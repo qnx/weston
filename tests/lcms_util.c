@@ -542,8 +542,8 @@ build_lcms_matrix_shaper_profile_output(cmsContext context_id,
 	int type_inverse_tone_curve;
 	double inverse_tone_curve_param[5];
 
-	test_assert_true(find_tone_curve_type(pipeline->post_fn, &type_inverse_tone_curve,
-					      inverse_tone_curve_param));
+	find_tone_curve_type(pipeline->post_fn,
+			     &type_inverse_tone_curve, inverse_tone_curve_param);
 
 	/*
 	 * We are creating output profile and therefore we can use the following:

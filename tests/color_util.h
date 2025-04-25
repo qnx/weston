@@ -69,7 +69,7 @@ sRGB_delinearize(struct color_float *cf);
 struct color_float
 a8r8g8b8_to_float(uint32_t v);
 
-bool
+void
 find_tone_curve_type(enum transfer_fn fn, int *type, double params[5]);
 
 float
