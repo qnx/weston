@@ -134,7 +134,7 @@ static const struct setup_args my_setup_args[] = {
 	{ { "sRGB->sRGB MAT VCGT" },      3, &pipeline_sRGB,     0.9,  0, PTYPE_MATRIX_SHAPER, 0.0000,   {1.1, 1.2, 1.3} },
 	{ { "sRGB->adobeRGB MAT" },       1, &pipeline_adobeRGB, 1.6,  0, PTYPE_MATRIX_SHAPER },
 	{ { "sRGB->adobeRGB MAT VCGT" },  4, &pipeline_adobeRGB, 1.0,  0, PTYPE_MATRIX_SHAPER, 0.0000,   {1.1, 1.2, 1.3} },
-	{ { "sRGB->BT2020 MAT" },         2, &pipeline_BT2020,   1.1,  0, PTYPE_MATRIX_SHAPER },
+	{ { "sRGB->BT2020 MAT" },         2, &pipeline_BT2020,   0.9,  0, PTYPE_MATRIX_SHAPER },
 	{ { "sRGB->sRGB CLUT" },          0, &pipeline_sRGB,     1.8, 17, PTYPE_CLUT,          0.01 },
 	{ { "sRGB->sRGB CLUT VCGT" },     3, &pipeline_sRGB,     1.3, 17, PTYPE_CLUT,          0.01,   {1.1, 1.2, 1.3} },
 	{ { "sRGB->adobeRGB CLUT" },      1, &pipeline_adobeRGB, 1.8, 17, PTYPE_CLUT,          0.0065 },
