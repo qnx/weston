@@ -2,6 +2,7 @@
 files = [
 	'compositor.rst',
 	'head.rst',
+        'debug-flight-recorder.rst',
 	'log.rst',
 	'output.rst',
 	'output-management.rst',

@@ -141,8 +141,9 @@ force the contents to be printed on :samp:`stdout` file-descriptor.
 The user has first to specify which log scope to subscribe to.
 
 Specifying which scopes to subscribe for the flight-recorder can be done using
-:samp:`--flight-rec-scopes`. By default, the 'log' scope and 'drm-backend' are
-the scopes subscribed to.
+:samp:`-f|--flight-rec-scopes`. By default, only the 'log' scope is subscribed
+to. See :ref:`debugging flight recorder` on how retrieve the contents of the
+flight recorder in case Weston dies/crashes unexpectedly.
 
 weston-debug protocol
 ~~~~~~~~~~~~~~~~~~~~~

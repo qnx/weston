@@ -10,6 +10,7 @@ Libweston
    libweston/shell-utils.rst
    libweston/output-management.rst
    libweston/log.rst
+   libweston/debug-flight-recorder.rst
 
 `Libweston` is an effort to separate the re-usable parts of Weston into a
 library. `Libweston` provides most of the boring and tedious bits of correctly
