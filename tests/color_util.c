@@ -115,6 +115,20 @@ AdobeRGB_EOTF_inv(float o)
 }
 
 static float
+Power2_2_EOTF(float e)
+{
+	e = ensure_unit_range(e);
+	return pow(e, 2.2);
+}
+
+static float
+Power2_2_EOTF_inv(float o)
+{
+	o = ensure_unit_range(o);
+	return pow(o, 1./2.2);
+}
+
+static float
 Power2_4_EOTF(float e)
 {
 	e = ensure_unit_range(e);
@@ -168,6 +182,20 @@ static const struct tone_curve_info tone_curves[] = {
 		.inv_fn = TRANSFER_FN_ADOBE_RGB_EOTF,
 		.apply = AdobeRGB_EOTF_inv,
 		.lcms2 = { -1, { 563./256., 0.0, 0.0, 0.0 , 0.0 }},
+	},
+	[TRANSFER_FN_POWER2_2_EOTF] = {
+		.fn = TRANSFER_FN_POWER2_2_EOTF,
+		.name = "power 2.2",
+		.inv_fn = TRANSFER_FN_POWER2_2_EOTF_INVERSE,
+		.apply = Power2_2_EOTF,
+		.lcms2 = { 1, { 2.2, 0.0, 0.0, 0.0 , 0.0 }},
+	},
+	[TRANSFER_FN_POWER2_2_EOTF_INVERSE] = {
+		.fn = TRANSFER_FN_POWER2_2_EOTF_INVERSE,
+		.name = "inverse power 2.2",
+		.inv_fn = TRANSFER_FN_POWER2_2_EOTF,
+		.apply = Power2_2_EOTF_inv,
+		.lcms2 = { -1, { 2.2, 0.0, 0.0, 0.0 , 0.0 }},
 	},
 	[TRANSFER_FN_POWER2_4_EOTF] = {
 		.fn = TRANSFER_FN_POWER2_4_EOTF,
