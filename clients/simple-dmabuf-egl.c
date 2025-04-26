@@ -1110,6 +1110,12 @@ destroy_display(struct display *display)
 
 	free(display->modifiers);
 
+	if (display->direct_display)
+		weston_direct_display_v1_destroy(display->direct_display);
+
+	if (display->explicit_sync)
+		zwp_linux_explicit_synchronization_v1_destroy(display->explicit_sync);
+
 	if (display->dmabuf)
 		zwp_linux_dmabuf_v1_destroy(display->dmabuf);
 
