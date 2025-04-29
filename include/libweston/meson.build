@@ -1,4 +1,5 @@
 install_headers(
+	'colorimetry.h',
 	'config-parser.h',
 	'libweston.h',
 	'linalg.h',
