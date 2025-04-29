@@ -2,6 +2,7 @@ install_headers(
 	'config-parser.h',
 	'libweston.h',
 	'linalg.h',
+	'linalg-3.h',
 	'linalg-4.h',
 	'linalg-types.h',
 	'desktop.h',
