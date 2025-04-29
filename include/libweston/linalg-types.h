@@ -25,6 +25,10 @@
 
 #pragma once
 
+#ifdef  __cplusplus
+extern "C" {
+#endif
+
 /** Column 3-vector */
 struct weston_vec3f {
 	union {
@@ -66,3 +70,7 @@ struct weston_mat4f {
 		float colmaj[4 * 4];
 	};
 };
+
+#ifdef  __cplusplus
+}
+#endif

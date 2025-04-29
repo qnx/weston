@@ -25,6 +25,14 @@
 
 #pragma once
 
+#ifdef  __cplusplus
+extern "C" {
+#endif
+
 #include <libweston/linalg-types.h>
 #include <libweston/linalg-3.h>
 #include <libweston/linalg-4.h>
+
+#ifdef  __cplusplus
+}
+#endif

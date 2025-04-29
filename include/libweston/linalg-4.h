@@ -25,6 +25,10 @@
 
 #pragma once
 
+#ifdef  __cplusplus
+extern "C" {
+#endif
+
 #include <stdbool.h>
 #include <math.h>
 
@@ -196,3 +200,7 @@ weston_m4f_sub_m4f(struct weston_mat4f A, struct weston_mat4f B)
 
 bool
 weston_m4f_invert(struct weston_mat4f *out, struct weston_mat4f M);
+
+#ifdef  __cplusplus
+}
+#endif
