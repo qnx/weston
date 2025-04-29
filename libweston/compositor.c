@@ -1557,6 +1557,12 @@ weston_surface_assign_output(struct weston_surface *es)
 	uint32_t max, area, mask;
 	pixman_box32_t *e;
 
+	if (es->compositor->shutting_down) {
+		es->output = NULL;
+		es->output_mask = 0;
+		return;
+	}
+
 	new_output = NULL;
 	max = 0;
 	mask = 0;
