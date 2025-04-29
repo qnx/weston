@@ -1,6 +1,6 @@
 /*
  * Copyright © 2008-2011 Kristian Høgsberg
- * Copyright © 2012, 2017, 2018, 2021 Collabora, Ltd.
+ * Copyright © 2012-2025 Collabora, Ltd.
  * Copyright © 2017, 2018 General Electric Company
  *
  * Permission is hereby granted, free of charge, to any person obtaining
@@ -33,6 +33,8 @@ extern "C" {
 
 #include <stdint.h>
 #include <stdbool.h>
+
+#include <libweston/linalg-3.h>
 
 struct weston_compositor;
 struct weston_color_profile_param_builder;
@@ -139,6 +141,16 @@ struct weston_color_gamut {
 	struct weston_CIExy primary[3]; /* RGB order */
 	struct weston_CIExy white_point;
 };
+
+enum weston_npm_direction {
+	WESTON_NPM_FORWARD,
+	WESTON_NPM_INVERSE
+};
+
+bool
+weston_normalized_primary_matrix_init(struct weston_mat3f *npm,
+				      const struct weston_color_gamut *gamut,
+				      enum weston_npm_direction dir);
 
 /** Color primaries known by libweston */
 enum weston_color_primaries {

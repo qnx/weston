@@ -1,6 +1,6 @@
 /*
  * Copyright 2019 Sebastian Wick
- * Copyright 2021 Collabora, Ltd.
+ * Copyright 2021-2025 Collabora, Ltd.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -26,7 +26,6 @@
 
 #include "config.h"
 
-#include <libweston/libweston.h>
 #include <assert.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -36,12 +35,15 @@
 #include <errno.h>
 #include <string.h>
 
+#include <libweston/libweston.h>
+#include <libweston/weston-log.h>
+#include <libweston/linalg-3.h>
+
 #include "color.h"
 #include "color-operations.h"
 #include "color-properties.h"
 #include "id-number-allocator.h"
 #include "libweston-internal.h"
-#include <libweston/weston-log.h>
 #include "shared/string-helpers.h"
 #include "shared/helpers.h"
 #include "shared/weston-assert.h"
@@ -972,4 +974,67 @@ WL_EXPORT char *
 weston_colorimetry_mask_to_str(uint32_t colorimetry_mask)
 {
 	return bits_to_str(colorimetry_mask, weston_colorimetry_mode_to_str);
+}
+
+static float
+CIExy_to_z(struct weston_CIExy c)
+{
+	return 1.0f - (c.x + c.y);
+}
+
+static struct weston_vec3f
+CIExy_to_XYZ(struct weston_CIExy c)
+{
+	return WESTON_VEC3F(c.x / c.y, 1.0f, CIExy_to_z(c) / c.y);
+}
+
+/** Compute normalized primary matrix (NPM) from primaries and white point
+ *
+ * \param[out] npm The resulting NPM or inverse NPM.
+ * \param[in] gamut Primaries and white point in CIE 1931 xy.
+ * \param dir Choose NPM (forward) or its inverse.
+ * \return True for success. False for failure: either white point y < 0.01, or
+ * an intermediate matrix from the primaries is not invertible.
+ *
+ * The NPM converts device RGB to CIE 1931 XYZ.
+ *
+ * Based on SMPTE RP 177-1993, "Derivation of Basic Television Color Equations".
+ */
+WL_EXPORT bool
+weston_normalized_primary_matrix_init(struct weston_mat3f *npm,
+				      const struct weston_color_gamut *gamut,
+				      enum weston_npm_direction dir)
+{
+	struct weston_CIExy r = gamut->primary[0];
+	struct weston_CIExy g = gamut->primary[1];
+	struct weston_CIExy b = gamut->primary[2];
+	struct weston_CIExy w = gamut->white_point;
+	struct weston_mat3f P = WESTON_MAT3F(
+		r.x, g.x, b.x,
+		r.y, g.y, b.y,
+		CIExy_to_z(r), CIExy_to_z(g), CIExy_to_z(b)
+	);
+	struct weston_mat3f Pinv;
+
+	if (w.y < 0.01f)
+		return false;
+
+	if (!weston_m3f_invert(&Pinv, P))
+		return false;
+
+	struct weston_vec3f c = weston_m3f_mul_v3f(Pinv, CIExy_to_XYZ(w));
+
+	switch (dir) {
+	case WESTON_NPM_FORWARD:
+		/* NPM = P * diag(c) */
+		*npm = weston_m3f_mul_m3f(P, weston_m3f_diag(c));
+		break;
+	case WESTON_NPM_INVERSE:
+		/* NPM⁻¹ = (P * diag(c))⁻¹ = diag(c)⁻¹ * P⁻¹ */
+		c = WESTON_VEC3F(1.0f / c.x, 1.0f / c.y, 1.0f / c.z);
+		*npm = weston_m3f_mul_m3f(weston_m3f_diag(c), Pinv);
+		break;
+	}
+
+	return true;
 }

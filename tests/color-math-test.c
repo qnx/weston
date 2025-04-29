@@ -31,6 +31,7 @@
 #include "weston-test-assert.h"
 #include "libweston/color.h"
 #include "shared/helpers.h"
+#include <libweston/colorimetry.h>
 
 float lut_ascendent[] =
 	{0.0, 2.0, 3.0, 6.0, 9.0, 12.0, 15.0, 16.0, 20.0, 25.0};
@@ -247,4 +248,111 @@ TEST(inverse_lut)
 TEST(inverse_lut_descendant)
 {
 	return test_inverse_lut_with_curve(sample_power_22_complement);
+}
+
+struct npm_test_case {
+	struct weston_color_gamut gm;
+	struct weston_mat3f expected;
+};
+
+/*
+ * The reference data is from https://www.colour-science.org/ Python library.
+ * >>> import colour
+ * We use the "Derived NPM" as the expected matrix.
+ */
+static const struct npm_test_case npm_test_cases[] = {
+	{
+		/* >>> print(colour.RGB_COLOURSPACES['sRGB']) */
+		.gm = {
+			.primary = { { 0.64, 0.33 }, /* RGB order */
+				     { 0.30, 0.60 },
+				     { 0.15, 0.06 },
+			},
+			.white_point = { 0.3127, 0.3290 },
+		},
+		.expected = WESTON_MAT3F(
+			0.4123908,   0.35758434,  0.18048079,
+			0.21263901,  0.71516868,  0.07219232,
+			0.01933082,  0.11919478,  0.95053215
+		),
+	},
+	{
+		/* >>> print(colour.RGB_COLOURSPACES['Adobe RGB (1998)']) */
+		.gm = {
+			.primary = { { 0.64, 0.33 }, /* RGB order */
+				     { 0.21, 0.71 },
+				     { 0.15, 0.06 },
+			},
+			.white_point = { 0.3127, 0.3290 },
+		},
+		.expected = WESTON_MAT3F(
+			0.57666904,  0.18555824,  0.18822865,
+			0.29734498,  0.62736357,  0.07529146,
+			0.02703136,  0.07068885,  0.99133754
+		),
+	},
+	{
+		/* >>> print(colour.RGB_COLOURSPACES['ITU-R BT.2020']) */
+		.gm = {
+			.primary = { { 0.708, 0.292 }, /* RGB order */
+				     { 0.170, 0.797 },
+				     { 0.131, 0.046 },
+			},
+			.white_point = { 0.3127, 0.3290 },
+		},
+		.expected = WESTON_MAT3F(
+			6.36958048e-01,   1.44616904e-01,   1.68880975e-01,
+			2.62700212e-01,   6.77998072e-01,   5.93017165e-02,
+			4.99410657e-17,   2.80726930e-02,   1.06098506e+00
+		),
+	},
+	{
+		/* >>> print(colour.RGB_COLOURSPACES['NTSC (1953)']) */
+		.gm = {
+			.primary = { { 0.67, 0.33 }, /* RGB order */
+				     { 0.21, 0.71 },
+				     { 0.14, 0.08 },
+			},
+			.white_point = { 0.31006, 0.31616 },
+		},
+		.expected = WESTON_MAT3F(
+			 6.06863809e-01,   1.73507281e-01,   2.00334881e-01,
+			 2.98903070e-01,   5.86619855e-01,   1.14477075e-01,
+			-5.02801622e-17,   6.60980118e-02,   1.11615148e+00
+		),
+	},
+};
+
+/** Return the equivalence precision in bits
+ *
+ * Infinity norm of the residual is our measure.
+ * See https://gitlab.freedesktop.org/pq/fourbyfour/-/blob/master/README.d/precision_testing.md
+ */
+static float
+diff_precision(struct weston_mat3f M, struct weston_mat3f ref)
+{
+	struct weston_mat3f E = weston_m3f_sub_m3f(M, ref);
+	return -log2f(weston_m3f_inf_norm(E));
+}
+
+/*
+ * Test that weston_normalized_primary_matrix() produces known-good results
+ * for NPM, an that the NPM⁻¹ is actually the inverse matrix.
+ */
+TEST_P(npm, npm_test_cases)
+{
+	const float precision_bits = 21;
+	const struct npm_test_case *t = data;
+	struct weston_mat3f npm;
+	struct weston_mat3f npm_inv;
+	struct weston_mat3f roundtrip;
+
+	test_assert_true(weston_normalized_primary_matrix_init(&npm, &t->gm, WESTON_NPM_FORWARD));
+	test_assert_f32_ge(diff_precision(npm, t->expected), precision_bits);
+
+	test_assert_true(weston_normalized_primary_matrix_init(&npm_inv, &t->gm, WESTON_NPM_INVERSE));
+	roundtrip = weston_m3f_mul_m3f(npm_inv, npm);
+	test_assert_f32_ge(diff_precision(roundtrip, WESTON_MAT3F_IDENTITY), precision_bits);
+
+	return RESULT_OK;
 }

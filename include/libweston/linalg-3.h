@@ -60,6 +60,16 @@ extern "C" {
 		0.0f, 0.0f, 1.0f,					\
 	}})
 
+/** Construct a diagonal matrix */
+static inline struct weston_mat3f
+weston_m3f_diag(struct weston_vec3f d)
+{
+	return WESTON_MAT3F(
+		 d.x, 0.0f, 0.0f,
+		0.0f,  d.y, 0.0f,
+		0.0f, 0.0f,  d.z);
+}
+
 /** Copy the top-left 3x3 from 4x4 */
 static inline struct weston_mat3f
 weston_m3f_from_m4f_xyz(struct weston_mat4f M)
