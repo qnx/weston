@@ -1889,31 +1889,16 @@ static const struct client_buffer_case client_buffer_cases[] = {
 #undef FMT
 };
 
-#if WESTON_TEST_SKIP_IS_FAILURE
-static bool
-format_must_pass(uint32_t drm_format, const uint32_t *must_pass, const size_t num)
+static enum test_result_code
+test_client_buffer(const struct client_buffer_case *cb_case,
+		   enum buffer_type type)
 {
-	for (size_t i = 0; i < num; i++)
-		if (must_pass[i] == drm_format)
-			return true;
-
-	return false;
-}
-#endif
-
-/*
- * Test that various pixel formats result in correct coloring on screen.
- */
-TEST_P(client_buffer, client_buffer_cases)
-{
-	const struct client_buffer_case *my_case = data;
+	enum test_result_code res = RESULT_SKIP;
 	char *fname;
 	pixman_image_t *img;
 	struct client *client;
 	struct client_buffer *buf;
 	bool match;
-
-	testlog("%s: format %s\n", get_test_name(), my_case->drm_format_name);
 
 	/*
 	 * Note for YUV formats:
@@ -1944,63 +1929,90 @@ TEST_P(client_buffer, client_buffer_cases)
 	client = create_client();
 	client->surface = create_test_surface(client);
 
-	buf = my_case->create_buffer(client, my_case->drm_format, BUFFER_TYPE_SHM, img);
+	buf = cb_case->create_buffer(client, cb_case->drm_format, type, img);
 	if (buf) {
-		testlog("%s: testing SHM\n", get_test_name());
-
 		show_window_with_client_buffer(client, buf);
 
 		match = verify_screen_content(client, "client-buffer",
-					      my_case->ref_seq_no, NULL, 0,
+					      cb_case->ref_seq_no, NULL, 0,
 					      NULL);
-		test_assert_true(match);
+		res = match ? RESULT_OK : RESULT_FAIL;
 
 		client_buffer_destroy(buf);
 	}
+
+	pixman_image_unref(img);
+	client_destroy(client);
+
+	return res;
+}
+
 #if WESTON_TEST_SKIP_IS_FAILURE
-	else {
+static bool
+format_must_pass(uint32_t drm_format, const uint32_t *must_pass, const size_t num)
+{
+	for (size_t i = 0; i < num; i++)
+		if (must_pass[i] == drm_format)
+			return true;
+
+	return false;
+}
+#endif
+
+/*
+ * Test that various SHM pixel formats result in correct coloring on screen.
+ */
+TEST_P(client_buffer_shm, client_buffer_cases)
+{
+	const struct client_buffer_case *cb_case = data;
+	enum test_result_code res;
+
+	testlog("%s: format %s\n", get_test_name(), cb_case->drm_format_name);
+
+	res = test_client_buffer(cb_case, BUFFER_TYPE_SHM);
+#if WESTON_TEST_SKIP_IS_FAILURE
+	if (res == RESULT_SKIP) {
 		const struct setup_args *args = &my_setup_args[get_test_fixture_index()];
 
 		if (args->shm_format_must_pass) {
-			test_assert_false(format_must_pass(my_case->drm_format,
+			test_assert_false(format_must_pass(cb_case->drm_format,
 							   args->shm_format_must_pass,
 							   args->shm_format_num));
+			res = RESULT_OK;
 		} else {
 			test_assert_not_reached("All SHM formats must pass");
 		}
 	}
 #endif
 
-	buf = my_case->create_buffer(client, my_case->drm_format, BUFFER_TYPE_DMABUF, img);
-	if (buf) {
-		testlog("%s: testing DMABUF\n", get_test_name());
+	return res;
+}
 
-		show_window_with_client_buffer(client, buf);
+/*
+ * Test that various DRM pixel formats result in correct coloring on screen.
+ */
+TEST_P(client_buffer_drm, client_buffer_cases)
+{
+	const struct client_buffer_case *cb_case = data;
+	enum test_result_code res;
 
-		match = verify_screen_content(client, "client-buffer",
-					      my_case->ref_seq_no, NULL, 1,
-					      NULL);
-		test_assert_true(match);
+	testlog("%s: format %s\n", get_test_name(), cb_case->drm_format_name);
 
-		client_buffer_destroy(buf);
-	}
+	res = test_client_buffer(cb_case, BUFFER_TYPE_DMABUF);
 #if WESTON_TEST_SKIP_IS_FAILURE
-	else {
+	if (res == RESULT_SKIP) {
 		const struct setup_args *args = &my_setup_args[get_test_fixture_index()];
 
 		if (args->dmabuf_format_must_pass) {
-			test_assert_false(format_must_pass(my_case->drm_format,
+			test_assert_false(format_must_pass(cb_case->drm_format,
 							   args->dmabuf_format_must_pass,
 							   args->dmabuf_format_num));
+			res = RESULT_OK;
 		} else {
 			test_assert_not_reached("All DMABUF formats must pass");
 		}
 	}
 #endif
 
-out:
-	pixman_image_unref(img);
-	client_destroy(client);
-
-	return RESULT_OK;
+	return res;
 }
