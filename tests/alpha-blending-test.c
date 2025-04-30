@@ -364,4 +364,6 @@ TEST(alpha_blend)
 	buffer_destroy(fg);
 	wl_subcompositor_destroy(subco);
 	client_destroy(client); /* destroys bg */
+
+	return RESULT_OK;
 }

@@ -140,6 +140,8 @@ TEST(top_surface_present_in_output_repaint)
 
 	buffer_destroy(buf);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_surface_unmaps_on_null)
@@ -234,4 +236,6 @@ TEST(test_surface_unmaps_on_null)
 
 	buffer_destroy(buf);
 	client_destroy(client);
+
+	return RESULT_OK;
 }

@@ -111,4 +111,6 @@ PLUGIN_TEST(surface_to_from_global)
 
 	/* Destroys all views too. */
 	weston_surface_unref(surface);
+
+	return RESULT_OK;
 }

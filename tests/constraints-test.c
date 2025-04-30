@@ -232,6 +232,8 @@ TEST(constraints_events)
 
 	constraint_deinit(&cs);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(constraints_confined_boundaries_input_region)
@@ -286,6 +288,8 @@ TEST(constraints_confined_boundaries_input_region)
 
 	constraint_deinit(&cs);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(constraints_locked_boundaries_input_region)
@@ -322,6 +326,8 @@ TEST(constraints_locked_boundaries_input_region)
 
 	constraint_deinit(&cs);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(constraints_already_constrained)
@@ -377,6 +383,8 @@ TEST(constraints_already_constrained)
 
 	constraint_deinit(&cs);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 /*
@@ -415,6 +423,8 @@ TEST(constraints_shell_activate_input)
 
 	constraint_deinit(&cs);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(constraints_pointer_focus)
@@ -447,4 +457,6 @@ TEST(constraints_pointer_focus)
 
 	constraint_deinit(&cs);
 	client_destroy(client);
+
+	return RESULT_OK;
 }

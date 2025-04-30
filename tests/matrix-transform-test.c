@@ -284,6 +284,8 @@ TEST(transformation_matrix)
 	weston_matrix_multiply(&a, &b);
 	transform_expect(&a, true, WL_OUTPUT_TRANSFORM_NORMAL);
 	test_assert_false(weston_matrix_needs_filtering(&a));
+
+	return RESULT_OK;
 }
 
 static void
@@ -359,6 +361,8 @@ TEST(surface_matrix_to_standard_transform)
 		surface_test_all_transforms(&surf, 723, 300, 512, 77, scale,
 					    120, 10, 200, 200);
 	}
+
+	return RESULT_OK;
 }
 
 static void
@@ -461,4 +465,6 @@ TEST(output_matrix_to_standard_transform)
 		output_test_all_transforms(&output, 1000, 1000, 1024, 768, scale);
 		output_test_all_transforms(&output, 1024, 768, 1920, 1080, scale);
 	}
+
+	return RESULT_OK;
 }

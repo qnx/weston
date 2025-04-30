@@ -112,6 +112,8 @@ TEST(seat_capabilities_test)
 	test_assert_ptr_not_null(cl->input->touch);
 
 	client_destroy(cl);
+
+	return RESULT_OK;
 }
 
 #define COUNT 15
@@ -152,6 +154,8 @@ TEST(multiple_device_add_and_remove)
 	test_assert_ptr_not_null(cl->input->touch);
 
 	client_destroy(cl);
+
+	return RESULT_OK;
 }
 
 static void
@@ -200,6 +204,8 @@ TEST(device_release_before_destroy_multiple)
 
 	for (i = 0; i < 30; ++i)
 		device_release_before_destroy();
+
+	return RESULT_OK;
 }
 
 static void
@@ -249,6 +255,8 @@ TEST(device_release_after_destroy_multiple)
 
 	for (i = 0; i < 30; ++i)
 		device_release_after_destroy();
+
+	return RESULT_OK;
 }
 
 /* see https://bugzilla.gnome.org/show_bug.cgi?id=745008
@@ -325,6 +333,8 @@ TEST(get_device_after_destroy_multiple)
 	for (i = 0; i < 30; ++i) {
 		get_device_after_destroy();
 	}
+
+	return RESULT_OK;
 }
 
 TEST(seats_have_names)
@@ -337,6 +347,8 @@ TEST(seats_have_names)
 	}
 
 	client_destroy(cl);
+
+	return RESULT_OK;
 }
 
 TEST(seat_destroy_and_recreate)
@@ -361,4 +373,6 @@ TEST(seat_destroy_and_recreate)
 	test_assert_ptr_not_null(cl->input->touch);
 
 	client_destroy(cl);
+
+	return RESULT_OK;
 }

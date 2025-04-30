@@ -177,4 +177,6 @@ TEST(pointer_cursor_retains_committed_buffer_after_reenter)
 	surface_destroy(back_surface);
 	/* main_surface is destroyed when destroying the client. */
 	client_destroy(client);
+
+	return RESULT_OK;
 }

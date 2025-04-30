@@ -76,6 +76,8 @@ TEST(test_viewporter_double_create)
 	wp_viewport_destroy(vp[0]);
 	wp_viewporter_destroy(viewporter);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 struct bad_source_rect_args {
@@ -112,6 +114,8 @@ TEST_P(test_viewporter_bad_source_rect, bad_source_rect_args)
 
 	wp_viewport_destroy(vp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_viewporter_unset_source_rect)
@@ -129,6 +133,8 @@ TEST(test_viewporter_unset_source_rect)
 
 	wp_viewport_destroy(vp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 struct bad_destination_args {
@@ -162,6 +168,8 @@ TEST_P(test_viewporter_bad_destination_size, bad_destination_args)
 
 	wp_viewport_destroy(vp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_viewporter_unset_destination_size)
@@ -179,6 +187,8 @@ TEST(test_viewporter_unset_destination_size)
 
 	wp_viewport_destroy(vp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 struct nonint_destination_args {
@@ -216,6 +226,8 @@ TEST_P(test_viewporter_non_integer_destination_size, nonint_destination_args)
 
 	wp_viewport_destroy(vp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 struct source_buffer_args {
@@ -330,6 +342,8 @@ TEST(test_viewporter_source_buffer_params)
 	test_assert_int_lt(WIN_H / max_scale + SRC_H + MRG, WIN_H);
 	test_assert_int_lt(WIN_W / max_scale + SRC_H + MRG, WIN_W);
 	test_assert_int_lt(WIN_H / max_scale + SRC_W + MRG, WIN_H);
+
+	return RESULT_OK;
 }
 
 static const struct source_buffer_args bad_source_buffer_args[] = {
@@ -401,6 +415,8 @@ TEST_P(test_viewporter_source_outside_buffer, bad_source_buffer_args)
 
 	wp_viewport_destroy(vp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 static const struct source_buffer_args good_source_buffer_args[] = {
@@ -457,6 +473,8 @@ TEST_P(test_viewporter_source_inside_buffer, good_source_buffer_args)
 	vp = setup_source_vs_buffer(client, args);
 	wp_viewport_destroy(vp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 #undef WIN_W
@@ -500,6 +518,8 @@ TEST(test_viewporter_outside_null_buffer)
 
 	wp_viewport_destroy(vp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_viewporter_no_surface_set_source)
@@ -520,6 +540,8 @@ TEST(test_viewporter_no_surface_set_source)
 
 	wp_viewport_destroy(vp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_viewporter_no_surface_set_destination)
@@ -540,6 +562,8 @@ TEST(test_viewporter_no_surface_set_destination)
 
 	wp_viewport_destroy(vp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_viewporter_no_surface_destroy)
@@ -556,4 +580,6 @@ TEST(test_viewporter_no_surface_destroy)
 	wp_viewport_destroy(vp);
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }

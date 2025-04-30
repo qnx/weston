@@ -242,4 +242,6 @@ TEST(text_test)
 	zwp_text_input_v1_destroy(text_input);
 	zwp_text_input_manager_v1_destroy(factory);
 	client_destroy(client);
+
+	return RESULT_OK;
 }

@@ -83,4 +83,6 @@ TEST_P(build_MPE_curves, build_MPE_curves_test_set)
 	test_assert_f64_lt(fabs(stat.min), 1e-7);
 
 	cmsPipelineFree(pipeline);
+
+	return RESULT_OK;
 }

@@ -194,4 +194,6 @@ TEST(test_truncated_shm_file)
 
 	wl_buffer_destroy(bad_buffer);
 	client_destroy(client);
+
+	return RESULT_OK;
 }

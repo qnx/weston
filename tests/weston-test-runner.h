@@ -1,6 +1,7 @@
 /*
  * Copyright © 2012 Intel Corporation
  * Copyright © 2013 Sam Spilsbury <smspillaz@gmail.com>
+ * Copyright 2025 Collabora, Ltd.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -54,20 +55,23 @@ struct weston_test_harness;
  */
 struct weston_test_entry {
 	const char *name;
-	void (*run)(struct wet_testsuite_data *, void *);
+	enum test_result_code (*run)(struct wet_testsuite_data *, void *);
 	const void *table_data;
 	size_t element_size;
 	int n_elements;
 } __attribute__ ((aligned (64)));
 
 #define TEST_BEGIN(name, arg)						\
-	static void name(struct wet_testsuite_data *_wet_suite_data, arg)
+	static enum test_result_code					\
+	name(struct wet_testsuite_data *_wet_suite_data, arg)
 
 #define TEST_BEGIN_NO_ARG(name)						\
-	static void name(struct wet_testsuite_data *_wet_suite_data)
+	static enum test_result_code					\
+	name(struct wet_testsuite_data *_wet_suite_data)
 
 #define TEST_COMMON(func, name, data, size, n_elem)			\
-	static void func(struct wet_testsuite_data *, void *);		\
+	static enum test_result_code					\
+	func(struct wet_testsuite_data *, void *);			\
 									\
 	const struct weston_test_entry test##name			\
 		__attribute__ ((used, section ("test_section"))) =	\
@@ -77,12 +81,14 @@ struct weston_test_entry {
 
 #define NO_ARG_TEST(name)						\
 	TEST_COMMON(wrap##name, name, NULL, 0, 1)			\
-	static void name(struct wet_testsuite_data *);			\
-	static void wrap##name(struct wet_testsuite_data *_wet_suite_data,\
-			       void *data)				\
+	static enum test_result_code					\
+	name(struct wet_testsuite_data *);				\
+	static enum test_result_code					\
+	wrap##name(struct wet_testsuite_data *_wet_suite_data,		\
+		   void *data)						\
 	{								\
 		(void) data;						\
-		name(_wet_suite_data);					\
+		return name(_wet_suite_data);				\
 	}								\
 									\
 	TEST_BEGIN_NO_ARG(name)
@@ -91,7 +97,7 @@ struct weston_test_entry {
 	TEST_COMMON(name, name, test_data,				\
 		    sizeof(test_data[0]),				\
 		    ARRAY_LENGTH(test_data))				\
-	TEST_BEGIN(name, void *data)					\
+	TEST_BEGIN(name, void *data)
 
 /** Add a test with no parameters
  *
@@ -137,12 +143,13 @@ struct weston_test_entry {
  */
 #define PLUGIN_TEST(name)						\
 	TEST_COMMON(wrap##name, name, NULL, 0, 1)			\
-	static void name(struct wet_testsuite_data *,			\
-			 struct weston_compositor *);			\
-	static void wrap##name(struct wet_testsuite_data *_wet_suite_data,\
-			       void *compositor)			\
+	static enum test_result_code name(struct wet_testsuite_data *,	\
+					  struct weston_compositor *);	\
+	static enum test_result_code					\
+	wrap##name(struct wet_testsuite_data *_wet_suite_data,		\
+		   void *compositor)					\
 	{								\
-		name(_wet_suite_data, compositor);			\
+		return name(_wet_suite_data, compositor);		\
 	}								\
 	TEST_BEGIN(name, struct weston_compositor *compositor)
 

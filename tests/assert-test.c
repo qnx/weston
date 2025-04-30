@@ -145,4 +145,6 @@ TEST(asserts)
 	/* If we reach that point, it's a success so reset the assert counter
 	 * that's been incremented to check that assertions work. */
 	weston_assert_counter_reset();
+
+	return RESULT_OK;
 }

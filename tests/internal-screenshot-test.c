@@ -179,4 +179,6 @@ TEST(internal_screenshot)
 
 	buffer_destroy(buf);
 	client_destroy(client);
+
+	return RESULT_OK;
 }

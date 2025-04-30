@@ -242,6 +242,8 @@ TEST_P(ivi_layout_runner, basic_test_names)
 	runner_destroy(runner);
 	ivi_application_destroy(iviapp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(ivi_layout_surface_create)
@@ -270,6 +272,8 @@ TEST(ivi_layout_surface_create)
 	runner_destroy(runner);
 	ivi_application_destroy(iviapp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST_P(commit_changes_after_properties_set_surface_destroy, surface_property_commit_changes_test_names)
@@ -296,6 +300,8 @@ TEST_P(commit_changes_after_properties_set_surface_destroy, surface_property_com
 	runner_destroy(runner);
 	ivi_application_destroy(iviapp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(get_surface_after_destroy_ivi_surface)
@@ -320,6 +326,8 @@ TEST(get_surface_after_destroy_ivi_surface)
 	runner_destroy(runner);
 	ivi_application_destroy(iviapp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(get_surface_after_destroy_wl_surface)
@@ -344,6 +352,8 @@ TEST(get_surface_after_destroy_wl_surface)
 	runner_destroy(runner);
 	ivi_application_destroy(iviapp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST_P(ivi_layout_layer_render_order_runner, render_order_test_names)
@@ -374,6 +384,8 @@ TEST_P(ivi_layout_layer_render_order_runner, render_order_test_names)
 	runner_destroy(runner);
 	ivi_application_destroy(iviapp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(destroy_surface_after_layer_render_order)
@@ -405,6 +417,8 @@ TEST(destroy_surface_after_layer_render_order)
 	runner_destroy(runner);
 	ivi_application_destroy(iviapp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(commit_changes_after_render_order_set_surface_destroy)
@@ -437,6 +451,8 @@ TEST(commit_changes_after_render_order_set_surface_destroy)
 	runner_destroy(runner);
 	ivi_application_destroy(iviapp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(ivi_layout_surface_configure_notification)
@@ -474,6 +490,8 @@ TEST(ivi_layout_surface_configure_notification)
 	runner_destroy(runner);
 	ivi_application_destroy(iviapp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(ivi_layout_surface_create_notification)
@@ -501,6 +519,8 @@ TEST(ivi_layout_surface_create_notification)
 	runner_destroy(runner);
 	ivi_application_destroy(iviapp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(ivi_layout_surface_remove_notification)
@@ -527,4 +547,6 @@ TEST(ivi_layout_surface_remove_notification)
 	runner_destroy(runner);
 	ivi_application_destroy(iviapp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }

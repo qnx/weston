@@ -90,7 +90,8 @@ Standalone tests
 Standalone tests do not have a fixture setup function defined in the test
 program or the fixture setup function calls
 :func:`weston_test_harness_execute_standalone` explicitly. All test cases must
-be defined with :c:func:`TEST` or :c:func:`TEST_P`.
+be defined with :c:func:`TEST` or :c:func:`TEST_P`, and each such function must
+return a value from :type:`test_result_code`.
 
 This is the simplest possible test example:
 
@@ -98,7 +99,7 @@ This is the simplest possible test example:
 
    TEST(always_success)
    {
-   	/* true */
+   	return RESULT_OK;
    }
 
 
@@ -110,7 +111,8 @@ Plugin tests
 Plugin tests must have a fixture setup function that calls
 :func:`weston_test_harness_execute_as_plugin`. All test cases must be defined
 with :c:func:`PLUGIN_TEST` which declares an implicit function argument
-:type:`weston_compositor` ``*compositor``.
+:type:`weston_compositor` ``*compositor``. Each such function must
+return a value from :type:`test_result_code`.
 
 The compositor fixture manufactures the necessary environment variables and the
 command line argument array to launch Weston, and calls :func:`wet_main`
@@ -137,6 +139,7 @@ This is an example of a plugin test that just logs a line:
    {
    	/* struct weston_compositor *compositor; */
    	testlog("Got compositor %p\n", compositor);
+   	return RESULT_OK;
    }
 
 
@@ -147,7 +150,8 @@ Client tests
 
 Plugin tests must have a fixture setup function that calls
 :func:`weston_test_harness_execute_as_client`. All test cases must be
-defined with :c:func:`TEST` or :c:func:`TEST_P`.
+defined with :c:func:`TEST` or :c:func:`TEST_P`, and each such function must
+return a value from :type:`test_result_code`.
 
 The compositor fixture manufactures the necessary environment variables and the
 command line argument array to launch Weston, and calls :func:`wet_main`
@@ -202,6 +206,7 @@ clients:
 
    	expect_protocol_error(client, &wp_viewport_interface,
    			      WP_VIEWPORT_ERROR_BAD_VALUE);
+   	return RESULT_OK;
    }
 
    TEST(test_roundtrip)
@@ -210,6 +215,7 @@ clients:
 
    	client = create_client_and_test_surface(100, 50, 123, 77);
    	client_roundtrip(client);
+   	return RESULT_OK;
    }
 
 
@@ -256,15 +262,6 @@ It is recommended to have one test program (one ``.c`` file) contain only one
 type of tests to keep the fixture setup simple. See
 :ref:`test-suite-standalone`, :ref:`test-suite-plugin` and
 :ref:`test-suite-client` how to set up each type in a test program.
-
-.. note::
-
-   **TODO:** Currently it is not possible to gracefully skip or fail a test.
-   You can skip with ``exit(RESULT_SKIP)`` but that will quit the whole test
-   program and all defined tests that were not ran yet will be counted as
-   failed. You can fail a test by any means, e.g. ``exit(RESULT_FAIL)``, but
-   the same caveat applies. Succeeded tests must simply return and not call any
-   exit function.
 
 
 .. toctree::

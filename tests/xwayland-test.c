@@ -177,4 +177,6 @@ TEST(xwayland_client_test)
 
 	destroy_x11_window(window);
 	destroy_x11_connection(conn);
+
+	return RESULT_OK;
 }

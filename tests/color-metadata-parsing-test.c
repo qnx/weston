@@ -123,4 +123,6 @@ PLUGIN_TEST(color_characteristics_from_weston_ini)
 	test_assert_f32_eq(hdr_meta->maxDML, 65535.0f);
 	test_assert_f32_eq(hdr_meta->maxCLL, 65535.0f);
 	test_assert_f32_eq(hdr_meta->maxFALL, 1000.0f);
+
+	return RESULT_OK;
 }

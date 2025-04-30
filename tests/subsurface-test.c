@@ -136,6 +136,8 @@ TEST(test_subsurface_basic_protocol)
 	fini_compound_surface(&com1);
 	fini_compound_surface(&com2);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_position_protocol)
@@ -156,6 +158,8 @@ TEST(test_subsurface_position_protocol)
 
 	fini_compound_surface(&com);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_placement_protocol)
@@ -177,6 +181,8 @@ TEST(test_subsurface_placement_protocol)
 
 	fini_compound_surface(&com);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_paradox)
@@ -202,6 +208,8 @@ TEST(test_subsurface_paradox)
 	wl_surface_destroy(parent);
 	wl_subcompositor_destroy(subco);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_identical_link)
@@ -224,6 +232,8 @@ TEST(test_subsurface_identical_link)
 	wl_subsurface_destroy(sub);
 	fini_compound_surface(&com);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_change_link)
@@ -249,6 +259,8 @@ TEST(test_subsurface_change_link)
 	wl_subsurface_destroy(sub);
 	wl_surface_destroy(stranger);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_nesting)
@@ -273,6 +285,8 @@ TEST(test_subsurface_nesting)
 	wl_surface_destroy(stranger);
 	fini_compound_surface(&com);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_nesting_parent)
@@ -297,6 +311,8 @@ TEST(test_subsurface_nesting_parent)
 	fini_compound_surface(&com);
 	wl_surface_destroy(stranger);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_loop_paradox)
@@ -330,6 +346,8 @@ TEST(test_subsurface_loop_paradox)
 
 	wl_subcompositor_destroy(subco);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_place_above_nested_parent)
@@ -358,6 +376,8 @@ TEST(test_subsurface_place_above_nested_parent)
 	wl_subcompositor_destroy(subco);
 	fini_compound_surface(&com);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_place_above_grandparent)
@@ -388,6 +408,8 @@ TEST(test_subsurface_place_above_grandparent)
 	wl_subcompositor_destroy(subco);
 	fini_compound_surface(&com);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_place_above_great_aunt)
@@ -418,6 +440,8 @@ TEST(test_subsurface_place_above_great_aunt)
 	wl_subcompositor_destroy(subco);
 	fini_compound_surface(&com);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_place_above_child)
@@ -448,6 +472,8 @@ TEST(test_subsurface_place_above_child)
 	wl_subcompositor_destroy(subco);
 	fini_compound_surface(&com);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_place_below_nested_parent)
@@ -476,6 +502,8 @@ TEST(test_subsurface_place_below_nested_parent)
 	wl_subcompositor_destroy(subco);
 	fini_compound_surface(&com);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_place_below_grandparent)
@@ -506,6 +534,8 @@ TEST(test_subsurface_place_below_grandparent)
 	wl_subcompositor_destroy(subco);
 	fini_compound_surface(&com);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_place_below_great_aunt)
@@ -536,6 +566,8 @@ TEST(test_subsurface_place_below_great_aunt)
 	wl_subcompositor_destroy(subco);
 	fini_compound_surface(&com);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_place_below_child)
@@ -566,6 +598,8 @@ TEST(test_subsurface_place_below_child)
 	wl_subcompositor_destroy(subco);
 	fini_compound_surface(&com);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_place_above_stranger)
@@ -589,6 +623,8 @@ TEST(test_subsurface_place_above_stranger)
 	wl_surface_destroy(stranger);
 	fini_compound_surface(&com);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_place_below_stranger)
@@ -612,6 +648,8 @@ TEST(test_subsurface_place_below_stranger)
 	wl_surface_destroy(stranger);
 	fini_compound_surface(&com);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_place_above_foreign)
@@ -635,6 +673,8 @@ TEST(test_subsurface_place_above_foreign)
 	fini_compound_surface(&com1);
 	fini_compound_surface(&com2);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_place_below_foreign)
@@ -658,6 +698,8 @@ TEST(test_subsurface_place_below_foreign)
 	fini_compound_surface(&com1);
 	fini_compound_surface(&com2);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_subsurface_destroy_protocol)
@@ -693,6 +735,8 @@ TEST(test_subsurface_destroy_protocol)
 	client_roundtrip(client);
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 static void
@@ -912,4 +956,6 @@ TEST(test_subsurface_destroy_permutations)
 	testlog("tried %d destroy permutations\n", counter);
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }

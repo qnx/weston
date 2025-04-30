@@ -86,6 +86,8 @@ TEST(basic_env)
 	ASSERT_STR_ARRAY_MATCH("envp", custom_env_get_envp(&env), envp);
 	test_assert_true(env.env_finalized);
 	custom_env_fini(&env);
+
+	return RESULT_OK;
 }
 
 TEST(basic_env_arg)
@@ -103,6 +105,8 @@ TEST(basic_env_arg)
 	ASSERT_STR_ARRAY_MATCH("argp", custom_env_get_argp(&env), argp);
 	test_assert_true(env.arg_finalized);
 	custom_env_fini(&env);
+
+	return RESULT_OK;
 }
 
 struct test_str {
@@ -155,4 +159,6 @@ TEST_P(env_parse_string, str_tests)
 	ASSERT_STR_ARRAY_MATCH("envp", custom_env_get_envp(&env), test->envp);
 	ASSERT_STR_ARRAY_MATCH("argp", custom_env_get_argp(&env), test->argp);
 	custom_env_fini(&env);
+
+	return RESULT_OK;
 }

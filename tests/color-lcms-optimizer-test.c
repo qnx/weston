@@ -184,6 +184,8 @@ TEST(keep_regular_matrix)
 	test_assert_ptr_null(cmsStageNext(elem));
 
 	pipeline_context_release(&pc);
+
+	return RESULT_OK;
 }
 
 /* Pipeline with a identity matrix, which should be removed. */
@@ -198,6 +200,8 @@ TEST(drop_identity_matrix)
 	test_assert_u32_eq(cmsPipelineStageCount(pc.pipeline), 0);
 
 	pipeline_context_release(&pc);
+
+	return RESULT_OK;
 }
 
 /* Pipeline with two inverse matrices. When merged they become identity, which
@@ -214,6 +218,8 @@ TEST(drop_inverse_matrices)
 	test_assert_u32_eq(cmsPipelineStageCount(pc.pipeline), 0);
 
 	pipeline_context_release(&pc);
+
+	return RESULT_OK;
 }
 
 /* Pipeline with an identity and two inverse matrices. Pipeline must be empty
@@ -231,6 +237,8 @@ TEST(drop_identity_and_inverse_matrices)
 	test_assert_u32_eq(cmsPipelineStageCount(pc.pipeline), 0);
 
 	pipeline_context_release(&pc);
+
+	return RESULT_OK;
 }
 
 /* Pipeline has a regular matrix followed by two inverses, which should be
@@ -255,6 +263,8 @@ TEST(only_drop_inverse_matrices)
 	test_assert_ptr_null(cmsStageNext(elem));
 
 	pipeline_context_release(&pc);
+
+	return RESULT_OK;
 }
 
 /* Same as above, but the regular matrix is the last element. */
@@ -278,6 +288,8 @@ TEST(only_drop_inverse_matrices_another_order)
 	test_assert_ptr_null(cmsStageNext(elem));
 
 	pipeline_context_release(&pc);
+
+	return RESULT_OK;
 }
 
 /* Pipeline has an identity curve, which should be removed. */
@@ -292,6 +304,8 @@ TEST(drop_identity_curve)
 	test_assert_u32_eq(cmsPipelineStageCount(pc.pipeline), 0);
 
 	pipeline_context_release(&pc);
+
+	return RESULT_OK;
 }
 
 /* Pipeline has two parametric curves that are inverse. So they should be
@@ -308,6 +322,8 @@ TEST(drop_inverse_curves)
 	test_assert_u32_eq(cmsPipelineStageCount(pc.pipeline), 0);
 
 	pipeline_context_release(&pc);
+
+	return RESULT_OK;
 }
 
 /* Pipeline has two parametric inverse curves followed by an identity. Pipeline
@@ -325,6 +341,8 @@ TEST(drop_identity_and_inverse_curves)
 	test_assert_u32_eq(cmsPipelineStageCount(pc.pipeline), 0);
 
 	pipeline_context_release(&pc);
+
+	return RESULT_OK;
 }
 
 /* Same as above, but the identity is the last element. */
@@ -341,6 +359,8 @@ TEST(drop_identity_and_inverse_curves_another_order)
 	test_assert_u32_eq(cmsPipelineStageCount(pc.pipeline), 0);
 
 	pipeline_context_release(&pc);
+
+	return RESULT_OK;
 }
 
 #if HAVE_CMS_GET_TONE_CURVE_SEGMENT
@@ -388,6 +408,8 @@ TEST(keep_regular_curve)
 	test_assert_ptr_null(cmsStageNext(stage));
 
 	pipeline_context_release(&pc);
+
+	return RESULT_OK;
 }
 
 /* Inverse curves followed by a parametric curve. Inverse curves are dropped (as
@@ -412,6 +434,8 @@ TEST(do_not_merge_identity_with_parametric)
 	test_assert_ptr_null(cmsStageNext(stage));
 
 	pipeline_context_release(&pc);
+
+	return RESULT_OK;
 }
 
 /* Merge power-law function with itself. */
@@ -438,6 +462,8 @@ TEST(merge_power_law_curves_with_itself)
 	test_assert_ptr_null(cmsStageNext(stage));
 
 	pipeline_context_release(&pc);
+
+	return RESULT_OK;
 }
 
 /* Merge power-law functions into a single parametric one of the same type. */
@@ -464,6 +490,8 @@ TEST(merge_power_law_curves_with_another)
 	test_assert_ptr_null(cmsStageNext(stage));
 
 	pipeline_context_release(&pc);
+
+	return RESULT_OK;
 }
 
 #endif /* HAVE_CMS_GET_TONE_CURVE_SEGMENT */

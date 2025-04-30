@@ -50,4 +50,6 @@ TEST(test_sequential_ids)
 	test_assert_u32_eq(weston_idalloc_get_id(ida), 10000);
 
 	weston_idalloc_destroy(ida);
+
+	return RESULT_OK;
 }

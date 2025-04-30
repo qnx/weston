@@ -727,6 +727,8 @@ TEST_P(create_parametric_image_description, good_test_cases)
 	image_description_destroy(image_desc);
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST_P(fail_to_create_parametric_image_description, bad_test_cases)
@@ -850,6 +852,8 @@ out:
 		wp_image_description_creator_params_v1_destroy(image_desc_creator_param);
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_primaries_named_twice)
@@ -874,6 +878,8 @@ TEST(set_primaries_named_twice)
 
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_primaries_twice)
@@ -896,6 +902,8 @@ TEST(set_primaries_twice)
 
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_primaries_then_primaries_named)
@@ -919,6 +927,8 @@ TEST(set_primaries_then_primaries_named)
 
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_primaries_named_then_primaries)
@@ -942,6 +952,8 @@ TEST(set_primaries_named_then_primaries)
 
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_tf_power_twice)
@@ -966,6 +978,8 @@ TEST(set_tf_power_twice)
 
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_tf_named_twice)
@@ -990,6 +1004,8 @@ TEST(set_tf_named_twice)
 
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_tf_power_then_tf_named)
@@ -1014,6 +1030,8 @@ TEST(set_tf_power_then_tf_named)
 
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_tf_named_then_tf_power)
@@ -1038,6 +1056,8 @@ TEST(set_tf_named_then_tf_power)
 
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_luminance_twice)
@@ -1069,6 +1089,8 @@ TEST(set_luminance_twice)
 
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_target_primaries_twice)
@@ -1091,6 +1113,8 @@ TEST(set_target_primaries_twice)
 
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_target_luminance_twice)
@@ -1119,6 +1143,8 @@ TEST(set_target_luminance_twice)
 
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_max_cll_twice)
@@ -1141,6 +1167,8 @@ TEST(set_max_cll_twice)
 
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_max_fall_twice)
@@ -1163,4 +1191,6 @@ TEST(set_max_fall_twice)
 
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }

@@ -98,4 +98,6 @@ TEST(viewport_upscale_solid)
 
 	wp_viewport_destroy(viewport);
 	client_destroy(client);
+
+	return RESULT_OK;
 }

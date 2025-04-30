@@ -539,8 +539,9 @@ TEST(two_surface_switching)
 
 	destroy_xdg_surface(xdg_surface1);
 	xdg_client_destroy(xdg_client);
-}
 
+	return RESULT_OK;
+}
 
 TEST(top_surface_present_in_output_repaint)
 {
@@ -594,6 +595,8 @@ TEST(top_surface_present_in_output_repaint)
 
 	destroy_xdg_surface(xdg_surface);
 	xdg_client_destroy(xdg_client);
+
+	return RESULT_OK;
 }
 
 TEST(test_surface_unmaps_on_null)
@@ -684,4 +687,6 @@ TEST(test_surface_unmaps_on_null)
 
 	destroy_xdg_surface(xdg_surface);
 	xdg_client_destroy(xdg_client);
+
+	return RESULT_OK;
 }

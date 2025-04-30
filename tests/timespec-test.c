@@ -40,6 +40,8 @@ TEST(test_timespec_sub)
 	timespec_sub(&r, &a, &b);
 	test_assert_u64_eq(r.tv_sec, 0);
 	test_assert_u64_eq(r.tv_nsec, NSEC_PER_SEC - 1);
+
+	return RESULT_OK;
 }
 
 TEST(test_timespec_to_nsec)
@@ -49,6 +51,8 @@ TEST(test_timespec_to_nsec)
 	a.tv_sec = 4;
 	a.tv_nsec = 4;
 	test_assert_u64_eq(timespec_to_nsec(&a), (NSEC_PER_SEC * 4ULL) + 4);
+
+	return RESULT_OK;
 }
 
 TEST(test_timespec_to_usec)
@@ -58,6 +62,8 @@ TEST(test_timespec_to_usec)
 	a.tv_sec = 4;
 	a.tv_nsec = 4000;
 	test_assert_u64_eq(timespec_to_usec(&a), (4000000ULL) + 4);
+
+	return RESULT_OK;
 }
 
 TEST(test_timespec_to_msec)
@@ -67,6 +73,8 @@ TEST(test_timespec_to_msec)
 	a.tv_sec = 4;
 	a.tv_nsec = 4000000;
 	test_assert_u64_eq(timespec_to_msec(&a), (4000ULL) + 4);
+
+	return RESULT_OK;
 }
 
 TEST(test_timespec_to_proto)
@@ -96,11 +104,15 @@ TEST(test_timespec_to_proto)
 	test_assert_u64_eq((uint64_t)a.tv_sec >> 32, tv_sec_hi);
 	test_assert_u64_eq(0x70005678, tv_sec_lo);
 	test_assert_u64_eq(1, tv_nsec);
+
+	return RESULT_OK;
 }
 
 TEST(test_millihz_to_nsec)
 {
 	test_assert_u64_eq(millihz_to_nsec(60000), 16666666);
+
+	return RESULT_OK;
 }
 
 TEST(test_timespec_add_nsec)
@@ -159,6 +171,8 @@ TEST(test_timespec_add_nsec)
 	timespec_add_nsec(&r, &r, (NSEC_PER_SEC * 7ULL) + (NSEC_PER_SEC - 1ULL));
 	test_assert_u64_eq(16, r.tv_sec);
 	test_assert_u64_eq(0, r.tv_nsec);
+
+	return RESULT_OK;
 }
 
 TEST(test_timespec_add_msec)
@@ -170,6 +184,8 @@ TEST(test_timespec_add_msec)
 	timespec_add_msec(&r, &a, 2002);
 	test_assert_u64_eq(1002, r.tv_sec);
 	test_assert_u64_eq(2000001, r.tv_nsec);
+
+	return RESULT_OK;
 }
 
 TEST(test_timespec_sub_to_nsec)
@@ -181,6 +197,8 @@ TEST(test_timespec_sub_to_nsec)
 	b.tv_sec = 1;
 	b.tv_nsec = 2;
 	test_assert_u64_eq((999LL * NSEC_PER_SEC) - 1, timespec_sub_to_nsec(&a, &b));
+
+	return RESULT_OK;
 }
 
 TEST(test_timespec_sub_to_msec)
@@ -192,6 +210,8 @@ TEST(test_timespec_sub_to_msec)
 	b.tv_sec = 2;
 	b.tv_nsec = 1000000L;
 	test_assert_u64_eq((998 * 1000) + 1, timespec_sub_to_msec(&a, &b));
+
+	return RESULT_OK;
 }
 
 TEST(test_timespec_from_nsec)
@@ -213,6 +233,8 @@ TEST(test_timespec_from_nsec)
 	timespec_from_nsec(&a, (5LL * NSEC_PER_SEC) + 1);
 	test_assert_u64_eq(5, a.tv_sec);
 	test_assert_u64_eq(1, a.tv_nsec);
+
+	return RESULT_OK;
 }
 
 TEST(test_timespec_from_usec)
@@ -234,6 +256,8 @@ TEST(test_timespec_from_usec)
 	timespec_from_usec(&a, 5000001);
 	test_assert_u64_eq(5, a.tv_sec);
 	test_assert_u64_eq(1000, a.tv_nsec);
+
+	return RESULT_OK;
 }
 
 TEST(test_timespec_from_msec)
@@ -255,6 +279,8 @@ TEST(test_timespec_from_msec)
 	timespec_from_msec(&a, 5001);
 	test_assert_u64_eq(5, a.tv_sec);
 	test_assert_u64_eq(1000000, a.tv_nsec);
+
+	return RESULT_OK;
 }
 
 TEST(test_timespec_from_proto)
@@ -272,6 +298,8 @@ TEST(test_timespec_from_proto)
 	timespec_from_proto(&a, 0x1234, 0x5678, 1);
 	test_assert_u64_eq((time_t)0x0000123400005678LL, a.tv_sec);
 	test_assert_u64_eq(1, a.tv_nsec);
+
+	return RESULT_OK;
 }
 
 TEST(test_timespec_is_zero)
@@ -283,6 +311,8 @@ TEST(test_timespec_is_zero)
 	test_assert_true(timespec_is_zero(&zero));
 	test_assert_false(timespec_is_zero(&non_zero_nsec));
 	test_assert_false(timespec_is_zero(&non_zero_sec));
+
+	return RESULT_OK;
 }
 
 TEST(test_timespec_eq)
@@ -295,4 +325,6 @@ TEST(test_timespec_eq)
 
 	test_assert_false(timespec_eq(&a, &b));
 	test_assert_false(timespec_eq(&b, &a));
+
+	return RESULT_OK;
 }

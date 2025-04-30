@@ -189,4 +189,6 @@ TEST(ivi_application_exists)
 
 	ivi_application_destroy(iviapp);
 	client_destroy(client);
+
+	return RESULT_OK;
 }

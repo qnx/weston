@@ -60,6 +60,8 @@ TEST(vec3_layout)
 
 	for (i = 0; i < 3; i++)
 		test_assert_f64_eq(v.el[i], i + 1);
+
+	return RESULT_OK;
 }
 
 /*
@@ -87,6 +89,8 @@ TEST(mat3_layout)
 
 	for (i = 0; i < 9; i++)
 		test_assert_f64_eq(M.colmaj[i], i + 1);
+
+	return RESULT_OK;
 }
 
 TEST(mat3_inf_norm)
@@ -98,6 +102,8 @@ TEST(mat3_inf_norm)
 	);
 
 	test_assert_f64_eq(weston_m3f_inf_norm(M), 42.0);
+
+	return RESULT_OK;
 }
 
 struct test_matrix3 {
@@ -216,6 +222,8 @@ TEST_P(mat3_inversion_precision, matrices3)
 		print_mat3(tm->M);
 		test_assert_true(false);
 	}
+
+	return RESULT_OK;
 }
 
 static void
@@ -249,6 +257,8 @@ TEST(vec4_layout)
 
 	for (i = 0; i < 4; i++)
 		test_assert_f32_eq(v.el[i], i + 1);
+
+	return RESULT_OK;
 }
 
 /*
@@ -277,6 +287,8 @@ TEST(mat4_layout)
 
 	for (i = 0; i < 16; i++)
 		test_assert_f32_eq(M.colmaj[i], i + 1);
+
+	return RESULT_OK;
 }
 
 TEST(mat4_inf_norm)
@@ -288,6 +300,8 @@ TEST(mat4_inf_norm)
 		9, 10, 11, 12);
 
 	test_assert_f32_eq(weston_m4f_inf_norm(M), 58.0);
+
+	return RESULT_OK;
 }
 
 struct test_matrix4 {
@@ -453,4 +467,6 @@ TEST_P(mat4_inversion_precision, matrices4)
 		print_mat4(tm->M);
 		test_assert_true(false);
 	}
+
+	return RESULT_OK;
 }

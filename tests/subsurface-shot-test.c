@@ -213,6 +213,8 @@ TEST(subsurface_recursive_unmap)
 
 	wl_subcompositor_destroy(subco);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(subsurface_z_order)
@@ -304,6 +306,8 @@ TEST(subsurface_z_order)
 
 	wl_subcompositor_destroy(subco);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(subsurface_sync_damage_buffer)
@@ -371,6 +375,8 @@ TEST(subsurface_sync_damage_buffer)
 
 	wl_subcompositor_destroy(subco);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(subsurface_empty_mapping)
@@ -503,6 +509,8 @@ TEST(subsurface_empty_mapping)
 	wp_viewporter_destroy(viewporter);
 	wl_subcompositor_destroy(subco);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(subsurface_desync_commit)
@@ -554,4 +562,6 @@ TEST(subsurface_desync_commit)
 
 	wl_subcompositor_destroy(subco);
 	client_destroy(client);
+
+	return RESULT_OK;
 }

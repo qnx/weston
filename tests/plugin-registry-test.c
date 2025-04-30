@@ -102,4 +102,6 @@ PLUGIN_TEST(plugin_registry_test)
 	api = weston_plugin_api_get(compositor, MY_API_NAME, sz);
 	test_assert_ptr_not_null(api);
 	test_assert_ptr_eq(api->func2, dummy_func);
+
+	return RESULT_OK;
 }

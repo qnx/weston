@@ -88,4 +88,6 @@ TEST(real_usecase_standalone)
 
 	destroy_test_surface(st);
 	destroy_test_surface(st_new);
+
+	return RESULT_OK;
 }

@@ -96,6 +96,8 @@ TEST(basic_operations)
                             ARRAY_LENGTH(formats) * ARRAY_LENGTH(modifiers));
 
         weston_drm_format_array_fini(&format_array);
+
+	return RESULT_OK;
 }
 
 TEST(compare_arrays_same_content)
@@ -125,6 +127,8 @@ TEST(compare_arrays_same_content)
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
+
+	return RESULT_OK;
 }
 
 TEST(compare_arrays_exclusive_content)
@@ -146,6 +150,8 @@ TEST(compare_arrays_exclusive_content)
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
+
+	return RESULT_OK;
 }
 
 TEST(replace_array)
@@ -167,6 +173,8 @@ TEST(replace_array)
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
+
+	return RESULT_OK;
 }
 
 TEST(remove_from_array)
@@ -196,6 +204,8 @@ TEST(remove_from_array)
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
         weston_drm_format_array_fini(&format_array_C);
+
+	return RESULT_OK;
 }
 
 TEST(join_arrays)
@@ -232,6 +242,8 @@ TEST(join_arrays)
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
         weston_drm_format_array_fini(&format_array_C);
+
+	return RESULT_OK;
 }
 
 TEST(join_arrays_same_content)
@@ -264,6 +276,8 @@ TEST(join_arrays_same_content)
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
+
+	return RESULT_OK;
 }
 
 TEST(join_arrays_exclusive_content)
@@ -291,6 +305,8 @@ TEST(join_arrays_exclusive_content)
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
         weston_drm_format_array_fini(&format_array_C);
+
+	return RESULT_OK;
 }
 
 TEST(join_arrays_modifier_invalid)
@@ -319,6 +335,8 @@ TEST(join_arrays_modifier_invalid)
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
         weston_drm_format_array_fini(&format_array_C);
+
+	return RESULT_OK;
 }
 
 TEST(intersect_arrays)
@@ -351,6 +369,8 @@ TEST(intersect_arrays)
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
         weston_drm_format_array_fini(&format_array_C);
+
+	return RESULT_OK;
 }
 
 TEST(intersect_arrays_same_content)
@@ -381,6 +401,8 @@ TEST(intersect_arrays_same_content)
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
+
+	return RESULT_OK;
 }
 
 TEST(intersect_arrays_exclusive_formats)
@@ -404,6 +426,8 @@ TEST(intersect_arrays_exclusive_formats)
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
+
+	return RESULT_OK;
 }
 
 TEST(intersect_arrays_exclusive_modifiers)
@@ -429,6 +453,8 @@ TEST(intersect_arrays_exclusive_modifiers)
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
+
+	return RESULT_OK;
 }
 
 TEST(subtract_arrays)
@@ -463,6 +489,8 @@ TEST(subtract_arrays)
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
         weston_drm_format_array_fini(&format_array_C);
+
+	return RESULT_OK;
 }
 
 TEST(subtract_arrays_same_content)
@@ -486,6 +514,8 @@ TEST(subtract_arrays_same_content)
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
+
+	return RESULT_OK;
 }
 
 TEST(subtract_arrays_exclusive_formats)
@@ -515,6 +545,8 @@ TEST(subtract_arrays_exclusive_formats)
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
         weston_drm_format_array_fini(&format_array_C);
+
+	return RESULT_OK;
 }
 
 TEST(subtract_arrays_exclusive_modifiers)
@@ -544,6 +576,8 @@ TEST(subtract_arrays_exclusive_modifiers)
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
         weston_drm_format_array_fini(&format_array_C);
+
+	return RESULT_OK;
 }
 
 TEST(subtract_arrays_modifier_invalid)
@@ -570,4 +604,6 @@ TEST(subtract_arrays_modifier_invalid)
 
         weston_drm_format_array_fini(&format_array_A);
         weston_drm_format_array_fini(&format_array_B);
+
+	return RESULT_OK;
 }

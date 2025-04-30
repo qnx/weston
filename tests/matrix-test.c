@@ -227,4 +227,6 @@ TEST_P(matrix_inversion_precision, matrices)
 		print_matrix(&tm->M);
 		test_assert_true(false);
 	}
+
+	return RESULT_OK;
 }

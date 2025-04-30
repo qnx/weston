@@ -113,6 +113,8 @@ TEST(test_surface_output)
 	test_assert_true(output_contains_client(client));
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 static void
@@ -186,4 +188,6 @@ TEST(buffer_release)
 	buffer_destroy(buf2);
 	buffer_destroy(buf3);
 	client_destroy(client);
+
+	return RESULT_OK;
 }

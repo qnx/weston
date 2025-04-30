@@ -116,6 +116,8 @@ TEST(second_surface_synchronization_on_surface_raises_error)
 	zwp_linux_surface_synchronization_v1_destroy(surface_sync1);
 	zwp_linux_explicit_synchronization_v1_destroy(sync);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_acquire_fence_with_invalid_fence_raises_error)
@@ -142,6 +144,8 @@ TEST(set_acquire_fence_with_invalid_fence_raises_error)
 	zwp_linux_surface_synchronization_v1_destroy(surface_sync);
 	zwp_linux_explicit_synchronization_v1_destroy(sync);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_acquire_fence_on_destroyed_surface_raises_error)
@@ -170,6 +174,8 @@ TEST(set_acquire_fence_on_destroyed_surface_raises_error)
 	zwp_linux_surface_synchronization_v1_destroy(surface_sync);
 	zwp_linux_explicit_synchronization_v1_destroy(sync);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(second_buffer_release_in_commit_raises_error)
@@ -200,6 +206,8 @@ TEST(second_buffer_release_in_commit_raises_error)
 	zwp_linux_surface_synchronization_v1_destroy(surface_sync);
 	zwp_linux_explicit_synchronization_v1_destroy(sync);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(get_release_without_buffer_raises_commit_error)
@@ -225,6 +233,8 @@ TEST(get_release_without_buffer_raises_commit_error)
 	zwp_linux_surface_synchronization_v1_destroy(surface_sync);
 	zwp_linux_explicit_synchronization_v1_destroy(sync);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(get_release_on_destroyed_surface_raises_error)
@@ -250,6 +260,8 @@ TEST(get_release_on_destroyed_surface_raises_error)
 	zwp_linux_surface_synchronization_v1_destroy(surface_sync);
 	zwp_linux_explicit_synchronization_v1_destroy(sync);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(get_release_after_commit_succeeds)
@@ -282,6 +294,8 @@ TEST(get_release_after_commit_succeeds)
 	zwp_linux_surface_synchronization_v1_destroy(surface_sync);
 	zwp_linux_explicit_synchronization_v1_destroy(sync);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 static void
@@ -373,6 +387,8 @@ TEST(get_release_events_are_emitted_for_different_buffers)
 	zwp_linux_surface_synchronization_v1_destroy(surface_sync);
 	zwp_linux_explicit_synchronization_v1_destroy(sync);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(get_release_events_are_emitted_for_same_buffer_on_surface)
@@ -433,6 +449,8 @@ TEST(get_release_events_are_emitted_for_same_buffer_on_surface)
 	zwp_linux_surface_synchronization_v1_destroy(surface_sync);
 	zwp_linux_explicit_synchronization_v1_destroy(sync);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(get_release_events_are_emitted_for_same_buffer_on_different_surfaces)
@@ -512,4 +530,6 @@ TEST(get_release_events_are_emitted_for_same_buffer_on_different_surfaces)
 	zwp_linux_explicit_synchronization_v1_destroy(sync);
 	surface_destroy(other_surface);
 	client_destroy(client);
+
+	return RESULT_OK;
 }

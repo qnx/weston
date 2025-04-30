@@ -103,6 +103,8 @@ TEST(broken_touch_event)
 	input_timestamps_destroy(input_ts);
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(touch_events)
@@ -127,6 +129,8 @@ TEST(touch_events)
 	input_timestamps_destroy(input_ts);
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(touch_timestamps_stop_after_input_timestamps_object_is_destroyed)
@@ -147,6 +151,8 @@ TEST(touch_timestamps_stop_after_input_timestamps_object_is_destroyed)
 	test_assert_true(timespec_is_zero(&touch->up_time_timespec));
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(touch_timestamps_stop_after_client_releases_wl_touch)
@@ -176,4 +182,6 @@ TEST(touch_timestamps_stop_after_client_releases_wl_touch)
 	free(client->input->touch);
 	client->input->touch = NULL;
 	client_destroy(client);
+
+	return RESULT_OK;
 }

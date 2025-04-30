@@ -82,4 +82,6 @@ TEST(output_decorations)
 	pixman_image_unref(img);
 	buffer_destroy(shot);
 	client_destroy(client);
+
+	return RESULT_OK;
 }

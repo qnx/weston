@@ -1976,4 +1976,6 @@ TEST_P(client_buffer, client_buffer_cases)
 out:
 	pixman_image_unref(img);
 	client_destroy(client);
+
+	return RESULT_OK;
 }

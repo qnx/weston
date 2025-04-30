@@ -80,4 +80,6 @@ iterate_debug_scopes(struct weston_compositor *compositor)
 PLUGIN_TEST(iterate_default_debug_scopes)
 {
        iterate_debug_scopes(compositor);
+
+	return RESULT_OK;
 }

@@ -85,4 +85,6 @@ TEST(strtol_conversions)
 	ret = safe_strtoint(str, &val);
 	test_assert_false(ret);
 	test_assert_s32_eq(val, -1);
+
+	return RESULT_OK;
 }

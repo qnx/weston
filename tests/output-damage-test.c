@@ -235,4 +235,6 @@ TEST(output_damage)
 	client->surface->buffer = NULL;
 	client_destroy(client);
 	free(refname);
+
+	return RESULT_OK;
 }

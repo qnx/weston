@@ -126,4 +126,6 @@ create_outputs(struct weston_compositor *compositor)
 PLUGIN_TEST(real_usecase_one)
 {
        create_outputs(compositor);
+
+	return RESULT_OK;
 }

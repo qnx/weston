@@ -135,6 +135,8 @@ TEST(test_role_conflict_sub_wlshell)
 	wl_subcompositor_destroy(subco);
 	xdg_wm_base_destroy(xdg_wm_base);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_role_conflict_wlshell_sub)
@@ -174,4 +176,6 @@ TEST(test_role_conflict_wlshell_sub)
 	xdg_wm_base_destroy(xdg_wm_base);
 	wl_subcompositor_destroy(subco);
 	client_destroy(client);
+
+	return RESULT_OK;
 }

@@ -153,4 +153,6 @@ TEST(drm_writeback_screenshot) {
 	client_destroy(client);
 
 	test_assert_true(match);
+
+	return RESULT_OK;
 }

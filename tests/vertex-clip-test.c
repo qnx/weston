@@ -704,6 +704,8 @@ TEST_P(quad_clip_expected, quad_clip_expected_data)
 	clipped_n = clipper_quad_clip(&quad, tdata->box, clipped);
 
 	assert_vertices(clipped, clipped_n, tdata->clipped, tdata->clipped_n);
+
+	return RESULT_OK;
 }
 
 /* clipper_quad_clip_box32() tests: */
@@ -757,6 +759,8 @@ TEST_P(quad_clip_box32_expected, quad_clip_box32_expected_data)
 	clipped_n = clipper_quad_clip_box32(&quad, &tdata->box32, clipped);
 
 	assert_vertices(clipped, clipped_n, tdata->clipped, tdata->clipped_n);
+
+	return RESULT_OK;
 }
 
 /* clipper_float_difference() tests: */
@@ -764,9 +768,13 @@ TEST_P(quad_clip_box32_expected, quad_clip_box32_expected_data)
 TEST(float_difference_different)
 {
 	test_assert_f32_eq(clipper_float_difference(1.0f, 0.0f), 1.0f);
+
+	return RESULT_OK;
 }
 
 TEST(float_difference_same)
 {
 	test_assert_f32_eq(clipper_float_difference(1.0f, 1.0f), 0.0f);
+
+	return RESULT_OK;
 }

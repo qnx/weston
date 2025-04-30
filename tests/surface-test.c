@@ -78,4 +78,6 @@ PLUGIN_TEST(surface_transform)
 
 	/* Destroys all views too. */
 	weston_surface_unref(surface);
+
+	return RESULT_OK;
 }

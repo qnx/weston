@@ -71,6 +71,8 @@ TEST(drm_smoke) {
 
 	buffer_destroy(buffer);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(drm_screenshot_no_damage) {
@@ -97,4 +99,6 @@ TEST(drm_screenshot_no_damage) {
 	}
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }

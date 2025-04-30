@@ -110,6 +110,8 @@ TEST(simple_keyboard_test)
 	}
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(keyboard_key_event_time)
@@ -130,6 +132,8 @@ TEST(keyboard_key_event_time)
 	input_timestamps_destroy(input_ts);
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(keyboard_timestamps_stop_after_input_timestamps_object_is_destroyed)
@@ -150,6 +154,8 @@ TEST(keyboard_timestamps_stop_after_input_timestamps_object_is_destroyed)
 	test_assert_true(timespec_is_zero(&keyboard->key_time_timespec));
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(keyboard_timestamps_stop_after_client_releases_wl_keyboard)
@@ -179,4 +185,6 @@ TEST(keyboard_timestamps_stop_after_client_releases_wl_keyboard)
 	free(client->input->keyboard);
 	client->input->keyboard = NULL;
 	client_destroy(client);
+
+	return RESULT_OK;
 }

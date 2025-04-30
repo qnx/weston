@@ -428,6 +428,8 @@ TEST(opaque_pixel_conversion)
 	buffer_destroy(shot);
 	buffer_destroy(buf);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 static struct color_float
@@ -653,6 +655,8 @@ TEST(output_icc_alpha_blend)
 	buffer_destroy(fg);
 	wl_subcompositor_destroy(subco);
 	client_destroy(client); /* destroys bg */
+
+	return RESULT_OK;
 }
 
 /*
@@ -689,4 +693,6 @@ TEST(output_icc_decorations)
 	pixman_image_unref(img);
 	buffer_destroy(shot);
 	client_destroy(client);
+
+	return RESULT_OK;
 }

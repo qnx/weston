@@ -75,6 +75,8 @@ TEST(comment_only)
 	struct weston_config *config = assert_load_config(comment_only_text);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 /** @todo legit tests should have more descriptive names. */
@@ -132,6 +134,8 @@ TEST(legit_test01)
 	test_assert_ptr_null(section);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test02)
@@ -149,6 +153,8 @@ TEST(legit_test02)
 
 	free(s);
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test03)
@@ -166,6 +172,8 @@ TEST(legit_test03)
 	test_assert_ptr_null(s);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test04)
@@ -183,6 +191,8 @@ TEST(legit_test04)
 
 	free(s);
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test05)
@@ -201,6 +211,8 @@ TEST(legit_test05)
 
 	free(s);
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test06)
@@ -218,6 +230,8 @@ TEST(legit_test06)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test07)
@@ -235,6 +249,8 @@ TEST(legit_test07)
 	test_assert_s32_eq(700, n);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test08)
@@ -252,6 +268,8 @@ TEST(legit_test08)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test09)
@@ -269,6 +287,8 @@ TEST(legit_test09)
 	test_assert_u32_eq(600, u);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test10)
@@ -285,6 +305,8 @@ TEST(legit_test10)
 	test_assert_false(b);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test11)
@@ -301,6 +323,8 @@ TEST(legit_test11)
 	test_assert_true(b);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test12)
@@ -318,6 +342,8 @@ TEST(legit_test12)
 	test_assert_false(b);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test13)
@@ -336,6 +362,8 @@ TEST(legit_test13)
 
 	free(s);
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test14)
@@ -354,6 +382,8 @@ TEST(legit_test14)
 
 	free(s);
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test15)
@@ -374,6 +404,8 @@ TEST(legit_test15)
 
 	free(s);
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test16)
@@ -394,6 +426,8 @@ TEST(legit_test16)
 	test_assert_int_eq(6, i);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test17)
@@ -411,6 +445,8 @@ TEST(legit_test17)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test18)
@@ -428,6 +464,8 @@ TEST(legit_test18)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test19)
@@ -445,6 +483,8 @@ TEST(legit_test19)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test20)
@@ -462,6 +502,8 @@ TEST(legit_test20)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test21)
@@ -479,6 +521,8 @@ TEST(legit_test21)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test22)
@@ -497,6 +541,8 @@ TEST(legit_test22)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test23)
@@ -515,6 +561,8 @@ TEST(legit_test23)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test24)
@@ -533,6 +581,8 @@ TEST(legit_test24)
 	test_assert_errno(EINVAL);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test25)
@@ -551,6 +601,8 @@ TEST(legit_test25)
 	test_assert_errno(EINVAL);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test26)
@@ -568,6 +620,8 @@ TEST(legit_test26)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(legit_test27)
@@ -585,6 +639,8 @@ TEST(legit_test27)
 	test_assert_errno(ERANGE);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(get_double_number)
@@ -603,6 +659,8 @@ TEST(get_double_number)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(get_double_missing)
@@ -620,6 +678,8 @@ TEST(get_double_missing)
 	test_assert_errno(ENOENT);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(get_double_zero)
@@ -638,6 +698,8 @@ TEST(get_double_zero)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(get_double_negative)
@@ -656,6 +718,8 @@ TEST(get_double_negative)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(get_double_flag)
@@ -674,6 +738,8 @@ TEST(get_double_flag)
 	test_assert_errno(EINVAL);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(get_double_real)
@@ -692,6 +758,8 @@ TEST(get_double_real)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(get_double_negreal)
@@ -710,6 +778,8 @@ TEST(get_double_negreal)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(get_double_expval)
@@ -728,6 +798,8 @@ TEST(get_double_expval)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(get_double_negexpval)
@@ -746,6 +818,8 @@ TEST(get_double_negexpval)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(get_double_notanumber)
@@ -764,6 +838,8 @@ TEST(get_double_notanumber)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(get_double_empty)
@@ -782,6 +858,8 @@ TEST(get_double_empty)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 TEST(get_double_tiny)
@@ -800,6 +878,8 @@ TEST(get_double_tiny)
 	test_assert_errno(0);
 
 	weston_config_destroy(config);
+
+	return RESULT_OK;
 }
 
 struct doesnt_parse_test { char *text; };
@@ -824,12 +904,16 @@ TEST_P(doesnt_parse, doesnt_parse_test_data)
 	struct doesnt_parse_test *test = (struct doesnt_parse_test *) data;
 	struct weston_config *config = load_config(test->text);
 	test_assert_ptr_null(config);
+
+	return RESULT_OK;
 }
 
 TEST(destroy_null)
 {
 	weston_config_destroy(NULL);
 	test_assert_int_eq(0, weston_config_next_section(NULL, NULL, NULL));
+
+	return RESULT_OK;
 }
 
 TEST(section_from_null)
@@ -837,4 +921,6 @@ TEST(section_from_null)
 	struct weston_config_section *section;
 	section = weston_config_get_section(NULL, "bucket", NULL, NULL);
 	test_assert_ptr_null(section);
+
+	return RESULT_OK;
 }

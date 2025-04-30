@@ -1,5 +1,6 @@
 /*
  * Copyright © 2012 Intel Corporation
+ * Copyright 2025 Collabora, Ltd.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -174,6 +175,7 @@ run_test(struct wet_testsuite_data *suite_data, int fixture_nr,
 	 int iteration)
 {
 	struct weston_test_run_info info;
+	enum test_result_code ret;
 
 	if (data) {
 		snprintf(info.name, sizeof(info.name), "%s-f%02d-e%02d",
@@ -187,10 +189,10 @@ run_test(struct wet_testsuite_data *suite_data, int fixture_nr,
 	weston_assert_counter_reset();
 
 	test_run_info_ = &info;
-	t->run(suite_data, data);
+	ret = t->run(suite_data, data);
 	test_run_info_ = NULL;
 
-	return weston_assert_counter_get() ? RESULT_FAIL: RESULT_OK;
+	return weston_assert_counter_get() ? RESULT_FAIL : ret;
 }
 
 static void

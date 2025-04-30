@@ -111,4 +111,6 @@ TEST(solid_buffer_argb_u32)
 	wp_viewport_destroy(viewport);
 	wp_single_pixel_buffer_manager_v1_destroy(mgr);
 	client_destroy(client);
+
+	return RESULT_OK;
 }

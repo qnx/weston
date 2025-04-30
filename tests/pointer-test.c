@@ -162,6 +162,8 @@ TEST(test_pointer_top_left)
 	check_pointer_move(client, x, y);
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_pointer_bottom_left)
@@ -189,6 +191,8 @@ TEST(test_pointer_bottom_left)
 	check_pointer_move(client, x, y);
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_pointer_top_right)
@@ -216,6 +220,8 @@ TEST(test_pointer_top_right)
 	check_pointer_move(client, x, y);
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_pointer_bottom_right)
@@ -243,6 +249,8 @@ TEST(test_pointer_bottom_right)
 	check_pointer_move(client, x, y);
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_pointer_top_center)
@@ -270,6 +278,8 @@ TEST(test_pointer_top_center)
 	check_pointer_move(client, x, y);
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_pointer_bottom_center)
@@ -297,6 +307,8 @@ TEST(test_pointer_bottom_center)
 	check_pointer_move(client, x, y);
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_pointer_left_center)
@@ -324,6 +336,8 @@ TEST(test_pointer_left_center)
 	check_pointer_move(client, x, y);
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_pointer_right_center)
@@ -351,6 +365,8 @@ TEST(test_pointer_right_center)
 	check_pointer_move(client, x, y);
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(test_pointer_surface_move)
@@ -370,6 +386,8 @@ TEST(test_pointer_surface_move)
 	check_pointer(client, 50, 50);
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(pointer_motion_events)
@@ -389,6 +407,8 @@ TEST(pointer_motion_events)
 	input_timestamps_destroy(input_ts);
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(pointer_button_events)
@@ -417,6 +437,8 @@ TEST(pointer_button_events)
 	input_timestamps_destroy(input_ts);
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(pointer_axis_events)
@@ -441,6 +463,8 @@ TEST(pointer_axis_events)
 	input_timestamps_destroy(input_ts);
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(pointer_timestamps_stop_after_input_timestamps_object_is_destroyed)
@@ -466,6 +490,8 @@ TEST(pointer_timestamps_stop_after_input_timestamps_object_is_destroyed)
 	test_assert_true(timespec_is_zero(&pointer->button_time_timespec));
 
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(pointer_timestamps_stop_after_client_releases_wl_pointer)
@@ -498,4 +524,6 @@ TEST(pointer_timestamps_stop_after_client_releases_wl_pointer)
 	free(client->input->pointer);
 	client->input->pointer = NULL;
 	client_destroy(client);
+
+	return RESULT_OK;
 }

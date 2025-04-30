@@ -241,6 +241,8 @@ TEST_P(color_characteristics_config_error, config_cases)
 	free(logbuf);
 	weston_output_release(&mock_output);
 	weston_idalloc_destroy(mock_compositor.color_profile_id_generator);
+
+	return RESULT_OK;
 }
 
 /* Setting NULL resets group_mask */
@@ -268,6 +270,8 @@ TEST(weston_output_set_color_characteristics_null)
 
 	weston_output_release(&mock_output);
 	weston_idalloc_destroy(mock_compositor.color_profile_id_generator);
+
+	return RESULT_OK;
 }
 
 struct value_testcase {
@@ -355,6 +359,8 @@ TEST_P(hdr_metadata_type1_errors, value_cases)
 	weston_output_color_outcome_destroy(&mock_output.color_outcome);
 	weston_output_release(&mock_output);
 	weston_idalloc_destroy(mock_compositor.color_profile_id_generator);
+
+	return RESULT_OK;
 }
 
 /* Unflagged members are ignored in validity check */
@@ -398,6 +404,8 @@ TEST(hdr_metadata_type1_ignore_unflagged)
 	weston_output_color_outcome_destroy(&mock_output.color_outcome);
 	weston_output_release(&mock_output);
 	weston_idalloc_destroy(mock_compositor.color_profile_id_generator);
+
+	return RESULT_OK;
 }
 
 struct mode_testcase {
@@ -663,4 +671,6 @@ TEST_P(mode_config_error, mode_config_cases)
 	weston_output_release(&mock_output);
 	weston_head_release(&mock_head);
 	weston_idalloc_destroy(mock_compositor.color_profile_id_generator);
+
+	return RESULT_OK;
 }

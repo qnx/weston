@@ -749,6 +749,8 @@ TEST(smoke_test)
 
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 static void
@@ -808,6 +810,8 @@ TEST(output_get_image_description)
 	image_descr_info_destroy(image_descr_info);
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(surface_get_preferred_image_description)
@@ -831,6 +835,8 @@ TEST(surface_get_preferred_image_description)
 	image_descr_info_destroy(image_descr_info);
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(create_image_description_before_setting_icc_file)
@@ -859,6 +865,8 @@ TEST(create_image_description_before_setting_icc_file)
 	wp_image_description_v1_destroy(image_desc);
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_unreadable_icc_fd)
@@ -891,6 +899,8 @@ TEST(set_unreadable_icc_fd)
 	wp_image_description_creator_icc_v1_destroy(image_descr_creator_icc);
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_bad_icc_size_zero)
@@ -919,6 +929,8 @@ TEST(set_bad_icc_size_zero)
 	wp_image_description_creator_icc_v1_destroy(image_descr_creator_icc);
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_bad_icc_non_seekable)
@@ -949,6 +961,8 @@ TEST(set_bad_icc_non_seekable)
 	wp_image_description_creator_icc_v1_destroy(image_descr_creator_icc);
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_icc_twice)
@@ -983,6 +997,8 @@ TEST(set_icc_twice)
 	wp_image_description_creator_icc_v1_destroy(image_descr_creator_icc);
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(create_icc_image_description_no_info)
@@ -1013,6 +1029,8 @@ TEST(create_icc_image_description_no_info)
 	image_descr_info_destroy(image_descr_info);
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 TEST(set_surface_image_description)
@@ -1041,4 +1059,6 @@ TEST(set_surface_image_description)
 
 	color_manager_fini(&cm);
 	client_destroy(client);
+
+	return RESULT_OK;
 }

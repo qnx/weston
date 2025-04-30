@@ -231,6 +231,8 @@ TEST(simple_shot)
 	capturer_destroy(capt);
 	buffer_destroy(buf);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 /*
@@ -271,6 +273,8 @@ TEST(retry_on_wrong_format)
 	capturer_destroy(capt);
 	buffer_destroy(buf);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 /*
@@ -307,6 +311,8 @@ TEST(retry_on_wrong_size)
 	capturer_destroy(capt);
 	buffer_destroy(buf);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
 
 /*
@@ -341,4 +347,6 @@ TEST(writeback_on_headless_fails)
 	capturer_destroy(capt);
 	buffer_destroy(buf);
 	client_destroy(client);
+
+	return RESULT_OK;
 }
