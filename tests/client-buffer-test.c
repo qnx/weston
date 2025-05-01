@@ -55,22 +55,36 @@ get_aligned_stride(size_t width_bytes)
  * per component renderbuffer so that we can ensure the additional precision is
  * correctly handled. */
 
+struct setup_args {
+	struct fixture_metadata meta;
+	enum weston_renderer_type renderer;
+	const char *logging_scopes;
+};
+
+static const struct setup_args my_setup_args[] = {
+	{
+		.meta.name = "GL",
+		.renderer = WESTON_RENDERER_GL,
+		.logging_scopes = "log,gl-shader-generator",
+	},
+};
+
 static enum test_result_code
-fixture_setup(struct weston_test_harness *harness)
+fixture_setup(struct weston_test_harness *harness, const struct setup_args *arg)
 {
 	struct compositor_setup setup;
 
 	compositor_setup_defaults(&setup);
-	setup.renderer = WESTON_RENDERER_GL;
+	setup.renderer = arg->renderer;
 	setup.width = 324;
 	setup.height = 264;
 	setup.shell = SHELL_TEST_DESKTOP;
-	setup.logging_scopes = "log,gl-shader-generator";
+	setup.logging_scopes = arg->logging_scopes;
 	setup.refresh = HIGHEST_OUTPUT_REFRESH;
 
 	return weston_test_harness_execute_as_client(harness, &setup);
 }
-DECLARE_FIXTURE_SETUP(fixture_setup);
+DECLARE_FIXTURE_SETUP_WITH_ARG(fixture_setup, my_setup_args, meta);
 
 enum buffer_type {
 	BUFFER_TYPE_SHM = 1,
