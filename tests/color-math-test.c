@@ -356,3 +356,21 @@ TEST_P(npm, npm_test_cases)
 
 	return RESULT_OK;
 }
+
+/* https://www.color.org/chadtag.xalter */
+TEST(bradform_adaptation_D65_D50)
+{
+	const struct weston_CIExy D65 = { 0.3127, 0.3290 };
+	const struct weston_CIExy D50 = { 0.3457, 0.3585 };
+	const struct weston_mat3f ref = WESTON_MAT3F(
+		1.04790738171017, 0.0229333845542104, -0.0502016347980104,
+		0.0296059594177168, 0.990456039910785, -0.01707552919587,
+		-0.00924679432678241, 0.0150626801401488, 0.751791232609078
+	);
+	struct weston_mat3f M;
+
+	M = weston_bradford_adaptation(D65, D50);
+	test_assert_f32_ge(diff_precision(M, ref), 13);
+
+	return RESULT_OK;
+}

@@ -152,6 +152,9 @@ weston_normalized_primary_matrix_init(struct weston_mat3f *npm,
 				      const struct weston_color_gamut *gamut,
 				      enum weston_npm_direction dir);
 
+struct weston_mat3f
+weston_bradford_adaptation(struct weston_CIExy from, struct weston_CIExy to);
+
 /** Color primaries known by libweston */
 enum weston_color_primaries {
 	WESTON_PRIMARIES_CICP_SRGB = 0,

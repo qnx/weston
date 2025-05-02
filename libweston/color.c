@@ -1038,3 +1038,35 @@ weston_normalized_primary_matrix_init(struct weston_mat3f *npm,
 
 	return true;
 }
+
+/** Compute linearized Bradford transformation
+ *
+ * \param from Source adapted white point.
+ * \param to Destination adapted white point.
+ * \return Full adaptation matrix.
+ *
+ * Based on ICC.1:2022 (ICC v4.4), annex E.
+ */
+WL_EXPORT struct weston_mat3f
+weston_bradford_adaptation(struct weston_CIExy from, struct weston_CIExy to)
+{
+	static const struct weston_mat3f bradford = WESTON_MAT3F(
+		 0.8951,  0.2664, -0.1614,
+		-0.7502,  1.7135,  0.0367,
+		 0.0389, -0.0685,  1.0296
+	);
+	struct weston_mat3f inv;
+	struct weston_vec3f from_cr;
+	struct weston_vec3f to_cr;
+	struct weston_vec3f r;
+	struct weston_mat3f tmp;
+
+	weston_m3f_invert(&inv, bradford);
+	from_cr = weston_m3f_mul_v3f(bradford, CIExy_to_XYZ(from));
+	to_cr = weston_m3f_mul_v3f(bradford, CIExy_to_XYZ(to));
+	r = WESTON_VEC3F(to_cr.x / from_cr.x,
+			 to_cr.y / from_cr.y,
+			 to_cr.z / from_cr.z);
+	tmp = weston_m3f_mul_m3f(weston_m3f_diag(r), bradford);
+	return weston_m3f_mul_m3f(inv, tmp);
+}
