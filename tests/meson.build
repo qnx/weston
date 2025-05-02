@@ -30,6 +30,7 @@ lib_test_client = static_library(
 	[
 		'weston-test-client-helper.c',
 		'weston-test-fixture-compositor.c',
+                'xdg-client-helper.c',
 		linux_dmabuf_unstable_v1_client_protocol_h,
 		linux_dmabuf_unstable_v1_protocol_c,
 		weston_test_client_protocol_h,
