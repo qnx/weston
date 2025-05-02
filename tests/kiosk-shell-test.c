@@ -68,56 +68,6 @@ DECLARE_LIST_ITERATOR(pnode_from_z, struct weston_output, paint_node_z_order_lis
 DECLARE_LIST_ITERATOR(view_from_surface, struct weston_surface, views,
 		      struct weston_view, link);
 
-static void assert_resource_is_proxy(struct wet_testsuite_data *suite_data,
-				     struct wl_resource *r, void *p)
-{
-	test_assert_ptr_not_null(r);
-	test_assert_ptr_eq(wl_resource_get_client(r), suite_data->wl_client);
-	test_assert_u32_eq(wl_resource_get_id(r),
-			   wl_proxy_get_id((struct wl_proxy *) p));
-}
-
-static void assert_surface_matches(struct wet_testsuite_data *suite_data,
-				   struct weston_surface *s, struct surface *c)
-{
-	test_assert_ptr_not_null(s);
-	test_assert_ptr_not_null(c);
-
-	assert_resource_is_proxy(suite_data, s->resource, c->wl_surface);
-	test_assert_s32_eq(s->width, c->width);
-	test_assert_s32_eq(s->height, c->height);
-
-	test_assert_ptr_not_null(s->buffer_ref.buffer);
-	test_assert_ptr_not_null(c->buffer);
-	assert_resource_is_proxy(suite_data, s->buffer_ref.buffer->resource,
-				 c->buffer->proxy);
-}
-
-static void assert_output_matches(struct wet_testsuite_data *suite_data,
-				  struct weston_output *s, struct output *c)
-{
-	struct weston_head *head;
-	bool found_client_resource = false;
-
-	test_assert_ptr_not_null(s);
-	test_assert_ptr_not_null(c);
-
-	wl_list_for_each(head, &s->head_list, output_link) {
-		struct wl_resource *res;
-		wl_resource_for_each(res, &head->resource_list) {
-			if (wl_resource_get_client(res) == suite_data->wl_client &&
-			    wl_resource_get_id(res) ==
-			     wl_proxy_get_id((struct wl_proxy *) c->wl_output)) {
-				found_client_resource = true;
-				break;
-			}
-		}
-	}
-	test_assert_true(found_client_resource);
-
-	test_assert_s32_eq(s->width, c->width);
-	test_assert_s32_eq(s->height, c->height);
-}
 
 static void
 assert_surface_is_background(struct wet_testsuite_data *suite_data,

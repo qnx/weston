@@ -383,5 +383,14 @@ client_release_breakpoint(struct client *client,
 void *
 get_resource_data_from_proxy(struct wet_testsuite_data *suite_data,
 			     struct wl_proxy *proxy);
+void
+assert_resource_is_proxy(struct wet_testsuite_data *suite_data,
+			 struct wl_resource *r, void *p);
+void
+assert_output_matches(struct wet_testsuite_data *suite_data,
+		      struct weston_output *s, struct output *c);
+void
+assert_surface_matches(struct wet_testsuite_data *suite_data,
+		       struct weston_surface *s, struct surface *c);
 
 #endif
