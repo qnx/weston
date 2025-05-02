@@ -2335,7 +2335,7 @@ client_wait_breakpoint(struct client *client,
 	return active_bp;
 }
 
-static void *
+void *
 get_resource_data_from_proxy(struct wet_testsuite_data *suite_data,
 			     struct wl_proxy *proxy)
 {

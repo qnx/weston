@@ -119,20 +119,6 @@ static void assert_output_matches(struct wet_testsuite_data *suite_data,
 	test_assert_s32_eq(s->height, c->height);
 }
 
-static void *
-get_server_res_from_proxy(struct wet_testsuite_data *suite_data,
-			  void *p)
-{
-	uint32_t id = wl_proxy_get_id((struct wl_proxy *) p);
-	struct wl_resource *res;
-
-	test_assert_ptr_not_null(p);
-	test_assert_u32_gt(id, 0);
-	res = wl_client_get_object(suite_data->wl_client, id);
-	test_assert_ptr_not_null(res);
-	return wl_resource_get_user_data(res);
-}
-
 static void
 assert_surface_is_background(struct wet_testsuite_data *suite_data,
 			     struct weston_surface *surface)
@@ -445,8 +431,8 @@ TEST(test_surface_unmaps_on_null)
 
 		/* Check that kiosk-shell's view of our surface has been
 		 * unmapped, and that there aren't any more views. */
-		surface = get_server_res_from_proxy(suite_data,
-						    xdg_surface->surface->wl_surface);
+		surface = get_resource_data_from_proxy(suite_data,
+						      (struct wl_proxy *) xdg_surface->surface->wl_surface);
 		test_assert_false(weston_surface_is_mapped(surface));
 		test_assert_ptr_null(surface->buffer_ref.buffer);
 		test_assert_ptr_null(surface->output);

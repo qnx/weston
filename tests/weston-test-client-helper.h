@@ -380,5 +380,8 @@ void
 client_release_breakpoint(struct client *client,
 			  struct wet_testsuite_data *suite_data,
 			  struct wet_test_active_breakpoint *active_bp);
+void *
+get_resource_data_from_proxy(struct wet_testsuite_data *suite_data,
+			     struct wl_proxy *proxy);
 
 #endif
