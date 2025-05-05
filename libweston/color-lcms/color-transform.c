@@ -1257,6 +1257,53 @@ lcms_xform_error_logger(cmsContext context_id,
 }
 
 static bool
+xform_realize_icc_chain(struct cmlcms_color_transform *xform,
+			struct lcmsProfilePtr *chain,
+			size_t chain_len,
+			const struct weston_render_intent_info *render_intent)
+{
+	struct weston_color_manager_lcms *cm = to_cmlcms(xform->base.cm);
+	cmsUInt32Number dwFlags;
+
+	weston_assert_ptr_not_null(cm->base.compositor, render_intent);
+
+	/**
+	 * Binding to our LittleCMS plug-in occurs here.
+	 * If you want to disable the plug-in while debugging,
+	 * replace &transform_plugin with NULL.
+	 */
+	xform->lcms_ctx = cmsCreateContext(&transform_plugin, xform);
+	abort_oom_if_null(xform->lcms_ctx);
+	cmsSetLogErrorHandlerTHR(xform->lcms_ctx, lcms_xform_error_logger);
+
+	weston_assert_ptr_null(cm->base.compositor, xform->cmap_3dlut);
+	/* transform_factory() is invoked by this call. */
+	dwFlags = render_intent->bps ? cmsFLAGS_BLACKPOINTCOMPENSATION : 0;
+	xform->cmap_3dlut = cmsCreateMultiprofileTransformTHR(xform->lcms_ctx,
+							      from_lcmsProfilePtr_array(chain),
+							      chain_len,
+							      TYPE_RGB_FLT,
+							      TYPE_RGB_FLT,
+							      render_intent->lcms_intent,
+							      dwFlags);
+
+	if (!xform->cmap_3dlut)
+		goto failed;
+
+	/* Blend-to-output should always have valid steps. */
+	if (xform->search_key.category == CMLCMS_CATEGORY_BLEND_TO_OUTPUT)
+		weston_assert_true(cm->base.compositor, xform->base.steps_valid);
+
+	return true;
+
+failed:
+	cmsDeleteContext(xform->lcms_ctx);
+	xform->lcms_ctx = NULL;
+
+	return false;
+}
+
+static bool
 init_icc_to_icc_chain(struct cmlcms_color_transform *xform)
 {
 	struct weston_color_manager_lcms *cm = to_cmlcms(xform->base.cm);
@@ -1264,8 +1311,6 @@ init_icc_to_icc_chain(struct cmlcms_color_transform *xform)
 	const struct weston_render_intent_info *render_intent;
 	struct lcmsProfilePtr chain[5];
 	unsigned chain_len = 0;
-	struct lcmsProfilePtr extra = { NULL };
-	cmsUInt32Number dwFlags;
 
 	weston_assert_uint32_eq(cm->base.compositor, output_profile->type, CMLCMS_PROFILE_TYPE_ICC);
 	if (xform->search_key.input_profile) {
@@ -1309,43 +1354,8 @@ init_icc_to_icc_chain(struct cmlcms_color_transform *xform)
 	}
 
 	assert(chain_len <= ARRAY_LENGTH(chain));
-	weston_assert_ptr_not_null(cm->base.compositor, render_intent);
 
-	/**
-	 * Binding to our LittleCMS plug-in occurs here.
-	 * If you want to disable the plug-in while debugging,
-	 * replace &transform_plugin with NULL.
-	 */
-	xform->lcms_ctx = cmsCreateContext(&transform_plugin, xform);
-	abort_oom_if_null(xform->lcms_ctx);
-	cmsSetLogErrorHandlerTHR(xform->lcms_ctx, lcms_xform_error_logger);
-
-	weston_assert_ptr_null(cm->base.compositor, xform->cmap_3dlut);
-	/* transform_factory() is invoked by this call. */
-	dwFlags = render_intent->bps ? cmsFLAGS_BLACKPOINTCOMPENSATION : 0;
-	xform->cmap_3dlut = cmsCreateMultiprofileTransformTHR(xform->lcms_ctx,
-							      from_lcmsProfilePtr_array(chain),
-							      chain_len,
-							      TYPE_RGB_FLT,
-							      TYPE_RGB_FLT,
-							      render_intent->lcms_intent,
-							      dwFlags);
-	cmsCloseProfile(extra.p);
-
-	if (!xform->cmap_3dlut)
-		goto failed;
-
-	/* Blend-to-output should always have valid steps. */
-	if (xform->search_key.category == CMLCMS_CATEGORY_BLEND_TO_OUTPUT)
-		weston_assert_true(cm->base.compositor, xform->base.steps_valid);
-
-	return true;
-
-failed:
-	cmsDeleteContext(xform->lcms_ctx);
-	xform->lcms_ctx = NULL;
-
-	return false;
+	return xform_realize_icc_chain(xform, chain, chain_len, render_intent);
 }
 
 static void
