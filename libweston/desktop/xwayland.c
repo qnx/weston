@@ -471,7 +471,23 @@ static void
 get_position(struct weston_desktop_xwayland_surface *surface,
 	     int32_t *x, int32_t *y)
 {
-	if (!surface->surface) {
+	if (surface->state == XWAYLAND) {
+		struct weston_coord_global pos;
+		struct weston_geometry geom;
+
+		if (surface->has_next_geometry)
+			geom = surface->next_geometry;
+		else
+			geom = weston_desktop_surface_get_geometry(surface->surface);
+
+		pos = weston_view_get_pos_offset_global(surface->view);
+		*x = (int)pos.c.x + geom.x;
+		*y = (int)pos.c.y + geom.y;
+		return;
+	}
+
+	if (!surface->surface ||
+	    !weston_desktop_surface_get_user_data(surface->surface)) {
 		*x = 0;
 		*y = 0;
 		return;
