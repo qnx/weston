@@ -1701,6 +1701,166 @@ init_parametric_to_parametric(struct cmlcms_color_transform *xform)
 	return true;
 }
 
+static cmsCIExyY
+lcms_xyY_from(struct weston_CIExy p)
+{
+	return (cmsCIExyY){ p.x, p.y, 1.0f };
+}
+
+/** Create LittleCMS profile for an optical space
+ *
+ * \param cm The color manager, for the LittleCMS context.
+ * \param gm The primaries and the white point.
+ * \param rel_black_level The relative black level, when white maximum
+ * luminance is 1.0.
+ *
+ * \return A LittleCMS RGB Display profile where the transfer characteristic
+ * is linear from rel_black_level to 1.0.
+ */
+static struct lcmsProfilePtr
+optical_profile(struct weston_color_manager_lcms *cm,
+		const struct weston_color_gamut *gm,
+		float rel_black_level)
+{
+	cmsCIExyY wp = lcms_xyY_from(gm->white_point);
+	cmsCIExyYTRIPLE prim = {
+		lcms_xyY_from(gm->primary[0]),
+		lcms_xyY_from(gm->primary[1]),
+		lcms_xyY_from(gm->primary[2])
+	};
+	cmsHPROFILE hnd;
+	cmsToneCurve *trc[3];
+	cmsFloat32Number points[2] = { rel_black_level, 1.0f };
+
+	trc[2] = trc[1] = trc[0] =
+		cmsBuildTabulatedToneCurveFloat(cm->lcms_ctx, 2, points);
+	abort_oom_if_null(trc[0]);
+
+	hnd = cmsCreateRGBProfileTHR(cm->lcms_ctx, &wp, &prim, trc);
+	weston_assert_ptr_not_null(cm->base.compositor, hnd);
+
+	cmsFreeToneCurve(trc[0]);
+	return (struct lcmsProfilePtr){ hnd };
+}
+
+enum matrix_order {
+	/** Add new matrix to the right of the existing matrix. */
+	MATRIX_PREPEND,
+	/** Add new matrix to the left of the existing matrix. */
+	MATRIX_APPEND,
+};
+
+static void
+patch_color_mapping_matrix(struct weston_color_mapping *mapping,
+			   struct weston_mat4f M, enum matrix_order order)
+{
+	struct weston_mat4f cmap;
+	struct weston_color_mapping_matrix *mapmat = NULL;
+
+	switch (mapping->type) {
+	case WESTON_COLOR_MAPPING_TYPE_IDENTITY:
+		weston_color_mapping_set_from_m4f(mapping, M);
+		return;
+	case WESTON_COLOR_MAPPING_TYPE_MATRIX:
+		mapmat = &mapping->u.mat;
+		break;
+	}
+
+	cmap = weston_m4f_from_m3f_v3f(mapmat->matrix, mapmat->offset);
+	switch (order) {
+	case MATRIX_PREPEND:
+		cmap = weston_m4f_mul_m4f(cmap, M);
+		break;
+	case MATRIX_APPEND:
+		cmap = weston_m4f_mul_m4f(M, cmap);
+		break;
+	}
+
+	weston_color_mapping_set_from_m4f(mapping, cmap);
+}
+
+static bool
+init_icc_to_parametric(struct cmlcms_color_transform *xform)
+{
+	struct weston_color_manager_lcms *cm = to_cmlcms(xform->base.cm);
+	struct cmlcms_color_profile *in_prof = xform->search_key.input_profile;
+	struct cmlcms_color_profile *out_prof = xform->search_key.output_profile;
+	const struct weston_color_profile_params *out = out_prof->params;
+	const struct weston_render_intent_info *render_intent;
+	struct color_transform_steps_mask allowed = {
+		STEP_PRE_CURVE | STEP_MAPPING
+	};
+	struct lcmsProfilePtr chain[2];
+	cmsHTRANSFORM icc_chain;
+	struct weston_mat4f M;
+	float v;
+
+	weston_assert_u32_eq(cm->base.compositor, in_prof->type, CMLCMS_PROFILE_TYPE_ICC);
+	weston_assert_u32_eq(cm->base.compositor, out_prof->type, CMLCMS_PROFILE_TYPE_PARAMS);
+
+	render_intent = xform->search_key.render_intent;
+
+	/*
+	 * The ICC chain converts input device RGB to optical output RGB
+	 * with relative luminance. The input reference luminance
+	 * is 1.0, and implicitly it is also the input peak luminance.
+	 * The TRC adds target_min_luminance as necessary, meaning that
+	 * optical output RGB 0,0,0 corresponds to target_min_luminance.
+	 * Optical output RGB 1,1,1 corresponds to reference white luminance.
+	 */
+	chain[0] = in_prof->icc.profile;
+	chain[1] = optical_profile(cm, &out->primaries,
+				   out->target_min_luminance / out->reference_white_luminance);
+
+	icc_chain = xform_realize_icc_chain(xform, chain, 2, render_intent, allowed);
+	cmsCloseProfile(chain[1].p);
+	if (!icc_chain)
+		return false;
+
+	/* Map [0, 1] to output [target_min, reference]. */
+	v = out->reference_white_luminance - out->target_min_luminance;
+	M = weston_m4f_scaling(v, v, v);
+	v = out->target_min_luminance; /* applied below */
+
+	/* Convert cd/m² to output [0, 1]. */
+	v -= out->min_luminance;
+	M = weston_m4f_mul_m4f(weston_m4f_translation(v, v, v), M);
+	v = 1.0f / (out->max_luminance - out->min_luminance);
+	M = weston_m4f_mul_m4f(weston_m4f_scaling(v, v, v), M);
+
+	/* TODO: Dynamic range adjustment */
+
+	if (xform->base.steps_valid) {
+		weston_assert_u32_eq(cm->base.compositor,
+				     xform->base.post_curve.type,
+				     WESTON_COLOR_CURVE_TYPE_IDENTITY);
+
+		patch_color_mapping_matrix(&xform->base.mapping, M, MATRIX_APPEND);
+
+		if (xform->search_key.category == CMLCMS_CATEGORY_INPUT_TO_OUTPUT) {
+			weston_color_curve_set_from_params(&xform->base.post_curve,
+							   out, WESTON_INVERSE_TF);
+		}
+	}
+
+	xform->transformer.icc_chain = icc_chain;
+	xform->transformer.element_mask = CMLCMS_TRANSFORMER_ICC_CHAIN;
+
+	if (!matrix_is_identity(M, MATRIX_PRECISION_BITS)) {
+		xform->transformer.lin2.matrix = weston_m3f_from_m4f_xyz(M);
+		xform->transformer.lin2.offset = weston_v3f_from_v4f_xyz(M.col[3]);
+		xform->transformer.element_mask |= CMLCMS_TRANSFORMER_LIN2;
+	}
+
+	if (xform->search_key.category == CMLCMS_CATEGORY_INPUT_TO_OUTPUT) {
+		weston_color_curve_set_from_params(&xform->transformer.curve2,
+						   out, WESTON_INVERSE_TF);
+		xform->transformer.element_mask |= CMLCMS_TRANSFORMER_CURVE2;
+	}
+
+	return true;
+}
+
 enum cmlcms_color_transform_type {
 	CMLCMS_BLEND_TO_ICC   = 0x0,
 	CMLCMS_BLEND_TO_PARAM = 0x1,
@@ -2049,6 +2209,7 @@ cmlcms_color_transform_create(struct weston_color_manager_lcms *cm,
 		ret = init_icc_to_icc_chain(xform);
 		break;
 	case CMLCMS_ICC_TO_PARAM:
+		ret = init_icc_to_parametric(xform);
 		break;
 	case CMLCMS_PARAM_TO_ICC:
 		break;
