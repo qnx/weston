@@ -1307,7 +1307,8 @@ static bool
 init_icc_to_icc_chain(struct cmlcms_color_transform *xform)
 {
 	struct weston_color_manager_lcms *cm = to_cmlcms(xform->base.cm);
-	struct cmlcms_color_profile *output_profile = xform->search_key.output_profile;
+	struct cmlcms_color_profile *in_prof = xform->search_key.input_profile;
+	struct cmlcms_color_profile *out_prof = xform->search_key.output_profile;
 	const struct weston_render_intent_info *render_intent;
 	struct color_transform_steps_mask allowed = {
 		STEP_PRE_CURVE | STEP_MAPPING | STEP_POST_CURVE
@@ -1315,9 +1316,9 @@ init_icc_to_icc_chain(struct cmlcms_color_transform *xform)
 	struct lcmsProfilePtr chain[5];
 	unsigned chain_len = 0;
 
-	weston_assert_uint32_eq(cm->base.compositor, output_profile->type, CMLCMS_PROFILE_TYPE_ICC);
-	if (xform->search_key.input_profile) {
-		weston_assert_uint32_eq(cm->base.compositor, xform->search_key.input_profile->type,
+	weston_assert_uint32_eq(cm->base.compositor, out_prof->type, CMLCMS_PROFILE_TYPE_ICC);
+	if (in_prof) {
+		weston_assert_uint32_eq(cm->base.compositor, in_prof->type,
 					CMLCMS_PROFILE_TYPE_ICC);
 	}
 
@@ -1335,24 +1336,24 @@ init_icc_to_icc_chain(struct cmlcms_color_transform *xform)
 
 	switch (xform->search_key.category) {
 	case CMLCMS_CATEGORY_INPUT_TO_BLEND:
-		chain[chain_len++] = xform->search_key.input_profile->icc.profile;
-		chain[chain_len++] = output_profile->icc.profile;
-		chain[chain_len++] = output_profile->extract.eotf;
+		chain[chain_len++] = in_prof->icc.profile;
+		chain[chain_len++] = out_prof->icc.profile;
+		chain[chain_len++] = out_prof->extract.eotf;
 		break;
 	case CMLCMS_CATEGORY_BLEND_TO_OUTPUT:
-		chain[chain_len++] = output_profile->extract.inv_eotf;
-		if (output_profile->extract.vcgt.p)
-			chain[chain_len++] = output_profile->extract.vcgt;
+		chain[chain_len++] = out_prof->extract.inv_eotf;
+		if (out_prof->extract.vcgt.p)
+			chain[chain_len++] = out_prof->extract.vcgt;
 
 		/* Render intent does not apply here, but need to set something. */
 		render_intent = weston_render_intent_info_from(cm->base.compositor,
 							       WESTON_RENDER_INTENT_ABSOLUTE);
 		break;
 	case CMLCMS_CATEGORY_INPUT_TO_OUTPUT:
-		chain[chain_len++] = xform->search_key.input_profile->icc.profile;
-		chain[chain_len++] = output_profile->icc.profile;
-		if (output_profile->extract.vcgt.p)
-			chain[chain_len++] = output_profile->extract.vcgt;
+		chain[chain_len++] = in_prof->icc.profile;
+		chain[chain_len++] = out_prof->icc.profile;
+		if (out_prof->extract.vcgt.p)
+			chain[chain_len++] = out_prof->extract.vcgt;
 		break;
 	}
 
