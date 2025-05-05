@@ -1257,7 +1257,7 @@ lcms_xform_error_logger(cmsContext context_id,
 }
 
 static bool
-xform_realize_chain(struct cmlcms_color_transform *xform)
+init_icc_to_icc_chain(struct cmlcms_color_transform *xform)
 {
 	struct weston_color_manager_lcms *cm = to_cmlcms(xform->base.cm);
 	struct cmlcms_color_profile *output_profile = xform->search_key.output_profile;
@@ -1882,13 +1882,13 @@ cmlcms_color_transform_create(struct weston_color_manager_lcms *cm,
 
 	switch (get_transform_type(xform)) {
 	case CMLCMS_BLEND_TO_ICC:
-		ret = xform_realize_chain(xform);
+		ret = init_icc_to_icc_chain(xform);
 		break;
 	case CMLCMS_BLEND_TO_PARAM:
 		ret = init_blend_to_parametric(xform);
 		break;
 	case CMLCMS_ICC_TO_ICC:
-		ret = xform_realize_chain(xform);
+		ret = init_icc_to_icc_chain(xform);
 		break;
 	case CMLCMS_ICC_TO_PARAM:
 		break;
