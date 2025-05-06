@@ -1093,6 +1093,19 @@ vnc_output_assign_planes(struct weston_output *base)
 		vnc_output_assign_cursor_plane(output);
 }
 
+static void
+vnc_set_dpms(struct weston_output *base, enum dpms_enum level)
+{
+	struct vnc_output *output = to_vnc_output(base);
+
+	if (level == WESTON_DPMS_ON)
+		weston_output_schedule_repaint(base);
+	else if (output->base.repaint_status == REPAINT_AWAITING_COMPLETION) {
+		wl_event_source_timer_update(output->finish_frame_timer, 0);
+		weston_output_schedule_repaint_reset(base);
+	}
+}
+
 static int
 vnc_switch_mode(struct weston_output *base, struct weston_mode *target_mode)
 {
@@ -1145,7 +1158,7 @@ vnc_output_set_size(struct weston_output *base, int width, int height,
 	output->base.repaint = vnc_output_repaint;
 	output->base.assign_planes = vnc_output_assign_planes;
 	output->base.set_backlight = NULL;
-	output->base.set_dpms = NULL;
+	output->base.set_dpms = vnc_set_dpms;
 	output->base.switch_mode = vnc_switch_mode;
 
 	output->resizeable = resizeable;
