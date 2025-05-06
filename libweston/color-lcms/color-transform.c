@@ -1861,6 +1861,101 @@ init_icc_to_parametric(struct cmlcms_color_transform *xform)
 	return true;
 }
 
+static bool
+init_parametric_to_icc(struct cmlcms_color_transform *xform)
+{
+	struct weston_color_manager_lcms *cm = to_cmlcms(xform->base.cm);
+	struct cmlcms_color_profile *in_prof = xform->search_key.input_profile;
+	struct cmlcms_color_profile *out_prof = xform->search_key.output_profile;
+	const struct weston_color_profile_params *in = in_prof->params;
+	const struct weston_render_intent_info *render_intent;
+	struct color_transform_steps_mask allowed = {
+		STEP_MAPPING | STEP_POST_CURVE
+	};
+	struct lcmsProfilePtr optical_prof;
+	struct lcmsProfilePtr chain[5];
+	cmsHTRANSFORM icc_chain;
+	unsigned chain_len = 0;
+	struct weston_mat4f M;
+	float v;
+
+	weston_assert_u32_eq(cm->base.compositor, in_prof->type, CMLCMS_PROFILE_TYPE_PARAMS);
+	weston_assert_u32_eq(cm->base.compositor, out_prof->type, CMLCMS_PROFILE_TYPE_ICC);
+
+	render_intent = xform->search_key.render_intent;
+
+	/*
+	 * Pre-curve shall have EOTF to convert electrical device RGB to
+	 * min-max relative optical device RGB.
+	 */
+
+	/* TODO: Dynamic range adjustment */
+
+	/* Convert input [0, 1] to cd/m² */
+	v = in->max_luminance - in->min_luminance;
+	M = weston_m4f_scaling(v, v, v);
+	v = in->min_luminance; /* applied below */
+
+	/* Map input [target_min_luminance, reference] to [0, 1] */
+	v -= in->target_min_luminance;
+	M = weston_m4f_mul_m4f(weston_m4f_translation(v, v, v), M);
+	v = 1.0f / (in->reference_white_luminance - in->target_min_luminance);
+	M = weston_m4f_mul_m4f(weston_m4f_scaling(v, v, v), M);
+
+	/* The above is the input to the ICC chain. */
+	optical_prof = optical_profile(cm, &in->primaries,
+				       in->target_min_luminance / in->reference_white_luminance);
+
+	/* see init_icc_to_icc_chain() */
+	chain[chain_len++] = optical_prof;
+	switch (xform->search_key.category) {
+	case CMLCMS_CATEGORY_INPUT_TO_BLEND:
+		chain[chain_len++] = out_prof->icc.profile;
+		chain[chain_len++] = out_prof->extract.eotf;
+		break;
+	case CMLCMS_CATEGORY_INPUT_TO_OUTPUT:
+		chain[chain_len++] = out_prof->icc.profile;
+		if (out_prof->extract.vcgt.p)
+			chain[chain_len++] = out_prof->extract.vcgt;
+		break;
+	case CMLCMS_CATEGORY_BLEND_TO_OUTPUT:
+		weston_assert_not_reached(xform->base.cm->compositor,
+					  "blend-to-output handled elsewhere");
+	}
+
+	assert(chain_len <= ARRAY_LENGTH(chain));
+
+	icc_chain = xform_realize_icc_chain(xform, chain, chain_len, render_intent, allowed);
+	cmsCloseProfile(optical_prof.p);
+	if (!icc_chain)
+		return false;
+
+	if (xform->base.steps_valid) {
+		weston_assert_u32_eq(cm->base.compositor,
+				     xform->base.pre_curve.type,
+				     WESTON_COLOR_CURVE_TYPE_IDENTITY);
+
+		weston_color_curve_set_from_params(&xform->base.pre_curve,
+						   in, WESTON_FORWARD_TF);
+		patch_color_mapping_matrix(&xform->base.mapping, M, MATRIX_PREPEND);
+	}
+
+	weston_color_curve_set_from_params(&xform->transformer.curve1,
+					   in, WESTON_FORWARD_TF);
+	xform->transformer.element_mask = CMLCMS_TRANSFORMER_CURVE1;
+
+	if (!matrix_is_identity(M, MATRIX_PRECISION_BITS)) {
+		xform->transformer.lin1.matrix = weston_m3f_from_m4f_xyz(M);
+		xform->transformer.lin1.offset = weston_v3f_from_v4f_xyz(M.col[3]);
+		xform->transformer.element_mask |= CMLCMS_TRANSFORMER_LIN1;
+	}
+
+	xform->transformer.icc_chain = icc_chain;
+	xform->transformer.element_mask |= CMLCMS_TRANSFORMER_ICC_CHAIN;
+
+	return true;
+ }
+
 enum cmlcms_color_transform_type {
 	CMLCMS_BLEND_TO_ICC   = 0x0,
 	CMLCMS_BLEND_TO_PARAM = 0x1,
@@ -2212,6 +2307,7 @@ cmlcms_color_transform_create(struct weston_color_manager_lcms *cm,
 		ret = init_icc_to_parametric(xform);
 		break;
 	case CMLCMS_PARAM_TO_ICC:
+		ret = init_parametric_to_icc(xform);
 		break;
 	case CMLCMS_PARAM_TO_PARAM:
 		ret = init_parametric_to_parametric(xform);
