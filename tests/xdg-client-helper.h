@@ -26,6 +26,7 @@
 #ifndef __HAVE_XDG_CLIENT_HELPER_H
 #define __HAVE_XDG_CLIENT_HELPER_H
 
+#define DEFAULT_WINDOW_SIZE	120
 
 struct xdg_client {
 	struct client *client;

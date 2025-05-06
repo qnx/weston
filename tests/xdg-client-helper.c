@@ -167,8 +167,17 @@ xdg_surface_commit_solid(struct xdg_surface_data *xdg_surface,
 {
 	pixman_color_t color;
 	struct buffer *buf;
-	int width = xdg_surface->configure.width;
-	int height = xdg_surface->configure.height;
+	int width = 0;
+	int height = 0;
+
+	if (xdg_surface->configure.width == 0 &&
+	    xdg_surface->configure.height == 0) {
+		xdg_surface->configure.width =
+		xdg_surface->configure.height = DEFAULT_WINDOW_SIZE;
+	}
+
+	width = xdg_surface->configure.width;
+	height = xdg_surface->configure.height;
 
 	buf = create_shm_buffer_a8r8g8b8(xdg_surface->surface->client,
 					 width, height);
