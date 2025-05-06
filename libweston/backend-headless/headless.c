@@ -464,6 +464,19 @@ headless_output_enable(struct weston_output *base)
 	return 0;
 }
 
+static void
+headless_set_dpms(struct weston_output *base, enum dpms_enum level)
+{
+	struct headless_output *output = to_headless_output(base);
+
+	if (level == WESTON_DPMS_ON)
+		weston_output_schedule_repaint(base);
+	else if (output->base.repaint_status == REPAINT_AWAITING_COMPLETION) {
+		wl_event_source_timer_update(output->finish_frame_timer, 0);
+		weston_output_schedule_repaint_reset(base);
+	}
+}
+
 static int
 headless_output_set_size(struct weston_output *base,
 			 int width, int height)
@@ -505,7 +518,7 @@ headless_output_set_size(struct weston_output *base,
 	output->base.repaint = headless_output_repaint;
 	output->base.assign_planes = NULL;
 	output->base.set_backlight = NULL;
-	output->base.set_dpms = NULL;
+	output->base.set_dpms = headless_set_dpms;
 	output->base.switch_mode = NULL;
 
 	return 0;
