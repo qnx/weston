@@ -25,7 +25,7 @@ esac
 
 # Build and install Meson. Generally we want to keep this in sync with what
 # we require inside meson.build.
-pip3 install $PIP_ARGS git+https://github.com/mesonbuild/meson.git@1.1.1
+pip3 install $PIP_ARGS git+https://github.com/mesonbuild/meson.git@1.3.2
 export PATH=$HOME/.local/bin:$PATH
 
 # Our docs are built using Sphinx (top-level organisation and final HTML/CSS
@@ -149,8 +149,9 @@ rm -rf drm
 # features from Mesa then bump this version and $FDO_DISTRIBUTION_TAG, however
 # please be prepared for some of the tests to change output, which will need to
 # be manually inspected for correctness.
-git clone --branch mesa-25.0.3 --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
+git clone --single-branch --branch main https://gitlab.freedesktop.org/mesa/mesa.git
 cd mesa
+git checkout -b snapshot 7b68e1da91732b7d9bb9bf620cf8d4f63a48ea8c
 meson setup build --wrap-mode=nofallback -Dauto_features=disabled \
 	-Dgallium-drivers=llvmpipe -Dvulkan-drivers= -Dvideo-codecs= \
 	-Degl=enabled -Dgbm=enabled -Dgles2=enabled -Dllvm=enabled \
