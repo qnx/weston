@@ -861,6 +861,63 @@ static const struct pixel_format_info pixel_format_table[] = {
 		COLOR_MODEL(YUV),
 		.bpp = 32,
 	},
+	{
+		DRM_FORMAT(S010),
+		COLOR_MODEL(YUV),
+		.num_planes = 3,
+		.hsub = 2,
+		.vsub = 2,
+	},
+	{
+		DRM_FORMAT(S210),
+		COLOR_MODEL(YUV),
+		.num_planes = 3,
+		.hsub = 2,
+		.vsub = 1,
+	},
+	{
+		DRM_FORMAT(S410),
+		COLOR_MODEL(YUV),
+		.num_planes = 3,
+	},
+	{
+		DRM_FORMAT(S012),
+		COLOR_MODEL(YUV),
+		.num_planes = 3,
+		.hsub = 2,
+		.vsub = 2,
+	},
+	{
+		DRM_FORMAT(S212),
+		COLOR_MODEL(YUV),
+		.num_planes = 3,
+		.hsub = 2,
+		.vsub = 1,
+	},
+	{
+		DRM_FORMAT(S412),
+		COLOR_MODEL(YUV),
+		.num_planes = 3,
+	},
+	{
+		DRM_FORMAT(S016),
+		COLOR_MODEL(YUV),
+		.num_planes = 3,
+		.hsub = 2,
+		.vsub = 2,
+	},
+	{
+		DRM_FORMAT(S216),
+		COLOR_MODEL(YUV),
+		.num_planes = 3,
+		.hsub = 2,
+		.vsub = 1,
+	},
+	{
+		DRM_FORMAT(S416),
+		COLOR_MODEL(YUV),
+		.num_planes = 3,
+	},
 };
 
 WL_EXPORT const struct pixel_format_info *
