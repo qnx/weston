@@ -4956,6 +4956,7 @@ gl_renderer_display_create(struct weston_compositor *ec,
 		ec->capabilities |= WESTON_CAP_EXPLICIT_SYNC;
 	if (gl_features_has(gr, FEATURE_COLOR_TRANSFORMS))
 		ec->capabilities |= WESTON_CAP_COLOR_OPS;
+	ec->capabilities |= WESTON_CAP_COLOR_REP;
 
 	return 0;
 
