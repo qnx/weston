@@ -1971,16 +1971,6 @@ TEST_P(client_buffer, client_buffer_cases)
 	}
 #endif
 
-	/* Skip tests for formats that crash with llvmpipe, see
-	 * https://gitlab.freedesktop.org/mesa/mesa/-/issues/12980
-	 */
-	if (my_case->drm_format == DRM_FORMAT_YVYU ||
-	    my_case->drm_format == DRM_FORMAT_VYUY) {
-		testlog("Skipping test for dmabuf, see "
-			"https://gitlab.freedesktop.org/mesa/mesa/-/issues/12980\n");
-		goto out;
-	}
-
 	buf = my_case->create_buffer(client, my_case->drm_format, BUFFER_TYPE_DMABUF, img);
 	if (buf) {
 		testlog("%s: testing DMABUF\n", get_test_name());
@@ -1990,16 +1980,7 @@ TEST_P(client_buffer, client_buffer_cases)
 		match = verify_screen_content(client, "client-buffer",
 					      my_case->ref_seq_no, NULL, 1,
 					      NULL);
-		switch (my_case->drm_format) {
-		case DRM_FORMAT_YUYV:
-		case DRM_FORMAT_UYVY:
-			if (!match)
-				testlog("Expected fail on llvmpipe, see "
-					"https://gitlab.freedesktop.org/mesa/mesa/-/issues/12980\n");
-			break;
-		default:
-			test_assert_true(match);
-		}
+		test_assert_true(match);
 
 		client_buffer_destroy(buf);
 	}
