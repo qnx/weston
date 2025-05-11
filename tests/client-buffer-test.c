@@ -59,6 +59,49 @@ struct setup_args {
 	struct fixture_metadata meta;
 	enum weston_renderer_type renderer;
 	const char *logging_scopes;
+
+	/* Formats in these arrays can be defined per renderer and must be
+	 * advertised and supported by the renderer.
+	 * If undefined, all formats checked by the test are considered
+	 * must pass. */
+	const uint32_t *shm_format_must_pass;
+	size_t shm_format_num;
+	const uint32_t *dmabuf_format_must_pass;
+	size_t dmabuf_format_num;
+};
+
+/* Formats supported by llvmpipe as of Mesa 25.0.4 */
+static const uint32_t gl_dmabuf_format_must_pass[] = {
+	DRM_FORMAT_RGB565,
+	DRM_FORMAT_XRGB8888,
+	DRM_FORMAT_ARGB8888,
+	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_ABGR8888,
+	DRM_FORMAT_XRGB2101010,
+	DRM_FORMAT_ARGB2101010,
+	DRM_FORMAT_XBGR2101010,
+	DRM_FORMAT_ABGR2101010,
+	DRM_FORMAT_XBGR16161616,
+	DRM_FORMAT_ABGR16161616,
+	DRM_FORMAT_XBGR16161616F,
+	DRM_FORMAT_ABGR16161616F,
+	DRM_FORMAT_YUV420,
+	DRM_FORMAT_YVU420,
+	DRM_FORMAT_YUV422,
+	DRM_FORMAT_YVU422,
+	DRM_FORMAT_YUV444,
+	DRM_FORMAT_YVU444,
+	DRM_FORMAT_NV12,
+	DRM_FORMAT_NV21,
+	DRM_FORMAT_NV16,
+	DRM_FORMAT_YUYV,
+	DRM_FORMAT_YVYU,
+	DRM_FORMAT_UYVY,
+	DRM_FORMAT_VYUY,
+	DRM_FORMAT_XYUV8888,
+	DRM_FORMAT_P010,
+	DRM_FORMAT_P012,
+	DRM_FORMAT_P016,
 };
 
 static const struct setup_args my_setup_args[] = {
@@ -66,6 +109,8 @@ static const struct setup_args my_setup_args[] = {
 		.meta.name = "GL",
 		.renderer = WESTON_RENDERER_GL,
 		.logging_scopes = "log,gl-shader-generator",
+		.dmabuf_format_must_pass = gl_dmabuf_format_must_pass,
+		.dmabuf_format_num = ARRAY_LENGTH(gl_dmabuf_format_must_pass),
 	},
 };
 
@@ -1846,44 +1891,13 @@ static const struct client_buffer_case client_buffer_cases[] = {
 
 #if WESTON_TEST_SKIP_IS_FAILURE
 static bool
-drm_format_must_pass(uint32_t drm_format)
+format_must_pass(uint32_t drm_format, const uint32_t *must_pass, const size_t num)
 {
-	/* Formats supported by llvmpipe as of Mesa 25.0.4 */
-	switch (drm_format) {
-	case DRM_FORMAT_RGB565:
-	case DRM_FORMAT_XRGB8888:
-	case DRM_FORMAT_ARGB8888:
-	case DRM_FORMAT_XBGR8888:
-	case DRM_FORMAT_ABGR8888:
-	case DRM_FORMAT_XRGB2101010:
-	case DRM_FORMAT_ARGB2101010:
-	case DRM_FORMAT_XBGR2101010:
-	case DRM_FORMAT_ABGR2101010:
-	case DRM_FORMAT_XBGR16161616:
-	case DRM_FORMAT_ABGR16161616:
-	case DRM_FORMAT_XBGR16161616F:
-	case DRM_FORMAT_ABGR16161616F:
-	case DRM_FORMAT_YUV420:
-	case DRM_FORMAT_YVU420:
-	case DRM_FORMAT_YUV422:
-	case DRM_FORMAT_YVU422:
-	case DRM_FORMAT_YUV444:
-	case DRM_FORMAT_YVU444:
-	case DRM_FORMAT_NV12:
-	case DRM_FORMAT_NV21:
-	case DRM_FORMAT_NV16:
-	case DRM_FORMAT_YUYV:
-	case DRM_FORMAT_YVYU:
-	case DRM_FORMAT_UYVY:
-	case DRM_FORMAT_VYUY:
-	case DRM_FORMAT_XYUV8888:
-	case DRM_FORMAT_P010:
-	case DRM_FORMAT_P012:
-	case DRM_FORMAT_P016:
-		return true;
-	default:
-		return false;
-	}
+	for (size_t i = 0; i < num; i++)
+		if (must_pass[i] == drm_format)
+			return true;
+
+	return false;
 }
 #endif
 
@@ -1945,7 +1959,15 @@ TEST_P(client_buffer, client_buffer_cases)
 	}
 #if WESTON_TEST_SKIP_IS_FAILURE
 	else {
-		test_assert_not_reached("All SHM formats must pass");
+		const struct setup_args *args = &my_setup_args[get_test_fixture_index()];
+
+		if (args->shm_format_must_pass) {
+			test_assert_false(format_must_pass(my_case->drm_format,
+							   args->shm_format_must_pass,
+							   args->shm_format_num));
+		} else {
+			test_assert_not_reached("All SHM formats must pass");
+		}
 	}
 #endif
 
@@ -1983,7 +2005,15 @@ TEST_P(client_buffer, client_buffer_cases)
 	}
 #if WESTON_TEST_SKIP_IS_FAILURE
 	else {
-		test_assert_false(drm_format_must_pass(my_case->drm_format));
+		const struct setup_args *args = &my_setup_args[get_test_fixture_index()];
+
+		if (args->dmabuf_format_must_pass) {
+			test_assert_false(format_must_pass(my_case->drm_format,
+							   args->dmabuf_format_must_pass,
+							   args->dmabuf_format_num));
+		} else {
+			test_assert_not_reached("All DMABUF formats must pass");
+		}
 	}
 #endif
 
