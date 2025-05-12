@@ -406,6 +406,3 @@ pixel_format_get_shm_format(const struct pixel_format_info *info);
  */
 const struct pixel_format_info **
 pixel_format_get_array(const uint32_t *formats, unsigned int formats_count);
-
-bool
-pixel_format_is_yuv(const struct pixel_format_info *info);
