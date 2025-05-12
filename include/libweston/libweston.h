@@ -205,6 +205,8 @@ struct weston_testsuite_quirks {
 	bool gl_force_full_upload;
 	/** Ensure GL shadow fb is used, and always repaint it fully. */
 	bool gl_force_full_redraw_of_shadow_fb;
+	/** Force GL-renderer to use the internal YUV->RGB shader */
+	bool gl_force_import_yuv_fallback;
 	/** Required enum weston_capability bit mask, otherwise skip run. */
 	uint32_t required_capabilities;
 };

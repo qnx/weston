@@ -3441,8 +3441,11 @@ import_dmabuf(struct gl_renderer *gr,
 {
 	EGLImageKHR egl_image;
 	struct gl_buffer_state *gb;
+	const struct pixel_format_info *info;
+	const struct weston_testsuite_quirks *quirks;
 
-	if (!pixel_format_get_info(dmabuf->attributes.format))
+	info = pixel_format_get_info(dmabuf->attributes.format);
+	if (!info)
 		return NULL;
 
 	gb = zalloc(sizeof(*gb));
@@ -3452,6 +3455,11 @@ import_dmabuf(struct gl_renderer *gr,
 	gb->gr = gr;
 	pixman_region32_init(&gb->texture_damage);
 	wl_list_init(&gb->destroy_listener.link);
+
+	quirks = &gr->compositor->test_data.test_quirks;
+	if (quirks->gl_force_import_yuv_fallback &&
+	    info->color_model == COLOR_MODEL_YUV)
+		goto import_yuv;
 
 	egl_image = import_simple_dmabuf(gr, &dmabuf->attributes);
 	if (egl_image != EGL_NO_IMAGE_KHR) {
@@ -3478,6 +3486,7 @@ import_dmabuf(struct gl_renderer *gr,
 		return gb;
 	}
 
+import_yuv:
 	if (!import_yuv_dmabuf(gr, gb, &dmabuf->attributes)) {
 		destroy_buffer_state(gb);
 		return NULL;
