@@ -118,6 +118,10 @@ tests = [
 		],
 	},
 	{
+		'name': 'color-math',
+		'dep_objs': dep_libm,
+	},
+	{
 		'name': 'color-metadata-errors',
 		'dep_objs': dep_libexec_weston,
 	},
