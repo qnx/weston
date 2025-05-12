@@ -37,6 +37,7 @@
 #include "weston-test-client-helper.h"
 #include "weston-test-fixture-compositor.h"
 #include "image-iter.h"
+#include "pixel-formats.h"
 #include "shared/os-compatibility.h"
 #include "shared/weston-drm-fourcc.h"
 #include "shared/xalloc.h"
@@ -68,6 +69,8 @@ struct setup_args {
 	size_t shm_format_num;
 	const uint32_t *dmabuf_format_must_pass;
 	size_t dmabuf_format_num;
+
+	bool gl_force_import_yuv_fallback;
 };
 
 /* Formats supported by llvmpipe as of Mesa 25.0.4 */
@@ -111,6 +114,15 @@ static const struct setup_args my_setup_args[] = {
 		.logging_scopes = "log,gl-shader-generator",
 		.dmabuf_format_must_pass = gl_dmabuf_format_must_pass,
 		.dmabuf_format_num = ARRAY_LENGTH(gl_dmabuf_format_must_pass),
+		.gl_force_import_yuv_fallback = false,
+	},
+	{
+		.meta.name = "GL force-import-yuv-fallback",
+		.renderer = WESTON_RENDERER_GL,
+		.logging_scopes = "log,gl-shader-generator",
+		.dmabuf_format_must_pass = gl_dmabuf_format_must_pass,
+		.dmabuf_format_num = ARRAY_LENGTH(gl_dmabuf_format_must_pass),
+		.gl_force_import_yuv_fallback = true,
 	},
 };
 
@@ -126,6 +138,8 @@ fixture_setup(struct weston_test_harness *harness, const struct setup_args *arg)
 	setup.shell = SHELL_TEST_DESKTOP;
 	setup.logging_scopes = arg->logging_scopes;
 	setup.refresh = HIGHEST_OUTPUT_REFRESH;
+	setup.test_quirks.gl_force_import_yuv_fallback =
+		arg->gl_force_import_yuv_fallback;
 
 	return weston_test_harness_execute_as_client(harness, &setup);
 }
@@ -1965,15 +1979,21 @@ format_must_pass(uint32_t drm_format, const uint32_t *must_pass, const size_t nu
 TEST_P(client_buffer_shm, client_buffer_cases)
 {
 	const struct client_buffer_case *cb_case = data;
+	const struct setup_args *args = &my_setup_args[get_test_fixture_index()];
 	enum test_result_code res;
+
+	if (args->gl_force_import_yuv_fallback)
+#if WESTON_TEST_SKIP_IS_FAILURE
+			return RESULT_OK;
+#else
+			return RESULT_SKIP;
+#endif
 
 	testlog("%s: format %s\n", get_test_name(), cb_case->drm_format_name);
 
 	res = test_client_buffer(cb_case, BUFFER_TYPE_SHM);
 #if WESTON_TEST_SKIP_IS_FAILURE
 	if (res == RESULT_SKIP) {
-		const struct setup_args *args = &my_setup_args[get_test_fixture_index()];
-
 		if (args->shm_format_must_pass) {
 			test_assert_false(format_must_pass(cb_case->drm_format,
 							   args->shm_format_must_pass,
@@ -1994,15 +2014,26 @@ TEST_P(client_buffer_shm, client_buffer_cases)
 TEST_P(client_buffer_drm, client_buffer_cases)
 {
 	const struct client_buffer_case *cb_case = data;
+	const struct setup_args *args = &my_setup_args[get_test_fixture_index()];
 	enum test_result_code res;
+
+	if (args->gl_force_import_yuv_fallback) {
+		const struct pixel_format_info *info;
+
+		info = pixel_format_get_info(cb_case->drm_format);
+		if (info->color_model != COLOR_MODEL_YUV)
+#if WESTON_TEST_SKIP_IS_FAILURE
+			return RESULT_OK;
+#else
+			return RESULT_SKIP;
+#endif
+	}
 
 	testlog("%s: format %s\n", get_test_name(), cb_case->drm_format_name);
 
 	res = test_client_buffer(cb_case, BUFFER_TYPE_DMABUF);
 #if WESTON_TEST_SKIP_IS_FAILURE
 	if (res == RESULT_SKIP) {
-		const struct setup_args *args = &my_setup_args[get_test_fixture_index()];
-
 		if (args->dmabuf_format_must_pass) {
 			test_assert_false(format_must_pass(cb_case->drm_format,
 							   args->dmabuf_format_must_pass,
