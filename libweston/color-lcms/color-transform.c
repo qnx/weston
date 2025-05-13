@@ -1464,7 +1464,7 @@ build_shaper(cmsContext lcms_ctx, cmsHTRANSFORM cmap_3dlut,
 	/**
 	 * We use cmsSmoothToneCurve() for:
 	 *
-	 * a) checking monotonicity and degenerated curves;
+	 * a) trying to ensure monotonicity;
 	 * b) getting rid of abrupt changes;
 	 *
 	 * A lambda between 0.0 and 1.0 is usually enough. 1.0 means moderate to
@@ -1493,8 +1493,8 @@ build_shaper(cmsContext lcms_ctx, cmsHTRANSFORM cmap_3dlut,
 		}
 
 		/**
-		 * TODO: that should fail if the curves are not monotonic. Try
-		 * to make curve monotonic if possible before calling this.
+		 * TODO: that should fail if the produced curves are not
+		 * monotonic. Try to smooth harder if that happens.
 		 */
 		ret = cmsSmoothToneCurve(tc[ch], smoothing_param);
 		if (!ret)
