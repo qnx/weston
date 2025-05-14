@@ -1374,15 +1374,15 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
 		wl_list_for_each(head, &output->base.head_list, base.output_link)
 			ret |= connector_add_prop(req, &head->connector,
 						  WDRM_CONNECTOR_CRTC_ID, 0);
+	}
 
-		wl_list_for_each_safe(head, tmp, &output->disable_head,
-				      disable_head_link) {
-			ret |= connector_add_prop(req, &head->connector,
-						  WDRM_CONNECTOR_CRTC_ID, 0);
-			if (!(*flags & DRM_MODE_ATOMIC_TEST_ONLY)) {
-				wl_list_remove(&head->disable_head_link);
-				wl_list_init(&head->disable_head_link);
-			}
+	wl_list_for_each_safe(head, tmp, &output->disable_head, disable_head_link) {
+		ret |= connector_add_prop(req, &head->connector,
+					  WDRM_CONNECTOR_CRTC_ID, 0);
+		*flags |= DRM_MODE_ATOMIC_ALLOW_MODESET;
+		if (!(*flags & DRM_MODE_ATOMIC_TEST_ONLY)) {
+			wl_list_remove(&head->disable_head_link);
+			wl_list_init(&head->disable_head_link);
 		}
 	}
 
