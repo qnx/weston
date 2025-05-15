@@ -1965,6 +1965,9 @@ test_client_buffer(const struct client_buffer_case *cb_case,
 static bool
 format_must_pass(uint32_t drm_format, const uint32_t *must_pass, const size_t num)
 {
+	if (!must_pass || num == 0)
+		return true;
+
 	for (size_t i = 0; i < num; i++)
 		if (must_pass[i] == drm_format)
 			return true;
@@ -1994,14 +1997,10 @@ TEST_P(client_buffer_shm, client_buffer_cases)
 	res = test_client_buffer(cb_case, BUFFER_TYPE_SHM);
 #if WESTON_TEST_SKIP_IS_FAILURE
 	if (res == RESULT_SKIP) {
-		if (args->shm_format_must_pass) {
-			test_assert_false(format_must_pass(cb_case->drm_format,
-							   args->shm_format_must_pass,
-							   args->shm_format_num));
-			res = RESULT_OK;
-		} else {
-			test_assert_not_reached("All SHM formats must pass");
-		}
+		test_assert_false(format_must_pass(cb_case->drm_format,
+						   args->shm_format_must_pass,
+						   args->shm_format_num));
+		res = RESULT_OK;
 	}
 #endif
 
@@ -2034,14 +2033,10 @@ TEST_P(client_buffer_drm, client_buffer_cases)
 	res = test_client_buffer(cb_case, BUFFER_TYPE_DMABUF);
 #if WESTON_TEST_SKIP_IS_FAILURE
 	if (res == RESULT_SKIP) {
-		if (args->dmabuf_format_must_pass) {
-			test_assert_false(format_must_pass(cb_case->drm_format,
-							   args->dmabuf_format_must_pass,
-							   args->dmabuf_format_num));
-			res = RESULT_OK;
-		} else {
-			test_assert_not_reached("All DMABUF formats must pass");
-		}
+		test_assert_false(format_must_pass(cb_case->drm_format,
+						   args->dmabuf_format_must_pass,
+						   args->dmabuf_format_num));
+		res = RESULT_OK;
 	}
 #endif
 
