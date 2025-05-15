@@ -1976,6 +1976,16 @@ format_must_pass(uint32_t drm_format, const uint32_t *must_pass, const size_t nu
 }
 #endif
 
+static enum test_result_code
+this_is_an_unwanted_case(void)
+{
+#if WESTON_TEST_SKIP_IS_FAILURE
+	return RESULT_OK;
+#else
+	return RESULT_SKIP;
+#endif
+}
+
 /*
  * Test that various SHM pixel formats result in correct coloring on screen.
  */
@@ -1986,11 +1996,7 @@ TEST_P(client_buffer_shm, client_buffer_cases)
 	enum test_result_code res;
 
 	if (args->gl_force_import_yuv_fallback)
-#if WESTON_TEST_SKIP_IS_FAILURE
-			return RESULT_OK;
-#else
-			return RESULT_SKIP;
-#endif
+		return this_is_an_unwanted_case();
 
 	testlog("%s: format %s\n", get_test_name(), cb_case->drm_format_name);
 
@@ -2021,11 +2027,7 @@ TEST_P(client_buffer_drm, client_buffer_cases)
 
 		info = pixel_format_get_info(cb_case->drm_format);
 		if (info->color_model != COLOR_MODEL_YUV)
-#if WESTON_TEST_SKIP_IS_FAILURE
-			return RESULT_OK;
-#else
-			return RESULT_SKIP;
-#endif
+			return this_is_an_unwanted_case();
 	}
 
 	testlog("%s: format %s\n", get_test_name(), cb_case->drm_format_name);
