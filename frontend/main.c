@@ -2006,7 +2006,7 @@ wet_output_set_vrr_mode(struct weston_output *output,
 
 	weston_config_section_get_string(section, "vrr-mode", &vrr_str, NULL);
 	if (!vrr_str)
-		return vrr_mode;
+		return 0;
 
 	entry = weston_enum_map_find_name(vrr_modes, vrr_str);
 	if (!entry) {
