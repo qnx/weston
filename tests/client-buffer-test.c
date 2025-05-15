@@ -1961,20 +1961,40 @@ test_client_buffer(const struct client_buffer_case *cb_case,
 	return res;
 }
 
-#if WESTON_TEST_SKIP_IS_FAILURE
+/*
+ * We do not require any format to pass, unless we run in CI where
+ * WESTON_TEST_SKIP_IS_FAILURE is defined. In CI we require the hardcoded
+ * list of formats to be supported and correct. Outside of CI we might running
+ * with various graphics drivers with different supported formats, so we cannot
+ * require a big list of formats to succeed.
+ *
+ * Even if a format is not required to pass, if the format is detected as
+ * supported and the check with the format fails, the test will still fail.
+ */
 static bool
 format_must_pass(uint32_t drm_format, const uint32_t *must_pass, const size_t num)
 {
+#if WESTON_TEST_SKIP_IS_FAILURE
 	if (!must_pass || num == 0)
 		return true;
 
 	for (size_t i = 0; i < num; i++)
 		if (must_pass[i] == drm_format)
 			return true;
+#endif
 
 	return false;
 }
+
+static enum test_result_code
+skip_is_just_fine(enum test_result_code c)
+{
+#if WESTON_TEST_SKIP_IS_FAILURE
+	if (c == RESULT_SKIP)
+		return RESULT_OK;
 #endif
+	return c;
+}
 
 static enum test_result_code
 this_is_an_unwanted_case(void)
@@ -2001,16 +2021,13 @@ TEST_P(client_buffer_shm, client_buffer_cases)
 	testlog("%s: format %s\n", get_test_name(), cb_case->drm_format_name);
 
 	res = test_client_buffer(cb_case, BUFFER_TYPE_SHM);
-#if WESTON_TEST_SKIP_IS_FAILURE
 	if (res == RESULT_SKIP) {
 		test_assert_false(format_must_pass(cb_case->drm_format,
 						   args->shm_format_must_pass,
 						   args->shm_format_num));
-		res = RESULT_OK;
 	}
-#endif
 
-	return res;
+	return skip_is_just_fine(res);
 }
 
 /*
@@ -2033,14 +2050,11 @@ TEST_P(client_buffer_drm, client_buffer_cases)
 	testlog("%s: format %s\n", get_test_name(), cb_case->drm_format_name);
 
 	res = test_client_buffer(cb_case, BUFFER_TYPE_DMABUF);
-#if WESTON_TEST_SKIP_IS_FAILURE
 	if (res == RESULT_SKIP) {
 		test_assert_false(format_must_pass(cb_case->drm_format,
 						   args->dmabuf_format_must_pass,
 						   args->dmabuf_format_num));
-		res = RESULT_OK;
 	}
-#endif
 
-	return res;
+	return skip_is_just_fine(res);
 }
