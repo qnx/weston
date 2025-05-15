@@ -384,6 +384,19 @@ rdp_output_set_mode(struct weston_output *base, struct weston_mode *mode)
 	}
 }
 
+static void
+rdp_output_set_dpms(struct weston_output *base, enum dpms_enum level)
+{
+	struct rdp_output *output = to_rdp_output(base);
+
+	if (level == WESTON_DPMS_ON)
+		weston_output_schedule_repaint(base);
+	else if (output->base.repaint_status == REPAINT_AWAITING_COMPLETION) {
+		wl_event_source_timer_update(output->finish_frame_timer, 0);
+		weston_output_schedule_repaint_reset(base);
+	}
+}
+
 static int
 rdp_output_switch_mode(struct weston_output *base, struct weston_mode *mode)
 {
@@ -607,6 +620,7 @@ rdp_output_create(struct weston_backend *backend, const char *name)
 
 	output->base.start_repaint_loop = rdp_output_start_repaint_loop;
 	output->base.repaint = rdp_output_repaint;
+	output->base.set_dpms = rdp_output_set_dpms;
 	output->base.switch_mode = rdp_output_switch_mode;
 
 	output->backend = b;
