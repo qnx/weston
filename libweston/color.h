@@ -648,10 +648,16 @@ enum weston_color_curve_step {
 	WESTON_COLOR_CURVE_STEP_POST,
 };
 
+enum weston_color_precision {
+	WESTON_COLOR_PRECISION_CARELESS,
+	WESTON_COLOR_PRECISION_CAREFUL,
+};
+
 float *
 weston_color_curve_to_3x1D_LUT(struct weston_compositor *compositor,
 			       struct weston_color_transform *xform,
 			       enum weston_color_curve_step step,
+			       enum weston_color_precision precision_mode,
 			       uint32_t lut_size, char **err_msg);
 
 void

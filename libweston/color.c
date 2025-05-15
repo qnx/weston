@@ -348,6 +348,9 @@ curve_to_lut_has_good_precision(struct weston_color_curve *curve)
  * @param compositor The Weston compositor.
  * @param xform The color transformation that owns the curve.
  * @param step The curve step (pre or post) from the xform.
+ * @param precision_mode If WESTON_COLOR_PRECISION_CAREFUL, this fails if we
+ * detect that we can't create a LUT from the curve without resulting in
+ * precision issues. If WESTON_COLOR_PRECISION_CARELESS, we simply log a warning.
  * @param lut_size The size of each LUT.
  * @param err_msg Set on failure, untouched otherwise. Must be free()'d by caller.
  * @return NULL on failure, the 3x1D LUT on success.
@@ -356,10 +359,12 @@ WL_EXPORT float *
 weston_color_curve_to_3x1D_LUT(struct weston_compositor *compositor,
 			       struct weston_color_transform *xform,
 			       enum weston_color_curve_step step,
+			       enum weston_color_precision precision_mode,
 			       uint32_t lut_size, char **err_msg)
 {
 	struct weston_color_curve *curve;
 	float divider = lut_size - 1;
+	const char *step_str;
 	float *in, *lut;
 	unsigned int i, ch;
 	bool ret;
@@ -367,18 +372,25 @@ weston_color_curve_to_3x1D_LUT(struct weston_compositor *compositor,
 	switch(step) {
 	case WESTON_COLOR_CURVE_STEP_PRE:
 		curve = &xform->pre_curve;
+		step_str = "pre";
 		break;
 	case WESTON_COLOR_CURVE_STEP_POST:
 		curve = &xform->post_curve;
+		step_str = "post";
 		break;
 	default:
 		weston_assert_not_reached(compositor, "unknown curve step");
 	}
 
 	if (!curve_to_lut_has_good_precision(curve)) {
-		str_printf(err_msg, "can't create color LUT from curve, it would " \
-				    "result in bad precision");
-		return NULL;
+		if (precision_mode == WESTON_COLOR_PRECISION_CAREFUL) {
+			str_printf(err_msg, "can't create color LUT from xform (id %u) " \
+					    "%s-curve, it would result in bad precision",
+					    xform->id, step_str);
+			return NULL;
+		}
+		weston_log("WARNING: converting xform (id %u) %s-curve to 3x1D LUT should probably " \
+			   "result in bad precision\n", xform->id, step_str);
 	}
 
 	switch(curve->type) {
@@ -398,8 +410,9 @@ weston_color_curve_to_3x1D_LUT(struct weston_compositor *compositor,
 			if (!ret) {
 				free(lut);
 				lut = NULL;
-				str_printf(err_msg, "can't create color LUT from " \
-						    "curve, failed to sample color curve");
+				str_printf(err_msg, "can't create color LUT from xform (id %u) " \
+						    "%s-curve, failed to sample color curve",
+						    xform->id, step_str);
 				break;
 			}
 		}
