@@ -1118,11 +1118,33 @@ static const struct xdg_popup_interface weston_desktop_xdg_popup_implementation 
 	.reposition          = weston_desktop_xdg_popup_protocol_reposition,
 };
 
+static bool
+weston_destop_xdg_surface_resource_available(struct weston_desktop_xdg_surface *surface)
+{
+	bool resource_available = false;
+
+	switch (surface->role) {
+	case WESTON_DESKTOP_XDG_SURFACE_ROLE_NONE:
+		break;
+	case WESTON_DESKTOP_XDG_SURFACE_ROLE_TOPLEVEL:
+		resource_available = !!((struct weston_desktop_xdg_toplevel *) surface)->resource;
+		break;
+	case WESTON_DESKTOP_XDG_SURFACE_ROLE_POPUP:
+		resource_available = !!((struct weston_desktop_xdg_popup *) surface)->resource;
+		break;
+	}
+
+	return resource_available;
+}
+
 static void
 weston_desktop_xdg_surface_send_configure(void *user_data)
 {
 	struct weston_desktop_xdg_surface *surface = user_data;
 	struct weston_desktop_xdg_surface_configure *configure;
+
+	if (!weston_destop_xdg_surface_resource_available(surface))
+		return;
 
 	surface->configure_idle = NULL;
 
@@ -1503,6 +1525,9 @@ weston_desktop_xdg_surface_committed(struct weston_desktop_surface *dsurface,
 	struct weston_desktop_xdg_surface *surface = user_data;
 	struct weston_surface *wsurface =
 		weston_desktop_surface_get_surface (dsurface);
+
+	if (!weston_destop_xdg_surface_resource_available(surface))
+		return;
 
 	if (weston_surface_has_content(wsurface) && !surface->configured) {
 		wl_resource_post_error(surface->resource,
