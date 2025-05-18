@@ -21,7 +21,7 @@ deps_wlwl = [
 	dep_libweston_private,
 	dep_libdrm_headers,
 	dep_lib_cairo_shared,
-	dep_lib_gl_borders,
+	dep_lib_renderer_borders,
 ]
 
 if get_option('renderer-gl')

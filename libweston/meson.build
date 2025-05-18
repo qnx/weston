@@ -223,9 +223,9 @@ dep_vertex_clipping = declare_dependency(
 	include_directories: include_directories('.')
 )
 
-lib_gl_borders = static_library(
-	'gl-borders',
-	'gl-borders.c',
+lib_renderer_borders = static_library(
+	'renderer-borders',
+	'renderer-borders.c',
 	include_directories: common_inc,
 	dependencies: [
 		dep_lib_cairo_shared,
@@ -235,8 +235,8 @@ lib_gl_borders = static_library(
 	build_by_default: false,
 	install: false
 )
-dep_lib_gl_borders = declare_dependency(
-	link_with: lib_gl_borders,
+dep_lib_renderer_borders = declare_dependency(
+	link_with: lib_renderer_borders,
 	dependencies: dep_lib_cairo_shared
 )
 

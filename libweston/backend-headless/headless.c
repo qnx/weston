@@ -42,7 +42,7 @@
 #include "pixel-formats.h"
 #include "pixman-renderer.h"
 #include "renderer-gl/gl-renderer.h"
-#include "gl-borders.h"
+#include "renderer-borders.h"
 #include "shared/weston-drm-fourcc.h"
 #include "shared/weston-egl-ext.h"
 #include "shared/cairo-util.h"
@@ -84,9 +84,7 @@ struct headless_output {
 	weston_renderbuffer_t renderbuffer;
 
 	struct frame *frame;
-	struct {
-		struct weston_gl_borders borders;
-	} gl;
+	struct weston_renderer_borders borders;
 };
 
 static const uint32_t headless_formats[] = {
@@ -144,15 +142,15 @@ finish_frame_handler(void *data)
 }
 
 static void
-headless_output_update_gl_border(struct headless_output *output)
+headless_output_update_renderer_border(struct headless_output *output)
 {
 	if (!output->frame)
 		return;
 	if (!(frame_status(output->frame) & FRAME_STATUS_REPAINT))
 		return;
 
-	weston_gl_borders_update(&output->gl.borders, output->frame,
-				 &output->base);
+	weston_renderer_borders_update(&output->borders, output->frame,
+				       &output->base);
 }
 
 static int
@@ -166,7 +164,7 @@ headless_output_repaint(struct weston_output *output_base)
 
 	ec = output->base.compositor;
 
-	headless_output_update_gl_border(output);
+	headless_output_update_renderer_border(output);
 
 	pixman_region32_init(&damage);
 
@@ -188,7 +186,7 @@ headless_output_disable_gl(struct headless_output *output)
 	struct weston_compositor *compositor = output->base.compositor;
 	const struct weston_renderer *renderer = compositor->renderer;
 
-	weston_gl_borders_fini(&output->gl.borders, &output->base);
+	weston_renderer_borders_fini(&output->borders, &output->base);
 
 	renderer->destroy_renderbuffer(output->renderbuffer);
 	output->renderbuffer = NULL;

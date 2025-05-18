@@ -48,7 +48,7 @@
 #include <libweston/libweston.h>
 #include <libweston/backend-wayland.h>
 #include "renderer-gl/gl-renderer.h"
-#include "gl-borders.h"
+#include "renderer-borders.h"
 #include "shared/weston-drm-fourcc.h"
 #include "shared/weston-egl-ext.h"
 #include "pixman-renderer.h"
@@ -135,13 +135,14 @@ struct wayland_output {
 
 	struct {
 		struct wl_egl_window *egl_window;
-		struct weston_gl_borders borders;
 	} gl;
 
 	struct {
 		struct wl_list buffers;
 		struct wl_list free_buffers;
 	} shm;
+
+	struct weston_renderer_borders borders;
 
 	struct weston_mode mode;
 	struct weston_mode native_mode;
@@ -471,15 +472,15 @@ draw_initial_frame(struct wayland_output *output)
 
 #ifdef ENABLE_EGL
 static void
-wayland_output_update_gl_border(struct wayland_output *output)
+wayland_output_update_renderer_border(struct wayland_output *output)
 {
 	if (!output->frame)
 		return;
 	if (!(frame_status(output->frame) & FRAME_STATUS_REPAINT))
 		return;
 
-	weston_gl_borders_update(&output->gl.borders, output->frame,
-				 &output->base);
+	weston_renderer_borders_update(&output->borders, output->frame,
+				       &output->base);
 }
 #endif
 
@@ -519,7 +520,7 @@ wayland_output_repaint_gl(struct weston_output *output_base)
 	output->frame_cb = wl_surface_frame(output->parent.surface);
 	wl_callback_add_listener(output->frame_cb, &frame_listener, output);
 
-	wayland_output_update_gl_border(output);
+	wayland_output_update_renderer_border(output);
 
 	ec->renderer->repaint_output(&output->base, &damage, NULL);
 
@@ -703,7 +704,7 @@ wayland_output_disable(struct weston_output *base)
 		break;
 #ifdef ENABLE_EGL
 	case WESTON_RENDERER_GL:
-		weston_gl_borders_fini(&output->gl.borders, &output->base);
+		weston_renderer_borders_fini(&output->borders, &output->base);
 
 		renderer->gl->output_destroy(&output->base);
 		wl_egl_window_destroy(output->gl.egl_window);
@@ -858,7 +859,7 @@ wayland_output_resize_surface(struct wayland_output *output)
 		weston_renderer_resize_output(&output->base, &fb_size, &area);
 
 		/* These will need to be re-created due to the resize */
-		weston_gl_borders_fini(&output->gl.borders, &output->base);
+		weston_renderer_borders_fini(&output->borders, &output->base);
 	} else
 #endif
 	{

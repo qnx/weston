@@ -25,18 +25,18 @@
 
 #pragma once
 
-#include "renderer-gl/gl-renderer.h"
+#include "libweston-internal.h"
 #include "shared/cairo-util.h"
 
-struct weston_gl_borders {
-	cairo_surface_t *tile[4]; /* enum gl_renderer_border_side */
+struct weston_renderer_borders {
+	cairo_surface_t *tile[4];
 };
 
 void
-weston_gl_borders_update(struct weston_gl_borders *borders,
-			 struct frame *frame,
-			 struct weston_output *output);
+weston_renderer_borders_update(struct weston_renderer_borders *borders,
+			       struct frame *frame,
+			       struct weston_output *output);
 
 void
-weston_gl_borders_fini(struct weston_gl_borders *borders,
-		       struct weston_output *output);
+weston_renderer_borders_fini(struct weston_renderer_borders *borders,
+			     struct weston_output *output);

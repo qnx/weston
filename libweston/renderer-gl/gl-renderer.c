@@ -97,10 +97,10 @@ enum gl_debug_mode {
 
 enum gl_border_status {
 	BORDER_STATUS_CLEAN = 0,
-	BORDER_TOP_DIRTY = 1 << GL_RENDERER_BORDER_TOP,
-	BORDER_LEFT_DIRTY = 1 << GL_RENDERER_BORDER_LEFT,
-	BORDER_RIGHT_DIRTY = 1 << GL_RENDERER_BORDER_RIGHT,
-	BORDER_BOTTOM_DIRTY = 1 << GL_RENDERER_BORDER_BOTTOM,
+	BORDER_TOP_DIRTY = 1 << WESTON_RENDERER_BORDER_TOP,
+	BORDER_LEFT_DIRTY = 1 << WESTON_RENDERER_BORDER_LEFT,
+	BORDER_RIGHT_DIRTY = 1 << WESTON_RENDERER_BORDER_RIGHT,
+	BORDER_BOTTOM_DIRTY = 1 << WESTON_RENDERER_BORDER_BOTTOM,
 	BORDER_ALL_DIRTY = 0xf,
 };
 
@@ -2129,7 +2129,7 @@ static void
 draw_output_border_texture(struct gl_renderer *gr,
 			   struct gl_output_state *go,
 			   struct gl_shader_config *sconf,
-			   enum gl_renderer_border_side side,
+			   enum weston_renderer_border_side side,
 			   int32_t x, int32_t y,
 			   int32_t width, int32_t height)
 {
@@ -2167,42 +2167,42 @@ output_has_borders(struct weston_output *output)
 {
 	struct gl_output_state *go = get_output_state(output);
 
-	return go->borders_current[GL_RENDERER_BORDER_TOP].data ||
-	       go->borders_current[GL_RENDERER_BORDER_RIGHT].data ||
-	       go->borders_current[GL_RENDERER_BORDER_BOTTOM].data ||
-	       go->borders_current[GL_RENDERER_BORDER_LEFT].data;
+	return go->borders_current[WESTON_RENDERER_BORDER_TOP].data ||
+	       go->borders_current[WESTON_RENDERER_BORDER_RIGHT].data ||
+	       go->borders_current[WESTON_RENDERER_BORDER_BOTTOM].data ||
+	       go->borders_current[WESTON_RENDERER_BORDER_LEFT].data;
 }
 
 static struct weston_geometry
 output_get_border_area(const struct gl_output_state *go,
-		       enum gl_renderer_border_side side)
+		       enum weston_renderer_border_side side)
 {
 	const struct weston_size *fb = &go->fb_size;
 	const struct weston_geometry *area = &go->area;
 
 	switch (side) {
-	case GL_RENDERER_BORDER_TOP:
+	case WESTON_RENDERER_BORDER_TOP:
 		return (struct weston_geometry){
 			.x = 0,
 			.y = 0,
 			.width = fb->width,
 			.height = area->y
 		};
-	case GL_RENDERER_BORDER_LEFT:
+	case WESTON_RENDERER_BORDER_LEFT:
 		return (struct weston_geometry){
 			.x = 0,
 			.y = area->y,
 			.width = area->x,
 			.height = area->height
 		};
-	case GL_RENDERER_BORDER_RIGHT:
+	case WESTON_RENDERER_BORDER_RIGHT:
 		return (struct weston_geometry){
 			.x = area->x + area->width,
 			.y = area->y,
 			.width = fb->width - area->x - area->width,
 			.height = area->height
 		};
-	case GL_RENDERER_BORDER_BOTTOM:
+	case WESTON_RENDERER_BORDER_BOTTOM:
 		return (struct weston_geometry){
 			.x = 0,
 			.y = area->y + area->height,
@@ -4133,7 +4133,7 @@ log_gl_info(struct gl_renderer *gr)
 
 static void
 gl_renderer_output_set_border(struct weston_output *output,
-			      enum gl_renderer_border_side side,
+			      enum weston_renderer_border_side side,
 			      int32_t width, int32_t height,
 			      int32_t tex_width, unsigned char *data)
 {
@@ -4637,6 +4637,7 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	gr->base.surface_copy_content = gl_renderer_surface_copy_content;
 	gr->base.fill_buffer_info = gl_renderer_fill_buffer_info;
 	gr->base.buffer_init = gl_renderer_buffer_init;
+	gr->base.output_set_border = gl_renderer_output_set_border;
 	gr->base.type = WESTON_RENDERER_GL;
 
 	if (gl_renderer_setup_egl_display(gr, options->egl_native_display) < 0)
@@ -5085,6 +5086,5 @@ WL_EXPORT struct gl_renderer_interface gl_renderer_interface = {
 	.output_window_create = gl_renderer_output_window_create,
 	.output_fbo_create = gl_renderer_output_fbo_create,
 	.output_destroy = gl_renderer_output_destroy,
-	.output_set_border = gl_renderer_output_set_border,
 	.create_fence_fd = gl_renderer_create_fence_fd,
 };

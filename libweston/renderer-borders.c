@@ -28,16 +28,16 @@
 
 #include "config.h"
 
-#include "gl-borders.h"
+#include "renderer-borders.h"
 #include "shared/helpers.h"
 
 void
-weston_gl_borders_update(struct weston_gl_borders *borders,
+weston_renderer_borders_update(struct weston_renderer_borders *borders,
 			 struct frame *frame,
 			 struct weston_output *output)
 {
-	const struct gl_renderer_interface *glri =
-		output->compositor->renderer->gl;
+	const struct weston_renderer *renderer =
+		output->compositor->renderer;
 	int32_t ix, iy, iwidth, iheight, fwidth, fheight;
 
 	fwidth = frame_width(frame);
@@ -45,19 +45,19 @@ weston_gl_borders_update(struct weston_gl_borders *borders,
 	frame_interior(frame, &ix, &iy, &iwidth, &iheight);
 
 	struct weston_geometry border_area[4] = {
-		[GL_RENDERER_BORDER_TOP] = {
+		[WESTON_RENDERER_BORDER_TOP] = {
 			.x = 0, .y = 0,
 			.width = fwidth, .height = iy
 		},
-		[GL_RENDERER_BORDER_LEFT] = {
+		[WESTON_RENDERER_BORDER_LEFT] = {
 			.x = 0, .y = iy,
 			.width = ix, .height = 1
 		},
-		[GL_RENDERER_BORDER_RIGHT] = {
+		[WESTON_RENDERER_BORDER_RIGHT] = {
 			.x = iwidth + ix, .y = iy,
 			.width = fwidth - (ix + iwidth), .height = 1
 		},
-		[GL_RENDERER_BORDER_BOTTOM] = {
+		[WESTON_RENDERER_BORDER_BOTTOM] = {
 			.x = 0, .y = iy + iheight,
 			.width = fwidth, .height = fheight - (iy + iheight)
 		},
@@ -80,20 +80,20 @@ weston_gl_borders_update(struct weston_gl_borders *borders,
 		cairo_translate(cr, -g->x, -g->y);
 		frame_repaint(frame, cr);
 		cairo_destroy(cr);
-		glri->output_set_border(output, i, g->width, g->height, tex_width,
-					cairo_image_surface_get_data(borders->tile[i]));
+		renderer->output_set_border(output, i, g->width, g->height, tex_width,
+					    cairo_image_surface_get_data(borders->tile[i]));
 	}
 }
 
 void
-weston_gl_borders_fini(struct weston_gl_borders *borders,
+weston_renderer_borders_fini(struct weston_renderer_borders *borders,
 		       struct weston_output *output)
 {
-	const struct gl_renderer_interface *glri =
-		output->compositor->renderer->gl;
+	const struct weston_renderer *renderer =
+		output->compositor->renderer;
 
 	for (unsigned i = 0; i < ARRAY_LENGTH(borders->tile); i++) {
-		glri->output_set_border(output, i, 0, 0, 0, NULL);
+		renderer->output_set_border(output, i, 0, 0, 0, NULL);
 		cairo_surface_destroy(borders->tile[i]);
 		borders->tile[i] = NULL;
 	}

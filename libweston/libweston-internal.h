@@ -76,6 +76,13 @@ struct linux_dmabuf_memory {
 	void (*destroy)(struct linux_dmabuf_memory *dmabuf);
 };
 
+enum weston_renderer_border_side {
+	WESTON_RENDERER_BORDER_TOP = 0,
+	WESTON_RENDERER_BORDER_LEFT = 1,
+	WESTON_RENDERER_BORDER_RIGHT = 2,
+	WESTON_RENDERER_BORDER_BOTTOM = 3,
+};
+
 struct weston_renderer {
 	int (*read_pixels)(struct weston_output *output,
 			   const struct pixel_format_info *format, void *pixels,
@@ -202,6 +209,39 @@ struct weston_renderer {
 	enum weston_renderer_type type;
 	const struct gl_renderer_interface *gl;
 	const struct pixman_renderer_interface *pixman;
+
+	/* Sets the output border.
+	 *
+	 * The side specifies the side for which we are setting the border.
+	 * The width and height are the width and height of the border.
+	 * The tex_width patemeter specifies the width of the actual
+	 * texture; this may be larger than width if the data is not
+	 * tightly packed.
+	 *
+	 * The top and bottom textures will extend over the sides to the
+	 * full width of the bordered window.  The right and left edges,
+	 * however, will extend only to the top and bottom of the
+	 * compositor surface.  This is demonstrated by the picture below:
+	 *
+	 * +-----------------------+
+	 * |          TOP          |
+	 * +-+-------------------+-+
+	 * | |                   | |
+	 * |L|                   |R|
+	 * |E|                   |I|
+	 * |F|                   |G|
+	 * |T|                   |H|
+	 * | |                   |T|
+	 * | |                   | |
+	 * +-+-------------------+-+
+	 * |        BOTTOM         |
+	 * +-----------------------+
+	 */
+	void (*output_set_border)(struct weston_output *output,
+				  enum weston_renderer_border_side side,
+				  int32_t width, int32_t height,
+				  int32_t tex_width, unsigned char *data);
+
 };
 
 struct weston_tearing_control {
