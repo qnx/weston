@@ -591,6 +591,9 @@ weston_color_transform_string(const struct weston_color_transform *xform)
 	char *str = NULL;
 	size_t size = 0;
 
+	if (!xform->steps_valid)
+		return xstrdup("pipeline: uses shaper + 3D LUT\n");
+
 	fp = open_memstream(&str, &size);
 	abort_oom_if_null(fp);
 
