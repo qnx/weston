@@ -1449,6 +1449,36 @@ build_3d_lut(struct weston_compositor *compositor, cmsHTRANSFORM cmap_3dlut,
 	return true;
 }
 
+static int
+sign_of_difference(float a, float b)
+{
+	float d = a - b;
+
+	if (d < -1e-9)
+		return -1;
+	if (d > 1e-9)
+		return 1;
+
+	return 0;
+}
+
+static bool
+is_monotonic(const float *lut, unsigned len)
+{
+	unsigned i;
+	int sign = sign_of_difference(lut[0], lut[len - 1]);
+
+	if (sign == 0)
+		return false;
+
+	for (i = 1; i < len; i++) {
+		if (sign != sign_of_difference(lut[i - 1], lut[i]))
+			return false;
+	}
+
+	return true;
+}
+
 static bool
 build_shaper(cmsContext lcms_ctx, cmsHTRANSFORM cmap_3dlut,
 	     unsigned int len_shaper, float *shaper)
@@ -1485,6 +1515,13 @@ build_shaper(cmsContext lcms_ctx, cmsHTRANSFORM cmap_3dlut,
 	}
 
 	for (ch = 0; ch < 3; ch++) {
+		/*
+		 * If the curve is already monotonic, don't risk running the
+		 * smoothing. It may break monotonicity for nearly zero gradient.
+		 */
+		if (is_monotonic(curves[ch], len_shaper))
+			continue;
+
 		tc[ch] = cmsBuildTabulatedToneCurveFloat(lcms_ctx, len_shaper,
 							 curves[ch]);
 		if (!tc[ch]) {
