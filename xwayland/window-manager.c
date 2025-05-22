@@ -987,7 +987,7 @@ weston_wm_send_focus_window(struct weston_wm *wm,
 	} else {
 		xcb_set_input_focus (wm->conn,
 				     XCB_INPUT_FOCUS_POINTER_ROOT,
-				     XCB_NONE,
+				     wm->no_focus_window,
 				     XCB_TIME_CURRENT_TIME);
 	}
 }
@@ -1011,7 +1011,7 @@ weston_wm_window_activate(struct wl_listener *listener, void *data)
 	if (window) {
 		weston_wm_set_net_active_window(wm, window->id);
 	} else {
-		weston_wm_set_net_active_window(wm, XCB_WINDOW_NONE);
+		weston_wm_set_net_active_window(wm, wm->no_focus_window);
 	}
 
 	weston_wm_send_focus_window(wm, window);
