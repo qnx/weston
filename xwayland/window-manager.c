@@ -2686,6 +2686,32 @@ weston_wm_create_wm_window(struct weston_wm *wm)
 }
 
 static void
+weston_wm_create_no_focus_window(struct weston_wm *wm)
+{
+	uint32_t values[2];
+
+	values[0] = 1;
+	values[1] =
+		XCB_EVENT_MASK_KEY_PRESS |
+		XCB_EVENT_MASK_KEY_RELEASE |
+		XCB_EVENT_MASK_FOCUS_CHANGE;
+
+	wm->no_focus_window = xcb_generate_id(wm->conn);
+	xcb_create_window(wm->conn,
+			  XCB_COPY_FROM_PARENT,
+			  wm->no_focus_window,
+			  wm->screen->root,
+			  -100, -100, 1, 1,
+			  0,
+			  XCB_WINDOW_CLASS_COPY_FROM_PARENT,
+			  XCB_COPY_FROM_PARENT,
+			  XCB_CW_OVERRIDE_REDIRECT |
+			  XCB_CW_EVENT_MASK,
+			  values);
+	xcb_map_window(wm->conn, wm->no_focus_window);
+}
+
+static void
 free_xwl_surface(struct wl_resource *resource)
 {
 	struct xwl_surface *xsurf = wl_resource_get_user_data(resource);
@@ -2934,6 +2960,10 @@ weston_wm_create(struct weston_xserver *wxs, int fd)
 	/* Create wm window and take WM_S0 selection last, which
 	 * signals to Xwayland that we're done with setup. */
 	weston_wm_create_wm_window(wm);
+
+	/* Create a dummy no_focus_window to use when focus changes
+	 * to a non-X window. */
+	weston_wm_create_no_focus_window(wm);
 
 	weston_log("created wm, root %d\n", wm->screen->root);
 

@@ -63,6 +63,7 @@ struct weston_wm {
 	struct weston_xserver *server;
 	struct wl_global *xwayland_shell_global;
 	xcb_window_t wm_window;
+	xcb_window_t no_focus_window;
 	struct weston_wm_window *focus_window;
 	struct theme *theme;
 	xcb_cursor_t *cursors;
