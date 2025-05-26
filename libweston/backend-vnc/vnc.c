@@ -56,6 +56,7 @@
 #include "pixel-formats.h"
 #include "pixman-renderer.h"
 #include "renderer-gl/gl-renderer.h"
+#include "renderer-vulkan/vulkan-renderer.h"
 #include "shared/weston-egl-ext.h"
 
 #define DEFAULT_AXIS_STEP_DISTANCE 10
@@ -844,6 +845,21 @@ vnc_output_enable(struct weston_output *base)
 			return -1;
 		break;
 	}
+	case WESTON_RENDERER_VULKAN: {
+		const struct vulkan_renderer_fbo_options options = {
+			.area = {
+				.width = output->base.current_mode->width,
+				.height = output->base.current_mode->height,
+			},
+			.fb_size = {
+				.width = output->base.current_mode->width,
+				.height = output->base.current_mode->height,
+			},
+		};
+		if (renderer->vulkan->output_fbo_create(&output->base, &options) < 0)
+			return -1;
+		break;
+	}
 	default:
 		unreachable("cannot have auto renderer at runtime");
 	}
@@ -889,6 +905,9 @@ vnc_output_disable(struct weston_output *base)
 		break;
 	case WESTON_RENDERER_GL:
 		renderer->gl->output_destroy(&output->base);
+		break;
+	case WESTON_RENDERER_VULKAN:
+		renderer->vulkan->output_destroy(&output->base);
 		break;
 	default:
 		unreachable("cannot have auto renderer at runtime");
@@ -1201,6 +1220,17 @@ vnc_backend_create(struct weston_compositor *compositor,
 				goto err_compositor;
 			break;
 		}
+		case WESTON_RENDERER_VULKAN: {
+			const struct vulkan_renderer_display_options options = {
+				.formats = backend->formats,
+				.formats_count = backend->formats_count,
+			};
+			if (weston_compositor_init_renderer(compositor,
+							    WESTON_RENDERER_VULKAN,
+							    &options.base) < 0)
+				goto err_compositor;
+			break;
+		}
 		default:
 			weston_log("Unsupported renderer requested\n");
 			goto err_compositor;
@@ -1342,6 +1372,7 @@ weston_backend_init(struct weston_compositor *compositor,
 		switch (compositor->renderer->type) {
 		case WESTON_RENDERER_PIXMAN:
 		case WESTON_RENDERER_GL:
+		case WESTON_RENDERER_VULKAN:
 			break;
 		default:
 			weston_log("Renderer not supported by VNC backend\n");
