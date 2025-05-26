@@ -2358,9 +2358,32 @@ vulkan_renderer_repaint_output(struct weston_output *output,
 	rb->border_status = BORDER_STATUS_CLEAN;
 	vo->border_status = BORDER_STATUS_CLEAN;
 
-	pixman_region32_clear(&rb->damage);
-
 	update_buffer_release_fences(compositor, output);
+
+	if (rb->buffer) {
+		uint32_t *pixels = rb->buffer;
+		int width = vo->fb_size.width;
+		int stride = width * (compositor->read_format->bpp >> 3);
+		pixman_box32_t extents;
+
+		assert(rb->stride == stride);
+
+		extents = weston_matrix_transform_rect(&output->matrix,
+						       rb->damage.extents);
+
+		const struct weston_geometry rect = {
+			.x = vo->area.x + extents.x1,
+			.y = vo->area.y + extents.y1,
+			.width = extents.x2 - extents.x1,
+			.height = extents.y2 - extents.y1,
+		};
+
+		vulkan_renderer_do_read_pixels(vr, im->image, vo,
+					       compositor->read_format,
+					       pixels, stride, &rect);
+	}
+
+	pixman_region32_clear(&rb->damage);
 
 	vo->last_frame = vo->frame_index;
 	vo->frame_index = (vo->frame_index + 1) % vo->num_frames;
