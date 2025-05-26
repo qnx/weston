@@ -59,6 +59,7 @@
 #include "pixel-formats.h"
 #include "pixman-renderer.h"
 #include "renderer-gl/gl-renderer.h"
+#include "renderer-vulkan/vulkan-renderer.h"
 #include "shared/weston-egl-ext.h"
 
 struct pipewire_backend {
@@ -349,12 +350,43 @@ pipewire_output_enable_gl(struct pipewire_output *output)
 	return renderer->gl->output_fbo_create(&output->base, &options);
 }
 
+static int
+pipewire_output_enable_vulkan(struct pipewire_output *output)
+{
+	struct pipewire_backend *b = output->backend;
+	struct weston_renderer *renderer = b->compositor->renderer;
+	const struct weston_size fb_size = {
+		output->base.current_mode->width,
+		output->base.current_mode->height
+	};
+	const struct weston_geometry area = {
+		.x = 0,
+		.y = 0,
+		.width = fb_size.width,
+		.height = fb_size.height
+	};
+	const struct vulkan_renderer_fbo_options options = {
+		.fb_size = fb_size,
+		.area = area,
+	};
+
+	return renderer->vulkan->output_fbo_create(&output->base, &options);
+}
+
 static void
 pipewire_output_disable_gl(struct pipewire_output *output)
 {
 	struct weston_renderer *renderer = output->base.compositor->renderer;
 
 	renderer->gl->output_destroy(&output->base);
+}
+
+static void
+pipewire_output_disable_vulkan(struct pipewire_output *output)
+{
+	struct weston_renderer *renderer = output->base.compositor->renderer;
+
+	renderer->vulkan->output_destroy(&output->base);
 }
 
 static int
@@ -374,6 +406,9 @@ pipewire_output_enable(struct weston_output *base)
 		break;
 	case WESTON_RENDERER_GL:
 		ret = pipewire_output_enable_gl(output);
+		break;
+	case WESTON_RENDERER_VULKAN:
+		ret = pipewire_output_enable_vulkan(output);
 		break;
 	default:
 		unreachable("Valid renderer should have been selected");
@@ -399,6 +434,9 @@ err:
 		break;
 	case WESTON_RENDERER_GL:
 		pipewire_output_disable_gl(output);
+		break;
+	case WESTON_RENDERER_VULKAN:
+		pipewire_output_disable_vulkan(output);
 		break;
 	default:
 		unreachable("Valid renderer should have been selected");
@@ -427,6 +465,9 @@ pipewire_output_disable(struct weston_output *base)
 		break;
 	case WESTON_RENDERER_GL:
 		pipewire_output_disable_gl(output);
+		break;
+	case WESTON_RENDERER_VULKAN:
+		pipewire_output_disable_vulkan(output);
 		break;
 	default:
 		unreachable("Valid renderer should have been selected");
@@ -957,9 +998,20 @@ pipewire_schedule_submit_buffer(struct pipewire_output *output,
 	struct wl_event_loop *loop;
 	int fence_sync_fd;
 
-	fence_sync_fd = renderer->gl->create_fence_fd(&output->base);
-	if (fence_sync_fd == -1)
-		return -1;
+	switch (renderer->type) {
+	case WESTON_RENDERER_GL:
+		fence_sync_fd = renderer->gl->create_fence_fd(&output->base);
+		if (fence_sync_fd == -1)
+			return -1;
+		break;
+	case WESTON_RENDERER_VULKAN:
+		fence_sync_fd = renderer->vulkan->create_fence_fd(&output->base);
+		if (fence_sync_fd == -1)
+			return -1;
+		break;
+	default:
+		unreachable("invalid renderer");
+	}
 
 	fence_data = zalloc(sizeof *fence_data);
 	if (!fence_data) {
@@ -1301,6 +1353,16 @@ pipewire_backend_create(struct weston_compositor *compositor,
 							      &options.base);
 			break;
 		}
+		case WESTON_RENDERER_VULKAN: {
+			const struct vulkan_renderer_display_options options = {
+				.formats = backend->formats,
+				.formats_count = backend->formats_count,
+			};
+			ret = weston_compositor_init_renderer(compositor,
+							      WESTON_RENDERER_VULKAN,
+							      &options.base);
+			break;
+		}
 		default:
 			weston_log("Unsupported renderer requested\n");
 			goto err_compositor;
@@ -1366,6 +1428,7 @@ weston_backend_init(struct weston_compositor *compositor,
 		switch (compositor->renderer->type) {
 		case WESTON_RENDERER_PIXMAN:
 		case WESTON_RENDERER_GL:
+		case WESTON_RENDERER_VULKAN:
 			break;
 		default:
 			weston_log("Renderer not supported by PipeWire backend\n");
