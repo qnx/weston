@@ -1023,21 +1023,27 @@ create_image_view(VkDevice device, VkImage image, VkFormat format, VkImageView *
 }
 
 static void
-copy_image_to_buffer(VkCommandBuffer cmd_buffer,
-		     VkImage image, VkBuffer buffer,
-		     uint32_t image_width, uint32_t image_height,
-		     uint32_t buffer_pitch)
+copy_sub_image_to_buffer(VkCommandBuffer cmd_buffer,
+			 VkBuffer buffer, VkImage image,
+			 uint32_t buffer_width, uint32_t buffer_height,
+			 uint32_t pitch,
+			 uint32_t bpp,
+			 uint32_t xoff, uint32_t yoff,
+			 uint32_t xcopy, uint32_t ycopy)
 {
-	const VkExtent3D image_extent = { image_width, image_height, 1 };
+	const VkOffset3D image_offset = { xoff, yoff };
+	const VkExtent3D image_extent = { xcopy, ycopy, 1 };
+
 	const VkBufferImageCopy region = {
+		.bufferOffset = ((buffer_width * yoff) + xoff) * (bpp/8),
+		.bufferRowLength = pitch,
+		.bufferImageHeight = buffer_height,
 		.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 		.imageSubresource.mipLevel = 0,
 		.imageSubresource.baseArrayLayer = 0,
 		.imageSubresource.layerCount = 1,
+		.imageOffset = image_offset,
 		.imageExtent = image_extent,
-		.bufferOffset = 0,
-		.bufferRowLength = buffer_pitch,
-		.bufferImageHeight = image_height,
 	};
 
 	vkCmdCopyImageToBuffer(cmd_buffer,
@@ -1104,7 +1110,7 @@ vulkan_renderer_do_read_pixels(struct vulkan_renderer *vr,
 {
 	VkBuffer dst_buffer;
 	VkDeviceMemory dst_memory;
-	VkDeviceSize buffer_size = stride * rect->height;
+	VkDeviceSize buffer_size = stride * vo->fb_size.height;
 	VkResult result;
 
 	create_buffer(vr, buffer_size,
@@ -1121,10 +1127,13 @@ vulkan_renderer_do_read_pixels(struct vulkan_renderer *vr,
 				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
 				0, VK_ACCESS_TRANSFER_WRITE_BIT);
 
-	copy_image_to_buffer(cmd_buffer,
-			     color_attachment, dst_buffer,
-			     rect->width, rect->height,
-			     stride / (pixel_format->bpp/8));
+	copy_sub_image_to_buffer(cmd_buffer,
+				 dst_buffer, color_attachment,
+				 vo->fb_size.width, vo->fb_size.height,
+				 (stride / (pixel_format->bpp/8)),
+				 pixel_format->bpp,
+				 rect->x, rect->y,
+				 rect->width, rect->height);
 
 	transition_image_layout(cmd_buffer, color_attachment,
 				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -1139,7 +1148,30 @@ vulkan_renderer_do_read_pixels(struct vulkan_renderer *vr,
 	result = vkMapMemory(vr->dev, dst_memory, 0, VK_WHOLE_SIZE, 0, &buffer_map);
 	check_vk_success(result, "vkMapMemory");
 
-	memcpy(pixels, buffer_map, buffer_size);
+	/* The captured buffer cannot be just memcpy'ed to the destination as
+	 * it might overwrite existing pixels outside of the capture region,
+	 * so use a pixman composition. */
+	pixman_image_t *image_src;
+	image_src = pixman_image_create_bits_no_clear(pixel_format->pixman_format,
+						      vo->fb_size.width, vo->fb_size.height,
+						      buffer_map, stride);
+
+	pixman_image_t *image_dst;
+	image_dst = pixman_image_create_bits_no_clear(pixel_format->pixman_format,
+						      vo->fb_size.width, vo->fb_size.height,
+						      pixels, stride);
+
+	pixman_image_composite32(PIXMAN_OP_SRC,
+				 image_src,        /* src */
+				 NULL,             /* mask */
+				 image_dst,        /* dest */
+				 rect->x, rect->y, /* src x,y */
+				 0, 0,             /* mask x,y */
+				 rect->x, rect->y, /* dest x,y */
+				 rect->width, rect->height);
+
+	pixman_image_unref(image_src);
+	pixman_image_unref(image_dst);
 
 	destroy_buffer(vr->dev, dst_buffer, dst_memory);
 
