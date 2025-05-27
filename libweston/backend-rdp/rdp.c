@@ -46,6 +46,7 @@
 #include <libweston/pixel-formats.h>
 #include "pixman-renderer.h"
 #include "renderer-gl/gl-renderer.h"
+#include "renderer-vulkan/vulkan-renderer.h"
 #include "shared/weston-egl-ext.h"
 
 /* These can be removed when we bump FreeRDP dependency past 3.0.0 in the future */
@@ -474,6 +475,9 @@ rdp_renderer_output_destroy(struct weston_output *base)
 	case WESTON_RENDERER_GL:
 		rdr->gl->output_destroy(base);
 		break;
+	case WESTON_RENDERER_VULKAN:
+		rdr->vulkan->output_destroy(base);
+		break;
 	default:
 		unreachable("cannot have auto renderer at runtime");
 	}
@@ -518,6 +522,23 @@ rdp_output_enable(struct weston_output *base)
 		};
 
 		if (renderer->gl->output_fbo_create(&output->base, &options) < 0) {
+			return -1;
+		}
+		break;
+	}
+	case WESTON_RENDERER_VULKAN: {
+		const struct vulkan_renderer_fbo_options options = {
+			.area = {
+				.width = output->base.current_mode->width,
+				.height = output->base.current_mode->height,
+			},
+			.fb_size = {
+				.width = output->base.current_mode->width,
+				.height = output->base.current_mode->height,
+			},
+		};
+
+		if (renderer->vulkan->output_fbo_create(&output->base, &options) < 0) {
 			return -1;
 		}
 		break;
@@ -1991,6 +2012,18 @@ rdp_backend_create(struct weston_compositor *compositor,
 					goto err_compositor;
 			break;
 		}
+		case WESTON_RENDERER_VULKAN: {
+			const struct vulkan_renderer_display_options options = {
+				.formats = b->formats,
+				.formats_count = b->formats_count,
+			};
+
+			if (weston_compositor_init_renderer(compositor,
+							    WESTON_RENDERER_VULKAN,
+							    &options.base) < 0)
+					goto err_compositor;
+			break;
+		}
 		default:
 			weston_log("Unsupported renderer requested\n");
 			goto err_free_strings;
@@ -2115,6 +2148,7 @@ weston_backend_init(struct weston_compositor *compositor,
 		switch (compositor->renderer->type) {
 		case WESTON_RENDERER_PIXMAN:
 		case WESTON_RENDERER_GL:
+		case WESTON_RENDERER_VULKAN:
 			break;
 		default:
 			weston_log("Renderer not supported by RDP backend\n");
