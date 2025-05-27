@@ -4369,6 +4369,25 @@ weston_view_move_to_layer(struct weston_view *view,
 		wl_signal_emit_mutable(&view->map_signal, view);
 }
 
+/** Move a weston_view before another layer_entry
+ *
+ * This moves a view before a given point within a layer, identified by a
+ * weston_layer_entry.
+ *
+ * \param view View to move
+ * \param layer The target layer entry
+ */
+WL_EXPORT void
+weston_view_move_before_layer_entry(struct weston_view *view,
+				    struct weston_layer_entry *layer)
+{
+	struct wl_list *list = layer->link.prev;
+	struct weston_layer_entry *entry =
+		container_of(list, struct weston_layer_entry, link);
+
+	weston_view_move_to_layer(view, entry);
+}
+
 /** Initialize the weston_layer struct.
  *
  * \param compositor The compositor instance

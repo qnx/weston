@@ -1995,6 +1995,10 @@ weston_view_move_to_layer(struct weston_view *view,
 			  struct weston_layer_entry *layer);
 
 void
+weston_view_move_before_layer_entry(struct weston_view *view,
+				    struct weston_layer_entry *layer);
+
+void
 weston_layer_init(struct weston_layer *layer,
 		  struct weston_compositor *compositor);
 void
