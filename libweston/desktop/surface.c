@@ -134,8 +134,6 @@ weston_desktop_view_destroy(struct weston_desktop_view *view)
 
 	wl_list_remove(&view->children_link);
 	wl_list_remove(&view->link);
-
-	weston_view_damage_below(view->view);
 	if (view->parent != NULL)
 		weston_view_destroy(view->view);
 
