@@ -794,11 +794,6 @@ err:
 	return false;
 }
 
-enum color_transform_step {
-	PRE_CURVE,
-	POST_CURVE,
-};
-
 static bool
 translate_curve_element_parametric(struct cmlcms_color_transform *xform,
 				   _cmsStageToneCurvesData *trc_data,
@@ -811,11 +806,11 @@ translate_curve_element_parametric(struct cmlcms_color_transform *xform,
 	bool clamped_input;
 	bool ret;
 
-	switch(step) {
-	case PRE_CURVE:
+	switch (step) {
+	case STEP_PRE_CURVE:
 		curve = &xform->base.pre_curve;
 		break;
-	case POST_CURVE:
+	case STEP_POST_CURVE:
 		curve = &xform->base.post_curve;
 		break;
 	default:
@@ -866,13 +861,13 @@ translate_curve_element_LUT(struct cmlcms_color_transform *xform,
 	cmsToneCurve **stash;
 	unsigned i;
 
-	switch(step) {
-	case PRE_CURVE:
+	switch (step) {
+	case STEP_PRE_CURVE:
 		curve = &xform->base.pre_curve;
 		curve->u.lut_3x1d.fill_in = cmlcms_fill_in_pre_curve;
 		stash = xform->pre_curve;
 		break;
-	case POST_CURVE:
+	case STEP_POST_CURVE:
 		curve = &xform->base.post_curve;
 		curve->u.lut_3x1d.fill_in = cmlcms_fill_in_post_curve;
 		stash = xform->post_curve;
@@ -960,7 +955,7 @@ translate_pipeline(struct cmlcms_color_transform *xform, const cmsPipeline *lut)
 		return true;
 
 	if (cmsStageType(elem) == cmsSigCurveSetElemType) {
-		if (!translate_curve_element(xform, elem, PRE_CURVE))
+		if (!translate_curve_element(xform, elem, STEP_PRE_CURVE))
 			return false;
 
 		elem = cmsStageNext(elem);
@@ -980,7 +975,7 @@ translate_pipeline(struct cmlcms_color_transform *xform, const cmsPipeline *lut)
 		return true;
 
 	if (cmsStageType(elem) == cmsSigCurveSetElemType) {
-		if (!translate_curve_element(xform, elem, POST_CURVE))
+		if (!translate_curve_element(xform, elem, STEP_POST_CURVE))
 			return false;
 
 		elem = cmsStageNext(elem);

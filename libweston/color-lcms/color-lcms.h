@@ -189,6 +189,10 @@ cmlcms_get_parametric_color_profile(struct weston_color_profile *cprof_base,
 void
 cmlcms_destroy_color_profile(struct weston_color_profile *cprof_base);
 
+enum color_transform_step {
+	STEP_PRE_CURVE,
+	STEP_POST_CURVE,
+};
 
 struct cmlcms_color_transform_recipe {
 	enum cmlcms_category category;
