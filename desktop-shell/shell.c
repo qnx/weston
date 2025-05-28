@@ -3844,9 +3844,6 @@ shell_fade_init(struct desktop_shell *shell)
 	if (!shell->fade.curtain)
 		return;
 
-	weston_view_update_transform(shell->fade.curtain->view);
-	weston_surface_damage(shell->fade.curtain->view->surface);
-
 	loop = wl_display_get_event_loop(shell->compositor->wl_display);
 	shell->fade.startup_timer =
 		wl_event_loop_add_timer(loop, fade_startup_timeout, shell);
