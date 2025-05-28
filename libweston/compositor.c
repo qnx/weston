@@ -300,7 +300,6 @@ paint_node_update_late(struct weston_paint_node *pnode)
 	struct weston_surface *surf = pnode->surface;
 	bool vis_dirty = pnode->status & PAINT_NODE_VISIBILITY_DIRTY;
 	bool plane_dirty = pnode->status & PAINT_NODE_PLANE_DIRTY;
-	bool content_dirty = pnode->status & PAINT_NODE_CONTENT_DIRTY;
 	bool buffer_dirty = pnode->status & PAINT_NODE_BUFFER_DIRTY;
 
 	/* The geoemtry may be shrinking, so we shouldn't just
@@ -325,15 +324,11 @@ paint_node_update_late(struct weston_paint_node *pnode)
 	/* If our visible region was dirty, we should damage the entire
 	 * new visible region to ensure a redraw of our content.
 	 *
-	 * If we chanaged planes, we need full visible region damage
+	 * If we changed planes, we need full visible region damage
 	 * on the new plane now that visibility is updated.
 	 */
 	if (pnode->plane && (vis_dirty || plane_dirty))
 		pixman_region32_copy(&pnode->damage, &pnode->visible);
-
-	if (content_dirty && pnode->plane)
-		pixman_region32_union(&pnode->damage,
-				      &pnode->damage, &pnode->visible);
 
 	if (plane_dirty) {
 		assert(pnode->plane_next);
@@ -348,7 +343,6 @@ paint_node_update_late(struct weston_paint_node *pnode)
 
 	pnode->status &= ~(PAINT_NODE_VISIBILITY_DIRTY |
 			   PAINT_NODE_PLANE_DIRTY |
-			   PAINT_NODE_CONTENT_DIRTY |
 			   PAINT_NODE_BUFFER_DIRTY);
 
 	/* Nothing should be able to flip "early" bits between
