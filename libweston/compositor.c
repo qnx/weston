@@ -2624,7 +2624,7 @@ weston_view_unmap(struct weston_view *view)
 			weston_view_unmap(child);
 	}
 
-	weston_view_damage_below(view);
+	weston_view_schedule_repaint(view);
 	weston_view_set_output(view, NULL);
 	view->is_mapped = false;
 	wl_list_remove(&view->layer_link.link);
