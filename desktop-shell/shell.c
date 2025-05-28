@@ -3301,7 +3301,6 @@ rotate_grab_motion(struct weston_pointer_grab *grab,
 	}
 
 	weston_view_update_transform(shsurf->view);
-	weston_surface_damage(shsurf->view->surface);
 }
 
 static void
