@@ -1279,12 +1279,6 @@ weston_paint_node_move_to_plane(struct weston_paint_node *pnode,
 			 PAINT_NODE_VISIBILITY_DIRTY;
 }
 
-WL_EXPORT void
-weston_view_damage_below(struct weston_view *view)
-{
-	weston_view_schedule_repaint(view);
-}
-
 /** Send wl_surface.enter/leave events
  *
  * \param surface The surface.
