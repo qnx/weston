@@ -2072,17 +2072,6 @@ weston_view_schedule_repaint(struct weston_view *view)
 }
 
 WL_EXPORT void
-weston_surface_damage(struct weston_surface *surface)
-{
-	struct weston_paint_node *pnode;
-
-	wl_list_for_each(pnode, &surface->paint_node_list, surface_link)
-			 pnode->status |= PAINT_NODE_CONTENT_DIRTY;
-
-	weston_surface_schedule_repaint(surface);
-}
-
-WL_EXPORT void
 weston_view_set_rel_position(struct weston_view *view,
 			     struct weston_coord_surface offset)
 {

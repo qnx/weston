@@ -2194,9 +2194,6 @@ weston_surface_set_size(struct weston_surface *surface,
 			int32_t width, int32_t height);
 
 void
-weston_surface_damage(struct weston_surface *surface);
-
-void
 weston_view_damage_below(struct weston_view *view);
 
 void
