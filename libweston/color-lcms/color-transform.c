@@ -954,7 +954,8 @@ translate_pipeline(struct cmlcms_color_transform *xform, const cmsPipeline *lut)
 	if (!elem)
 		return true;
 
-	if (cmsStageType(elem) == cmsSigCurveSetElemType) {
+	if (cmsStageType(elem) == cmsSigCurveSetElemType &&
+	    (xform->allowed.steps & STEP_PRE_CURVE)) {
 		if (!translate_curve_element(xform, elem, STEP_PRE_CURVE))
 			return false;
 
@@ -964,7 +965,8 @@ translate_pipeline(struct cmlcms_color_transform *xform, const cmsPipeline *lut)
 	if (!elem)
 		return true;
 
-	if (cmsStageType(elem) == cmsSigMatrixElemType) {
+	if (cmsStageType(elem) == cmsSigMatrixElemType &&
+	    (xform->allowed.steps & STEP_MAPPING)) {
 		if (!translate_matrix_element(&xform->base.mapping, elem))
 			return false;
 
@@ -974,7 +976,8 @@ translate_pipeline(struct cmlcms_color_transform *xform, const cmsPipeline *lut)
 	if (!elem)
 		return true;
 
-	if (cmsStageType(elem) == cmsSigCurveSetElemType) {
+	if (cmsStageType(elem) == cmsSigCurveSetElemType &&
+	    (xform->allowed.steps & STEP_POST_CURVE)) {
 		if (!translate_curve_element(xform, elem, STEP_POST_CURVE))
 			return false;
 
@@ -1255,7 +1258,8 @@ static bool
 xform_realize_icc_chain(struct cmlcms_color_transform *xform,
 			struct lcmsProfilePtr *chain,
 			size_t chain_len,
-			const struct weston_render_intent_info *render_intent)
+			const struct weston_render_intent_info *render_intent,
+			struct color_transform_steps_mask allowed)
 {
 	struct weston_color_manager_lcms *cm = to_cmlcms(xform->base.cm);
 	cmsUInt32Number dwFlags;
@@ -1267,6 +1271,7 @@ xform_realize_icc_chain(struct cmlcms_color_transform *xform,
 	 * If you want to disable the plug-in while debugging,
 	 * replace &transform_plugin with NULL.
 	 */
+	xform->allowed = allowed;
 	xform->lcms_ctx = cmsCreateContext(&transform_plugin, xform);
 	abort_oom_if_null(xform->lcms_ctx);
 	cmsSetLogErrorHandlerTHR(xform->lcms_ctx, lcms_xform_error_logger);
@@ -1304,6 +1309,9 @@ init_icc_to_icc_chain(struct cmlcms_color_transform *xform)
 	struct weston_color_manager_lcms *cm = to_cmlcms(xform->base.cm);
 	struct cmlcms_color_profile *output_profile = xform->search_key.output_profile;
 	const struct weston_render_intent_info *render_intent;
+	struct color_transform_steps_mask allowed = {
+		STEP_PRE_CURVE | STEP_MAPPING | STEP_POST_CURVE
+	};
 	struct lcmsProfilePtr chain[5];
 	unsigned chain_len = 0;
 
@@ -1350,7 +1358,8 @@ init_icc_to_icc_chain(struct cmlcms_color_transform *xform)
 
 	assert(chain_len <= ARRAY_LENGTH(chain));
 
-	return xform_realize_icc_chain(xform, chain, chain_len, render_intent);
+	return xform_realize_icc_chain(xform, chain, chain_len,
+				       render_intent, allowed);
 }
 
 static void

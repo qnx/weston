@@ -190,8 +190,14 @@ void
 cmlcms_destroy_color_profile(struct weston_color_profile *cprof_base);
 
 enum color_transform_step {
-	STEP_PRE_CURVE,
-	STEP_POST_CURVE,
+	STEP_PRE_CURVE  = 0x1,
+	STEP_MAPPING    = 0x2,
+	STEP_POST_CURVE = 0x4,
+};
+
+struct color_transform_steps_mask {
+	/** enum color_transform_step values bitwise or'd */
+	uint8_t steps;
 };
 
 struct cmlcms_color_transform_recipe {
@@ -235,6 +241,14 @@ struct cmlcms_color_transform {
 	 * contexts in order to use our LittleCMS plugin.
 	 */
 	cmsContext lcms_ctx;
+
+	/**
+	 * This determines which elements of struct weston_color_transform
+	 * can be used by the ICC chain. With parametric<->ICC color
+	 * transformations, some steps need to be reserved for additional
+	 * operations.
+	 */
+	struct color_transform_steps_mask allowed;
 };
 
 static inline struct cmlcms_color_transform *
