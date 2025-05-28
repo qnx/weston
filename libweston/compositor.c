@@ -1927,8 +1927,6 @@ weston_view_update_transform(struct weston_view *view)
 
 	view->transform.dirty = 0;
 
-	weston_view_damage_below(view);
-
 	pixman_region32_fini(&view->transform.boundingbox);
 	pixman_region32_fini(&view->transform.opaque);
 	pixman_region32_init(&view->transform.opaque);
@@ -1954,8 +1952,6 @@ weston_view_update_transform(struct weston_view *view)
 					  &view->transform.opaque, &mask);
 		pixman_region32_fini(&mask);
 	}
-
-	weston_view_damage_below(view);
 
 	weston_view_assign_output(view);
 
