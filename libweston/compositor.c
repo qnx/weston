@@ -2002,9 +2002,6 @@ weston_view_add_transform(struct weston_view *view,
 			  struct wl_list *pos,
 			  struct weston_transform *transform)
 {
-	if (weston_view_is_mapped(view))
-		weston_view_damage_below(view);
-
 	wl_list_remove(&transform->link);
 	wl_list_insert(pos, &transform->link);
 
@@ -2018,9 +2015,6 @@ weston_view_remove_transform(struct weston_view *view,
 {
 	if (wl_list_empty(&transform->link))
 		return;
-
-	if (weston_view_is_mapped(view))
-		weston_view_damage_below(view);
 
 	wl_list_remove(&transform->link);
 	wl_list_init(&transform->link);
