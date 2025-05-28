@@ -1015,13 +1015,7 @@ optimize_float_pipeline(cmsPipeline **lut, cmsContext context_id,
 {
 	lcms_optimize_pipeline(lut, context_id);
 
-	if (translate_pipeline(xform, *lut)) {
-		xform->status = CMLCMS_TRANSFORM_OPTIMIZED;
-		xform->base.steps_valid = true;
-	} else {
-		xform->status = CMLCMS_TRANSFORM_NON_OPTIMIZED;
-		xform->base.steps_valid = false;
-	}
+	xform->base.steps_valid = translate_pipeline(xform, *lut);
 }
 
 static const char *
@@ -1326,7 +1320,7 @@ xform_realize_chain(struct cmlcms_color_transform *xform)
 	abort_oom_if_null(xform->lcms_ctx);
 	cmsSetLogErrorHandlerTHR(xform->lcms_ctx, lcms_xform_error_logger);
 
-	assert(xform->status == CMLCMS_TRANSFORM_FAILED);
+	weston_assert_ptr_null(cm->base.compositor, xform->cmap_3dlut);
 	/* transform_factory() is invoked by this call. */
 	dwFlags = render_intent->bps ? cmsFLAGS_BLACKPOINTCOMPENSATION : 0;
 	xform->cmap_3dlut = cmsCreateMultiprofileTransformTHR(xform->lcms_ctx,
@@ -1341,20 +1335,9 @@ xform_realize_chain(struct cmlcms_color_transform *xform)
 	if (!xform->cmap_3dlut)
 		goto failed;
 
-	switch (xform->status) {
-	case CMLCMS_TRANSFORM_FAILED:
-		goto failed;
-	case CMLCMS_TRANSFORM_OPTIMIZED:
-		break;
-	case CMLCMS_TRANSFORM_NON_OPTIMIZED:
-		/*
-		 * Given the chain formed above, blend-to-output should be
-		 * optimized.
-		 */
-		weston_assert_uint32_neq(cm->base.compositor, xform->search_key.category,
-					 CMLCMS_CATEGORY_BLEND_TO_OUTPUT);
-		break;
-	}
+	/* Blend-to-output should always have valid steps. */
+	if (xform->search_key.category == CMLCMS_CATEGORY_BLEND_TO_OUTPUT)
+		weston_assert_true(cm->base.compositor, xform->base.steps_valid);
 
 	return true;
 
@@ -1609,7 +1592,6 @@ cmlcms_color_transform_create(struct weston_color_manager_lcms *cm,
 	}
 
 	wl_list_insert(&cm->color_transform_list, &xform->link);
-	assert(xform->status != CMLCMS_TRANSFORM_FAILED);
 
 	str = weston_color_transform_string(&xform->base);
 	weston_log_scope_printf(cm->transforms_scope, "  %s", str);

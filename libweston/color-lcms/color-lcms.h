@@ -231,20 +231,6 @@ struct cmlcms_color_transform {
 	 * contexts in order to use our LittleCMS plugin.
 	 */
 	cmsContext lcms_ctx;
-
-	/**
-	 * The result of pipeline construction, optimization, and analysis.
-	 */
-	enum {
-		/** Error producing a pipeline */
-		CMLCMS_TRANSFORM_FAILED = 0,
-
-		/** Pipeline was optimized into weston_color_transform. */
-		CMLCMS_TRANSFORM_OPTIMIZED,
-
-		/** Non-optimized pipeline, xform->cmap_3dlut must be used. */
-		CMLCMS_TRANSFORM_NON_OPTIMIZED,
-	} status;
 };
 
 static inline struct cmlcms_color_transform *
