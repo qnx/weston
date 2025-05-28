@@ -4394,7 +4394,6 @@ weston_view_move_to_layer(struct weston_view *view,
 	view->is_mapped = true;
 	weston_view_geometry_dirty_internal(view);
 	weston_view_update_transform(view);
-	weston_surface_damage(view->surface);
 
 	if (!was_mapped)
 		wl_signal_emit_mutable(&view->map_signal, view);
