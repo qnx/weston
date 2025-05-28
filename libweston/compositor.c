@@ -2020,9 +2020,6 @@ weston_view_add_transform(struct weston_view *view,
 
 	weston_view_geometry_dirty_internal(view);
 	weston_view_update_transform(view);
-
-	if (weston_view_is_mapped(view))
-		weston_surface_damage(view->surface);
 }
 
 WL_EXPORT void
@@ -2040,9 +2037,6 @@ weston_view_remove_transform(struct weston_view *view,
 
 	weston_view_geometry_dirty_internal(view);
 	weston_view_update_transform(view);
-
-	if (weston_view_is_mapped(view))
-		weston_surface_damage(view->surface);
 }
 
 /**
