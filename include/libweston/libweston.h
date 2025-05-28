@@ -1905,9 +1905,6 @@ struct weston_subsurface {
 	struct weston_surface_state cached;
 	struct weston_buffer_reference cached_buffer_ref;
 
-	/* Sub-surface has been reordered; need to apply damage. */
-	bool reordered;
-
 	int synchronized;
 
 	/* Used for constructing the view tree */

@@ -3572,8 +3572,7 @@ view_list_add_subsurface_view(struct weston_compositor *compositor,
 /* This recursively adds the sub-surfaces for a view, relying on the
  * sub-surface order. Thus, if a client restacks the sub-surfaces, that
  * change first happens to the sub-surface list, and then automatically
- * propagates here. See weston_surface_damage_subsurfaces() for how the
- * sub-surfaces receive damage when the client changes the state.
+ * propagates here. Damage is inflicted by changes to the paint nodes.
  */
 static void
 view_list_add(struct weston_compositor *compositor,
@@ -4711,36 +4710,18 @@ surface_set_input_region(struct wl_client *client,
 	surface->pending.status |= WESTON_SURFACE_DIRTY_INPUT;
 }
 
-/* Cause damage to this sub-surface and all its children.
- *
- * This is useful when there are state changes that need an implicit
- * damage, e.g. a z-order change.
- */
-static void
-weston_surface_damage_subsurfaces(struct weston_subsurface *sub)
-{
-	struct weston_subsurface *child;
-
-	weston_surface_damage(sub->surface);
-	sub->reordered = false;
-
-	wl_list_for_each(child, &sub->surface->subsurface_list, parent_link)
-		if (child != sub)
-			weston_surface_damage_subsurfaces(child);
-}
-
 static void
 weston_surface_commit_subsurface_order(struct weston_surface *surface)
 {
 	struct weston_subsurface *sub;
+	struct weston_view *view;
 
 	wl_list_for_each_reverse(sub, &surface->subsurface_list_pending,
 				 parent_link_pending) {
 		wl_list_remove(&sub->parent_link);
 		wl_list_insert(&surface->subsurface_list, &sub->parent_link);
-
-		if (sub->reordered)
-			weston_surface_damage_subsurfaces(sub);
+		wl_list_for_each(view, &sub->surface->views, surface_link)
+			weston_view_geometry_dirty(view);
 	}
 }
 
@@ -5862,7 +5843,6 @@ subsurface_place_above(struct wl_client *client,
 	wl_list_insert(sibling->parent_link_pending.prev,
 		       &sub->parent_link_pending);
 
-	sub->reordered = true;
 	sub->parent->pending.status |= WESTON_SURFACE_DIRTY_SUBSURFACE_CONFIG;
 }
 
@@ -5887,7 +5867,6 @@ subsurface_place_below(struct wl_client *client,
 	wl_list_insert(&sibling->parent_link_pending,
 		       &sub->parent_link_pending);
 
-	sub->reordered = true;
 	sub->parent->pending.status |= WESTON_SURFACE_DIRTY_SUBSURFACE_CONFIG;
 }
 
