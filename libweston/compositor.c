@@ -4337,9 +4337,6 @@ WL_EXPORT void
 weston_view_set_alpha(struct weston_view *view, float alpha)
 {
 	view->alpha = alpha;
-	weston_surface_damage(view->surface);
-	if (alpha != 1.0 || !view->surface->is_opaque)
-		weston_view_damage_below(view);
 	weston_view_geometry_dirty_internal(view);
 	weston_view_update_transform(view);
 }
