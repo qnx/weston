@@ -3820,6 +3820,10 @@ weston_output_repaint(struct weston_output *output, struct timespec *now)
 			highest_requested = pnode->surface->desired_protection;
 	}
 
+	/* If we're changing our protection characteristics, we need to go
+	 * through a full repaint. */
+	if (output->desired_protection != highest_requested)
+		output->full_repaint_needed = true;
 	output->desired_protection = highest_requested;
 
 	wl_list_for_each(pnode, &output->paint_node_z_order_list,
@@ -4896,10 +4900,17 @@ static void
 weston_surface_set_desired_protection(struct weston_surface *surface,
 				      enum weston_hdcp_protection protection)
 {
+	struct weston_paint_node *pnode;
+
 	if (surface->desired_protection == protection)
 		return;
+
 	surface->desired_protection = protection;
-	weston_surface_damage(surface);
+
+	wl_list_for_each(pnode, &surface->paint_node_list, surface_link) {
+		if (pixman_region32_not_empty(&pnode->visible))
+			weston_output_damage(pnode->output);
+	}
 }
 
 static void
