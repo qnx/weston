@@ -1056,12 +1056,13 @@ weston_surface_create(struct weston_compositor *compositor,
 }
 
 WL_EXPORT struct weston_coord_global
-weston_coord_surface_to_global(const struct weston_view *view,
+weston_coord_surface_to_global(struct weston_view *view,
 			       struct weston_coord_surface coord)
 {
 	struct weston_coord_global out;
 
-	assert(!view->transform.dirty);
+	weston_view_update_transform(view);
+
 	assert(view->surface == coord.coordinate_space_id);
 
 	out.c = weston_matrix_transform_coord(&view->transform.matrix,
@@ -1070,12 +1071,13 @@ weston_coord_surface_to_global(const struct weston_view *view,
 }
 
 WL_EXPORT struct weston_coord_surface
-weston_coord_global_to_surface(const struct weston_view *view,
+weston_coord_global_to_surface(struct weston_view *view,
 			       struct weston_coord_global coord)
 {
 	struct weston_coord_surface out;
 
-	assert(!view->transform.dirty);
+	weston_view_update_transform(view);
+
 	out.c = weston_matrix_transform_coord(&view->transform.inverse,
 					      coord.c);
 	out.coordinate_space_id = view->surface;

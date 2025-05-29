@@ -2148,11 +2148,11 @@ weston_view_remove_transform(struct weston_view *view,
 			     struct weston_transform *transform);
 
 struct weston_coord_global __attribute__ ((warn_unused_result))
-weston_coord_surface_to_global(const struct weston_view *view,
+weston_coord_surface_to_global(struct weston_view *view,
 			       struct weston_coord_surface coord);
 
 struct weston_coord_surface __attribute__ ((warn_unused_result))
-weston_coord_global_to_surface(const struct weston_view *view,
+weston_coord_global_to_surface(struct weston_view *view,
 			       struct weston_coord_global coord);
 
 struct weston_coord_buffer __attribute__ ((warn_unused_result))
