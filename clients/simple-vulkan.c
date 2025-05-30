@@ -101,6 +101,7 @@ struct geometry {
 struct window_image {
 	VkImageView image_view;
 	VkFramebuffer framebuffer;
+	VkSemaphore render_done;
 };
 
 struct window_buffer {
@@ -110,7 +111,6 @@ struct window_buffer {
 };
 
 struct window_frame {
-	VkSemaphore render_done;
 	VkSemaphore image_acquired;
 	VkFence fence;
 	VkCommandBuffer cmd_buffer;
@@ -368,9 +368,17 @@ create_swapchain(struct window *window)
 
 	assert(window->vk.image_count <= ARRAY_LENGTH(window->vk.images));
 	for (uint32_t i = 0; i < window->vk.image_count; i++) {
+		VkResult result;
+
 		create_image_view(window->vk.dev, swapchain_images[i], window->vk.format, &window->vk.images[i].image_view);
 		create_framebuffer(window->vk.dev, window->vk.renderpass, window->vk.images[i].image_view,
 				window->buffer_size.width, window->buffer_size.height, &window->vk.images[i].framebuffer);
+
+		const VkSemaphoreCreateInfo semaphore_create_info = {
+			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+		};
+		result = vkCreateSemaphore(window->vk.dev, &semaphore_create_info, NULL, &window->vk.images[i].render_done);
+		check_vk_success(result, "vkCreateSemaphore");
 	}
 }
 
@@ -380,6 +388,7 @@ destroy_swapchain(struct window *window)
 	vkDeviceWaitIdle(window->vk.dev);
 
 	for (uint32_t i = 0; i < window->vk.image_count; i++) {
+		vkDestroySemaphore(window->vk.dev, window->vk.images[i].render_done, NULL);
 		vkDestroyFramebuffer(window->vk.dev, window->vk.images[i].framebuffer, NULL);
 		vkDestroyImageView(window->vk.dev, window->vk.images[i].image_view, NULL);
 	}
@@ -1124,8 +1133,6 @@ init_vulkan(struct window *window)
 		const VkSemaphoreCreateInfo semaphore_create_info = {
 			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
 		};
-		result = vkCreateSemaphore(window->vk.dev, &semaphore_create_info, NULL, &frame->render_done);
-		check_vk_success(result, "vkCreateSemaphore");
 		result = vkCreateSemaphore(window->vk.dev, &semaphore_create_info, NULL, &frame->image_acquired);
 		check_vk_success(result, "vkCreateSemaphore");
 
@@ -1154,7 +1161,6 @@ fini_vulkan(struct window *window)
 	for (uint32_t i = 0; i < MAX_CONCURRENT_FRAMES; ++i) {
 		struct window_frame *frame = &window->vk.frames[i];
 		vkDestroySemaphore(window->vk.dev, frame->image_acquired, NULL);
-		vkDestroySemaphore(window->vk.dev, frame->render_done, NULL);
 		vkFreeCommandBuffers(window->vk.dev, window->vk.cmd_pool, 1, &frame->cmd_buffer);
 		vkDestroyFence(window->vk.dev, frame->fence, NULL);
 
@@ -1364,7 +1370,7 @@ draw_triangle(struct window *window, struct window_frame *frame, struct window_i
 		.commandBufferCount = 1,
 		.pCommandBuffers = &cmd_buffer,
 		.signalSemaphoreCount = 1,
-		.pSignalSemaphores = &frame->render_done,
+		.pSignalSemaphores = &image->render_done,
 	};
 
 	result = vkQueueSubmit(window->vk.queue, 1, &submit_info, frame->fence);
@@ -1571,12 +1577,14 @@ redraw(struct window *window)
 
 	assert(image_index < ARRAY_LENGTH(window->vk.images));
 
-	draw_triangle(window, frame, &window->vk.images[image_index]);
+	struct window_image *image = &window->vk.images[image_index];
+
+	draw_triangle(window, frame, image);
 
 	VkPresentInfoKHR present_info = {
 		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 		.waitSemaphoreCount = 1,
-		.pWaitSemaphores = &frame->render_done,
+		.pWaitSemaphores = &image->render_done,
 		.swapchainCount = 1,
 		.pSwapchains = &window->vk.swapchain,
 		.pImageIndices = &image_index,
