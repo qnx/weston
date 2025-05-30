@@ -30,6 +30,7 @@
 #include <lcms2.h>
 #include <libweston/libweston.h>
 #include <libweston/weston-log.h>
+#include <libweston/linalg-3.h>
 
 #include "color.h"
 #include "shared/helpers.h"
@@ -200,6 +201,11 @@ struct color_transform_steps_mask {
 	uint8_t steps;
 };
 
+/** A complete color transformation to be computed on the CPU */
+struct cmlcms_color_transformer {
+	cmsHTRANSFORM icc_chain;
+};
+
 struct cmlcms_color_transform_recipe {
 	enum cmlcms_category category;
 	struct cmlcms_color_profile *input_profile;
@@ -228,13 +234,11 @@ struct cmlcms_color_transform {
 	cmsToneCurve *post_curve[3];
 
 	/**
-	 * 3D LUT color mapping part of the transformation, if needed by the
-	 * weston_color_transform. This is used as a fallback when an
-	 * arbitrary LittleCMS pipeline cannot be translated into a more
-	 * specific form or when the backend/renderer is not able to use
-	 * such optimized form.
+	 * For evaluating points through the complete color transformation,
+	 * even when base.steps_valid is false. This is used for the 3D LUT
+	 * path.
 	 */
-	cmsHTRANSFORM cmap_3dlut;
+	struct cmlcms_color_transformer transformer;
 
 	/**
 	 * Certain categories of transformations need their own LittleCMS
@@ -297,5 +301,15 @@ lcms_optimize_pipeline(cmsPipeline **lut, cmsContext context_id);
 cmsToneCurve *
 lcmsJoinToneCurve(cmsContext context_id, const cmsToneCurve *X,
 		  const cmsToneCurve *Y, unsigned int resulting_points);
+
+void
+cmlcms_color_transformer_fini(struct cmlcms_color_transformer *t);
+
+void
+cmlcms_color_transformer_eval(struct weston_compositor *compositor,
+			      const struct cmlcms_color_transformer *t,
+			      struct weston_vec3f *dst,
+			      const struct weston_vec3f *src,
+			      size_t len);
 
 #endif /* WESTON_COLOR_LCMS_H */

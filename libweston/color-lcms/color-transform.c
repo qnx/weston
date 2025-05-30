@@ -121,11 +121,8 @@ cmlcms_color_transform_destroy(struct cmlcms_color_transform *xform)
 	wl_list_remove(&xform->link);
 
 	cmsFreeToneCurveTriple(xform->pre_curve);
-
-	if (xform->cmap_3dlut)
-		cmsDeleteTransform(xform->cmap_3dlut);
-
 	cmsFreeToneCurveTriple(xform->post_curve);
+	cmlcms_color_transformer_fini(&xform->transformer);
 
 	if (xform->lcms_ctx)
 		cmsDeleteContext(xform->lcms_ctx);
@@ -1378,11 +1375,11 @@ init_icc_to_icc_chain(struct cmlcms_color_transform *xform)
 
 	assert(chain_len <= ARRAY_LENGTH(chain));
 
-	weston_assert_ptr_null(cm->base.compositor, xform->cmap_3dlut);
-	xform->cmap_3dlut = xform_realize_icc_chain(xform, chain, chain_len,
-						    render_intent, allowed);
+	weston_assert_ptr_null(cm->base.compositor, xform->transformer.icc_chain);
+	xform->transformer.icc_chain = xform_realize_icc_chain(xform, chain, chain_len,
+							       render_intent, allowed);
 
-	return !!xform->cmap_3dlut;
+	return !!xform->transformer.icc_chain;
 }
 
 static void
@@ -1762,7 +1759,8 @@ cmlcms_color_transform_recipe_string(const struct cmlcms_color_transform_recipe 
 }
 
 static bool
-build_3d_lut(struct weston_compositor *compositor, cmsHTRANSFORM cmap_3dlut,
+build_3d_lut(struct weston_compositor *compositor,
+	     const struct cmlcms_color_transformer *transformer,
 	     unsigned int len_shaper, const float *shaper,
 	     unsigned int len_lut3d, float *lut3d)
 {
@@ -1844,7 +1842,9 @@ build_3d_lut(struct weston_compositor *compositor, cmsHTRANSFORM cmap_3dlut,
 
 			index_r = 0;
 			i = 3 * (index_r + len_lut3d * (index_g + len_lut3d * index_b));
-			cmsDoTransform(cmap_3dlut, rgb_in, &lut3d[i], len_lut3d);
+			cmlcms_color_transformer_eval(compositor, transformer,
+						      (struct weston_vec3f *)&lut3d[i],
+						      rgb_in, len_lut3d);
 		}
 	}
 
@@ -1884,12 +1884,15 @@ is_monotonic(const float *lut, unsigned len)
 }
 
 static bool
-build_shaper(cmsContext lcms_ctx, cmsHTRANSFORM cmap_3dlut,
-	     unsigned int len_shaper, float *shaper)
+build_shaper(struct weston_compositor *compositor,
+	     cmsContext lcms_ctx,
+	     const struct cmlcms_color_transformer *transformer,
+	     unsigned int len_shaper,
+	     float *shaper)
 {
 	float *curves[3];
 	float divider = len_shaper - 1;
-	float rgb_in[3], rgb_out[3];
+	struct weston_vec3f rgb_in, rgb_out;
 	cmsToneCurve *tc[3] = { NULL };
 	unsigned int ch, i;
 	float smoothing_param;
@@ -1912,10 +1915,11 @@ build_shaper(cmsContext lcms_ctx, cmsHTRANSFORM cmap_3dlut,
 	curves[2] = &shaper[2 * len_shaper];
 
 	for (i = 0; i < len_shaper; i++) {
-		rgb_in[0] = rgb_in[1] = rgb_in[2] = (float)i / divider;
-		cmsDoTransform(cmap_3dlut, rgb_in, rgb_out, 1);
+		rgb_in.r = rgb_in.g = rgb_in.b = (float)i / divider;
+		cmlcms_color_transformer_eval(compositor, transformer,
+					      &rgb_out, &rgb_in, 1);
 		for (ch = 0; ch < 3; ch++)
-			curves[ch][i] = ensure_unorm(rgb_out[ch]);
+			curves[ch][i] = ensure_unorm(rgb_out.el[ch]);
 	}
 
 	for (ch = 0; ch < 3; ch++) {
@@ -1952,10 +1956,10 @@ out:
 }
 
 /**
- * Based on [1]. We get cmsHTRANSFORM cmap_3dlut and decompose into a shaper
+ * Based on [1]. We get the transformer and decompose into a shaper
  * (3x1D LUT) + 3D LUT. With that, we can reduce the 3D LUT dimension size
- * without loosing precision. 3D LUT dimension size is problematic because it
- * demands n³ memory. In this function we construct such shaper.
+ * without losing precision. 3D LUT dimension size is problematic because it
+ * demands n³ memory.
  *
  * [1] https://www.littlecms.com/ASICprelinerization_CGIV08.pdf
  */
@@ -1968,12 +1972,12 @@ xform_to_shaper_plus_3dlut(struct weston_color_transform *xform_base,
 	struct weston_compositor *compositor = xform_base->cm->compositor;
 	bool ret;
 
-	ret = build_shaper(xform->lcms_ctx, xform->cmap_3dlut,
+	ret = build_shaper(compositor, xform->lcms_ctx, &xform->transformer,
 			   len_shaper, shaper);
 	if (!ret)
 		return false;
 
-	ret = build_3d_lut(compositor, xform->cmap_3dlut,
+	ret = build_3d_lut(compositor, &xform->transformer,
 			   len_shaper, shaper, len_lut3d, lut3d);
 	if (!ret)
 		return false;

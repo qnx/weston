@@ -20,6 +20,7 @@ srcs_color_lcms = [
 	'color-lcms.c',
 	'color-profile.c',
 	'color-transform.c',
+	'color-transformer.c',
 ]
 if (has_function_cmsGetToneCurveSegment)
 	srcs_color_lcms += 'color-curve-segments.c'
