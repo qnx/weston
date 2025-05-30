@@ -64,21 +64,21 @@ WL_EXPORT void
 weston_matrix_translate(struct weston_matrix *matrix, float x, float y, float z)
 {
 	matrix->M = weston_m4f_mul_m4f(weston_m4f_translation(x, y, z), matrix->M);
-	matrix->type = WESTON_MATRIX_TRANSFORM_TRANSLATE;
+	matrix->type |= WESTON_MATRIX_TRANSFORM_TRANSLATE;
 }
 
 WL_EXPORT void
 weston_matrix_scale(struct weston_matrix *matrix, float x, float y,float z)
 {
 	matrix->M = weston_m4f_mul_m4f(weston_m4f_scaling(x, y, z), matrix->M);
-	matrix->type = WESTON_MATRIX_TRANSFORM_SCALE;
+	matrix->type |= WESTON_MATRIX_TRANSFORM_SCALE;
 }
 
 WL_EXPORT void
 weston_matrix_rotate_xy(struct weston_matrix *matrix, float cos, float sin)
 {
 	matrix->M = weston_m4f_mul_m4f(weston_m4f_rotation_xy(cos, sin), matrix->M);
-	matrix->type = WESTON_MATRIX_TRANSFORM_ROTATE;
+	matrix->type |= WESTON_MATRIX_TRANSFORM_ROTATE;
 }
 
 /* v <- m * v */
