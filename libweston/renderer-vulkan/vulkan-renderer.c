@@ -114,6 +114,7 @@ struct vulkan_renderer_image {
 	VkImageView image_view;
 	VkFramebuffer framebuffer;
 
+	VkSemaphore render_done;
 	struct vulkan_renderbuffer *renderbuffer;
 	struct gbm_bo *bo;
 
@@ -146,7 +147,6 @@ struct vulkan_renderer_frame_dspool {
 struct vulkan_renderer_frame {
 	VkCommandBuffer cmd_buffer;
 
-	VkSemaphore render_done;
 	VkSemaphore image_acquired;
 	VkFence fence;
 
@@ -435,6 +435,7 @@ static void
 vulkan_renderer_destroy_image(struct vulkan_renderer *vr,
 			      struct vulkan_renderer_image *image)
 {
+	vkDestroySemaphore(vr->dev, image->render_done, NULL);
 	vkDestroyFramebuffer(vr->dev, image->framebuffer, NULL);
 	vkDestroyImageView(vr->dev, image->image_view, NULL);
 	vkDestroyImage(vr->dev, image->image, NULL);
@@ -519,6 +520,7 @@ vulkan_renderer_destroy_swapchain(struct weston_output *output)
 	for (uint32_t i = 0; i < vo->image_count; i++) {
 		struct vulkan_renderer_image *im = &vo->images[i];
 
+		vkDestroySemaphore(vr->dev, im->render_done, NULL);
 		vkDestroyFramebuffer(vr->dev, im->framebuffer, NULL);
 		vkDestroyImageView(vr->dev, im->image_view, NULL);
 	}
@@ -544,7 +546,6 @@ vulkan_renderer_output_destroy(struct weston_output *output)
 		struct vulkan_renderer_frame *fr = &vo->frames[i];
 
 		vkDestroyFence(vr->dev, fr->fence, NULL);
-		vkDestroySemaphore(vr->dev, fr->render_done, NULL);
 		vkDestroySemaphore(vr->dev, fr->image_acquired, NULL);
 		vkFreeCommandBuffers(vr->dev, vr->cmd_pool, 1, &fr->cmd_buffer);
 
@@ -2035,6 +2036,27 @@ pixman_region_to_present_region(struct weston_output *output,
 }
 
 static void
+create_image_semaphores(struct vulkan_renderer *vr,
+			struct vulkan_output_state *vo,
+			struct vulkan_renderer_image *image)
+{
+	VkResult result;
+
+	VkSemaphoreCreateInfo semaphore_info = {
+		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+	};
+	VkExportSemaphoreCreateInfo export_info = {
+		.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO,
+		.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
+	};
+	if (vr->semaphore_import_export && vo->output_type != VULKAN_OUTPUT_SWAPCHAIN)
+		pnext(&semaphore_info, &export_info);
+
+	result = vkCreateSemaphore(vr->dev, &semaphore_info, NULL, &image->render_done);
+	check_vk_success(result, "vkCreateSemaphore render_done");
+}
+
+static void
 vulkan_renderer_create_swapchain(struct weston_output *output,
 				 struct weston_size fb_size)
 {
@@ -2098,6 +2120,8 @@ vulkan_renderer_create_swapchain(struct weston_output *output,
 					VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 					VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
 					0, VK_ACCESS_TRANSFER_WRITE_BIT);
+
+		create_image_semaphores(vr, vo, im);
 
 		im->renderbuffer = xzalloc(sizeof(*im->renderbuffer));
 		vulkan_renderbuffer_init(im->renderbuffer, NULL, NULL, NULL, output);
@@ -2292,7 +2316,7 @@ vulkan_renderer_repaint_output(struct weston_output *output,
 	if ((vo->output_type == VULKAN_OUTPUT_SWAPCHAIN) ||
 	    (vo->output_type == VULKAN_OUTPUT_DRM && vr->semaphore_import_export)) {
 		submit_info.signalSemaphoreCount = 1;
-		submit_info.pSignalSemaphores = &fr->render_done;
+		submit_info.pSignalSemaphores = &im->render_done;
 	}
 
 	result = vkQueueSubmit(vr->queue, 1, &submit_info, fr->fence);
@@ -2302,7 +2326,7 @@ vulkan_renderer_repaint_output(struct weston_output *output,
 		VkPresentInfoKHR present_info = {
 			.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 			.waitSemaphoreCount = 1,
-			.pWaitSemaphores = &fr->render_done,
+			.pWaitSemaphores = &im->render_done,
 			.swapchainCount = 1,
 			.pSwapchains = &vo->swapchain.swapchain,
 			.pImageIndices = &swapchain_index,
@@ -2341,7 +2365,7 @@ vulkan_renderer_repaint_output(struct weston_output *output,
 		int fd;
 		const VkSemaphoreGetFdInfoKHR semaphore_fd_info = {
 			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR,
-			.semaphore = fr->render_done,
+			.semaphore = im->render_done,
 			.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
 		};
 		result = vr->get_semaphore_fd(vr->dev, &semaphore_fd_info, &fd);
@@ -3187,6 +3211,8 @@ vulkan_renderer_output_window_create_gbm(struct weston_output *output,
 		create_framebuffer(vr->dev, vo->renderpass, im->image_view,
 				   options->fb_size.width, options->fb_size.height, &im->framebuffer);
 
+		create_image_semaphores(vr, vo, im);
+
 		im->renderbuffer = xzalloc(sizeof(*im->renderbuffer));
 		vulkan_renderbuffer_init(im->renderbuffer, NULL, NULL, NULL, output);
 	}
@@ -3318,16 +3344,6 @@ vulkan_renderer_create_output_frames(struct weston_output *output,
 
 		result = vkCreateSemaphore(vr->dev, &semaphore_info, NULL, &fr->image_acquired);
 		check_vk_success(result, "vkCreateSemaphore image_acquired");
-
-		VkExportSemaphoreCreateInfo export_info = {
-			.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO,
-			.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
-		};
-		if (vr->semaphore_import_export && vo->output_type != VULKAN_OUTPUT_SWAPCHAIN)
-			pnext(&semaphore_info, &export_info);
-
-		result = vkCreateSemaphore(vr->dev, &semaphore_info, NULL, &fr->render_done);
-		check_vk_success(result, "vkCreateSemaphore render_done");
 
 		const VkFenceCreateInfo fence_info = {
 			.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
@@ -3647,6 +3663,8 @@ vulkan_renderer_create_renderbuffer(struct weston_output *output,
 
 	// Wait here is bad, but this is only on renderbuffer creation
 	vulkan_renderer_cmd_end_wait(vr, &cmd_buffer);
+
+	create_image_semaphores(vr, vo, im);
 
 	vulkan_renderbuffer_init(renderbuffer, im, discarded_cb, user_data, output);
 
