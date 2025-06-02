@@ -48,6 +48,8 @@
 
 #define MAX_BUFFER_ALLOC	2
 
+struct window;
+
 struct format {
 	uint32_t code;
 	const char *string;
@@ -66,6 +68,7 @@ struct display {
 	const struct format *format;
 	bool paint_format;
 	bool has_format;
+	struct window *window;
 };
 
 struct buffer {
@@ -295,8 +298,16 @@ keyboard_handle_key(void *data, struct wl_keyboard *keyboard,
 		    uint32_t serial, uint32_t time, uint32_t key,
 		    uint32_t state)
 {
-	if (key == KEY_ESC && state)
+	struct display *d = data;
+
+	if (key == KEY_F11 && state) {
+		if (d->window->fullscreen)
+			xdg_toplevel_unset_fullscreen(d->window->xdg_toplevel);
+		else
+			xdg_toplevel_set_fullscreen(d->window->xdg_toplevel, NULL);
+	} else if (key == KEY_ESC && state) {
 		running = 0;
+	}
 }
 
 static void
@@ -949,6 +960,7 @@ main(int argc, char **argv)
 	if (!window)
 		return 1;
 
+	display->window = window;
 	sigint.sa_handler = signal_int;
 	sigemptyset(&sigint.sa_mask);
 	sigint.sa_flags = SA_RESETHAND;
