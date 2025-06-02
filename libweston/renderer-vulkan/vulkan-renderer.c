@@ -150,8 +150,6 @@ struct vulkan_renderer_frame {
 	VkSemaphore image_acquired;
 	VkFence fence;
 
-	int render_fence_fd;
-
 	struct wl_list acquire_fence_list;
 
 	struct wl_list vbuf_list;
@@ -192,10 +190,11 @@ struct vulkan_output_state {
 	uint32_t image_count;
 	struct vulkan_renderer_image images[MAX_NUM_IMAGES];
 
-	uint32_t last_frame;
 	uint32_t frame_index;
 	uint32_t num_frames;
 	struct vulkan_renderer_frame frames[MAX_CONCURRENT_FRAMES];
+
+	int render_fence_fd; /* exported render_done from last submitted image */
 };
 
 struct vulkan_buffer_state {
@@ -1729,9 +1728,7 @@ vulkan_renderer_create_fence_fd(struct weston_output *output)
 {
 	struct vulkan_output_state *vo = get_output_state(output);
 
-	struct vulkan_renderer_frame *fr = &vo->frames[vo->last_frame];
-
-	return dup(fr->render_fence_fd);
+	return dup(vo->render_fence_fd);
 }
 
 /* Updates the release fences of surfaces that were used in the current output
@@ -2294,27 +2291,28 @@ vulkan_renderer_repaint_output(struct weston_output *output,
 	VkPipelineStageFlags wait_stages[1+semaphore_count];
 	VkSemaphore wait_semaphores[1+semaphore_count];
 
-	uint32_t s = 0;
+	uint32_t wait_count = 0;
 	if (vo->output_type == VULKAN_OUTPUT_SWAPCHAIN) {
-		wait_semaphores[s] = fr->image_acquired;
-		wait_stages[s] = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		s++;
+		wait_stages[wait_count] = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		wait_semaphores[wait_count++] = fr->image_acquired;
 	}
 	wl_list_for_each(acquire_fence, &fr->acquire_fence_list, link) {
-		wait_semaphores[s] = acquire_fence->semaphore;
-		wait_stages[s] = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		s++;
+		wait_stages[wait_count] = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		wait_semaphores[wait_count++] = acquire_fence->semaphore;
 	}
+
 	VkSubmitInfo submit_info = {
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-		.waitSemaphoreCount = s,
+		.waitSemaphoreCount = wait_count,
 		.pWaitSemaphores = wait_semaphores,
 		.pWaitDstStageMask = wait_stages,
 		.commandBufferCount = 1,
 		.pCommandBuffers = &cmd_buffer,
 	};
-	if ((vo->output_type == VULKAN_OUTPUT_SWAPCHAIN) ||
-	    (vo->output_type == VULKAN_OUTPUT_DRM && vr->semaphore_import_export)) {
+
+	/* Either use this semaphore for the swapchain present,
+	 * or to export for render_fence_fd */
+	if (vo->output_type == VULKAN_OUTPUT_SWAPCHAIN || vr->semaphore_import_export) {
 		submit_info.signalSemaphoreCount = 1;
 		submit_info.pSignalSemaphores = &im->render_done;
 	}
@@ -2361,7 +2359,7 @@ vulkan_renderer_repaint_output(struct weston_output *output,
 		} else if (result != VK_SUCCESS) {
 			abort();
 		}
-	} else if (vo->output_type == VULKAN_OUTPUT_DRM && vr->semaphore_import_export) {
+	} else if (vr->semaphore_import_export) {
 		int fd;
 		const VkSemaphoreGetFdInfoKHR semaphore_fd_info = {
 			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR,
@@ -2371,7 +2369,7 @@ vulkan_renderer_repaint_output(struct weston_output *output,
 		result = vr->get_semaphore_fd(vr->dev, &semaphore_fd_info, &fd);
 		check_vk_success(result, "vkGetSemaphoreFdKHR");
 
-		fd_update(&fr->render_fence_fd, fd);
+		fd_update(&vo->render_fence_fd, fd);
 	}
 
 	vulkan_renderer_do_capture_tasks(vr, im->image, output,
@@ -2409,7 +2407,6 @@ vulkan_renderer_repaint_output(struct weston_output *output,
 
 	pixman_region32_clear(&rb->damage);
 
-	vo->last_frame = vo->frame_index;
 	vo->frame_index = (vo->frame_index + 1) % vo->num_frames;
 
 	if (vo->output_type == VULKAN_OUTPUT_DRM)
@@ -3309,6 +3306,8 @@ vulkan_renderer_create_output_state(struct weston_output *output,
 
 	vo->fb_size = *fb_size;
 	vo->area = *area;
+
+	vo->render_fence_fd = -1;
 
 	return 0;
 }
