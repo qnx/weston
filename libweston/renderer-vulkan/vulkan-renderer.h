@@ -30,16 +30,18 @@
 
 #include "config.h"
 
-#include <vulkan/vulkan.h>
-#include <vulkan/vulkan_wayland.h>
-
 #include <stdint.h>
 
 #include <libweston/libweston.h>
 #include "backend.h"
 #include "libweston-internal.h"
 
+#ifdef HAVE_XCB_XKB
 #include <xcb/xcb.h>
+#else
+typedef uint32_t xcb_visualid_t;
+typedef uint32_t xcb_window_t;
+#endif  /* HAVE_XCB_XKB */
 
 /**
  * Options passed to the \c display_create method of the vulkan renderer interface.
@@ -48,7 +50,6 @@
  */
 struct vulkan_renderer_display_options {
 	struct weston_renderer_options base;
-	VkInstance instance;
 	void *gbm_device;
 	const struct pixel_format_info **formats;
 	unsigned formats_count;
