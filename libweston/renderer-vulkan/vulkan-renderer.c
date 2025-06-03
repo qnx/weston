@@ -3037,27 +3037,25 @@ vulkan_renderer_resize_output(struct weston_output *output,
 	return ret;
 }
 
-static bool
-bind_image_gbm_bo(struct vulkan_renderer *vr, VkImage image,
-		  struct gbm_bo *bo, VkDeviceMemory *memory)
+static int
+import_dmabuf(struct vulkan_renderer *vr,
+	      VkImage image,
+	      VkDeviceMemory *memory,
+	      const struct dmabuf_attributes *attributes)
 {
 	VkResult result;
 
-	int gbm_bo_fd = gbm_bo_get_fd(bo);
-	if (gbm_bo_fd < 0) {
-		weston_log("Failed to get fd for gbm_bo\n");
-		return false;
-	}
+	int fd0 = attributes->fd[0];
 
 	if (!vr->has_external_memory_dma_buf)
 		abort();
 
 	VkMemoryFdPropertiesKHR fd_props = {
-		fd_props.sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR,
+		.sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR,
 	};
 	result = vr->get_memory_fd_properties(vr->dev,
 					      VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
-					      gbm_bo_fd, &fd_props);
+					      fd0, &fd_props);
 	check_vk_success(result, "vkGetMemoryFdPropertiesKHR");
 
 	VkImageMemoryRequirementsInfo2 mem_reqs_info = {
@@ -3073,8 +3071,13 @@ bind_image_gbm_bo(struct vulkan_renderer *vr, VkImage image,
 		mem_reqs.memoryRequirements.memoryTypeBits;
 	if (!memory_type_bits) {
 		weston_log("No valid memory type\n");
-		close(gbm_bo_fd);
 		return false;
+	}
+
+	int dfd = fcntl(fd0, F_DUPFD_CLOEXEC, 0);
+	if (dfd < 0) {
+		weston_log("fcntl(F_DUPFD_CLOEXEC) failed\n");
+		abort();
 	}
 
 	VkMemoryAllocateInfo memory_allocate_info = {
@@ -3086,7 +3089,7 @@ bind_image_gbm_bo(struct vulkan_renderer *vr, VkImage image,
 	VkImportMemoryFdInfoKHR memory_fd_info = {
 		.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
 		.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
-		.fd = gbm_bo_fd,
+		.fd = dfd,
 	};
 	pnext(&memory_allocate_info, &memory_fd_info);
 
@@ -3108,13 +3111,19 @@ bind_image_gbm_bo(struct vulkan_renderer *vr, VkImage image,
 static void
 create_dmabuf_image(struct vulkan_renderer *vr,
 		    const struct dmabuf_attributes *attributes,
-		    VkFormat format, VkImageUsageFlags usage, VkImage *image)
+		    VkImageUsageFlags usage, VkImage *image)
 {
 	VkResult result;
 	int width = attributes->width;
 	int height = attributes->height;
 	uint64_t modifier = attributes->modifier;
 	int n_planes = attributes->n_planes;
+	VkFormat format = 0;
+
+	const struct pixel_format_info *pixel_format = pixel_format_get_info(attributes->format);
+	assert(pixel_format);
+
+	format = pixel_format->vulkan_format;
 
 	VkImageCreateInfo image_info = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -3163,24 +3172,6 @@ create_dmabuf_image(struct vulkan_renderer *vr,
 	check_vk_success(result, "vkCreateImage");
 }
 
-static void
-create_image_from_gbm_bo(struct vulkan_renderer *vr, struct gbm_bo *bo, VkFormat format, VkImage *image)
-{
-	struct dmabuf_attributes attributes;
-	attributes.width = gbm_bo_get_width(bo);
-	attributes.height = gbm_bo_get_height(bo);
-	attributes.modifier = gbm_bo_get_modifier(bo);
-	attributes.n_planes = gbm_bo_get_plane_count(bo);
-
-	for (int i = 0; i < attributes.n_planes; i++) {
-		attributes.offset[i] = gbm_bo_get_offset(bo, i);
-		attributes.stride[i] = gbm_bo_get_stride_for_plane(bo, i);
-	}
-
-	create_dmabuf_image(vr, &attributes, format,
-			    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, image);
-}
-
 static int
 vulkan_renderer_output_window_create_gbm(struct weston_output *output,
 					 const struct vulkan_renderer_output_options *options)
@@ -3195,14 +3186,29 @@ vulkan_renderer_output_window_create_gbm(struct weston_output *output,
 
 	for (uint32_t i = 0; i < vo->image_count; i++) {
 		struct vulkan_renderer_image *im = &vo->images[i];
-		int ret;
+		struct gbm_bo *bo = options->gbm_bos[i];
 
-		im->bo = options->gbm_bos[i];
+		im->bo = bo;
 
-		create_image_from_gbm_bo(vr, im->bo, format, &im->image);
+		struct dmabuf_attributes attributes;
+		attributes.fd[0] = gbm_bo_get_fd(bo);
+		attributes.width = gbm_bo_get_width(bo);
+		attributes.height = gbm_bo_get_height(bo);
+		attributes.modifier = gbm_bo_get_modifier(bo);
+		attributes.n_planes = gbm_bo_get_plane_count(bo);
+		attributes.format = pixel_format->format;
 
-		ret = bind_image_gbm_bo(vr, im->image, im->bo, &im->memory);
-		assert(ret);
+		for (int i = 0; i < attributes.n_planes; i++) {
+			attributes.offset[i] = gbm_bo_get_offset(bo, i);
+			attributes.stride[i] = gbm_bo_get_stride_for_plane(bo, i);
+		}
+
+		create_dmabuf_image(vr, &attributes,
+				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+				&im->image);
+
+		import_dmabuf(vr, im->image, &im->memory, &attributes);
+		close(attributes.fd[0]); /* fd is duped */
 
 		create_image_view(vr->dev, im->image, format, &im->image_view);
 		create_framebuffer(vr->dev, vo->renderpass, im->image_view,
@@ -3670,84 +3676,6 @@ vulkan_renderer_create_renderbuffer(struct weston_output *output,
 	return (weston_renderbuffer_t) renderbuffer;
 }
 
-static int
-import_dmabuf(struct vulkan_renderer *vr,
-	      struct vulkan_buffer_state *vb,
-	      const struct dmabuf_attributes *attributes)
-{
-	VkResult result;
-	int fd0 = attributes->fd[0];
-	VkFormat format = 0;
-
-	const struct pixel_format_info *pixel_format = pixel_format_get_info(attributes->format);
-	assert(pixel_format);
-
-	format = pixel_format->vulkan_format;
-
-	create_dmabuf_image(vr, attributes, format, VK_IMAGE_USAGE_SAMPLED_BIT, &vb->texture.image);
-
-	VkMemoryFdPropertiesKHR fd_props = {
-		.sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR,
-	};
-	result = vr->get_memory_fd_properties(vr->dev,
-					      VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
-					      fd0, &fd_props);
-	check_vk_success(result, "vkGetMemoryFdPropertiesKHR");
-
-	VkImageMemoryRequirementsInfo2 mem_reqs_info = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
-		.image = vb->texture.image,
-	};
-	VkMemoryRequirements2 mem_reqs = {
-		.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
-	};
-	vr->get_image_memory_requirements2(vr->dev, &mem_reqs_info, &mem_reqs);
-
-	const uint32_t memory_type_bits = fd_props.memoryTypeBits &
-		mem_reqs.memoryRequirements.memoryTypeBits;
-	if (!memory_type_bits) {
-		weston_log("No valid memory type\n");
-		return false;
-	}
-
-	int dfd = fcntl(fd0, F_DUPFD_CLOEXEC, 0);
-	if (dfd < 0) {
-		weston_log("fcntl(F_DUPFD_CLOEXEC) failed\n");
-		abort();
-	}
-
-	VkMemoryAllocateInfo memory_allocate_info = {
-		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.allocationSize = mem_reqs.memoryRequirements.size,
-		.memoryTypeIndex = ffs(memory_type_bits) - 1,
-	};
-
-	VkImportMemoryFdInfoKHR memory_fd_info = {
-		.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
-		.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
-		.fd = dfd,
-	};
-	pnext(&memory_allocate_info, &memory_fd_info);
-
-	VkMemoryDedicatedAllocateInfo memory_dedicated_info = {
-		.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
-		.image = vb->texture.image,
-	};
-	pnext(&memory_allocate_info, &memory_dedicated_info);
-
-	result = vkAllocateMemory(vr->dev, &memory_allocate_info, NULL, &vb->texture.memory);
-	check_vk_success(result, "vkAllocateMemory");
-
-	result = vkBindImageMemory(vr->dev, vb->texture.image, vb->texture.memory, 0);
-	check_vk_success(result, "vkBindImageMemory");
-
-	create_texture_sampler(vr, &vb->sampler_linear, VK_FILTER_LINEAR);
-	create_texture_sampler(vr, &vb->sampler_nearest, VK_FILTER_NEAREST);
-	create_image_view(vr->dev, vb->texture.image, format, &vb->texture.image_view);
-
-	return 0;
-}
-
 static void
 vulkan_renderer_destroy_dmabuf(struct linux_dmabuf_buffer *dmabuf)
 {
@@ -3764,13 +3692,15 @@ vulkan_renderer_import_dmabuf(struct weston_compositor *ec,
 {
 	struct vulkan_renderer *vr = get_renderer(ec);
 	struct vulkan_buffer_state *vb;
+	struct dmabuf_attributes *attributes = &dmabuf->attributes;
 
 	/* reject all flags we do not recognize or handle */
-	if (dmabuf->attributes.flags & ~ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_Y_INVERT)
+	if (attributes->flags & ~ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_Y_INVERT)
 		return false;
 
-	if (!pixel_format_get_info(dmabuf->attributes.format))
-		return false;
+	const uint32_t drm_format = attributes->format;
+	const struct pixel_format_info *pixel_format = pixel_format_get_info(drm_format);
+	assert(pixel_format);
 
 	vb = xzalloc(sizeof(*vb));
 
@@ -3778,7 +3708,17 @@ vulkan_renderer_import_dmabuf(struct weston_compositor *ec,
 	pixman_region32_init(&vb->texture_damage);
 	wl_list_init(&vb->destroy_listener.link);
 
-	import_dmabuf(vr, vb, &dmabuf->attributes);
+	VkFormat format = pixel_format->vulkan_format;
+
+	create_dmabuf_image(vr, &dmabuf->attributes,
+			    VK_IMAGE_USAGE_SAMPLED_BIT,
+			    &vb->texture.image);
+
+	import_dmabuf(vr, vb->texture.image, &vb->texture.memory, &dmabuf->attributes);
+
+	create_texture_sampler(vr, &vb->sampler_linear, VK_FILTER_LINEAR);
+	create_texture_sampler(vr, &vb->sampler_nearest, VK_FILTER_NEAREST);
+	create_image_view(vr->dev, vb->texture.image, format, &vb->texture.image_view);
 
 	assert(vb->num_textures == 0);
 	vb->num_textures = 1;
