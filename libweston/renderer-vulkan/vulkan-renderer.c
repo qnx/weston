@@ -91,11 +91,18 @@ struct vulkan_border_image {
 	void *fs_ubo_map;
 };
 
+struct vulkan_renderbuffer_dmabuf {
+	struct vulkan_renderer *vr;
+	struct linux_dmabuf_memory *memory;
+};
+
 struct vulkan_renderbuffer {
 	struct weston_output *output;
 	pixman_region32_t damage;
 	enum vulkan_border_status border_status;
 	bool stale;
+
+	struct vulkan_renderbuffer_dmabuf dmabuf;
 
 	void *buffer;
 	int stride;
@@ -258,6 +265,25 @@ struct vs_ubo {
 struct fs_ubo {
 	float unicolor[4];
 	float view_alpha;
+};
+
+struct dmabuf_allocator {
+	struct gbm_device *gbm_device;
+};
+
+struct vulkan_renderer_dmabuf_memory {
+	struct linux_dmabuf_memory base;
+	struct dmabuf_allocator *allocator;
+	struct gbm_bo *bo;
+};
+
+struct dmabuf_format {
+	uint32_t format;
+	struct wl_list link;
+
+	uint64_t *modifiers;
+	unsigned *external_only;
+	int num_modifiers;
 };
 
 static void
@@ -453,10 +479,18 @@ vulkan_renderer_destroy_renderbuffer(weston_renderbuffer_t weston_renderbuffer)
 	if (!rb->stale)
 		vulkan_renderbuffer_fini(rb);
 
+	// this wait idle is only on renderbuffer destroy
+	VkResult result;
+	result = vkQueueWaitIdle(vr->queue);
+	check_vk_success(result, "vkQueueWaitIdle");
+
 	if (rb->image) {
 		vulkan_renderer_destroy_image(vr, rb->image);
 		free(rb->image);
 	}
+
+	if (rb->dmabuf.memory)
+		rb->dmabuf.memory->destroy(rb->dmabuf.memory);
 
 	free(rb);
 }
@@ -580,6 +614,83 @@ vulkan_renderer_output_destroy(struct weston_output *output)
 	vulkan_renderer_discard_renderbuffers(vo, true);
 
 	free(vo);
+}
+
+static void
+vulkan_renderer_dmabuf_destroy(struct linux_dmabuf_memory *dmabuf)
+{
+	struct vulkan_renderer_dmabuf_memory *vulkan_renderer_dmabuf;
+	struct dmabuf_attributes *attributes;
+	int i;
+
+	vulkan_renderer_dmabuf = (struct vulkan_renderer_dmabuf_memory *)dmabuf;
+
+	attributes = dmabuf->attributes;
+	for (i = 0; i < attributes->n_planes; ++i)
+		close(attributes->fd[i]);
+	free(dmabuf->attributes);
+
+	gbm_bo_destroy(vulkan_renderer_dmabuf->bo);
+	free(vulkan_renderer_dmabuf);
+}
+
+static struct linux_dmabuf_memory *
+vulkan_renderer_dmabuf_alloc(struct weston_renderer *renderer,
+			     unsigned int width, unsigned int height,
+			     uint32_t format,
+			     const uint64_t *modifiers, const unsigned int count)
+{
+	struct vulkan_renderer *vr = (struct vulkan_renderer *)renderer;
+	struct dmabuf_allocator *allocator = vr->allocator;
+	struct linux_dmabuf_memory *dmabuf = NULL;
+
+	if (!allocator)
+		return NULL;
+
+	struct vulkan_renderer_dmabuf_memory *vulkan_renderer_dmabuf;
+	struct dmabuf_attributes *attributes;
+	struct gbm_bo *bo;
+	int i;
+#ifdef HAVE_GBM_BO_CREATE_WITH_MODIFIERS2
+	bo = gbm_bo_create_with_modifiers2(allocator->gbm_device,
+					   width, height, format,
+					   modifiers, count,
+					   GBM_BO_USE_RENDERING);
+#else
+	bo = gbm_bo_create_with_modifiers(allocator->gbm_device,
+					  width, height, format,
+					  modifiers, count);
+#endif
+	if (!bo)
+		bo = gbm_bo_create(allocator->gbm_device,
+				   width, height, format,
+				   GBM_BO_USE_RENDERING | GBM_BO_USE_LINEAR);
+	if (!bo) {
+		weston_log("failed to create gbm_bo\n");
+		return NULL;
+	}
+
+	vulkan_renderer_dmabuf = xzalloc(sizeof(*vulkan_renderer_dmabuf));
+	vulkan_renderer_dmabuf->bo = bo;
+	vulkan_renderer_dmabuf->allocator = allocator;
+
+	attributes = xzalloc(sizeof(*attributes));
+	attributes->width = width;
+	attributes->height = height;
+	attributes->format = format;
+	attributes->n_planes = gbm_bo_get_plane_count(bo);
+	for (i = 0; i < attributes->n_planes; ++i) {
+		attributes->fd[i] = gbm_bo_get_fd(bo);
+		attributes->stride[i] = gbm_bo_get_stride_for_plane(bo, i);
+		attributes->offset[i] = gbm_bo_get_offset(bo, i);
+	}
+	attributes->modifier = gbm_bo_get_modifier(bo);
+
+	dmabuf = &vulkan_renderer_dmabuf->base;
+	dmabuf->attributes = attributes;
+	dmabuf->destroy = vulkan_renderer_dmabuf_destroy;
+
+	return dmabuf;
 }
 
 static void
@@ -1729,6 +1840,37 @@ vulkan_renderer_create_fence_fd(struct weston_output *output)
 	struct vulkan_output_state *vo = get_output_state(output);
 
 	return dup(vo->render_fence_fd);
+}
+
+static void
+vulkan_renderer_allocator_destroy(struct dmabuf_allocator *allocator)
+{
+	if (!allocator)
+		return;
+
+	if (allocator->gbm_device)
+		gbm_device_destroy(allocator->gbm_device);
+
+	free(allocator);
+}
+
+static struct dmabuf_allocator *
+vulkan_renderer_allocator_create(struct vulkan_renderer *vr,
+			     const struct vulkan_renderer_display_options * options)
+{
+	struct dmabuf_allocator *allocator;
+	struct gbm_device *gbm = NULL;
+
+	if (vr->drm_fd)
+		gbm = gbm_create_device(vr->drm_fd);
+
+	if (!gbm)
+		return NULL;
+
+	allocator = xzalloc(sizeof(*allocator));
+	allocator->gbm_device = gbm;
+
+	return allocator;
 }
 
 /* Updates the release fences of surfaces that were used in the current output
@@ -3510,6 +3652,8 @@ vulkan_renderer_destroy(struct weston_compositor *ec)
 
 	vkDestroyInstance(vr->inst, NULL);
 
+	vulkan_renderer_allocator_destroy(vr->allocator);
+
 	if (vr->drm_fd > 0)
 		close(vr->drm_fd);
 
@@ -3672,6 +3816,55 @@ vulkan_renderer_create_renderbuffer(struct weston_output *output,
 	create_image_semaphores(vr, vo, im);
 
 	vulkan_renderbuffer_init(renderbuffer, im, discarded_cb, user_data, output);
+
+	return (weston_renderbuffer_t) renderbuffer;
+}
+
+static weston_renderbuffer_t
+vulkan_renderer_create_renderbuffer_dmabuf(struct weston_output *output,
+					   struct linux_dmabuf_memory *dmabuf,
+					   weston_renderbuffer_discarded_func discarded_cb,
+					   void *user_data)
+{
+	struct weston_compositor *ec = output->compositor;
+	struct vulkan_output_state *vo = get_output_state(output);
+	struct vulkan_renderer *vr = get_renderer(ec);
+	struct dmabuf_attributes *attributes = dmabuf->attributes;
+	struct vulkan_buffer_state *vb;
+	const struct weston_size *fb_size = &vo->fb_size;
+	struct vulkan_renderbuffer *renderbuffer;
+	const uint32_t drm_format = attributes->format;
+	const struct pixel_format_info *pixel_format = pixel_format_get_info(drm_format);
+	assert(pixel_format);
+
+	vb = xzalloc(sizeof(*vb));
+
+	vb->vr = vr;
+	pixman_region32_init(&vb->texture_damage);
+	wl_list_init(&vb->destroy_listener.link);
+
+	renderbuffer = xzalloc(sizeof(*renderbuffer));
+
+	struct vulkan_renderer_image *im = xzalloc(sizeof(*im));
+
+	create_dmabuf_image(vr, attributes,
+			    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+			    &im->image);
+
+	import_dmabuf(vr, im->image, &im->memory, attributes);
+
+	VkFormat format = pixel_format->vulkan_format;
+	create_image_view(vr->dev, im->image, format, &im->image_view);
+
+	create_framebuffer(vr->dev, vo->renderpass, im->image_view,
+			   fb_size->width, fb_size->height, &im->framebuffer);
+
+	create_image_semaphores(vr, vo, im);
+
+	vulkan_renderbuffer_init(renderbuffer, im, discarded_cb, user_data, output);
+
+	renderbuffer->dmabuf.vr = vr;
+	renderbuffer->dmabuf.memory = dmabuf;
 
 	return (weston_renderbuffer_t) renderbuffer;
 }
@@ -4149,10 +4342,19 @@ vulkan_renderer_display_create(struct weston_compositor *ec,
 	if (vr->semaphore_import_export)
 		ec->capabilities |= WESTON_CAP_EXPLICIT_SYNC;
 
+	vr->allocator = vulkan_renderer_allocator_create(vr, options);
+	if (!vr->allocator)
+		weston_log("failed to initialize allocator\n");
+
+	if (vr->allocator)
+		vr->base.dmabuf_alloc = vulkan_renderer_dmabuf_alloc;
+
 	if (vr->has_external_memory_dma_buf) {
 		int ret;
 		vr->base.import_dmabuf = vulkan_renderer_import_dmabuf;
 		vr->base.get_supported_formats = vulkan_renderer_get_supported_formats;
+		vr->base.create_renderbuffer_dmabuf =
+			vulkan_renderer_create_renderbuffer_dmabuf;
 
 		ret = populate_supported_formats(ec, &vr->supported_formats);
 		if (ret < 0)
