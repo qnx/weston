@@ -59,7 +59,7 @@ default it listens on 0.0.0.0.
 \fB\-\-port\fR=\fIport\fR
 The TCP port to listen on for connections, it defaults to 3389.
 .TP
-\fB\-\-no-clients-resize
+\fB\-\-no-resizeable
 By default when a client connects on the RDP backend, it will instruct weston to
 resize to the dimensions of the client's announced resolution. When this option is
 set, weston will force the client to resize to its own resolution.

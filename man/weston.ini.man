@@ -767,7 +767,7 @@ functionality has been added to replace this deprecated screen-share
 module.  See mirror-of key entry in the output section for how to configure it.
 .TP 7
 .BI "command=" "@weston_bindir@/weston --backend=rdp \
---shell=fullscreen --no-clients-resize --no-config"
+--shell=fullscreen --no-resizeable --no-config"
 sets the command to start a fullscreen-shell server for screen sharing (string).
 .TP 7
 .BI "start-on-startup=" "false"
