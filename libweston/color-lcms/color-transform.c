@@ -1254,7 +1254,7 @@ lcms_xform_error_logger(cmsContext context_id,
 		   text);
 }
 
-static bool
+static cmsHTRANSFORM
 xform_realize_icc_chain(struct cmlcms_color_transform *xform,
 			struct lcmsProfilePtr *chain,
 			size_t chain_len,
@@ -1262,6 +1262,7 @@ xform_realize_icc_chain(struct cmlcms_color_transform *xform,
 			struct color_transform_steps_mask allowed)
 {
 	struct weston_color_manager_lcms *cm = to_cmlcms(xform->base.cm);
+	cmsHTRANSFORM icc_chain;
 	cmsUInt32Number dwFlags;
 
 	weston_assert_ptr_not_null(cm->base.compositor, render_intent);
@@ -1272,35 +1273,32 @@ xform_realize_icc_chain(struct cmlcms_color_transform *xform,
 	 * replace &transform_plugin with NULL.
 	 */
 	xform->allowed = allowed;
+	weston_assert_ptr_null(cm->base.compositor, xform->lcms_ctx);
 	xform->lcms_ctx = cmsCreateContext(&transform_plugin, xform);
 	abort_oom_if_null(xform->lcms_ctx);
 	cmsSetLogErrorHandlerTHR(xform->lcms_ctx, lcms_xform_error_logger);
 
-	weston_assert_ptr_null(cm->base.compositor, xform->cmap_3dlut);
 	/* transform_factory() is invoked by this call. */
 	dwFlags = render_intent->bps ? cmsFLAGS_BLACKPOINTCOMPENSATION : 0;
-	xform->cmap_3dlut = cmsCreateMultiprofileTransformTHR(xform->lcms_ctx,
-							      from_lcmsProfilePtr_array(chain),
-							      chain_len,
-							      TYPE_RGB_FLT,
-							      TYPE_RGB_FLT,
-							      render_intent->lcms_intent,
-							      dwFlags);
+	icc_chain = cmsCreateMultiprofileTransformTHR(xform->lcms_ctx,
+						      from_lcmsProfilePtr_array(chain),
+						      chain_len,
+						      TYPE_RGB_FLT,
+						      TYPE_RGB_FLT,
+						      render_intent->lcms_intent,
+						      dwFlags);
+	if (!icc_chain) {
+		cmsDeleteContext(xform->lcms_ctx);
+		xform->lcms_ctx = NULL;
 
-	if (!xform->cmap_3dlut)
-		goto failed;
+		return NULL;
+	}
 
 	/* Blend-to-output should always have valid steps. */
 	if (xform->search_key.category == CMLCMS_CATEGORY_BLEND_TO_OUTPUT)
 		weston_assert_true(cm->base.compositor, xform->base.steps_valid);
 
-	return true;
-
-failed:
-	cmsDeleteContext(xform->lcms_ctx);
-	xform->lcms_ctx = NULL;
-
-	return false;
+	return icc_chain;
 }
 
 static bool
@@ -1359,8 +1357,11 @@ init_icc_to_icc_chain(struct cmlcms_color_transform *xform)
 
 	assert(chain_len <= ARRAY_LENGTH(chain));
 
-	return xform_realize_icc_chain(xform, chain, chain_len,
-				       render_intent, allowed);
+	weston_assert_ptr_null(cm->base.compositor, xform->cmap_3dlut);
+	xform->cmap_3dlut = xform_realize_icc_chain(xform, chain, chain_len,
+						    render_intent, allowed);
+
+	return !!xform->cmap_3dlut;
 }
 
 static void
