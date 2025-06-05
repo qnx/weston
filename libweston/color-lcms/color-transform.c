@@ -1378,8 +1378,11 @@ init_icc_to_icc_chain(struct cmlcms_color_transform *xform)
 	weston_assert_ptr_null(cm->base.compositor, xform->transformer.icc_chain);
 	xform->transformer.icc_chain = xform_realize_icc_chain(xform, chain, chain_len,
 							       render_intent, allowed);
+	if (!xform->transformer.icc_chain)
+		return false;
 
-	return !!xform->transformer.icc_chain;
+	xform->transformer.element_mask |= CMLCMS_TRANSFORMER_ICC_CHAIN;
+	return true;
 }
 
 static void

@@ -30,6 +30,8 @@
 #include <lcms2.h>
 
 #include "color.h"
+#include "color-operations.h"
+#include "shared/weston-assert.h"
 #include "color-lcms.h"
 
 /** Release all transformer members. */
@@ -57,5 +59,40 @@ cmlcms_color_transformer_eval(struct weston_compositor *compositor,
 			      const struct weston_vec3f *src,
 			      size_t len)
 {
-	cmsDoTransform(t->icc_chain, src, dst, len);
+	const struct weston_vec3f *in = src;
+	struct weston_vec3f *end = dst + len;
+	struct weston_vec3f *out;
+
+	weston_assert_u8_ne(compositor, t->element_mask, 0);
+
+	if (t->element_mask & CMLCMS_TRANSFORMER_CURVE1) {
+		weston_color_curve_sample(compositor, &t->curve1, in, dst, len);
+		in = dst;
+	}
+
+	if (t->element_mask & CMLCMS_TRANSFORMER_LIN1) {
+		for (out = dst; out < end; out++, in++) {
+			*out = weston_v3f_add_v3f(weston_m3f_mul_v3f(t->lin1.matrix, *in),
+						  t->lin1.offset);
+		}
+		in = dst;
+	}
+
+	if (t->element_mask & CMLCMS_TRANSFORMER_ICC_CHAIN) {
+		cmsDoTransform(t->icc_chain, in, dst, len);
+		in = dst;
+	}
+
+	if (t->element_mask & CMLCMS_TRANSFORMER_LIN2) {
+		for (out = dst; out < end; out++, in++) {
+			*out = weston_v3f_add_v3f(weston_m3f_mul_v3f(t->lin2.matrix, *in),
+						  t->lin2.offset);
+		}
+		in = dst;
+	}
+
+	if (t->element_mask & CMLCMS_TRANSFORMER_CURVE2) {
+		weston_color_curve_sample(compositor, &t->curve2, in, dst, len);
+		in = dst;
+	}
 }

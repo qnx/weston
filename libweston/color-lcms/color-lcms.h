@@ -201,9 +201,24 @@ struct color_transform_steps_mask {
 	uint8_t steps;
 };
 
+enum cmlcms_color_transformer_elem {
+	CMLCMS_TRANSFORMER_CURVE1    = 1 << 0,
+	CMLCMS_TRANSFORMER_LIN1      = 1 << 1,
+	CMLCMS_TRANSFORMER_ICC_CHAIN = 1 << 2,
+	CMLCMS_TRANSFORMER_LIN2      = 1 << 3,
+	CMLCMS_TRANSFORMER_CURVE2    = 1 << 4,
+};
+
 /** A complete color transformation to be computed on the CPU */
 struct cmlcms_color_transformer {
+	/** Or'd together from enum cmlcms_color_transformer_elem */
+	uint8_t element_mask;
+
+	struct weston_color_curve curve1;
+	struct weston_color_mapping_matrix lin1;
 	cmsHTRANSFORM icc_chain;
+	struct weston_color_mapping_matrix lin2;
+	struct weston_color_curve curve2;
 };
 
 struct cmlcms_color_transform_recipe {
