@@ -1483,6 +1483,7 @@ notify_view_output_destroy(struct wl_listener *listener, void *data)
 		     struct weston_view, output_destroy_listener);
 
 	view->output = NULL;
+	view->surface->output = NULL;
 	view->output_destroy_listener.notify = NULL;
 }
 
