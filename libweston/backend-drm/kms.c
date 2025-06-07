@@ -1901,6 +1901,8 @@ atomic_flip_handler(int fd, unsigned int frame, unsigned int sec,
 	struct drm_crtc *crtc;
 	struct drm_output *output;
 	struct timespec now;
+	float page_flips_per_timer_interval;
+	uint32_t frame_counter_interval;
 	uint32_t flags = WP_PRESENTATION_FEEDBACK_KIND_VSYNC |
 			 WP_PRESENTATION_FEEDBACK_KIND_HW_COMPLETION |
 			 WP_PRESENTATION_FEEDBACK_KIND_HW_CLOCK;
@@ -1917,6 +1919,12 @@ atomic_flip_handler(int fd, unsigned int frame, unsigned int sec,
 		return;
 
 	output->page_flips_counted++;
+	/* store them temporarily as drm_output_update_complete might destroy
+	 * the output */
+	page_flips_per_timer_interval = output->page_flips_per_timer_interval;
+	frame_counter_interval =
+		output->backend->perf_page_flips_stats.frame_counter_interval;
+
 
 	drm_output_update_msc(output, frame);
 
@@ -1939,8 +1947,7 @@ atomic_flip_handler(int fd, unsigned int frame, unsigned int sec,
 	drm_output_update_complete(output, flags, sec, usec);
 	drm_debug(b, "[atomic][CRTC:%u] flip processing completed\n", crtc_id);
 	drm_debug(b, "[atomic][CRTC:%u] %.2f page flips computed in %d seconds\n",
-			crtc_id, output->page_flips_per_timer_interval,
-			output->backend->perf_page_flips_stats.frame_counter_interval);
+			crtc_id, page_flips_per_timer_interval, frame_counter_interval);
 }
 
 int
