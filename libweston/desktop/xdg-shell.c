@@ -1143,10 +1143,10 @@ weston_desktop_xdg_surface_send_configure(void *user_data)
 	struct weston_desktop_xdg_surface *surface = user_data;
 	struct weston_desktop_xdg_surface_configure *configure;
 
+	surface->configure_idle = NULL;
+
 	if (!weston_destop_xdg_surface_resource_available(surface))
 		return;
-
-	surface->configure_idle = NULL;
 
 	configure = zalloc(weston_desktop_surface_configure_biggest_size);
 	if (configure == NULL) {
