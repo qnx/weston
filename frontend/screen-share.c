@@ -371,7 +371,13 @@ ss_seat_create(struct shared_output *so, uint32_t id)
 	if (seat == NULL)
 		return NULL;
 
-	weston_seat_init(&seat->base, so->output->compositor, "screen-share");
+	if (so->output) {
+		weston_seat_init(&seat->base, so->output->compositor, "screen-share");
+	} else {
+		weston_log("Skip seat creation the screen share output has not an output compositor\n");
+		return NULL;
+	}
+
 	seat->output = so;
 	seat->id = id;
 	seat->parent.seat = wl_registry_bind(so->parent.registry, id,
@@ -970,6 +976,8 @@ shared_output_create(struct weston_output *output, struct screen_share *ss, int 
 	if (!so->parent.display)
 		goto err_alloc;
 
+	/* Set Weston output reference in the shared output before registry */
+	so->output = output;
 	so->parent.registry = wl_display_get_registry(so->parent.display);
 	if (!so->parent.registry)
 		goto err_display;
@@ -1033,7 +1041,6 @@ shared_output_create(struct weston_output *output, struct screen_share *ss, int 
 	wl_list_init(&so->shm.buffers);
 	wl_list_init(&so->shm.free_buffers);
 
-	so->output = output;
 	so->output_destroyed.notify = output_destroyed;
 	wl_signal_add(&so->output->destroy_signal, &so->output_destroyed);
 
