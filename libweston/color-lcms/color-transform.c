@@ -1349,7 +1349,7 @@ failed:
 }
 
 char *
-cmlcms_color_transform_search_param_string(const struct cmlcms_color_transform_search_param *search_key)
+cmlcms_color_transform_recipe_string(const struct cmlcms_color_transform_recipe *recipe)
 {
 	const char *input_prof_desc = "none";
 	unsigned input_prof_id = 0;
@@ -1358,24 +1358,24 @@ cmlcms_color_transform_search_param_string(const struct cmlcms_color_transform_s
 	const char *intent_desc = "none";
 	char *str;
 
-	if (search_key->input_profile) {
-		input_prof_desc = search_key->input_profile->base.description;
-		input_prof_id = search_key->input_profile->base.id;
+	if (recipe->input_profile) {
+		input_prof_desc = recipe->input_profile->base.description;
+		input_prof_id = recipe->input_profile->base.id;
 	}
 
-	if (search_key->output_profile) {
-		output_prof_desc = search_key->output_profile->base.description;
-		output_prof_id = search_key->output_profile->base.id;
+	if (recipe->output_profile) {
+		output_prof_desc = recipe->output_profile->base.description;
+		output_prof_id = recipe->output_profile->base.id;
 	}
 
-	if (search_key->render_intent)
-		intent_desc = search_key->render_intent->desc;
+	if (recipe->render_intent)
+		intent_desc = recipe->render_intent->desc;
 
 	str_printf(&str, "  category: %s\n" \
 			 "  input profile p%u: %s\n" \
 			 "  output profile p%u: %s\n" \
 			 "  render intent: %s\n",
-			 cmlcms_category_name(search_key->category),
+			 cmlcms_category_name(recipe->category),
 			 input_prof_id, input_prof_desc,
 			 output_prof_id, output_prof_desc,
 			 intent_desc);
@@ -1562,7 +1562,7 @@ xform_to_shaper_plus_3dlut(struct weston_color_transform *xform_base,
 
 static struct cmlcms_color_transform *
 cmlcms_color_transform_create(struct weston_color_manager_lcms *cm,
-			      const struct cmlcms_color_transform_search_param *search_param)
+			      const struct cmlcms_color_transform_recipe *recipe)
 {
 	struct cmlcms_color_transform *xform;
 	const char *err_msg = NULL;
@@ -1572,17 +1572,17 @@ cmlcms_color_transform_create(struct weston_color_manager_lcms *cm,
 	weston_color_transform_init(&xform->base, &cm->base);
 	wl_list_init(&xform->link);
 	xform->base.to_shaper_plus_3dlut = xform_to_shaper_plus_3dlut;
-	xform->search_key = *search_param;
-	xform->search_key.input_profile = ref_cprof(search_param->input_profile);
-	xform->search_key.output_profile = ref_cprof(search_param->output_profile);
+	xform->search_key = *recipe;
+	xform->search_key.input_profile = ref_cprof(recipe->input_profile);
+	xform->search_key.output_profile = ref_cprof(recipe->output_profile);
 
 	weston_log_scope_printf(cm->transforms_scope,
 				"New color transformation: t%u\n", xform->base.id);
-	str = cmlcms_color_transform_search_param_string(&xform->search_key);
+	str = cmlcms_color_transform_recipe_string(&xform->search_key);
 	weston_log_scope_printf(cm->transforms_scope, "%s", str);
 	free(str);
 
-	if (!ensure_output_profile_extract(search_param->output_profile, cm->lcms_ctx,
+	if (!ensure_output_profile_extract(recipe->output_profile, cm->lcms_ctx,
 					   cmlcms_reasonable_1D_points(), &err_msg))
 		goto error;
 
@@ -1613,15 +1613,15 @@ error:
 }
 
 static bool
-transform_matches_params(const struct cmlcms_color_transform *xform,
-			 const struct cmlcms_color_transform_search_param *param)
+transform_matches_recipe(const struct cmlcms_color_transform *xform,
+			 const struct cmlcms_color_transform_recipe *recipe)
 {
-	if (xform->search_key.category != param->category)
+	if (xform->search_key.category != recipe->category)
 		return false;
 
-	if (xform->search_key.render_intent != param->render_intent ||
-	    xform->search_key.output_profile != param->output_profile ||
-	    xform->search_key.input_profile != param->input_profile)
+	if (xform->search_key.render_intent != recipe->render_intent ||
+	    xform->search_key.output_profile != recipe->output_profile ||
+	    xform->search_key.input_profile != recipe->input_profile)
 		return false;
 
 	return true;
@@ -1629,31 +1629,31 @@ transform_matches_params(const struct cmlcms_color_transform *xform,
 
 struct cmlcms_color_transform *
 cmlcms_color_transform_get(struct weston_color_manager_lcms *cm,
-			   const struct cmlcms_color_transform_search_param *param)
+			   const struct cmlcms_color_transform_recipe *recipe)
 {
 	struct cmlcms_color_transform *xform;
 
-	weston_assert_ptr_not_null(cm->base.compositor, param->output_profile);
-	switch (param->category) {
+	weston_assert_ptr_not_null(cm->base.compositor, recipe->output_profile);
+	switch (recipe->category) {
 	case CMLCMS_CATEGORY_BLEND_TO_OUTPUT:
-		weston_assert_ptr_null(cm->base.compositor, param->render_intent);
-		weston_assert_ptr_null(cm->base.compositor, param->input_profile);
+		weston_assert_ptr_null(cm->base.compositor, recipe->render_intent);
+		weston_assert_ptr_null(cm->base.compositor, recipe->input_profile);
 		break;
 	case CMLCMS_CATEGORY_INPUT_TO_OUTPUT:
 	case CMLCMS_CATEGORY_INPUT_TO_BLEND:
-		weston_assert_ptr_not_null(cm->base.compositor, param->render_intent);
-		weston_assert_ptr_not_null(cm->base.compositor, param->input_profile);
+		weston_assert_ptr_not_null(cm->base.compositor, recipe->render_intent);
+		weston_assert_ptr_not_null(cm->base.compositor, recipe->input_profile);
 		break;
 	}
 
 	wl_list_for_each(xform, &cm->color_transform_list, link) {
-		if (transform_matches_params(xform, param)) {
+		if (transform_matches_recipe(xform, recipe)) {
 			weston_color_transform_ref(&xform->base);
 			return xform;
 		}
 	}
 
-	xform = cmlcms_color_transform_create(cm, param);
+	xform = cmlcms_color_transform_create(cm, recipe);
 	if (!xform)
 		weston_log("color-lcms error: failed to create a color transformation.\n");
 

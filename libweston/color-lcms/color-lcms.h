@@ -190,7 +190,7 @@ void
 cmlcms_destroy_color_profile(struct weston_color_profile *cprof_base);
 
 
-struct cmlcms_color_transform_search_param {
+struct cmlcms_color_transform_recipe {
 	enum cmlcms_category category;
 	struct cmlcms_color_profile *input_profile;
 	struct cmlcms_color_profile *output_profile;
@@ -203,7 +203,7 @@ struct cmlcms_color_transform {
 	/* weston_color_manager_lcms::color_transform_list */
 	struct wl_list link;
 
-	struct cmlcms_color_transform_search_param search_key;
+	struct cmlcms_color_transform_recipe search_key;
 
 	/**
 	 * Cached data used when we can't translate the curves into parametric
@@ -241,13 +241,13 @@ to_cmlcms_xform(struct weston_color_transform *xform_base)
 
 struct cmlcms_color_transform *
 cmlcms_color_transform_get(struct weston_color_manager_lcms *cm,
-			   const struct cmlcms_color_transform_search_param *param);
+			   const struct cmlcms_color_transform_recipe *recipe);
 
 void
 cmlcms_color_transform_destroy(struct cmlcms_color_transform *xform);
 
 char *
-cmlcms_color_transform_search_param_string(const struct cmlcms_color_transform_search_param *search_key);
+cmlcms_color_transform_recipe_string(const struct cmlcms_color_transform_recipe *recipe);
 
 struct cmlcms_color_profile *
 ref_cprof(struct cmlcms_color_profile *cprof);

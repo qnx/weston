@@ -94,14 +94,14 @@ cmlcms_get_surface_color_transform(struct weston_color_manager *cm_base,
 {
 	struct weston_color_manager_lcms *cm = to_cmlcms(cm_base);
 	struct cmlcms_color_transform *xform;
-	struct cmlcms_color_transform_search_param param = {
+	struct cmlcms_color_transform_recipe recipe = {
 		.category = CMLCMS_CATEGORY_INPUT_TO_BLEND,
 		.input_profile = to_cprof_or_stock_sRGB(cm, surface->color_profile),
 		.output_profile = to_cprof_or_stock_sRGB(cm, output->color_profile),
 		.render_intent = render_intent_from_surface_or_default(cm, surface),
 	};
 
-	xform = cmlcms_color_transform_get(cm, &param);
+	xform = cmlcms_color_transform_get(cm, &recipe);
 	if (!xform)
 		return false;
 
@@ -128,14 +128,14 @@ cmlcms_get_blend_to_output_color_transform(struct weston_color_manager_lcms *cm,
 					   struct weston_color_transform **xform_out)
 {
 	struct cmlcms_color_transform *xform;
-	struct cmlcms_color_transform_search_param param = {
+	struct cmlcms_color_transform_recipe recipe = {
 		.category = CMLCMS_CATEGORY_BLEND_TO_OUTPUT,
 		.input_profile = NULL,
 		.output_profile = to_cprof_or_stock_sRGB(cm, output->color_profile),
 		.render_intent = NULL,
 	};
 
-	xform = cmlcms_color_transform_get(cm, &param);
+	xform = cmlcms_color_transform_get(cm, &recipe);
 	if (!xform)
 		return false;
 
@@ -149,7 +149,7 @@ cmlcms_get_sRGB_to_output_color_transform(struct weston_color_manager_lcms *cm,
 					  struct weston_color_transform **xform_out)
 {
 	struct cmlcms_color_transform *xform;
-	struct cmlcms_color_transform_search_param param = {
+	struct cmlcms_color_transform_recipe recipe = {
 		.category = CMLCMS_CATEGORY_INPUT_TO_OUTPUT,
 		.input_profile = cm->sRGB_profile,
 		.output_profile = to_cprof_or_stock_sRGB(cm, output->color_profile),
@@ -160,8 +160,8 @@ cmlcms_get_sRGB_to_output_color_transform(struct weston_color_manager_lcms *cm,
 	 * Create a color transformation when output profile is not stock
 	 * sRGB profile.
 	 */
-	if (param.output_profile != cm->sRGB_profile) {
-		xform = cmlcms_color_transform_get(cm, &param);
+	if (recipe.output_profile != cm->sRGB_profile) {
+		xform = cmlcms_color_transform_get(cm, &recipe);
 		if (!xform)
 			return false;
 		*xform_out = &xform->base;
@@ -178,14 +178,14 @@ cmlcms_get_sRGB_to_blend_color_transform(struct weston_color_manager_lcms *cm,
 					 struct weston_color_transform **xform_out)
 {
 	struct cmlcms_color_transform *xform;
-	struct cmlcms_color_transform_search_param param = {
+	struct cmlcms_color_transform_recipe recipe = {
 		.category = CMLCMS_CATEGORY_INPUT_TO_BLEND,
 		.input_profile = cm->sRGB_profile,
 		.output_profile = to_cprof_or_stock_sRGB(cm, output->color_profile),
 		.render_intent = render_intent_from_surface_or_default(cm, NULL),
 	};
 
-	xform = cmlcms_color_transform_get(cm, &param);
+	xform = cmlcms_color_transform_get(cm, &recipe);
 	if (!xform)
 		return false;
 
@@ -332,7 +332,7 @@ transforms_scope_new_sub(struct weston_log_subscription *subs, void *data)
 	wl_list_for_each(xform, &cm->color_transform_list, link) {
 		weston_log_subscription_printf(subs, "Color transformation t%u:\n", xform->base.id);
 
-		str = cmlcms_color_transform_search_param_string(&xform->search_key);
+		str = cmlcms_color_transform_recipe_string(&xform->search_key);
 		weston_log_subscription_printf(subs, "%s", str);
 		free(str);
 
