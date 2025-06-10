@@ -1560,6 +1560,16 @@ xform_to_shaper_plus_3dlut(struct weston_color_transform *xform_base,
 	return true;
 }
 
+static void
+cmlcms_color_transform_recipe_copy(struct cmlcms_color_transform_recipe *dst,
+				   const struct cmlcms_color_transform_recipe *src)
+{
+	dst->category = src->category;
+	dst->input_profile = ref_cprof(src->input_profile);
+	dst->output_profile = ref_cprof(src->output_profile);
+	dst->render_intent = src->render_intent;
+}
+
 static struct cmlcms_color_transform *
 cmlcms_color_transform_create(struct weston_color_manager_lcms *cm,
 			      const struct cmlcms_color_transform_recipe *recipe)
@@ -1572,9 +1582,7 @@ cmlcms_color_transform_create(struct weston_color_manager_lcms *cm,
 	weston_color_transform_init(&xform->base, &cm->base);
 	wl_list_init(&xform->link);
 	xform->base.to_shaper_plus_3dlut = xform_to_shaper_plus_3dlut;
-	xform->search_key = *recipe;
-	xform->search_key.input_profile = ref_cprof(recipe->input_profile);
-	xform->search_key.output_profile = ref_cprof(recipe->output_profile);
+	cmlcms_color_transform_recipe_copy(&xform->search_key, recipe);
 
 	weston_log_scope_printf(cm->transforms_scope,
 				"New color transformation: t%u\n", xform->base.id);
@@ -1612,6 +1620,49 @@ error:
 	return NULL;
 }
 
+static void
+cmclms_adjust_recipe(struct cmlcms_color_transform_recipe *adjusted,
+		     const struct cmlcms_color_transform_recipe *recipe,
+		     struct weston_color_manager_lcms *cm)
+{
+	const struct cmlcms_color_profile *in_prof = recipe->input_profile;
+	struct weston_color_profile_params tmp;
+	struct weston_color_profile *replacement;
+	char *errmsg;
+	bool ret;
+
+	cmlcms_color_transform_recipe_copy(adjusted, recipe);
+
+	if (!in_prof)
+		return;
+
+	/*
+	 * The standard sRGB display uses a power-2.2 EOTF. Anything that claims
+	 * to be targeting a display with the sRGB two-piece TF is likely mistaken.
+	 */
+	if (in_prof->type == CMLCMS_PROFILE_TYPE_PARAMS &&
+	    in_prof->params->tf_info->tf == WESTON_TF_SRGB) {
+		tmp = *in_prof->params;
+		tmp.tf_info = weston_color_tf_info_from(cm->base.compositor, WESTON_TF_GAMMA22);
+		ret = cmlcms_get_color_profile_from_params(&cm->base,
+							   &tmp, "override sRGB EOTF",
+							   &replacement, &errmsg);
+		if (ret) {
+			weston_log_scope_printf(cm->transforms_scope,
+						"Replacing profile p%u (%s) with profile p%u (%s)"
+						"for color transformation.\n",
+						in_prof->base.id,
+						in_prof->params->tf_info->desc,
+						replacement->id, tmp.tf_info->desc);
+			unref_cprof(adjusted->input_profile);
+			adjusted->input_profile = to_cmlcms_cprof(replacement);
+		} else {
+			weston_log("Warning: overriding sRGB two-piece TF with power-2.2 failed: %s\n", errmsg);
+			free(errmsg);
+		}
+	}
+}
+
 static bool
 transform_matches_recipe(const struct cmlcms_color_transform *xform,
 			 const struct cmlcms_color_transform_recipe *recipe)
@@ -1631,7 +1682,9 @@ struct cmlcms_color_transform *
 cmlcms_color_transform_get(struct weston_color_manager_lcms *cm,
 			   const struct cmlcms_color_transform_recipe *recipe)
 {
-	struct cmlcms_color_transform *xform;
+	struct cmlcms_color_transform_recipe adjusted;
+	struct cmlcms_color_transform *xform = NULL;
+	struct cmlcms_color_transform *it;
 
 	weston_assert_ptr_not_null(cm->base.compositor, recipe->output_profile);
 	switch (recipe->category) {
@@ -1646,16 +1699,23 @@ cmlcms_color_transform_get(struct weston_color_manager_lcms *cm,
 		break;
 	}
 
-	wl_list_for_each(xform, &cm->color_transform_list, link) {
-		if (transform_matches_recipe(xform, recipe)) {
-			weston_color_transform_ref(&xform->base);
-			return xform;
+	cmclms_adjust_recipe(&adjusted, recipe, cm);
+
+	wl_list_for_each(it, &cm->color_transform_list, link) {
+		if (transform_matches_recipe(it, &adjusted)) {
+			weston_color_transform_ref(&it->base);
+			xform = it;
 		}
 	}
 
-	xform = cmlcms_color_transform_create(cm, recipe);
+	if (!xform)
+		xform = cmlcms_color_transform_create(cm, &adjusted);
+
 	if (!xform)
 		weston_log("color-lcms error: failed to create a color transformation.\n");
+
+	unref_cprof(adjusted.input_profile);
+	unref_cprof(adjusted.output_profile);
 
 	return xform;
 }
