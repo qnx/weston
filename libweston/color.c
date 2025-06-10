@@ -339,7 +339,8 @@ curve_to_lut_has_good_precision(struct weston_color_curve *curve)
 
 /**
  * Given a xform and an enum corresponding to one of its curves (pre or post),
- * returns a 3x1D LUT that corresponds to such curve.
+ * returns a 3x1D LUT that corresponds to such curve. This only works for
+ * transformations such that xform->steps_valid.
  *
  * The 3x1D LUT returned looks like this: the first lut_size elements compose
  * the LUT for the R channel, the next lut_size elements compose the LUT for the
@@ -380,6 +381,13 @@ weston_color_curve_to_3x1D_LUT(struct weston_compositor *compositor,
 		break;
 	default:
 		weston_assert_not_reached(compositor, "unknown curve step");
+	}
+
+	if (!xform->steps_valid) {
+		str_printf(err_msg, "can't create LUT from xform (id %u) %s-curve, as the " \
+				    "xform don't have valid steps",
+				    xform->id, step_str);
+		return NULL;
 	}
 
 	if (!curve_to_lut_has_good_precision(curve)) {
