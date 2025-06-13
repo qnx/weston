@@ -2685,6 +2685,7 @@ notify_key(struct weston_seat *seat, const struct timespec *time, uint32_t key,
 			if (state == WL_KEYBOARD_KEY_STATE_PRESSED)
 				return;
 			*k = *--end;
+			break;
 		}
 	}
 	keyboard->keys.size = (void *) end - keyboard->keys.data;
