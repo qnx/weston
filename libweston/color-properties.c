@@ -282,7 +282,7 @@ static const struct weston_color_primaries_info color_primaries_info_table[] = {
 static const struct weston_color_tf_info color_tf_info_table[] = {
 	{
 		.tf = WESTON_TF_BT1886,
-		.desc = "BT.1886 transfer function",
+		.desc = "BT.1886",
 		.protocol_tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_BT1886,
 		.count_parameters = 0,
 		/**
@@ -295,7 +295,7 @@ static const struct weston_color_tf_info color_tf_info_table[] = {
 	},
 	{
 		.tf = WESTON_TF_GAMMA22,
-		.desc = "Assumed display gamma 2.2 transfer function",
+		.desc = "assumed display gamma 2.2",
 		.protocol_tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22,
 		.count_parameters = 0,
 		.curve_params_valid = true,
@@ -304,7 +304,7 @@ static const struct weston_color_tf_info color_tf_info_table[] = {
 	},
 	{
 		.tf = WESTON_TF_GAMMA28,
-		.desc = "Assumed display gamma 2.8 transfer function",
+		.desc = "assumed display gamma 2.8",
 		.protocol_tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA28,
 		.count_parameters = 0,
 		.curve_params_valid = true,
@@ -313,13 +313,13 @@ static const struct weston_color_tf_info color_tf_info_table[] = {
 	},
 	{
 		.tf = WESTON_TF_EXT_LINEAR,
-		.desc = "Extended Linear transfer function",
+		.desc = "extended linear",
 		.protocol_tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_EXT_LINEAR,
 		.count_parameters = 0,
 	},
 	{
 		.tf = WESTON_TF_SRGB,
-		.desc = "sRGB piece-wise transfer function",
+		.desc = "sRGB piece-wise",
 		.protocol_tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
 		.count_parameters = 0,
 		.curve_params_valid = true,
@@ -328,7 +328,7 @@ static const struct weston_color_tf_info color_tf_info_table[] = {
 	},
 	{
 		.tf = WESTON_TF_EXT_SRGB,
-		.desc = "Extended sRGB piece-wise transfer function",
+		.desc = "Extended sRGB piece-wise",
 		.protocol_tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_EXT_SRGB,
 		.count_parameters = 0,
 		.curve_params_valid = true,
@@ -337,49 +337,49 @@ static const struct weston_color_tf_info color_tf_info_table[] = {
 	},
 	{
 		.tf = WESTON_TF_ST240,
-		.desc = "SMPTE ST 240 transfer function",
+		.desc = "SMPTE ST 240",
 		.protocol_tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST240,
 		.count_parameters = 0,
 	},
 	{
 		.tf = WESTON_TF_ST428,
-		.desc = "SMPTE ST 428 transfer function",
+		.desc = "SMPTE ST 428",
 		.protocol_tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST428,
 		.count_parameters = 0,
 	},
 	{
 		.tf = WESTON_TF_ST2084_PQ,
-		.desc = "Perceptual quantizer transfer function",
+		.desc = "Perceptual Quantizer",
 		.protocol_tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST2084_PQ,
 		.count_parameters = 0,
 	},
 	{
 		.tf = WESTON_TF_LOG_100,
-		.desc = "Logarithmic 100:1 transfer function",
+		.desc = "logarithmic 100:1",
 		.protocol_tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_LOG_100,
 		.count_parameters = 0,
 	},
 	{
 		.tf = WESTON_TF_LOG_316,
-		.desc = "Logarithmic (100*Sqrt(10) : 1) transfer function",
+		.desc = "logarithmic (100*Sqrt(10) : 1)",
 		.protocol_tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_LOG_316,
 		.count_parameters = 0,
 	},
 	{
 		.tf = WESTON_TF_XVYCC,
-		.desc = "IEC 61966-2-4 transfer function",
+		.desc = "IEC 61966-2-4 (xvYCC)",
 		.protocol_tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_XVYCC,
 		.count_parameters = 0,
 	},
 	{
 		.tf = WESTON_TF_HLG,
-		.desc = "Hybrid log-gamma transfer function",
+		.desc = "Hybrid log-gamma",
 		.protocol_tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_HLG,
 		.count_parameters = 0,
 	},
         {
 		.tf = WESTON_TF_POWER,
-		.desc = "Parameterized power-law transfer function",
+		.desc = "power-law with custom exponent",
 		.count_parameters = 1,
         },
 };
