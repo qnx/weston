@@ -131,11 +131,11 @@ weston_color_gamut_fprint(FILE *fp,
 	unsigned i;
 
 	for (i = 0; i < 3; i++) {
-		fprintf(fp, "%s    %s  = (%.5f, %.5f)\n",
+		fprintf(fp, "%s    %s  = (%.4f, %.4f)\n",
 			indent, chan[i], g->primary[i].x, g->primary[i].y);
 	}
 
-	fprintf(fp, "%s    WP = (%.5f, %.5f)\n",
+	fprintf(fp, "%s    WP = (%.4f, %.4f)\n",
 		indent, g->white_point.x, g->white_point.y);
 }
 
