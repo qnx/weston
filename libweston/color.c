@@ -678,12 +678,12 @@ weston_color_curve_fprint(FILE *fp, const struct weston_color_curve *curve)
 		fprintf(fp, "3x1D LUT [%u]", curve->u.lut_3x1d.optimal_len);
 		break;
 	case WESTON_COLOR_CURVE_TYPE_ENUM:
-		fprintf(fp, "enumerated [%s%s]",
+		fprintf(fp, "(enum) %s%s",
 			curve->u.enumerated.tf_direction == WESTON_INVERSE_TF ? "inverse " : "",
 			curve->u.enumerated.tf->desc);
 		break;
 	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
-		fprintf(fp, "parametric [%s]",
+		fprintf(fp, "(parametric) %s",
 			param_curve_type_to_str(curve->u.parametric.type));
 		break;
 	}
@@ -708,26 +708,26 @@ weston_color_transform_string(const struct weston_color_transform *xform)
 	size_t size = 0;
 
 	if (!xform->steps_valid)
-		return xstrdup("pipeline: uses shaper + 3D LUT\n");
+		return xstrdup("Pipeline: uses shaper + 3D LUT\n");
 
 	fp = open_memstream(&str, &size);
 	abort_oom_if_null(fp);
 
-	fprintf(fp, "pipeline: ");
+	fprintf(fp, "Pipeline: ");
 
 	if (pre_type != WESTON_COLOR_CURVE_TYPE_IDENTITY) {
-		fprintf(fp, "%spre ", sep);
+		fprintf(fp, "%spre = ", sep);
 		weston_color_curve_fprint(fp, &xform->pre_curve);
 		sep = ", ";
 	}
 
 	if (mapping_type != WESTON_COLOR_MAPPING_TYPE_IDENTITY) {
-		fprintf(fp, "%smapping %s", sep, mapping_type_to_str(mapping_type));
+		fprintf(fp, "%smapping = %s", sep, mapping_type_to_str(mapping_type));
 		sep = ", ";
 	}
 
 	if (post_type != WESTON_COLOR_CURVE_TYPE_IDENTITY) {
-		fprintf(fp, "%spost ", sep);
+		fprintf(fp, "%spost = ", sep);
 		weston_color_curve_fprint(fp, &xform->post_curve);
 		sep = ", ";
 	}
