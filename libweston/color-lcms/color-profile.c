@@ -558,57 +558,36 @@ make_icc_file_description(struct lcmsProfilePtr profile,
  * BT.709 primaries with gamma-2.2 transfer characteristic. This is the
  * expected sRGB display response.
  */
-bool
+struct cmlcms_color_profile *
 cmlcms_create_stock_profile(struct weston_color_manager_lcms *cm)
 {
-	static const cmsCIExyY D65 = { 0.3127, 0.3290, 1.0 };
-	static const cmsCIExyYTRIPLE bt709 = {
-		{ 0.6400, 0.3300, 1.0 },
-		{ 0.3000, 0.6000, 1.0 },
-		{ 0.1500, 0.0600, 1.0 }
-	};
-	cmsToneCurve *gamma22[3];
-	struct lcmsProfilePtr profile = { NULL };
-	struct cmlcms_md5_sum md5sum;
+	struct weston_compositor *compositor = cm->base.compositor;
+	struct weston_color_profile_params p = {};
+	struct cmlcms_color_profile *stock;
 	char *desc = NULL;
-	const char *err_msg = NULL;
 
-	gamma22[0] = gamma22[1] = gamma22[2] = cmsBuildGamma(cm->lcms_ctx, 2.2);
-	if (gamma22[0])
-		profile.p = cmsCreateRGBProfileTHR(cm->lcms_ctx, &D65, &bt709, gamma22);
-	cmsFreeToneCurve(gamma22[0]);
-	if (!profile.p) {
-		weston_log("color-lcms: error: failed to create stock sRGB profile.\n");
-		return false;
-	}
-	if (!cmsMD5computeID(profile.p)) {
-		weston_log("Failed to compute MD5 for stock sRGB profile.\n");
-		goto err_close;
-	}
+	p.primaries_info = weston_color_primaries_info_from(compositor,
+							    WESTON_PRIMARIES_CICP_SRGB);
+	p.primaries = p.primaries_info->color_gamut;
+	p.tf.info = weston_color_tf_info_from(compositor, WESTON_TF_GAMMA22);
+	p.reference_white_luminance = 80.0;
+	p.min_luminance = 0.2;
+	p.max_luminance = 80.0;
+	p.target_primaries = p.primaries;
+	p.target_min_luminance = p.min_luminance;
+	p.target_max_luminance = p.max_luminance;
+	p.maxCLL = -1.0f;
+	p.maxFALL = -1.0f;
 
-	cmsGetHeaderProfileID(profile.p, md5sum.bytes);
-	desc = make_icc_file_description(profile, &md5sum, "sRGB stock");
-	if (!desc)
-		goto err_close;
+	str_printf(&desc, "default sRGB: %s primaries, %s transfer function",
+		   p.primaries_info->desc, p.tf.info->desc);
+	abort_oom_if_null(desc);
 
-	cm->sRGB_profile = cmlcms_color_profile_alloc(cm, CMLCMS_PROFILE_TYPE_ICC, desc);
-	cm->sRGB_profile->icc.profile = profile;
-	cm->sRGB_profile->icc.md5sum = md5sum;
+	stock = cmlcms_color_profile_alloc(cm, CMLCMS_PROFILE_TYPE_PARAMS, desc);
+	*stock->params = p;
+	cmlcms_color_profile_register(stock);
 
-	if (!ensure_output_profile_extract(cm->sRGB_profile, cm->lcms_ctx,
-					   cmlcms_reasonable_1D_points(), &err_msg))
-		goto err_close;
-
-	cmlcms_color_profile_register(cm->sRGB_profile);
-
-	return true;
-
-err_close:
-	if (err_msg)
-		weston_log("%s\n", err_msg);
-
-	cmlcms_color_profile_destroy(cm->sRGB_profile);
-	return false;
+	return stock;
 }
 
 struct weston_color_profile *
@@ -749,62 +728,17 @@ bool
 cmlcms_send_image_desc_info(struct cm_image_desc_info *cm_image_desc_info,
 			    struct weston_color_profile *cprof_base)
 {
-	struct weston_color_manager_lcms *cm = to_cmlcms(cprof_base->cm);
-	struct weston_compositor *compositor = cm->base.compositor;
 	struct cmlcms_color_profile *cprof = to_cmlcms_cprof(cprof_base);
-	const struct weston_color_primaries_info *primaries_info;
 
-	/**
-	 * TODO: when we convert the stock sRGB profile to a parametric profile
-	 * instead of an ICC one, we'll be able to change the if/else below to
-	 * a switch/case.
-	 */
-
-	if (cprof->type == CMLCMS_PROFILE_TYPE_ICC && cprof != cm->sRGB_profile) {
+	switch (cprof->type) {
+	case CMLCMS_PROFILE_TYPE_ICC:
 		return cmlcms_send_icc_info(cm_image_desc_info, cprof);
-	} else {
-		if (cprof != cm->sRGB_profile) {
-			weston_cm_send_parametric_info(cm_image_desc_info, cprof->params);
-			return true;
-		}
-
-		/* Stock sRGB color profile. TODO: when we add support for
-		 * parametric color profiles, the stock sRGB will be crafted
-		 * using parameters, instead of cmsCreate_sRGBProfileTHR()
-		 * (which we currently use). So we'll get the parameters
-		 * directly from it, instead of hardcoding as we are doing here.
-		 * We don't get the parameters from the stock sRGB color profile
-		 * because it is not trivial to retrieve that from LittleCMS. */
-
-		/* Send the H.273 ColourPrimaries code point that matches the
-		 * Rec709 primaries and the D65 white point. */
-		primaries_info = weston_color_primaries_info_from(compositor,
-								  WESTON_PRIMARIES_CICP_SRGB);
-		weston_cm_send_primaries_named(cm_image_desc_info, primaries_info);
-
-		/* These are the Rec709 primaries and D65 white point. */
-		weston_cm_send_primaries(cm_image_desc_info,
-					 &primaries_info->color_gamut);
-
-		/* Target primaries, equal to the primary primaries. */
-		weston_cm_send_target_primaries(cm_image_desc_info,
-						&primaries_info->color_gamut);
-
-		/* sRGB transfer function. */
-		struct weston_color_tf tf = {
-			.info = weston_color_tf_info_from(compositor, WESTON_TF_GAMMA22),
-			.params = {},
-		};
-		weston_cm_send_tf(cm_image_desc_info, &tf);
-
-		/* Primary luminance, default values from the protocol. */
-		weston_cm_send_luminances(cm_image_desc_info, 0.2, 80.0, 80.0);
-
-		/* Target luminance, min/max equals primary luminance min/max. */
-		weston_cm_send_target_luminances(cm_image_desc_info, 0.2, 80.0);
+	case CMLCMS_PROFILE_TYPE_PARAMS:
+		weston_cm_send_parametric_info(cm_image_desc_info, cprof->params);
+		return true;
 	}
 
-	return true;
+	return false;
 }
 
 struct weston_color_profile *

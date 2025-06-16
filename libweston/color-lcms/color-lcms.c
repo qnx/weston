@@ -429,19 +429,13 @@ cmlcms_init(struct weston_color_manager *cm_base)
 
 	cmsSetLogErrorHandlerTHR(cm->lcms_ctx, lcms_error_logger);
 
-	if (!cmlcms_create_stock_profile(cm)) {
-		weston_log("color-lcms: error: cmlcms_create_stock_profile failed\n");
-		goto out_err;
-	}
+	cm->sRGB_profile = cmlcms_create_stock_profile(cm);
+
 	weston_log("LittleCMS %d initialized.\n", cmsGetEncodedCMMversion());
 
 	return true;
 
 out_err:
-	if (cm->lcms_ctx)
-		cmsDeleteContext(cm->lcms_ctx);
-	cm->lcms_ctx = NULL;
-
 	weston_log_scope_destroy(cm->transforms_scope);
 	cm->transforms_scope = NULL;
 	weston_log_scope_destroy(cm->optimizer_scope);

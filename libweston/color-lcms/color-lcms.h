@@ -292,7 +292,7 @@ ref_cprof(struct cmlcms_color_profile *cprof);
 void
 unref_cprof(struct cmlcms_color_profile *cprof);
 
-bool
+struct cmlcms_color_profile *
 cmlcms_create_stock_profile(struct weston_color_manager_lcms *cm);
 
 void
