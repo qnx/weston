@@ -113,7 +113,7 @@ struct weston_color_tf_info {
 	/* The protocol also has support for parameterized functions, i.e.
 	 * certain known functions that clients can define passing arbitrary
 	 * parameters. */
-	bool count_parameters;
+	unsigned count_parameters;
 
 	/** Are curve and inverse_curve valid? */
 	bool curve_params_valid;
