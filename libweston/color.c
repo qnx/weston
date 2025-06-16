@@ -122,6 +122,23 @@ weston_color_profile_init(struct weston_color_profile *cprof,
 	cprof->id = weston_idalloc_get_id(cm->compositor->color_profile_id_generator);
 }
 
+static void
+weston_color_gamut_fprint(FILE *fp,
+			  const char *indent,
+			  const struct weston_color_gamut *g)
+{
+	static const char *chan[] = { "R", "G", "B" };
+	unsigned i;
+
+	for (i = 0; i < 3; i++) {
+		fprintf(fp, "%s    %s  = (%.5f, %.5f)\n",
+			indent, chan[i], g->primary[i].x, g->primary[i].y);
+	}
+
+	fprintf(fp, "%s    WP = (%.5f, %.5f)\n",
+		indent, g->white_point.x, g->white_point.y);
+}
+
 /**
  * Print color profile parameters to string.
  *
@@ -142,14 +159,7 @@ weston_color_profile_params_to_str(struct weston_color_profile_params *params,
 	abort_oom_if_null(fp);
 
 	fprintf(fp, "%sprimaries (CIE xy):\n", ident);
-	fprintf(fp, "%s    R  = (%.5f, %.5f)\n", ident, params->primaries.primary[0].x,
-							params->primaries.primary[0].y);
-	fprintf(fp, "%s    G  = (%.5f, %.5f)\n", ident, params->primaries.primary[1].x,
-							params->primaries.primary[1].y);
-	fprintf(fp, "%s    B  = (%.5f, %.5f)\n", ident, params->primaries.primary[2].x,
-							params->primaries.primary[2].y);
-	fprintf(fp, "%s    WP = (%.5f, %.5f)\n", ident, params->primaries.white_point.x,
-							params->primaries.white_point.y);
+	weston_color_gamut_fprint(fp, ident, &params->primaries);
 
 	if (params->primaries_info)
 		fprintf(fp, "%sprimaries named: %s\n", ident, params->primaries_info->desc);
@@ -168,14 +178,7 @@ weston_color_profile_params_to_str(struct weston_color_profile_params *params,
 										  params->reference_white_luminance);
 
 	fprintf(fp, "%starget primaries (CIE xy):\n", ident);
-	fprintf(fp, "%s    R  = (%.5f, %.5f)\n", ident, params->target_primaries.primary[0].x,
-							params->target_primaries.primary[0].y);
-	fprintf(fp, "%s    G  = (%.5f, %.5f)\n", ident, params->target_primaries.primary[1].x,
-							params->target_primaries.primary[1].y);
-	fprintf(fp, "%s    B  = (%.5f, %.5f)\n", ident, params->target_primaries.primary[2].x,
-							params->target_primaries.primary[2].y);
-	fprintf(fp, "%s    WP = (%.5f, %.5f)\n", ident, params->target_primaries.white_point.x,
-							params->target_primaries.white_point.y);
+	weston_color_gamut_fprint(fp, ident, &params->target_primaries);
 
 	if (params->target_min_luminance >= 0.0f && params->target_max_luminance >= 0.0f)
 		fprintf(fp, "%starget luminance: [%.3f, %.2f] (cd/m²)\n", ident, params->target_min_luminance,
