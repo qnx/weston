@@ -130,8 +130,7 @@ static const struct weston_render_intent_info render_intent_info_table[] = {
 static const struct weston_color_primaries_info color_primaries_info_table[] = {
 	{
 		.primaries = WESTON_PRIMARIES_CICP_SRGB,
-		.desc = "Color primaries for the sRGB color space as defined by " \
-			"the BT.709 standard",
+		.desc = "sRGB & BT.709",
 		.protocol_primaries = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 		.color_gamut = {
 			.primary = { { 0.64, 0.33 }, /* RGB order */
@@ -143,7 +142,7 @@ static const struct weston_color_primaries_info color_primaries_info_table[] = {
 	},
 	{
 		.primaries = WESTON_PRIMARIES_CICP_PAL_M,
-		.desc = "Color primaries for PAL-M as defined by the BT.470 standard",
+		.desc = "PAL-M (BT.470)",
 		.protocol_primaries = WP_COLOR_MANAGER_V1_PRIMARIES_PAL_M,
 		.color_gamut = {
 			.primary = { { 0.67, 0.33 }, /* RGB order */
@@ -155,7 +154,7 @@ static const struct weston_color_primaries_info color_primaries_info_table[] = {
 	},
 	{
 		.primaries = WESTON_PRIMARIES_CICP_PAL,
-		.desc = "Color primaries for PAL as defined by the BT.601 standard",
+		.desc = "PAL (BT.601)",
 		.protocol_primaries = WP_COLOR_MANAGER_V1_PRIMARIES_PAL,
 		.color_gamut = {
 			.primary = { { 0.64, 0.33 }, /* RGB order */
@@ -167,7 +166,7 @@ static const struct weston_color_primaries_info color_primaries_info_table[] = {
 	},
 	{
 		.primaries = WESTON_PRIMARIES_CICP_NTSC,
-		.desc = "Color primaries for NTSC as defined by the BT.601 standard",
+		.desc = "NTSC (BT.601)",
 		.protocol_primaries = WP_COLOR_MANAGER_V1_PRIMARIES_NTSC,
 		.color_gamut = {
 			.primary = { { 0.630, 0.340 }, /* RGB order */
@@ -191,8 +190,7 @@ static const struct weston_color_primaries_info color_primaries_info_table[] = {
 	},
 	{
 		.primaries = WESTON_PRIMARIES_CICP_BT2020,
-		.desc = "Color primaries as defined by the BT.2020 and BT.2100 " \
-			"standard",
+		.desc = "BT.2020 & BT.2100",
 		.protocol_primaries = WP_COLOR_MANAGER_V1_PRIMARIES_BT2020,
 		.color_gamut = {
 			.primary = { { 0.708, 0.292 }, /* RGB order */
@@ -204,7 +202,7 @@ static const struct weston_color_primaries_info color_primaries_info_table[] = {
 	},
 	{
 		.primaries = WESTON_PRIMARIES_CICP_CIE1931_XYZ,
-		.desc = "Color primaries of the full CIE 1931 XYZ color space",
+		.desc = "CIE 1931 XYZ & SMPTE ST 428-1",
 		.protocol_primaries = WP_COLOR_MANAGER_V1_PRIMARIES_CIE1931_XYZ,
 		.color_gamut = {
 			.primary = { { 1.0, 0.0 }, /* RGB order */
@@ -216,8 +214,7 @@ static const struct weston_color_primaries_info color_primaries_info_table[] = {
 	},
 	{
 		.primaries = WESTON_PRIMARIES_CICP_DCI_P3,
-		.desc = "Color primaries of the DCI P3 color space as defined by " \
-			"the SMPTE RP 431 standard",
+		.desc = "DCI P3 (SMPTE RP 431)",
 		.protocol_primaries = WP_COLOR_MANAGER_V1_PRIMARIES_DCI_P3,
 		.color_gamut = {
 			.primary = { { 0.680, 0.320 }, /* RGB order */
@@ -229,8 +226,7 @@ static const struct weston_color_primaries_info color_primaries_info_table[] = {
 	},
 	{
 		.primaries = WESTON_PRIMARIES_CICP_DISPLAY_P3,
-		.desc = "Color primaries of Display P3 variant of the DCI-P3 color " \
-			"space as defined by the SMPTE EG 432 standard",
+		.desc = "Display P3",
 		.protocol_primaries = WP_COLOR_MANAGER_V1_PRIMARIES_DISPLAY_P3,
 		.color_gamut = {
 			.primary = { { 0.680, 0.320 }, /* RGB order */
@@ -242,8 +238,7 @@ static const struct weston_color_primaries_info color_primaries_info_table[] = {
 	},
 	{
 		.primaries = WESTON_PRIMARIES_ADOBE_RGB,
-		.desc = "Color primaries of the Adobe RGB color space as defined " \
-			"by the ISO 12640 standard",
+		.desc = "Adobe RGB (ISO 12640)",
 		.protocol_primaries = WP_COLOR_MANAGER_V1_PRIMARIES_ADOBE_RGB,
 		.color_gamut = {
 			.primary = { { 0.64, 0.33 }, /* RGB order */
