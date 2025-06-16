@@ -1091,7 +1091,7 @@ matrix_print(cmsStage *stage, struct weston_log_scope *scope)
 
 		/* We print offset after the last column of the matrix. */
 		if (data->Offset)
-			weston_log_scope_printf(scope, "% .4f", data->Offset[row]);
+			weston_log_scope_printf(scope, " % .4f", data->Offset[row]);
 
 		weston_log_scope_printf(scope, "\n");
 	}
