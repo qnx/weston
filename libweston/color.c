@@ -561,6 +561,113 @@ mapping_type_to_str(enum weston_color_mapping_type mapping_type)
 }
 
 static void
+weston_color_curve_details_fprint(FILE *fp,
+				  int indent,
+				  const char *step,
+				  const struct weston_color_curve *curve)
+{
+	static const char *chan[] = { "R", "G", "B" };
+	const struct weston_color_curve_enum *en;
+	const struct weston_color_curve_parametric *par;
+	unsigned ch;
+	unsigned i;
+
+	switch (curve->type) {
+	case WESTON_COLOR_CURVE_TYPE_IDENTITY:
+		break;
+	case WESTON_COLOR_CURVE_TYPE_LUT_3x1D:
+		break;
+	case WESTON_COLOR_CURVE_TYPE_ENUM:
+		en = &curve->u.enumerated;
+		if (en->tf->count_parameters == 0)
+			break;
+
+		fprintf(fp, "%*s%s, %s:\n", indent, "", step, en->tf->desc);
+		for (ch = 0; ch < 3; ch++) {
+			fprintf(fp, "%*s  %s", indent, "", chan[ch]);
+			for (i = 0; i < en->tf->count_parameters; i++)
+				fprintf(fp, " % .4f", en->params[ch][i]);
+			fprintf(fp, "\n");
+		}
+		break;
+	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
+		par = &curve->u.parametric;
+		fprintf(fp, "%*s%s, %s %s:\n", indent, "", step,
+			par->clamped_input ? "clamped" : "unlimited",
+			param_curve_type_to_str(par->type));
+		for (ch = 0; ch < 3; ch++) {
+			fprintf(fp, "%*s  %s", indent, "", chan[ch]);
+			for (i = 0; i < ARRAY_LENGTH(par->params.chan[0].data); i++)
+				fprintf(fp, " % .4f", par->params.chan[ch].data[i]);
+			fprintf(fp, "\n");
+		}
+		break;
+	}
+}
+
+static void
+weston_color_mapping_details_fprint(FILE *fp,
+				    int indent,
+				    const char *step,
+				    const struct weston_color_mapping *map)
+{
+	const struct weston_color_mapping_matrix *mat;
+	unsigned r, c;
+
+	switch (map->type) {
+	case WESTON_COLOR_MAPPING_TYPE_IDENTITY:
+		break;
+	case WESTON_COLOR_MAPPING_TYPE_MATRIX:
+		mat = &map->u.mat;
+		fprintf(fp, "%*s%s matrix:\n", indent, "", step);
+		for (r = 0; r < 3; r++) {
+			fprintf(fp, "%*s", indent + 1, "");
+			for (c = 0; c < 3; c++)
+				fprintf(fp, " %8.4f", mat->matrix.col[c].el[r]);
+			fprintf(fp, " %8.4f\n", mat->offset.el[r]);
+		}
+		break;
+	}
+}
+
+/**
+ * Print details of the elements of the color transform pipeline to a string
+ *
+ * \param indent Count of spaces to use for indenting every line.
+ * \param xform The color transform.
+ * \return The string in which the pipeline is printed, or NULL if there is
+ * nothing to print.
+ */
+WL_EXPORT char *
+weston_color_transform_details_string(int indent,
+				      const struct weston_color_transform *xform)
+{
+	FILE *fp;
+	char *str = NULL;
+	size_t size = 0;
+
+	if (!xform->steps_valid)
+		return NULL;
+
+	fp = open_memstream(&str, &size);
+	abort_oom_if_null(fp);
+
+	if (xform->pre_curve.type != WESTON_COLOR_CURVE_TYPE_IDENTITY)
+		weston_color_curve_details_fprint(fp, indent, "pre-curve", &xform->pre_curve);
+
+	if (xform->mapping.type != WESTON_COLOR_MAPPING_TYPE_IDENTITY)
+		weston_color_mapping_details_fprint(fp, indent, "mapping", &xform->mapping);
+
+	if (xform->post_curve.type != WESTON_COLOR_CURVE_TYPE_IDENTITY)
+		weston_color_curve_details_fprint(fp, indent, "post-curve", &xform->post_curve);
+
+	fclose(fp);
+	abort_oom_if_null(str);
+
+	return str;
+}
+
+static void
 weston_color_curve_fprint(FILE *fp, const struct weston_color_curve *curve)
 {
 	switch (curve->type) {

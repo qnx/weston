@@ -675,6 +675,10 @@ weston_color_transform_init(struct weston_color_transform *xform,
 char *
 weston_color_transform_string(const struct weston_color_transform *xform);
 
+char *
+weston_color_transform_details_string(int indent,
+				      const struct weston_color_transform *xform);
+
 void
 weston_surface_color_transform_copy(struct weston_surface_color_transform *dst,
 				    const struct weston_surface_color_transform *src);

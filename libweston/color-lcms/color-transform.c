@@ -1615,6 +1615,12 @@ cmlcms_color_transform_create(struct weston_color_manager_lcms *cm,
 	weston_log_scope_printf(cm->transforms_scope, "  %s", str);
 	free(str);
 
+	str = weston_color_transform_details_string(4, &xform->base);
+	if (str) {
+		weston_log_scope_printf(cm->transforms_scope, "%s", str);
+		free(str);
+	}
+
 	return xform;
 
 error:
