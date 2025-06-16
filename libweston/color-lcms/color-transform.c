@@ -1214,7 +1214,7 @@ transform_factory(_cmsTransform2Fn *xform_fn,
 
 	/* Print pipeline before optimization */
 	weston_log_scope_printf(cm->optimizer_scope,
-				"  transform pipeline before optimization:\n");
+				"  ICC-to-ICC transform pipeline before optimization:\n");
 	pipeline_print(lut, context_id, cm->optimizer_scope);
 
 	/* Optimize pipeline */
@@ -1222,7 +1222,7 @@ transform_factory(_cmsTransform2Fn *xform_fn,
 
 	/* Print pipeline after optimization */
 	weston_log_scope_printf(cm->optimizer_scope,
-				"  transform pipeline after optimization:\n");
+				"  ICC-to-ICC transform pipeline after optimization:\n");
 	pipeline_print(lut, context_id, cm->optimizer_scope);
 
 	return FALSE;
