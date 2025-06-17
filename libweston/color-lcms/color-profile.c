@@ -719,6 +719,32 @@ cmlcms_get_color_profile_from_params(struct weston_color_manager *cm_base,
 	return true;
 }
 
+static bool
+cmlcms_send_icc_info(struct cm_image_desc_info *cm_image_desc_info,
+		     const struct cmlcms_color_profile *cprof)
+{
+	int32_t fd;
+	uint32_t len;
+
+	/* ICC-based color profile, so just send the ICC file fd. If we
+	 * get an error (negative fd), the helper will send the proper
+	 * error to the client. */
+	fd = os_ro_anonymous_file_get_fd(cprof->icc.prof_rofile,
+					 RO_ANONYMOUS_FILE_MAPMODE_PRIVATE);
+	if (fd < 0) {
+		weston_cm_send_icc_file(cm_image_desc_info, -1, 0);
+		return false;
+	}
+
+	len = os_ro_anonymous_file_size(cprof->icc.prof_rofile);
+	weston_assert_u32_gt(cprof->base.cm->compositor, len, 0);
+
+	weston_cm_send_icc_file(cm_image_desc_info, fd, len);
+
+	os_ro_anonymous_file_put_fd(fd);
+	return true;
+}
+
 bool
 cmlcms_send_image_desc_info(struct cm_image_desc_info *cm_image_desc_info,
 			    struct weston_color_profile *cprof_base)
@@ -728,8 +754,6 @@ cmlcms_send_image_desc_info(struct cm_image_desc_info *cm_image_desc_info,
 	struct cmlcms_color_profile *cprof = to_cmlcms_cprof(cprof_base);
 	const struct weston_color_primaries_info *primaries_info;
 	const struct weston_color_tf_info *tf_info;
-        int32_t fd;
-        uint32_t len;
 
 	/**
 	 * TODO: when we convert the stock sRGB profile to a parametric profile
@@ -738,22 +762,7 @@ cmlcms_send_image_desc_info(struct cm_image_desc_info *cm_image_desc_info,
 	 */
 
 	if (cprof->type == CMLCMS_PROFILE_TYPE_ICC && cprof != cm->sRGB_profile) {
-		/* ICC-based color profile, so just send the ICC file fd. If we
-		 * get an error (negative fd), the helper will send the proper
-		 * error to the client. */
-		fd = os_ro_anonymous_file_get_fd(cprof->icc.prof_rofile,
-						 RO_ANONYMOUS_FILE_MAPMODE_PRIVATE);
-		if (fd < 0) {
-			weston_cm_send_icc_file(cm_image_desc_info, -1, 0);
-			return false;
-		}
-
-		len = os_ro_anonymous_file_size(cprof->icc.prof_rofile);
-		weston_assert_u32_gt(compositor, len, 0);
-
-		weston_cm_send_icc_file(cm_image_desc_info, fd, len);
-
-		os_ro_anonymous_file_put_fd(fd);
+		return cmlcms_send_icc_info(cm_image_desc_info, cprof);
 	} else {
 		/* TODO: we still don't support parametric color profiles that
 		 * are not the stock one. This should change when we start
