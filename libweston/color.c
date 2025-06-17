@@ -197,35 +197,6 @@ weston_color_profile_params_to_str(struct weston_color_profile_params *params,
 }
 
 /**
- * Initializes a struct weston_color_curve given a transfer function.
- *
- * \param curve The curve to initialize.
- * \param tf_info The tf_info object.
- * \param tf_params When the tf is parametric, this is required. Otherwise,
- * this is ignored.
- * \param tf_direction Determines if this inits a curve equivalent to the direct
- * or the inverse of the tf.
- */
-WL_EXPORT void
-weston_color_curve_from_tf_info(struct weston_color_curve *curve,
-				const struct weston_color_tf_info *tf_info,
-				const float tf_params[MAX_PARAMS_TF],
-				enum weston_tf_direction tf_direction)
-{
-	unsigned int i, j;
-
-	curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
-
-	curve->u.enumerated.tf = tf_info;
-	curve->u.enumerated.tf_direction = tf_direction;
-
-	for (j = 0; j < tf_info->count_parameters; j++) {
-		for (i = 0; i < 3; i++)
-			curve->u.enumerated.params[i][j] = tf_params[j];
-	}
-}
-
-/**
  * Given an enumerated color curve, returns an equivalent parametric curve.
  *
  * \param compositor The compositor instance.
