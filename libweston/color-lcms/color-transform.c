@@ -1403,9 +1403,13 @@ static void
 weston_color_mapping_set_from_m4f(struct weston_color_mapping *mapping,
 				  struct weston_mat4f mat)
 {
-	mapping->type = WESTON_COLOR_MAPPING_TYPE_MATRIX;
-	mapping->u.mat.matrix = weston_m3f_from_m4f_xyz(mat);
-	mapping->u.mat.offset = weston_v3f_from_v4f_xyz(mat.col[3]);
+	if (matrix_is_identity(mat, MATRIX_PRECISION_BITS)) {
+		mapping->type = WESTON_COLOR_MAPPING_TYPE_IDENTITY;
+	} else {
+		mapping->type = WESTON_COLOR_MAPPING_TYPE_MATRIX;
+		mapping->u.mat.matrix = weston_m3f_from_m4f_xyz(mat);
+		mapping->u.mat.offset = weston_v3f_from_v4f_xyz(mat.col[3]);
+	}
 }
 
 static bool
