@@ -327,4 +327,8 @@ cmlcms_color_transformer_eval(struct weston_compositor *compositor,
 			      const struct weston_vec3f *src,
 			      size_t len);
 
+char *
+cmlcms_color_transformer_string(int indent,
+				const struct cmlcms_color_transformer *t);
+
 #endif /* WESTON_COLOR_LCMS_H */

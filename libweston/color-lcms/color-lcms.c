@@ -345,6 +345,12 @@ transforms_scope_new_sub(struct weston_log_subscription *subs, void *data)
 			weston_log_subscription_printf(subs, "%s", str);
 			free(str);
 		}
+
+		str = cmlcms_color_transformer_string(4, &xform->transformer);
+		if (str) {
+			weston_log_subscription_printf(subs, "%s", str);
+			free(str);
+		}
 	}
 }
 

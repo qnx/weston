@@ -30,7 +30,9 @@
 #include <lcms2.h>
 
 #include "color.h"
+#include "color-properties.h"
 #include "color-operations.h"
+#include "shared/xalloc.h"
 #include "shared/weston-assert.h"
 #include "color-lcms.h"
 
@@ -95,4 +97,96 @@ cmlcms_color_transformer_eval(struct weston_compositor *compositor,
 		weston_color_curve_sample(compositor, &t->curve2, in, dst, len);
 		in = dst;
 	}
+}
+
+static void
+transformer_curve_fprint(FILE *fp,
+			 int indent,
+			 const char *step,
+			 const struct weston_color_curve *curve)
+{
+	const struct weston_color_curve_enum *en;
+	const char *dir = "???";
+	unsigned i;
+
+	if (curve->type != WESTON_COLOR_CURVE_TYPE_ENUM) {
+		fprintf(fp, "%*s[unexpectedly not enum]\n", indent, "");
+		return;
+	}
+	en = &curve->u.enumerated;
+
+	switch (en->tf_direction) {
+	case WESTON_FORWARD_TF:
+		dir = "forward";
+		break;
+	case WESTON_INVERSE_TF:
+		dir = "inverse";
+		break;
+	}
+
+	fprintf(fp, "%*s%s, %s %s", indent, "", step, dir, en->tf.info->desc);
+	if (en->tf.info->count_parameters > 0) {
+		fprintf(fp, ": ");
+		for (i = 0; i < en->tf.info->count_parameters; i++)
+			fprintf(fp, " % .4f", en->tf.params[i]);
+	}
+	fprintf(fp, "\n");
+}
+
+static void
+transformer_linear_fprint(FILE *fp,
+			  int indent,
+			  const char *step,
+			  const struct weston_color_mapping_matrix *lin)
+{
+	unsigned r, c;
+
+	fprintf(fp, "%*s%s\n", indent, "", step);
+	for (r = 0; r < 3; r++) {
+		fprintf(fp, "%*s", indent + 1, "");
+		for (c = 0; c < 3; c++)
+			fprintf(fp, " %8.4f", lin->matrix.col[c].el[r]);
+		fprintf(fp, " %8.4f\n", lin->offset.el[r]);
+	}
+}
+
+static void
+cmlcms_color_transformer_details_fprint(FILE *fp,
+					int indent,
+					const struct cmlcms_color_transformer *t)
+{
+	if (t->element_mask & CMLCMS_TRANSFORMER_CURVE1)
+		transformer_curve_fprint(fp, indent, "curve1", &t->curve1);
+
+	if (t->element_mask & CMLCMS_TRANSFORMER_LIN1)
+		transformer_linear_fprint(fp, indent, "lin1", &t->lin1);
+
+	if (t->element_mask & CMLCMS_TRANSFORMER_ICC_CHAIN)
+		fprintf(fp, "%*sICC-to-ICC transform pipeline\n", indent, "");
+
+	if (t->element_mask & CMLCMS_TRANSFORMER_LIN2)
+		transformer_linear_fprint(fp, indent, "lin2", &t->lin2);
+
+	if (t->element_mask & CMLCMS_TRANSFORMER_CURVE2)
+		transformer_curve_fprint(fp, indent, "curve2", &t->curve2);
+}
+
+char *
+cmlcms_color_transformer_string(int indent,
+				const struct cmlcms_color_transformer *t)
+{
+	FILE *fp;
+	char *str = NULL;
+	size_t size = 0;
+
+	fp = open_memstream(&str, &size);
+	abort_oom_if_null(fp);
+
+	fprintf(fp, "%*sColor transform sampler for 3D LUT\n", indent, "");
+	cmlcms_color_transformer_details_fprint(fp, indent + 2, t);
+
+	fclose(fp);
+	abort_oom_if_null(str);
+
+	return str;
 }
