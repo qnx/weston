@@ -67,4 +67,8 @@ void
 weston_cm_send_target_luminances(struct cm_image_desc_info *cm_image_desc_info,
                                  float min_lum, float max_lum);
 
+void
+weston_cm_send_parametric_info(struct cm_image_desc_info *cm_image_desc_info,
+			       const struct weston_color_profile_params *par);
+
 #endif /* WESTON_COLOR_MANAGEMENT_H */

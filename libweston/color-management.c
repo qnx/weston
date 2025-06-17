@@ -281,6 +281,40 @@ weston_cm_send_target_luminances(struct cm_image_desc_info *cm_image_desc_info,
 }
 
 /**
+ * Send complete parametric image description information to the client.
+ */
+WL_EXPORT void
+weston_cm_send_parametric_info(struct cm_image_desc_info *cm_image_desc_info,
+			       const struct weston_color_profile_params *par)
+{
+	if (par->primaries_info)
+		weston_cm_send_primaries_named(cm_image_desc_info, par->primaries_info);
+	weston_cm_send_primaries(cm_image_desc_info, &par->primaries);
+	weston_cm_send_target_primaries(cm_image_desc_info, &par->target_primaries);
+
+	weston_cm_send_tf(cm_image_desc_info, &par->tf);
+
+	weston_cm_send_luminances(cm_image_desc_info, par->min_luminance,
+				  par->max_luminance, par->reference_white_luminance);
+
+	if (par->target_min_luminance >= 0.0f && par->target_max_luminance >= 0.0f) {
+		weston_cm_send_target_luminances(cm_image_desc_info,
+						 par->target_min_luminance,
+						 par->target_max_luminance);
+	}
+
+	if (par->maxCLL > 0.0f) {
+		wp_image_description_info_v1_send_target_max_cll(cm_image_desc_info->owner,
+								 par->maxCLL);
+	}
+
+	if (par->maxFALL > 0.0f) {
+		wp_image_description_info_v1_send_target_max_fall(cm_image_desc_info->owner,
+								  par->maxFALL);
+	}
+}
+
+/**
  * Destroy an image description info object.
  */
 static void

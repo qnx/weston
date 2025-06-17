@@ -763,13 +763,10 @@ cmlcms_send_image_desc_info(struct cm_image_desc_info *cm_image_desc_info,
 	if (cprof->type == CMLCMS_PROFILE_TYPE_ICC && cprof != cm->sRGB_profile) {
 		return cmlcms_send_icc_info(cm_image_desc_info, cprof);
 	} else {
-		/* TODO: we still don't support parametric color profiles that
-		 * are not the stock one. This should change when we start
-		 * advertising parametric image description support in our
-		 * color-management protocol implementation. */
-		if (cprof != cm->sRGB_profile)
-			weston_assert_not_reached(compositor, "we don't support parametric " \
-						  "cprof's that are not the stock sRGB one");
+		if (cprof != cm->sRGB_profile) {
+			weston_cm_send_parametric_info(cm_image_desc_info, cprof->params);
+			return true;
+		}
 
 		/* Stock sRGB color profile. TODO: when we add support for
 		 * parametric color profiles, the stock sRGB will be crafted
