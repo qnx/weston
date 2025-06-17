@@ -753,7 +753,6 @@ cmlcms_send_image_desc_info(struct cm_image_desc_info *cm_image_desc_info,
 	struct weston_compositor *compositor = cm->base.compositor;
 	struct cmlcms_color_profile *cprof = to_cmlcms_cprof(cprof_base);
 	const struct weston_color_primaries_info *primaries_info;
-	const struct weston_color_tf_info *tf_info;
 
 	/**
 	 * TODO: when we convert the stock sRGB profile to a parametric profile
@@ -795,8 +794,11 @@ cmlcms_send_image_desc_info(struct cm_image_desc_info *cm_image_desc_info,
 						&primaries_info->color_gamut);
 
 		/* sRGB transfer function. */
-		tf_info = weston_color_tf_info_from(compositor, WESTON_TF_GAMMA22);
-		weston_cm_send_tf_named(cm_image_desc_info, tf_info);
+		struct weston_color_tf tf = {
+			.info = weston_color_tf_info_from(compositor, WESTON_TF_GAMMA22),
+			.params = {},
+		};
+		weston_cm_send_tf(cm_image_desc_info, &tf);
 
 		/* Primary luminance, default values from the protocol. */
 		weston_cm_send_luminances(cm_image_desc_info, 0.2, 80.0, 80.0);

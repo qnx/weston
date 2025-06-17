@@ -209,15 +209,34 @@ weston_cm_send_target_primaries(struct cm_image_desc_info *cm_image_desc_info,
  * This is a helper function that should be used by the color plugin
  * that owns the color profile and has information about it.
  *
- * \param cm_image_desc_info The image description info object
- * \param tf_info The tf_info object
+ * \param cm_image_desc_info The image description info object.
+ * \param tf The color transfer function to send.
  */
 WL_EXPORT void
-weston_cm_send_tf_named(struct cm_image_desc_info *cm_image_desc_info,
-			const struct weston_color_tf_info *tf_info)
+weston_cm_send_tf(struct cm_image_desc_info *cm_image_desc_info,
+		  const struct weston_color_tf *tf)
 {
-	wp_image_description_info_v1_send_tf_named(cm_image_desc_info->owner,
-						   tf_info->protocol_tf);
+	switch (tf->info->tf) {
+	case WESTON_TF_BT1886:
+	case WESTON_TF_GAMMA22:
+	case WESTON_TF_GAMMA28:
+	case WESTON_TF_SRGB:
+	case WESTON_TF_EXT_SRGB:
+	case WESTON_TF_ST240:
+	case WESTON_TF_ST428:
+	case WESTON_TF_ST2084_PQ:
+	case WESTON_TF_EXT_LINEAR:
+	case WESTON_TF_LOG_100:
+	case WESTON_TF_LOG_316:
+	case WESTON_TF_XVYCC:
+	case WESTON_TF_HLG:
+		wp_image_description_info_v1_send_tf_named(cm_image_desc_info->owner,
+							   tf->info->protocol_tf);
+		break;
+	case WESTON_TF_POWER:
+		wp_image_description_info_v1_send_tf_power(cm_image_desc_info->owner,
+							   tf->params[0]);
+	}
 }
 
 /**
