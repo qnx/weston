@@ -450,20 +450,26 @@ init_curve_from_type_1(struct weston_compositor *compositor,
 	tf_info = lcms_curve_matches_any_tf(compositor, 1, clamped_input, type_1_params);
 	if (tf_info) {
 		curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
-		enumerated->tf = tf_info;
+		enumerated->tf = (struct weston_color_tf){
+			.info = tf_info,
+			.params = {}
+		};
 		enumerated->tf_direction = WESTON_FORWARD_TF;
 		return true;
 	}
 
-	/* This is a pure power-law with custom exp. If clamped_input == false,
-	 * this matches WESTON_TF_POWER (parametric TF that is not clamped). */
-	if (!clamped_input) {
+	/* This is a pure power-law with custom exp. If clamped_input == false
+	 * and all channels behave the same, this matches WESTON_TF_POWER. */
+	if (!clamped_input &&
+	    type_1_params[0][0] == type_1_params[1][0] &&
+	    type_1_params[0][0] == type_1_params[2][0]) {
+		tf_info = weston_color_tf_info_from(compositor, WESTON_TF_POWER);
 		curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
-		enumerated->tf = weston_color_tf_info_from(compositor,
-							   WESTON_TF_POWER);
+		enumerated->tf = (struct weston_color_tf){
+			.info = tf_info,
+			.params = { type_1_params[0][0] }
+		};
 		enumerated->tf_direction = WESTON_FORWARD_TF;
-		for (i = 0; i < 3; i++)
-			enumerated->params[i][0] = type_1_params[i][0];
 		return true;
 	}
 
@@ -519,29 +525,34 @@ init_curve_from_type_1_inverse(struct weston_compositor *compositor,
 	tf_info = lcms_curve_matches_any_tf(compositor, 1, clamped_input, type_1_params);
 	if (tf_info) {
 		curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
-		enumerated->tf = tf_info;
+		enumerated->tf = (struct weston_color_tf){
+			.info = tf_info,
+			.params = {}
+		};
 		enumerated->tf_direction = WESTON_INVERSE_TF;
 		return true;
 	}
 
 	/* This is the inverse of a pure power-law with custom exp. If
-	 * clamped_input == false, this matches WESTON_TF_POWER (parametric TF
-	 * that is not clamped). */
-	if (!clamped_input) {
-		curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
-		enumerated->tf = weston_color_tf_info_from(compositor,
-							   WESTON_TF_POWER);
-		enumerated->tf_direction = WESTON_INVERSE_TF;
-		for (i = 0; i < 3; i++) {
-			g = type_1_params[i][0];
-			if (g == 0.0f) {
-				err_msg = "WARNING: xform has a LittleCMS type -1 curve " \
-					  "(inverse of pure power-law) with exponent 1 " \
-					  "divided by 0, which is invalid";
-				goto err;
-			}
-			enumerated->params[i][0] = g;
+	 * clamped_input == false and all channels behave the same,
+	 * this matches WESTON_TF_POWER. */
+	if (!clamped_input &&
+	    type_1_params[0][0] == type_1_params[1][0] &&
+	    type_1_params[0][0] == type_1_params[2][0]) {
+		if (type_1_params[0][0] == 0.0f) {
+			err_msg = "WARNING: xform has a LittleCMS type -1 curve " \
+				  "(inverse of pure power-law) with exponent 1 " \
+				  "divided by 0, which is invalid";
+			goto err;
 		}
+
+		tf_info = weston_color_tf_info_from(compositor, WESTON_TF_POWER);
+		curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
+		enumerated->tf = (struct weston_color_tf){
+			.info = tf_info,
+			.params = { type_1_params[0][0] }
+		};
+		enumerated->tf_direction = WESTON_INVERSE_TF;
 		return true;
 	}
 
@@ -615,7 +626,10 @@ init_curve_from_type_4(struct weston_compositor *compositor,
 	tf_info = lcms_curve_matches_any_tf(compositor, 4, clamped_input, type_4_params);
 	if (tf_info) {
 		curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
-		enumerated->tf = tf_info;
+		enumerated->tf = (struct weston_color_tf){
+			.info = tf_info,
+			.params = {}
+		};
 		enumerated->tf_direction = WESTON_FORWARD_TF;
 		return true;
 	}
@@ -695,7 +709,10 @@ init_curve_from_type_4_inverse(struct weston_compositor *compositor,
 	tf_info = lcms_curve_matches_any_tf(compositor, 4, clamped_input, type_4_params);
 	if (tf_info) {
 		curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
-		enumerated->tf = tf_info;
+		enumerated->tf = (struct weston_color_tf){
+			.info = tf_info,
+			.params = {}
+		};
 		enumerated->tf_direction = WESTON_INVERSE_TF;
 		return true;
 	}
@@ -1370,14 +1387,9 @@ weston_color_curve_set_from_params(struct weston_color_curve *curve,
 				   const struct weston_color_profile_params *p,
 				   enum weston_tf_direction dir)
 {
-	unsigned i;
-
 	curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
-	curve->u.enumerated.tf = p->tf_info;
+	curve->u.enumerated.tf = p->tf;
 	curve->u.enumerated.tf_direction = dir;
-
-	for (i = 0; i < 3; i++)
-		ARRAY_COPY(curve->u.enumerated.params[i], p->tf_params);
 }
 
 static void
@@ -1961,9 +1973,9 @@ cmclms_adjust_recipe(struct cmlcms_color_transform_recipe *adjusted,
 	 * to be targeting a display with the sRGB two-piece TF is likely mistaken.
 	 */
 	if (in_prof->type == CMLCMS_PROFILE_TYPE_PARAMS &&
-	    in_prof->params->tf_info->tf == WESTON_TF_SRGB) {
+	    in_prof->params->tf.info->tf == WESTON_TF_SRGB) {
 		tmp = *in_prof->params;
-		tmp.tf_info = weston_color_tf_info_from(cm->base.compositor, WESTON_TF_GAMMA22);
+		tmp.tf.info = weston_color_tf_info_from(cm->base.compositor, WESTON_TF_GAMMA22);
 		ret = cmlcms_get_color_profile_from_params(&cm->base,
 							   &tmp, "override sRGB EOTF",
 							   &replacement, &errmsg);
@@ -1972,8 +1984,8 @@ cmclms_adjust_recipe(struct cmlcms_color_transform_recipe *adjusted,
 						"Replacing profile p%u (%s) with profile p%u (%s)"
 						"for color transformation.\n",
 						in_prof->base.id,
-						in_prof->params->tf_info->desc,
-						replacement->id, tmp.tf_info->desc);
+						in_prof->params->tf.info->desc,
+						replacement->id, tmp.tf.info->desc);
 			unref_cprof(adjusted->input_profile);
 			adjusted->input_profile = to_cmlcms_cprof(replacement);
 		} else {

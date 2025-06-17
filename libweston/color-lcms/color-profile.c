@@ -383,11 +383,15 @@ cmlcms_find_color_profile_by_params(const struct weston_color_manager_lcms *cm,
 	struct cmlcms_color_profile *cprof;
 
 	/* Ensure no uninitialized data inside struct to make memcmp work. */
+	static_assert(sizeof(params->tf) ==
+			sizeof(params->tf.info) +
+			sizeof(params->tf.params) +
+			sizeof(params->tf.padding),
+		"struct weston_color_transfer_function must not contain implicit padding");
 	static_assert(sizeof(*params) ==
 			2 * sizeof(float) * 2 * 4 + /* primaries, target_primaries */
 			sizeof(params->primaries_info) +
-			sizeof(params->tf_info) +
-			sizeof(params->tf_params) +
+			sizeof(params->tf) +
 			sizeof(params->min_luminance) +
 			sizeof(params->max_luminance) +
 			sizeof(params->reference_white_luminance) +
@@ -708,7 +712,7 @@ cmlcms_get_color_profile_from_params(struct weston_color_manager *cm_base,
 	str_printf(&desc, "Parametric (%s): %s primaries, %s transfer function",
 			  name_part,
 			  params->primaries_info ? params->primaries_info->desc : "custom",
-			  params->tf_info->desc);
+			  params->tf.info->desc);
 
 	cprof = cmlcms_color_profile_alloc(cm, CMLCMS_PROFILE_TYPE_PARAMS, desc);
 	*cprof->params = *params;

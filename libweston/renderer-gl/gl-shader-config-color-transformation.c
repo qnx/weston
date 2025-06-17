@@ -172,7 +172,7 @@ gl_color_curve_enum(struct gl_renderer *gr,
 	 * Handle enum curve (if TF is implemented) or fallback to a parametric
 	 * curve.
 	 */
-	switch(curve->u.enumerated.tf->tf) {
+	switch (curve->u.enumerated.tf.info->tf) {
 	case WESTON_TF_ST2084_PQ:
 		gl_curve->type = (curve->u.enumerated.tf_direction == WESTON_FORWARD_TF) ?
 				 SHADER_COLOR_CURVE_PQ : SHADER_COLOR_CURVE_PQ_INVERSE;

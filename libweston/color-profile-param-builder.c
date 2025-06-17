@@ -310,9 +310,9 @@ weston_color_profile_param_builder_set_tf_named(struct weston_color_profile_para
 	if (!success)
 		return false;
 
-	builder->params.tf_info = weston_color_tf_info_from(compositor, tf);
+	builder->params.tf.info = weston_color_tf_info_from(compositor, tf);
 	weston_assert_uint_eq(builder->compositor,
-			      builder->params.tf_info->count_parameters, 0);
+			      builder->params.tf.info->count_parameters, 0);
 
 	builder->group_mask |= WESTON_COLOR_PROFILE_PARAMS_TF;
 
@@ -368,8 +368,8 @@ weston_color_profile_param_builder_set_tf_power_exponent(struct weston_color_pro
 	if (!success)
 		return false;
 
-	builder->params.tf_info = weston_color_tf_info_from(compositor, WESTON_TF_POWER);
-	builder->params.tf_params[0] = power_exponent;
+	builder->params.tf.info = weston_color_tf_info_from(compositor, WESTON_TF_POWER);
+	builder->params.tf.params[0] = power_exponent;
 
 	builder->group_mask |= WESTON_COLOR_PROFILE_PARAMS_TF;
 
@@ -757,7 +757,7 @@ builder_complete_params(struct weston_color_profile_param_builder *builder)
 		/* Some TF's override the default. Values comes from the CM&HDR
 		 * protocol as well. */
 		if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TF) {
-			switch(builder->params.tf_info->tf) {
+			switch(builder->params.tf.info->tf) {
 			case WESTON_TF_BT1886:
 				builder->params.reference_white_luminance = 100.0;
 				builder->params.min_luminance = 0.01;
@@ -781,7 +781,7 @@ builder_complete_params(struct weston_color_profile_param_builder *builder)
 		/* Primary luminance is set, but the CM&HDR protocol states that
 		 * PQ TF should override max_lum with min_lum + 10000 cd/m². */
 		if ((builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TF) &&
-		    builder->params.tf_info->tf == WESTON_TF_ST2084_PQ)
+		    builder->params.tf.info->tf == WESTON_TF_ST2084_PQ)
 			builder->params.max_luminance =
 				builder->params.min_luminance + 10000.0;
 	}

@@ -33,11 +33,6 @@
 
 #include "backend-drm/drm-kms-enums.h"
 
-/**
- * The only tf which is parametric (WESTON_TF_POWER) has a single parameter.
- */
-#define MAX_PARAMS_TF 1
-
 enum weston_hdr_metadata_type1_groups {
 	/** weston_hdr_metadata_type1::primary is set */
 	WESTON_HDR_METADATA_TYPE1_GROUP_PRIMARIES	= 0x01,
@@ -133,6 +128,21 @@ struct weston_color_profile {
 	uint32_t id;
 };
 
+/**
+ * Color transfer function
+ *
+ * Includes any parameter values the enumerated transfer function might need.
+ */
+struct weston_color_tf {
+	/** Encoding transfer characteristic by enumeration; always set. */
+	const struct weston_color_tf_info *info;
+
+	/** TF parameters, specific to TF. */
+	float params[1];
+
+	char padding[4];
+};
+
 /** Parameters that define a parametric color profile */
 struct weston_color_profile_params {
 	/* Primary color volume; always set. */
@@ -142,10 +152,7 @@ struct weston_color_profile_params {
 	const struct weston_color_primaries_info *primaries_info;
 
 	/* Encoding transfer characteristic by enumeration; always set. */
-	const struct weston_color_tf_info *tf_info;
-
-	/* Transfer characteristic's parameters; depends on tf_info. */
-	float tf_params[MAX_PARAMS_TF];
+	struct weston_color_tf tf;
 
 	/* Primary color volume luminance parameters cd/m²; always set. */
 	float min_luminance, max_luminance;
@@ -158,7 +165,7 @@ struct weston_color_profile_params {
 	float target_min_luminance, target_max_luminance;
 	float maxCLL, maxFALL;
 
-	char padding[8];
+	char padding[4];
 };
 
 /** Type for parametric curves */
@@ -257,14 +264,10 @@ enum weston_tf_direction {
 
 /** Enumerated color curve */
 struct weston_color_curve_enum {
-	const struct weston_color_tf_info *tf;
+	struct weston_color_tf tf;
 
 	/* Determines if the direct or inverse of the tf should be used. */
 	enum weston_tf_direction tf_direction;
-
-	/* Some tf are parametric, and we keep the params here. They may be
-	 * different for each color channel, and channels are in RGB order. */
-	float params[3][MAX_PARAMS_TF];
 };
 
 /**

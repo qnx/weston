@@ -166,12 +166,12 @@ weston_color_profile_params_to_str(struct weston_color_profile_params *params,
 	if (params->primaries_info)
 		fprintf(fp, "%sprimaries named: %s\n", ident, params->primaries_info->desc);
 
-	fprintf(fp, "%stransfer function: %s\n", ident, params->tf_info->desc);
+	fprintf(fp, "%stransfer function: %s\n", ident, params->tf.info->desc);
 
-	if (params->tf_info->count_parameters > 0) {
+	if (params->tf.info->count_parameters > 0) {
 		fprintf(fp, "%s    params:", ident);
-		for (i = 0; i < params->tf_info->count_parameters; i++)
-			fprintf(fp, " %.4f", params->tf_params[i]);
+		for (i = 0; i < params->tf.info->count_parameters; i++)
+			fprintf(fp, " %.4f", params->tf.params[i]);
 		fprintf(fp, "\n");
 	}
 
@@ -214,11 +214,11 @@ weston_color_curve_enum_get_parametric(struct weston_compositor *compositor,
 	memset(out, 0, sizeof(*out));
 
 	/* This one is special, the only parametric TF we currently have. */
-	if (curve->tf->tf == WESTON_TF_POWER) {
+	if (curve->tf.info->tf == WESTON_TF_POWER) {
 		out->type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW;
 		out->clamped_input = false;
 		for (i = 0; i < 3; i++) {
-			float exp = curve->params[i][0];
+			float exp = curve->tf.params[0];
 			/* LINPOW with such params matches pure power-law */
 			out->params.chan[i].g = (curve->tf_direction == WESTON_FORWARD_TF) ?
 						exp : 1.0f / exp;
@@ -231,15 +231,15 @@ weston_color_curve_enum_get_parametric(struct weston_compositor *compositor,
 	}
 
 	/* No other TF's have params. */
-	weston_assert_uint_eq(compositor, curve->tf->count_parameters, 0);
+	weston_assert_uint_eq(compositor, curve->tf.info->count_parameters, 0);
 
-	if (!curve->tf->curve_params_valid)
+	if (!curve->tf.info->curve_params_valid)
 		return false;
 
 	if (curve->tf_direction == WESTON_FORWARD_TF)
-		*out = curve->tf->curve;
+		*out = curve->tf.info->curve;
 	else
-		*out = curve->tf->inverse_curve;
+		*out = curve->tf.info->inverse_curve;
 
 	return true;
 }
@@ -254,9 +254,9 @@ curve_to_lut_has_good_precision(struct weston_color_curve *curve)
 
 	if (curve->type == WESTON_COLOR_CURVE_TYPE_ENUM) {
 		if (e->tf_direction == WESTON_INVERSE_TF) {
-			if (e->tf->tf == WESTON_TF_ST2084_PQ ||
-			    e->tf->tf == WESTON_TF_GAMMA22 ||
-			    e->tf->tf == WESTON_TF_GAMMA28) {
+			if (e->tf.info->tf == WESTON_TF_ST2084_PQ ||
+			    e->tf.info->tf == WESTON_TF_GAMMA22 ||
+			    e->tf.info->tf == WESTON_TF_GAMMA28) {
 				/**
 				 * These have bad precision in the indirect
 				 * direction.
@@ -264,30 +264,26 @@ curve_to_lut_has_good_precision(struct weston_color_curve *curve)
 				return false;
 			}
 
-			if (e->tf->tf == WESTON_TF_POWER) {
+			if (e->tf.info->tf == WESTON_TF_POWER) {
 				/**
 				 * Same as the above, but for parametric
 				 * power-law transfer function. If g > 1.0
 				 * it would result in bad precision.
 				 */
-				for (i = 0; i < 3; i++) {
-					g = e->params[i][0];
-					if (g > 1.0f)
-						return false;
-				}
+				g = e->tf.params[0];
+				if (g > 1.0f)
+					return false;
 			}
 		} else {
-			if (e->tf->tf == WESTON_TF_POWER) {
+			if (e->tf.info->tf == WESTON_TF_POWER) {
 				/**
 				 * For parametric power-law transfer function
 				 * in the forward direction, g < 1.0 would
 				 * result in bad precision.
 				 */
-				for (i = 0; i < 3; i++) {
-					g = e->params[i][0];
-					if (g < 1.0f)
-						return false;
-				}
+				g = e->tf.params[0];
+				if (g < 1.0f)
+					return false;
 			}
 		}
 	} else if (curve->type == WESTON_COLOR_CURVE_TYPE_PARAMETRIC) {
@@ -573,16 +569,14 @@ weston_color_curve_details_fprint(FILE *fp,
 		break;
 	case WESTON_COLOR_CURVE_TYPE_ENUM:
 		en = &curve->u.enumerated;
-		if (en->tf->count_parameters == 0)
+		if (en->tf.info->count_parameters == 0)
 			break;
 
-		fprintf(fp, "%*s%s, %s:\n", indent, "", step, en->tf->desc);
-		for (ch = 0; ch < 3; ch++) {
-			fprintf(fp, "%*s  %s", indent, "", chan[ch]);
-			for (i = 0; i < en->tf->count_parameters; i++)
-				fprintf(fp, " % .4f", en->params[ch][i]);
-			fprintf(fp, "\n");
-		}
+		fprintf(fp, "%*s%s, %s:\n", indent, "", step, en->tf.info->desc);
+		fprintf(fp, "%*s  R,G,B", indent, "");
+		for (i = 0; i < en->tf.info->count_parameters; i++)
+			fprintf(fp, " % .4f", en->tf.params[i]);
+		fprintf(fp, "\n");
 		break;
 	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
 		par = &curve->u.parametric;
@@ -674,7 +668,7 @@ weston_color_curve_fprint(FILE *fp, const struct weston_color_curve *curve)
 	case WESTON_COLOR_CURVE_TYPE_ENUM:
 		fprintf(fp, "(enum) %s%s",
 			curve->u.enumerated.tf_direction == WESTON_INVERSE_TF ? "inverse " : "",
-			curve->u.enumerated.tf->desc);
+			curve->u.enumerated.tf.info->desc);
 		break;
 	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
 		fprintf(fp, "(parametric) %s",

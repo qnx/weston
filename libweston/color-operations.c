@@ -195,7 +195,7 @@ weston_color_curve_sample(struct weston_compositor *compositor,
 		 * Otherwise, fallback to a parametric curve and we'll handle
 		 * that below.
 		 */
-		switch(curve->u.enumerated.tf->tf) {
+		switch (curve->u.enumerated.tf.info->tf) {
 		case WESTON_TF_ST2084_PQ:
 			sample_pq(curve->u.enumerated.tf_direction, ch, len, in, out);
 			return true;
