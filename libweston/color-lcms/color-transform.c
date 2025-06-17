@@ -542,6 +542,7 @@ init_curve_from_type_1_inverse(struct weston_compositor *compositor,
 			}
 			enumerated->params[i][0] = g;
 		}
+		return true;
 	}
 
 	/* Inverse of pure power-law with custom exp and clamped_input. We don't
