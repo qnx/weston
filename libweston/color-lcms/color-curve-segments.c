@@ -583,15 +583,24 @@ get_defining_curve_segment(cmsToneCurve *from, bool *clamped_input)
 	seg1 = cmsGetToneCurveSegment(1, from);
 	seg2 = cmsGetToneCurveSegment(2, from);
 	if (seg0 && !seg1) {
-		/* Case 1: we have a single segment (seg0).
-		 *
-		 * Ensure that the domain is (-inf, inf).
-		 */
-		if (!are_segment_breaks_equal(seg0->x0, -INFINITY) ||
-		    !are_segment_breaks_equal(seg0->x1, INFINITY))
-			return NULL;
-		*clamped_input = false;
-		return seg0;
+		/* Case 1: we have a single segment (seg0). */
+
+		/* If the domain is (-inf, inf), the curve is unbounded. */
+		if (are_segment_breaks_equal(seg0->x0, -INFINITY) &&
+		    are_segment_breaks_equal(seg0->x1, INFINITY)) {
+			*clamped_input = false;
+			return seg0;
+		}
+
+		/* If the domain is [0.0, 1.0], the curve is bounded. */
+		if (are_segment_breaks_equal(seg0->x0, 0.0) &&
+		    are_segment_breaks_equal(seg0->x1, 1.0)) {
+			*clamped_input = true;
+			return seg0;
+		}
+
+		/* We don't handle anything else. */
+		return NULL;
 	} else if (seg0 && seg1 && seg2) {
 		/* Case 2: we have three segments. Clamped input.
 		 *
