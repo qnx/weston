@@ -676,3 +676,58 @@ get_parametric_curveset_params(struct weston_compositor *compositor,
 
 	return true;
 }
+
+/** Create a matrix stage equivalent to the CurveSet stage.
+ *
+ * A tabulated curve segment with 2 samples is equivalent to a matrix
+ * (scaling and offset), ignoring possible input clamping and allowing
+ * extrapolation.
+ *
+ * \param context_id The matrix stage is created in this context.
+ * \param stage An arbitrary stage, can be NULL.
+ * \return A new matrix stage equivalent to the given (CurveSet) stage, or
+ * NULL otherwise.
+ */
+cmsStage *
+lcms_matrix_stage_from_curve(cmsContext context_id, cmsStage *stage)
+{
+	const _cmsStageToneCurvesData *data;
+	cmsFloat64Number Matrix[3 * 3] = {}; /* row-major */
+	cmsFloat64Number Offset[3];
+	unsigned i;
+
+	if (!stage || cmsStageType(stage) != cmsSigCurveSetElemType)
+		return NULL;
+
+	data = cmsStageData(stage);
+	if (data->nCurves != 3)
+		return NULL;
+
+	for (i = 0; i < 3; i++) {
+		const cmsCurveSegment *seg;
+		bool clamped_input;
+		double y0, y1, k;
+
+		seg = get_defining_curve_segment(data->TheCurves[i], &clamped_input);
+		if (!seg)
+			return NULL;
+
+		/* Type 0 is tabulated. */
+		if (seg->Type != 0)
+			return NULL;
+
+		if (seg->nGridPoints != 2)
+			return NULL;
+
+		y0 = seg->SampledPoints[0];
+		y1 = seg->SampledPoints[1];
+
+		/* y = k * x + Offset */
+
+		k = (y1 - y0) / (seg->x1 - seg->x0);
+		Offset[i] = y0 - k * seg->x0;
+		Matrix[3 * i + i] = k;
+	}
+
+	return cmsStageAllocMatrix(context_id, 3, 3, Matrix, Offset);
+}

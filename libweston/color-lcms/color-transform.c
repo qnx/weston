@@ -387,6 +387,30 @@ merge_curvesets(cmsPipeline **lut, cmsContext context_id)
 	return modified;
 }
 
+static void
+linear_curvesets_to_matrices(cmsPipeline **lut, cmsContext context_id)
+{
+	cmsPipeline *pipe;
+	cmsStage *elem;
+	cmsStage *matrix;
+
+	pipe = cmsPipelineAlloc(context_id, 3, 3);
+	abort_oom_if_null(pipe);
+
+	elem = cmsPipelineGetPtrToFirstStage(*lut);
+	for (; elem; elem = cmsStageNext(elem)) {
+		matrix = lcms_matrix_stage_from_curve(context_id, elem);
+		if (matrix) {
+			cmsPipelineInsertStage(pipe, cmsAT_END, matrix);
+		} else {
+			cmsPipelineInsertStage(pipe, cmsAT_END, cmsStageDup(elem));
+		}
+	}
+
+	cmsPipelineFree(*lut);
+	*lut = pipe;
+}
+
 static const struct weston_color_tf_info *
 lcms_curve_matches_any_tf(struct weston_compositor *compositor,
 			  uint32_t lcms_curve_type, bool clamped_input,
@@ -1012,6 +1036,8 @@ WESTON_EXPORT_FOR_TESTS void
 lcms_optimize_pipeline(cmsPipeline **lut, cmsContext context_id)
 {
 	bool cont_opt;
+
+	linear_curvesets_to_matrices(lut, context_id);
 
 	/**
 	 * This optimization loop will delete identity stages. Deleting
