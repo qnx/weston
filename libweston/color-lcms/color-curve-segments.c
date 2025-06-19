@@ -531,7 +531,7 @@ join_powerlaw_curvesets(cmsContext context_id,
         ret = cmsStageAllocToneCurves(context_id, ARRAY_LENGTH(arr), arr);
         abort_oom_if_null(ret);
         cmsFreeToneCurveTriple(arr);
-        return ret;       
+        return ret;
 }
 
 void
@@ -573,6 +573,47 @@ curveset_print(cmsStage *stage, struct weston_log_scope *scope)
 	}
 }
 
+static const cmsCurveSegment *
+get_defining_curve_segment(cmsToneCurve *from, bool *clamped_input)
+{
+	const cmsCurveSegment *seg0, *seg1, *seg2;
+
+	/* We handle curves with 1 or 3 segments. No more, no less. */
+	seg0 = cmsGetToneCurveSegment(0, from);
+	seg1 = cmsGetToneCurveSegment(1, from);
+	seg2 = cmsGetToneCurveSegment(2, from);
+	if (seg0 && !seg1) {
+		/* Case 1: we have a single segment (seg0).
+		 *
+		 * Ensure that the domain is (-inf, inf).
+		 */
+		if (!are_segment_breaks_equal(seg0->x0, -INFINITY) ||
+		    !are_segment_breaks_equal(seg0->x1, INFINITY))
+			return NULL;
+		*clamped_input = false;
+		return seg0;
+	} else if (seg0 && seg1 && seg2) {
+		/* Case 2: we have three segments. Clamped input.
+		 *
+		 * Ensure that the domain breaks are (-inf, 0.0],
+		 * (0.0, 1.0] and (1.0, inf].
+		 */
+		if (!are_segment_breaks_equal(seg0->x0, -INFINITY) ||
+		    !are_segment_breaks_equal(seg0->x1, 0.0) ||
+		    !are_segment_breaks_equal(seg1->x0, 0.0) ||
+		    !are_segment_breaks_equal(seg1->x1, 1.0) ||
+		    !are_segment_breaks_equal(seg2->x0, 1.0) ||
+		    !are_segment_breaks_equal(seg2->x1, INFINITY))
+			return NULL;
+		*clamped_input = true;
+		return seg1;
+	} else {
+		/* Neither 1 or 3 segments. So we don't define the
+		 * curveset as parametric. */
+		return NULL;
+	}
+}
+
 bool
 get_parametric_curveset_params(struct weston_compositor *compositor,
 			       _cmsStageToneCurvesData *trc_data,
@@ -580,7 +621,7 @@ get_parametric_curveset_params(struct weston_compositor *compositor,
 			       float curveset_params[3][MAX_PARAMS_LCMS_PARAM_CURVE],
 			       bool *clamped_input)
 {
-	const cmsCurveSegment *seg, *seg0, *seg1, *seg2;
+	const cmsCurveSegment *seg;
 	cmsInt32Number curve_types[3];
 	unsigned int i, j;
 
@@ -596,44 +637,18 @@ get_parametric_curveset_params(struct weston_compositor *compositor,
 	*clamped_input = false;
 
 	for (i = 0; i < 3; i++) {
-		/* We handle curves with 1 or 3 segments. No more, no less. */
-		seg0 = cmsGetToneCurveSegment(0, trc_data->TheCurves[i]);
-		seg1 = cmsGetToneCurveSegment(1, trc_data->TheCurves[i]);
-		seg2 = cmsGetToneCurveSegment(2, trc_data->TheCurves[i]);
+		bool clamp_this;
 
-		if (seg0 && !seg1) {
-			/* Case 1: we have a single segment (seg0).
-			 *
-			 * Ensure that the domain is (-inf, inf) and that the
-			 * seg type is not 0 (the type of sampled segments).
-			 */
-			if (!are_segment_breaks_equal(seg0->x0, -INFINITY) ||
-			    !are_segment_breaks_equal(seg0->x1, INFINITY) ||
-			    seg0->Type == 0)
-				return false;
-			seg = seg0;
-		} else if (seg0 && seg1 && seg2) {
-			/* Case 2: we have three segments. Clamped input.
-			 *
-			 * Ensure that the domain breaks are (-inf, 0.0],
-			 * (0.0, 1.0] and (1.0, inf] and that the 2nd segment
-			 * type is not 0 (the type of sampled segments).
-			 */
-			if (!are_segment_breaks_equal(seg0->x0, -INFINITY) ||
-			    !are_segment_breaks_equal(seg0->x1, 0.0) ||
-			    !are_segment_breaks_equal(seg1->x0, 0.0) ||
-			    !are_segment_breaks_equal(seg1->x1, 1.0) ||
-			    !are_segment_breaks_equal(seg2->x0, 1.0) ||
-			    !are_segment_breaks_equal(seg2->x1, INFINITY) ||
-			    seg1->Type == 0)
-				return false;
-			seg = seg1;
-			*clamped_input = true;
-		} else {
-			/* Neither 1 or 3 segments. So we don't define the
-			 * curveset as parametric. */
+		seg = get_defining_curve_segment(trc_data->TheCurves[i], &clamp_this);
+		if (!seg)
 			return false;
-		}
+
+		/* Reject tabulated (LUT) segments. */
+		if (seg->Type == 0)
+			return false;
+
+		if (clamp_this)
+			*clamped_input = true;
 
 		/* Copy the type and params from the segment that matters. We
 		 * don't use memcpy because we need to cast each cmsFloat64Number
