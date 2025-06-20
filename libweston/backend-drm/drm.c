@@ -201,6 +201,10 @@ pageflip_timer_counter_handler(void *data)
 		struct drm_output *output = to_drm_output(output_base);
 		char desc[1024];
 
+		/* Skip outputs on other backends */
+		if (!output)
+			continue;
+
 		output->page_flips_per_timer_interval =
 			(float) (output->page_flips_counted /
 					b->perf_page_flips_stats.frame_counter_interval);
