@@ -9,6 +9,7 @@ dep_frdp2 = dependency('freerdp2', version: '>= 2.3.0', required: false)
 
 if dep_frdp3.found()
 	config_h.set('USE_FREERDP_VERSION', '3')
+	config_h.set('WITHOUT_FREERDP_3x_DEPRECATED', '1')
 	dep_frdp = dep_frdp3
 	dep_frdp_server = dependency('freerdp-server3', version: '>= 3.0.0', required: false)
 		if not dep_frdp_server.found()
