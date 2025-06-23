@@ -3632,6 +3632,25 @@ drm_backend_update_connector(struct drm_device *device,
 		if (head->base.device_changed) {
 			drm_head_log_info(head, "updated");
 		}
+
+		/* a no change in weston_head::device_changed but with
+		 * connected status still on, means we got here through a udev
+		 * HOTPLUG event and we further got interrupted by another
+		 * HOTPLUG event.
+		 *
+		 * When this happens mark the state as invalid to allow to
+		 * connector/output to be enabled on a next flip; otherwise we
+		 * reach a point where the kernel had the connector disabled
+		 * but we Weston has it enabled, finishing finally with Weston
+		 * not doing anything to re-enable the output */
+		if (!head->base.device_changed && head->base.connected) {
+			struct weston_output *output = head->base.output;
+
+			drm_debug(b, "\t[CONN:%d] Invalid state detected.\n",
+				  connector_id);
+			device->state_invalid = true;
+			weston_output_schedule_repaint(output);
+		}
 	} else if (writeback) {
 		ret = drm_writeback_update_info(writeback, conn);
 	} else {
