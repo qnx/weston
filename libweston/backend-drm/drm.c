@@ -3779,6 +3779,8 @@ udev_event_is_hotplug(struct drm_device *device, struct udev_device *udev_device
 	const char *sysnum;
 	const char *val;
 
+	drm_debug(device->backend, "[udev] HOTPLUG event\n");
+
 	sysnum = udev_device_get_sysnum(udev_device);
 	if (!sysnum || atoi(sysnum) != device->drm.id)
 		return 0;

@@ -144,29 +144,29 @@ weston_head_init(struct weston_head *head, const char *name);
 void
 weston_head_release(struct weston_head *head);
 
-void
+bool
 weston_head_set_connection_status(struct weston_head *head, bool connected);
 
 void
 weston_head_set_internal(struct weston_head *head);
 
-void
+bool
 weston_head_set_monitor_strings(struct weston_head *head,
 				const char *make,
 				const char *model,
 				const char *serialno);
-void
+bool
 weston_head_set_non_desktop(struct weston_head *head, bool non_desktop);
 
-void
+bool
 weston_head_set_physical_size(struct weston_head *head,
 			      int32_t mm_width, int32_t mm_height);
 
-void
+bool
 weston_head_set_subpixel(struct weston_head *head,
 			 enum wl_output_subpixel sp);
 
-void
+bool
 weston_head_set_transform(struct weston_head *head, uint32_t transform);
 
 void

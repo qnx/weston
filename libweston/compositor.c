@@ -6383,7 +6383,7 @@ str_null_eq(const char *a, const char *b)
  * \ingroup head
  * \internal
  */
-WL_EXPORT void
+WL_EXPORT bool
 weston_head_set_monitor_strings(struct weston_head *head,
 				const char *make,
 				const char *model,
@@ -6397,7 +6397,7 @@ weston_head_set_monitor_strings(struct weston_head *head,
 	if (str_null_eq(head->make, make) &&
 	    str_null_eq(head->model, model) &&
 	    str_null_eq(head->serial_number, serialno))
-		return;
+		return false;
 
 	free(head->make);
 	free(head->model);
@@ -6408,6 +6408,7 @@ weston_head_set_monitor_strings(struct weston_head *head,
 	head->serial_number = serialno ? xstrdup(serialno) : NULL;
 
 	weston_head_set_device_changed(head);
+	return true;
 }
 
 /** Store display non-desktop status
@@ -6418,15 +6419,16 @@ weston_head_set_monitor_strings(struct weston_head *head,
  * \ingroup head
  * \internal
  */
-WL_EXPORT void
+WL_EXPORT bool
 weston_head_set_non_desktop(struct weston_head *head, bool non_desktop)
 {
 	if (head->non_desktop == non_desktop)
-		return;
+		return false;
 
 	head->non_desktop = non_desktop;
 
 	weston_head_set_device_changed(head);
+	return true;
 }
 
 /** Store display transformation
@@ -6439,15 +6441,16 @@ weston_head_set_non_desktop(struct weston_head *head, bool non_desktop)
  * \ingroup head
  * \internal
  */
-WL_EXPORT void
+WL_EXPORT bool
 weston_head_set_transform(struct weston_head *head, uint32_t transform)
 {
 	if (head->transform == transform)
-		return;
+		return false;
 
 	head->transform = transform;
 
 	weston_head_set_device_changed(head);
+	return true;
 }
 
 
@@ -6462,18 +6465,19 @@ weston_head_set_transform(struct weston_head *head, uint32_t transform)
  * \ingroup head
  * \internal
  */
-WL_EXPORT void
+WL_EXPORT bool
 weston_head_set_physical_size(struct weston_head *head,
 			      int32_t mm_width, int32_t mm_height)
 {
 	if (head->mm_width == mm_width &&
 	    head->mm_height == mm_height)
-		return;
+		return false;
 
 	head->mm_width = mm_width;
 	head->mm_height = mm_height;
 
 	weston_head_set_device_changed(head);
+	return true;
 }
 
 /** Store monitor sub-pixel layout
@@ -6492,16 +6496,17 @@ weston_head_set_physical_size(struct weston_head *head,
  * \ingroup head
  * \internal
  */
-WL_EXPORT void
+WL_EXPORT bool
 weston_head_set_subpixel(struct weston_head *head,
 			 enum wl_output_subpixel sp)
 {
 	if (head->subpixel == sp)
-		return;
+		return false;
 
 	head->subpixel = sp;
 
 	weston_head_set_device_changed(head);
+	return true;
 }
 
 /** Mark the monitor as internal
@@ -6542,15 +6547,16 @@ weston_head_set_internal(struct weston_head *head)
  * \ingroup head
  * \internal
  */
-WL_EXPORT void
+WL_EXPORT bool
 weston_head_set_connection_status(struct weston_head *head, bool connected)
 {
 	if (head->connected == connected)
-		return;
+		return false;
 
 	head->connected = connected;
 
 	weston_head_set_device_changed(head);
+	return true;
 }
 
 /** Store the set of supported EOTF modes

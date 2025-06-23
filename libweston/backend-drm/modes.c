@@ -579,28 +579,46 @@ void
 update_head_from_connector(struct drm_head *head)
 {
 	struct drm_connector *connector = &head->connector;
+	struct drm_backend *b = head->connector.device->backend;
 	drmModeObjectProperties *props = connector->props_drm;
 	drmModeConnector *conn = connector->conn;
 	int vrr_capable;
 	uint32_t vrr_mode_mask = 0;
+	uint32_t conn_id = head->connector.connector_id;
+	bool ret;
 
-	weston_head_set_non_desktop(&head->base,
+	ret = weston_head_set_non_desktop(&head->base,
 				    check_non_desktop(connector, props));
-	weston_head_set_subpixel(&head->base,
+	if (ret)
+		drm_debug(b, "\t[CONN:%d] non-desktop property changed\n", conn_id);
+
+	ret = weston_head_set_subpixel(&head->base,
 				 drm_subpixel_to_wayland(conn->subpixel));
+	if (ret)
+		drm_debug(b, "\t[CONN:%d] subpixel property changed\n", conn_id);
 
-	weston_head_set_physical_size(&head->base, conn->mmWidth, conn->mmHeight);
+	ret = weston_head_set_physical_size(&head->base, conn->mmWidth, conn->mmHeight);
+	if (ret)
+		drm_debug(b, "\t[CONN:%d] physical size changed\n", conn_id);
 
-	weston_head_set_transform(&head->base,
+	ret = weston_head_set_transform(&head->base,
 				  get_panel_orientation(connector, props));
+	if (ret)
+		drm_debug(b, "\t[CONN:%d] transform property changed\n", conn_id);
 
 	/* Unknown connection status is assumed disconnected. */
-	weston_head_set_connection_status(&head->base,
+	ret = weston_head_set_connection_status(&head->base,
 				conn->connection == DRM_MODE_CONNECTED);
+	if (ret)
+		drm_debug(b, "\t[CONN:%d] connection status changed\n", conn_id);
 
 	/* If EDID did not change, skip everything about it */
-	if (!drm_head_maybe_update_display_data(head, props))
+	if (!drm_head_maybe_update_display_data(head, props)) {
+		if (!ret)
+			drm_debug(b, "\t[CONN:%d] Hot-plug event received "
+				  "but no connector changes detected\n", conn_id);
 		return;
+	}
 
 	struct drm_head_info dhi;
 
