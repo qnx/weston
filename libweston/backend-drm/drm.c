@@ -3692,17 +3692,12 @@ drm_backend_update_connectors_post_destroy(struct drm_device *device,
 
 static void
 drm_backend_update_connectors(struct drm_device *device,
-			      struct udev_device *drm_device)
+			      struct udev_device *drm_device,
+			      drmModeRes *resources)
 {
-	drmModeRes *resources;
 	int i;
 
-	/* collect new connectors that have appeared, e.g. MST */
-	resources = drmModeGetResources(device->drm.fd);
-	if (!resources) {
-		weston_log("drmModeGetResources failed\n");
-		return;
-	}
+	assert(resources);
 
 	for (i = 0; i < resources->count_connectors; i++) {
 		uint32_t connector_id = resources->connectors[i];
@@ -3710,8 +3705,6 @@ drm_backend_update_connectors(struct drm_device *device,
 	}
 
 	drm_backend_update_connectors_post_destroy(device, resources);
-
-	drmModeFreeResources(resources);
 }
 
 static enum wdrm_connector_property
@@ -3787,6 +3780,8 @@ udev_event_is_conn_prop_change(struct drm_backend *b,
 {
 	const char *val;
 	int id;
+	*connector_id = 0;
+	*property_id = 0;
 
 	val = udev_device_get_property_value(udev_device, "CONNECTOR");
 	if (!val || !safe_strtoint(val, &id))
@@ -3809,24 +3804,53 @@ udev_drm_event(int fd, uint32_t mask, void *data)
 	struct drm_backend *b = data;
 	struct udev_device *event;
 	uint32_t conn_id, prop_id;
-	struct drm_device *device;
+	struct drm_device *device = b->drm;
+	struct drm_device *device_iter;
+	drmModeRes *resources = NULL;
 
 	event = udev_monitor_receive_device(b->udev_monitor);
 
-	if (udev_event_is_hotplug(b->drm, event)) {
-		if (udev_event_is_conn_prop_change(b, event, &conn_id, &prop_id))
-			drm_backend_update_conn_props(b, b->drm, conn_id, prop_id);
-		else
-			drm_backend_update_connectors(b->drm, event);
+	if (udev_event_is_hotplug(device, event)) {
+		resources = drmModeGetResources(device->drm.fd);
+		if (!resources) {
+			weston_log("drmModeGetResources failed\n");
+			udev_device_unref(event);
+			return 1;
+		}
+		udev_event_is_conn_prop_change(b, event, &conn_id, &prop_id);
+
+		if (conn_id > 0 && prop_id > 0) {
+			drm_backend_update_conn_props(b, device, conn_id, prop_id);
+		} else if (conn_id > 0) {
+			drm_backend_update_connector(device, event, conn_id);
+			drm_backend_update_connectors_post_destroy(device, resources);
+		} else {
+			drm_backend_update_connectors(device, event, resources);
+		}
+		drmModeFreeResources(resources);
 	}
 
-	wl_list_for_each(device, &b->kms_list, link) {
-		if (udev_event_is_hotplug(device, event)) {
-			if (udev_event_is_conn_prop_change(b, event, &conn_id, &prop_id))
-				drm_backend_update_conn_props(b, device, conn_id, prop_id);
-			else
-				drm_backend_update_connectors(device, event);
+	wl_list_for_each(device_iter, &b->kms_list, link) {
+		if (!udev_event_is_hotplug(device_iter, event))
+			continue;
+
+		resources = drmModeGetResources(device_iter->drm.fd);
+		if (!resources) {
+			weston_log("drmModeGetResources failed\n");
+			break;
 		}
+
+		udev_event_is_conn_prop_change(b, event, &conn_id, &prop_id);
+
+		if (conn_id && prop_id > 0) {
+			drm_backend_update_conn_props(b, device_iter, conn_id, prop_id);
+		} else if (conn_id > 0) {
+			drm_backend_update_connector(device_iter, event, conn_id);
+			drm_backend_update_connectors_post_destroy(device_iter, resources);
+		} else {
+			drm_backend_update_connectors(device_iter, event, resources);
+		}
+		drmModeFreeResources(resources);
 	}
 
 	udev_device_unref(event);
