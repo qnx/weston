@@ -3606,52 +3606,54 @@ resources_has_connector(drmModeRes *resources, uint32_t connector_id)
 }
 
 static void
-drm_backend_update_connectors(struct drm_device *device,
-			      struct udev_device *drm_device)
+drm_backend_update_connector(struct drm_device *device,
+			     struct udev_device *drm_device,
+			     uint32_t connector_id)
 {
 	struct drm_backend *b = device->backend;
-	drmModeRes *resources;
 	drmModeConnector *conn;
+	struct drm_head *head;
+	struct drm_writeback *writeback;
+	int ret;
+
+	conn = drmModeGetConnector(device->drm.fd, connector_id);
+	if (!conn)
+		return;
+
+	head = drm_head_find_by_connector(b, device, connector_id);
+	writeback = drm_writeback_find_by_connector(device, connector_id);
+
+	/* Connector can't be owned by both a head and a writeback, so
+	 * one of the searches must fail. */
+	assert(head == NULL || writeback == NULL);
+
+	if (head) {
+		ret = drm_head_update_info(head, conn);
+		if (head->base.device_changed) {
+			drm_head_log_info(head, "updated");
+		}
+	} else if (writeback) {
+		ret = drm_writeback_update_info(writeback, conn);
+	} else {
+		ret = drm_backend_add_connector(device, conn, drm_device);
+	}
+
+	if (ret < 0)
+		drmModeFreeConnector(conn);
+}
+
+static void
+drm_backend_update_connectors_post_destroy(struct drm_device *device,
+					   drmModeRes *resources)
+{
+	struct drm_backend *b = device->backend;
 	struct weston_head *base, *base_next;
 	struct drm_head *head;
 	struct drm_writeback *writeback, *writeback_next;
 	uint32_t connector_id;
-	int i, ret;
 
-	resources = drmModeGetResources(device->drm.fd);
-	if (!resources) {
-		weston_log("drmModeGetResources failed\n");
+	if (!resources)
 		return;
-	}
-
-	/* collect new connectors that have appeared, e.g. MST */
-	for (i = 0; i < resources->count_connectors; i++) {
-		connector_id = resources->connectors[i];
-
-		conn = drmModeGetConnector(device->drm.fd, connector_id);
-		if (!conn)
-			continue;
-
-		head = drm_head_find_by_connector(b, device, connector_id);
-		writeback = drm_writeback_find_by_connector(device, connector_id);
-
-		/* Connector can't be owned by both a head and a writeback, so
-		 * one of the searches must fail. */
-		assert(head == NULL || writeback == NULL);
-
-		if (head) {
-			ret = drm_head_update_info(head, conn);
-			if (head->base.device_changed)
-				drm_head_log_info(head, "updated");
-		} else if (writeback) {
-			ret = drm_writeback_update_info(writeback, conn);
-		} else {
-			ret = drm_backend_add_connector(device, conn, drm_device);
-		}
-
-		if (ret < 0)
-			drmModeFreeConnector(conn);
-	}
 
 	/* Destroy head objects of connectors (except writeback connectors) that
 	 * have disappeared. */
@@ -3686,6 +3688,28 @@ drm_backend_update_connectors(struct drm_device *device,
 			   connector_id);
 		drm_writeback_destroy(writeback);
 	}
+}
+
+static void
+drm_backend_update_connectors(struct drm_device *device,
+			      struct udev_device *drm_device)
+{
+	drmModeRes *resources;
+	int i;
+
+	/* collect new connectors that have appeared, e.g. MST */
+	resources = drmModeGetResources(device->drm.fd);
+	if (!resources) {
+		weston_log("drmModeGetResources failed\n");
+		return;
+	}
+
+	for (i = 0; i < resources->count_connectors; i++) {
+		uint32_t connector_id = resources->connectors[i];
+		drm_backend_update_connector(device, drm_device, connector_id);
+	}
+
+	drm_backend_update_connectors_post_destroy(device, resources);
 
 	drmModeFreeResources(resources);
 }
