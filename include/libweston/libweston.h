@@ -1421,6 +1421,10 @@ struct weston_compositor {
 		/** fires with frame_counter_interval rate */
 		struct wl_event_source *frame_counter_timer;
 	} perf_surface_stats;
+
+	/* if set use this placeholder-color to use instead of the default
+	 * grenadier one */
+	uint32_t placeholder_color;
 };
 
 struct weston_solid_buffer_values {

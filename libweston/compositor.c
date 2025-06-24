@@ -214,9 +214,13 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 		(surface->desired_protection > WESTON_HDCP_DISABLE);
 	bool unprotected_censor =
 		(surface->desired_protection > output->current_protection);
-	struct weston_solid_buffer_values placeholder_color = {
-		0.40f, 0.0f, 0.0f, 1.0f
-	};
+	struct weston_solid_buffer_values placeholder_color;
+	uint32_t color_tmp = output->compositor->placeholder_color;
+
+	placeholder_color.r = ((color_tmp >> 16) & 0xff) / 255.0;
+	placeholder_color.g = ((color_tmp >> 8) & 0xff) / 255.0;
+	placeholder_color.b = ((color_tmp >> 0) & 0xff) / 255.0;
+	placeholder_color.a = 1.0;
 
 	pnode->draw_solid = false;
 	pnode->is_direct = false;

@@ -1216,6 +1216,9 @@ weston_compositor_init_config(struct weston_compositor *ec,
 	weston_log("Output repaint window is %d ms maximum.\n",
 		   ec->repaint_msec);
 
+	weston_config_section_get_uint(s, "placeholder-color",
+				       &ec->placeholder_color, 0x660000);
+
 	weston_config_section_get_bool(s, "color-management",
 				       &color_management, false);
 	if (color_management) {

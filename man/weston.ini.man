@@ -249,6 +249,12 @@ Boolean, defaults to
 .BR false .
 These decorations cannot normally be screenshot. This option is useful for
 the Weston test suite only.
+.TP 7
+.BI "placeholder-color=" 0xRRGGBB
+sets the color of the placeholder (unsigned integer). The hexadecimal digit
+pairs are in order red, green, and blue. This placeholder is used for
+content-protection or when we're not able to lift a surface/view in a HW plane,
+but we require direct scan-out of buffers. Defaults to 0x660000 (red grenadier).
 .\"---------------------------------------------------------------------
 .SH "LIBINPUT SECTION"
 The
