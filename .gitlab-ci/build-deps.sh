@@ -59,7 +59,7 @@ fdo_log_section_end install_meson
 # just a regular container.
 fdo_log_section_start_collapsed install_kernel "install_kernel"
 if [[ -n "$KERNEL_DEFCONFIG" ]]; then
-	git clone --depth=1 --branch=v6.14 https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git linux
+	git clone --depth=1 --branch=drm-misc-next-2025-09-04 https://gitlab.freedesktop.org/drm/misc/kernel.git linux
 	cd linux
 
 	if [[ "${BUILD_ARCH}" = "x86-64" ]]; then
@@ -181,8 +181,11 @@ make install
 cd ../..
 rm -rf libx11
 
-git clone --branch mesa-25.2.2 --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
+git clone --single-branch --branch main https://gitlab.freedesktop.org/mesa/mesa.git
 cd mesa
+# Last commit needed to make the Vulkan backend work with vkms+lavapipe, will be
+# released in 25.3.
+git checkout -b snapshot 45dc8b4d979aa2275f20db399a4430f0224799f5
 meson setup build --wrap-mode=nofallback -Dauto_features=disabled \
 	-Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast -Dvideo-codecs= \
 	-Degl=enabled -Dgbm=enabled -Dgles2=enabled -Dllvm=enabled \

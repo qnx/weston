@@ -669,8 +669,7 @@ main(int argc, char *argv[])
 	enum test_result_code ret;
 	enum test_result_code result = RESULT_OK;
 	const struct fixture_setup_array *fsa;
-	const char *leak_dl_handle;
-	const char *leak_dl_handle_lvp;
+	char *leak_dl_handles;
 	int fi;
 	int fi_end;
 
@@ -682,17 +681,21 @@ main(int argc, char *argv[])
 	 * Turns out if llvmpipe is always live, then the pointers are always
 	 * reachable, so LeakSanitizer just tells us about our own code rather
 	 * than LLVM's, so ...
+	 *
+         * This hack works so well that it also solved the obscure leak reports
+	 * for lavapipe and libgallium!
 	 */
-	leak_dl_handle = getenv("WESTON_CI_LEAK_DL_HANDLE");
-	if (leak_dl_handle)
-		(void) dlopen(leak_dl_handle, RTLD_LAZY | RTLD_GLOBAL | RTLD_NODELETE);
+	leak_dl_handles = getenv("WESTON_CI_LEAK_DL_HANDLES");
+	if (leak_dl_handles) {
+		char* token;
 
-	/* ... and this hack works so well that it also solved the obscure leak
-	 * reports for lavapipe, so we copied it!
-	 */
-	leak_dl_handle_lvp = getenv("WESTON_CI_LEAK_DL_HANDLE_LVP");
-	if (leak_dl_handle_lvp)
-		(void) dlopen(leak_dl_handle_lvp, RTLD_LAZY | RTLD_GLOBAL | RTLD_NODELETE);
+		token = strtok(leak_dl_handles, ":");
+		while (token) {
+			if (strlen(token) > 0)
+				(void) dlopen(token, RTLD_LAZY | RTLD_GLOBAL | RTLD_NODELETE);
+			token = strtok(NULL, ":");
+		}
+	}
 
 	harness = weston_test_harness_create(argc, argv);
 

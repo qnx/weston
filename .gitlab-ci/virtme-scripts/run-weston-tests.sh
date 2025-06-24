@@ -12,7 +12,7 @@ export LIBSEAT_BACKEND=seatd
 # devices are loaded is not predictable, so the DRM node that VKMS takes can
 # change across each boot. That's why we have this one-liner shell script to get
 # the appropriate node for VKMS.
-export WESTON_TEST_SUITE_DRM_DEVICE=$(basename /sys/devices/platform/vkms/drm/card*)
+export WESTON_TEST_SUITE_DRM_DEVICE=$(basename /sys/bus/faux/devices/vkms/drm/card*)
 
 # ninja test depends on meson, and meson itself looks for its modules on folder
 # $HOME/.local/lib/pythonX.Y/site-packages (the Python version may differ).
@@ -27,8 +27,9 @@ export SEATD_LOGLEVEL=debug
 
 # Terrible hack, per comment in weston-test-runner.c's main(): find Mesa's
 # llvmpipe/lavapipe driver module location
-export WESTON_CI_LEAK_DL_HANDLE=$(find /usr/local -name swrast_dri.so -print 2>/dev/null || true)
-export WESTON_CI_LEAK_DL_HANDLE_LVP=$(find /usr/local -name libvulkan_lvp.so -print 2>/dev/null || true)
+export WESTON_CI_LEAK_DL_HANDLES=$(find /usr/local -name swrast_dri.so -print 2>/dev/null || true):
+export WESTON_CI_LEAK_DL_HANDLES=$WESTON_CI_LEAK_DL_HANDLES:$(find /usr/local -name libvulkan_lvp.so -print 2>/dev/null || true)
+export WESTON_CI_LEAK_DL_HANDLES=$WESTON_CI_LEAK_DL_HANDLES:$(find /usr/local -name libgallium\*.so -print 2>/dev/null || true)
 
 # run the tests and save the exit status
 # we give ourselves a very generous timeout multiplier due to ASan overhead
