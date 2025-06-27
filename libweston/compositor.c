@@ -5356,10 +5356,12 @@ weston_subsurface_commit_from_cache(struct weston_subsurface *sub)
 }
 
 static void
-weston_subsurface_commit_to_cache(struct weston_subsurface *sub)
+weston_surface_state_merge_from(struct weston_surface_state *dst,
+				struct weston_surface_state *src,
+				struct weston_buffer_reference *buffer_ref,
+				struct weston_surface *surface)
 {
 	WESTON_TRACE_FUNC();
-	struct weston_surface *surface = sub->surface;
 
 	/*
 	 * If this commit would cause the surface to move by the
@@ -5368,72 +5370,81 @@ weston_subsurface_commit_to_cache(struct weston_subsurface *sub)
 	 * origin.
 	 */
 	if (surface->pending.status & WESTON_SURFACE_DIRTY_POS) {
-		pixman_region32_translate(&sub->cached.damage_surface,
-					  -surface->pending.buf_offset.c.x,
-					  -surface->pending.buf_offset.c.y);
+		pixman_region32_translate(&dst->damage_surface,
+					  -src->buf_offset.c.x,
+					  -src->buf_offset.c.y);
 	}
-	pixman_region32_union(&sub->cached.damage_surface,
-			      &sub->cached.damage_surface,
-			      &surface->pending.damage_surface);
-	pixman_region32_clear(&surface->pending.damage_surface);
+	pixman_region32_union(&dst->damage_surface,
+			      &dst->damage_surface,
+			      &src->damage_surface);
+	pixman_region32_clear(&src->damage_surface);
 
-	pixman_region32_union(&sub->cached.damage_buffer,
-			      &sub->cached.damage_buffer,
-			      &surface->pending.damage_buffer);
-	pixman_region32_clear(&surface->pending.damage_buffer);
+	pixman_region32_union(&dst->damage_buffer,
+			      &dst->damage_buffer,
+			      &src->damage_buffer);
+	pixman_region32_clear(&src->damage_buffer);
 
-	sub->cached.render_intent = surface->pending.render_intent;
-	weston_color_profile_unref(sub->cached.color_profile);
-	sub->cached.color_profile =
-		weston_color_profile_ref(surface->pending.color_profile);
+	dst->render_intent = src->render_intent;
+	weston_color_profile_unref(dst->color_profile);
+	dst->color_profile =
+		weston_color_profile_ref(src->color_profile);
 
-	if (surface->pending.status & WESTON_SURFACE_DIRTY_BUFFER) {
-		weston_surface_state_set_buffer(&sub->cached,
-						surface->pending.buffer);
-		weston_buffer_reference(&sub->cached_buffer_ref,
-					surface->pending.buffer,
-					surface->pending.buffer ?
+	if (src->status & WESTON_SURFACE_DIRTY_BUFFER) {
+		weston_surface_state_set_buffer(dst,
+						src->buffer);
+		weston_buffer_reference(buffer_ref,
+					src->buffer,
+					src->buffer ?
 						BUFFER_MAY_BE_ACCESSED :
 						BUFFER_WILL_NOT_BE_ACCESSED);
 		weston_presentation_feedback_discard_list(
-					&sub->cached.feedback_list);
+					&dst->feedback_list);
 		/* zwp_surface_synchronization_v1.set_acquire_fence */
-		fd_move(&sub->cached.acquire_fence_fd,
-			&surface->pending.acquire_fence_fd);
+		fd_move(&dst->acquire_fence_fd,
+			&src->acquire_fence_fd);
 		/* zwp_surface_synchronization_v1.get_release */
-		weston_buffer_release_move(&sub->cached.buffer_release_ref,
-					   &surface->pending.buffer_release_ref);
+		weston_buffer_release_move(&dst->buffer_release_ref,
+					   &src->buffer_release_ref);
 	}
-	sub->cached.desired_protection = surface->pending.desired_protection;
-	sub->cached.protection_mode = surface->pending.protection_mode;
-	assert(surface->pending.acquire_fence_fd == -1);
-	assert(surface->pending.buffer_release_ref.buffer_release == NULL);
-	sub->cached.buf_offset = weston_coord_surface_add(sub->cached.buf_offset,
-							  surface->pending.buf_offset);
+	dst->desired_protection = src->desired_protection;
+	dst->protection_mode = src->protection_mode;
+	assert(src->acquire_fence_fd == -1);
+	assert(src->buffer_release_ref.buffer_release == NULL);
+	dst->buf_offset = weston_coord_surface_add(dst->buf_offset,
+						   src->buf_offset);
 
-	sub->cached.buffer_viewport.buffer =
-		surface->pending.buffer_viewport.buffer;
-	sub->cached.buffer_viewport.surface =
-		surface->pending.buffer_viewport.surface;
+	dst->buffer_viewport.buffer = src->buffer_viewport.buffer;
+	dst->buffer_viewport.surface = src->buffer_viewport.surface;
 
 	weston_surface_state_set_buffer(&surface->pending, NULL);
 
-	surface->pending.buf_offset = weston_coord_surface(0, 0, surface);
+	src->buf_offset = weston_coord_surface(0, 0, surface);
 
-	pixman_region32_copy(&sub->cached.opaque, &surface->pending.opaque);
+	pixman_region32_copy(&dst->opaque, &src->opaque);
 
-	pixman_region32_copy(&sub->cached.input, &surface->pending.input);
+	pixman_region32_copy(&dst->input, &src->input);
 
-	wl_list_insert_list(&sub->cached.frame_callback_list,
-			    &surface->pending.frame_callback_list);
-	wl_list_init(&surface->pending.frame_callback_list);
+	wl_list_insert_list(&dst->frame_callback_list,
+			    &src->frame_callback_list);
+	wl_list_init(&src->frame_callback_list);
 
-	wl_list_insert_list(&sub->cached.feedback_list,
-			    &surface->pending.feedback_list);
-	wl_list_init(&surface->pending.feedback_list);
+	wl_list_insert_list(&dst->feedback_list,
+			    &src->feedback_list);
+	wl_list_init(&src->feedback_list);
 
-	sub->cached.status |= surface->pending.status;
-	surface->pending.status = WESTON_SURFACE_CLEAN;
+	dst->status |= src->status;
+	src->status = WESTON_SURFACE_CLEAN;
+}
+
+static void
+weston_subsurface_commit_to_cache(struct weston_subsurface *sub)
+{
+	struct weston_surface *surface = sub->surface;
+
+	weston_surface_state_merge_from(&sub->cached,
+					&surface->pending,
+					&sub->cached_buffer_ref,
+					surface);
 	sub->has_cached_data = 1;
 }
 
