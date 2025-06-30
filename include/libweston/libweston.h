@@ -1905,7 +1905,7 @@ struct weston_subsurface {
 	struct weston_surface_state cached;
 	struct weston_buffer_reference cached_buffer_ref;
 
-	int synchronized;
+	bool synchronized;
 
 	/* Used for constructing the view tree */
 	struct wl_list unused_views;

@@ -5896,7 +5896,7 @@ subsurface_set_sync(struct wl_client *client, struct wl_resource *resource)
 	struct weston_subsurface *sub = wl_resource_get_user_data(resource);
 
 	if (sub)
-		sub->synchronized = 1;
+		sub->synchronized = true;
 }
 
 static void
@@ -5905,7 +5905,7 @@ subsurface_set_desync(struct wl_client *client, struct wl_resource *resource)
 	struct weston_subsurface *sub = wl_resource_get_user_data(resource);
 
 	if (sub && sub->synchronized) {
-		sub->synchronized = 0;
+		sub->synchronized = false;
 
 		/* If sub became effectively desynchronized, flush. */
 		if (!weston_subsurface_is_synchronized(sub))
@@ -6079,7 +6079,7 @@ weston_subsurface_create(uint32_t id, struct weston_surface *surface,
 	weston_subsurface_link_parent(sub, parent);
 	weston_surface_state_init(surface, &sub->cached);
 	sub->cached_buffer_ref.buffer = NULL;
-	sub->synchronized = 1;
+	sub->synchronized = true;
 
 	return sub;
 }
