@@ -4928,8 +4928,8 @@ weston_surface_set_protection_mode(struct weston_surface *surface,
 }
 
 static enum weston_surface_status
-weston_surface_commit_state(struct weston_surface *surface,
-			    struct weston_surface_state *state)
+weston_surface_apply_state(struct weston_surface *surface,
+			   struct weston_surface_state *state)
 {
 	WESTON_TRACE_FUNC_FLOW(&surface->flow_id);
 	struct weston_view *view;
@@ -5065,7 +5065,7 @@ weston_surface_commit(struct weston_surface *surface)
 	WESTON_TRACE_FUNC_FLOW(&surface->flow_id);
 	enum weston_surface_status status;
 
-	status = weston_surface_commit_state(surface, &surface->pending);
+	status = weston_surface_apply_state(surface, &surface->pending);
 
 	if (status & WESTON_SURFACE_DIRTY_SUBSURFACE_CONFIG)
 		weston_surface_commit_subsurface_order(surface);
@@ -5342,7 +5342,7 @@ weston_subsurface_commit_from_cache(struct weston_subsurface *sub)
 	struct weston_surface *surface = sub->surface;
 	enum weston_surface_status status;
 
-	status = weston_surface_commit_state(surface, &sub->cached);
+	status = weston_surface_apply_state(surface, &sub->cached);
 	weston_buffer_reference(&sub->cached_buffer_ref, NULL,
 				BUFFER_WILL_NOT_BE_ACCESSED);
 
