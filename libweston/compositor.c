@@ -5454,25 +5454,18 @@ static enum weston_surface_status
 weston_subsurface_commit(struct weston_subsurface *sub)
 {
 	struct weston_surface *surface = sub->surface;
-	enum weston_surface_status status = WESTON_SURFACE_CLEAN;
 	struct weston_subsurface *tmp;
+	enum weston_surface_status status;
 
-	/* Recursive check for effectively synchronized. */
-	if (sub->effectively_synchronized) {
-		weston_subsurface_commit_to_cache(sub);
-	} else {
-		if (sub->has_cached_data) {
-			/* flush accumulated state from cache */
-			weston_subsurface_commit_to_cache(sub);
-			status |= weston_subsurface_commit_from_cache(sub);
-		} else {
-			status |= weston_surface_commit(surface);
-		}
+	weston_subsurface_commit_to_cache(sub);
+	if (sub->effectively_synchronized)
+		return WESTON_SURFACE_CLEAN;
 
-		wl_list_for_each(tmp, &surface->subsurface_list, parent_link) {
-			if (tmp->surface != surface)
-				status |= weston_subsurface_parent_commit(tmp, 0);
-		}
+	status = weston_subsurface_commit_from_cache(sub);
+
+	wl_list_for_each(tmp, &surface->subsurface_list, parent_link) {
+		if (tmp->surface != surface)
+			status |= weston_subsurface_parent_commit(tmp, 0);
 	}
 
 	return status;
