@@ -5071,6 +5071,7 @@ weston_surface_apply(struct weston_surface *surface,
 {
 	WESTON_TRACE_FUNC_FLOW(&surface->flow_id);
 	enum weston_surface_status status;
+	struct weston_subsurface *sub;
 
 	status = weston_surface_apply_state(surface, state);
 
@@ -5078,6 +5079,11 @@ weston_surface_apply(struct weston_surface *surface,
 		weston_surface_apply_subsurface_order(surface);
 
 	weston_surface_schedule_repaint(surface);
+
+	wl_list_for_each(sub, &surface->subsurface_list, parent_link) {
+		if (sub->surface != surface)
+			status |= weston_subsurface_parent_apply(sub);
+	}
 
 	return status;
 }
@@ -5153,10 +5159,6 @@ surface_commit(struct wl_client *client, struct wl_resource *resource)
 		status = weston_subsurface_commit(sub);
 	} else {
 		status = weston_surface_commit(surface);
-		wl_list_for_each(sub, &surface->subsurface_list, parent_link) {
-			if (sub->surface != surface)
-				status |= weston_subsurface_parent_apply(sub);
-		}
 	}
 
 	if (status & WESTON_SURFACE_DIRTY_SUBSURFACE_CONFIG)
@@ -5449,45 +5451,23 @@ weston_subsurface_commit_to_cache(struct weston_subsurface *sub)
 static enum weston_surface_status
 weston_subsurface_commit(struct weston_subsurface *sub)
 {
-	struct weston_surface *surface = sub->surface;
-	struct weston_subsurface *tmp;
-	enum weston_surface_status status;
-
 	weston_subsurface_commit_to_cache(sub);
 	if (sub->effectively_synchronized)
 		return WESTON_SURFACE_CLEAN;
 
-	status = weston_subsurface_commit_from_cache(sub);
-
-	wl_list_for_each(tmp, &surface->subsurface_list, parent_link) {
-		if (tmp->surface != surface)
-			status |= weston_subsurface_parent_apply(tmp);
-	}
-
-	return status;
+	return weston_subsurface_commit_from_cache(sub);
 }
 
 static enum weston_surface_status
 weston_subsurface_synchronized_commit(struct weston_subsurface *sub)
 {
-	struct weston_surface *surface = sub->surface;
-	enum weston_surface_status status;
-	struct weston_subsurface *tmp;
-
 	/* From now on, commit_from_cache the whole sub-tree, regardless of
 	 * the synchronized mode of each child. This sub-surface or some
 	 * of its ancestors were synchronized, so we are synchronized
 	 * all the way down.
 	 */
 
-	status = weston_subsurface_commit_from_cache(sub);
-
-	wl_list_for_each(tmp, &surface->subsurface_list, parent_link) {
-		if (tmp->surface != surface)
-			status |= weston_subsurface_parent_apply(tmp);
-	}
-
-	return status;
+	return weston_subsurface_commit_from_cache(sub);
 }
 
 static enum weston_surface_status
