@@ -5450,22 +5450,6 @@ weston_subsurface_commit_to_cache(struct weston_subsurface *sub)
 	sub->has_cached_data = 1;
 }
 
-static bool
-weston_subsurface_is_synchronized(struct weston_subsurface *sub)
-{
-	while (sub) {
-		if (sub->synchronized)
-			return true;
-
-		if (!sub->parent)
-			return false;
-
-		sub = weston_surface_to_subsurface(sub->parent);
-	}
-
-	return false;
-}
-
 static enum weston_surface_status
 weston_subsurface_commit(struct weston_subsurface *sub)
 {
@@ -5474,7 +5458,7 @@ weston_subsurface_commit(struct weston_subsurface *sub)
 	struct weston_subsurface *tmp;
 
 	/* Recursive check for effectively synchronized. */
-	if (weston_subsurface_is_synchronized(sub)) {
+	if (sub->effectively_synchronized) {
 		weston_subsurface_commit_to_cache(sub);
 	} else {
 		if (sub->has_cached_data) {
@@ -5983,7 +5967,7 @@ subsurface_set_desync(struct wl_client *client, struct wl_resource *resource)
 		weston_subsurface_set_synchronized(sub, false);
 
 		/* If sub became effectively desynchronized, flush. */
-		if (!weston_subsurface_is_synchronized(sub))
+		if (!sub->effectively_synchronized)
 			weston_subsurface_synchronized_commit(sub);
 	}
 }
