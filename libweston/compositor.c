@@ -5063,7 +5063,7 @@ static enum weston_surface_status
 weston_subsurface_commit(struct weston_subsurface *sub);
 
 static enum weston_surface_status
-weston_subsurface_parent_commit(struct weston_subsurface *sub);
+weston_subsurface_parent_apply(struct weston_subsurface *sub);
 
 static enum weston_surface_status
 weston_surface_apply(struct weston_surface *surface,
@@ -5155,7 +5155,7 @@ surface_commit(struct wl_client *client, struct wl_resource *resource)
 		status = WESTON_SURFACE_CLEAN;
 		wl_list_for_each(sub, &surface->subsurface_list, parent_link) {
 			if (sub->surface != surface)
-				status |= weston_subsurface_parent_commit(sub);
+				status |= weston_subsurface_parent_apply(sub);
 		}
 		status |= weston_surface_commit(surface);
 	}
@@ -5462,7 +5462,7 @@ weston_subsurface_commit(struct weston_subsurface *sub)
 
 	wl_list_for_each(tmp, &surface->subsurface_list, parent_link) {
 		if (tmp->surface != surface)
-			status |= weston_subsurface_parent_commit(tmp);
+			status |= weston_subsurface_parent_apply(tmp);
 	}
 
 	return status;
@@ -5485,14 +5485,14 @@ weston_subsurface_synchronized_commit(struct weston_subsurface *sub)
 
 	wl_list_for_each(tmp, &surface->subsurface_list, parent_link) {
 		if (tmp->surface != surface)
-			status |= weston_subsurface_parent_commit(tmp);
+			status |= weston_subsurface_parent_apply(tmp);
 	}
 
 	return status;
 }
 
 static enum weston_surface_status
-weston_subsurface_parent_commit(struct weston_subsurface *sub)
+weston_subsurface_parent_apply(struct weston_subsurface *sub)
 {
 	enum weston_surface_status status = WESTON_SURFACE_CLEAN;
 	struct weston_view *view;
