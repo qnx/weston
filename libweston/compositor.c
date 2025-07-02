@@ -5343,7 +5343,7 @@ static const struct wl_compositor_interface compositor_interface = {
 };
 
 static enum weston_surface_status
-weston_subsurface_commit_from_cache(struct weston_subsurface *sub)
+weston_subsurface_apply_from_cache(struct weston_subsurface *sub)
 {
 	WESTON_TRACE_FUNC();
 	struct weston_surface *surface = sub->surface;
@@ -5455,7 +5455,7 @@ weston_subsurface_commit(struct weston_subsurface *sub)
 	if (sub->effectively_synchronized)
 		return WESTON_SURFACE_CLEAN;
 
-	return weston_subsurface_commit_from_cache(sub);
+	return weston_subsurface_apply_from_cache(sub);
 }
 
 static enum weston_surface_status
@@ -5473,7 +5473,7 @@ weston_subsurface_parent_apply(struct weston_subsurface *sub)
 	}
 
 	if (sub->effectively_synchronized)
-		status = weston_subsurface_commit_from_cache(sub);
+		status = weston_subsurface_apply_from_cache(sub);
 
 	return status;
 }
@@ -5923,7 +5923,7 @@ subsurface_set_desync(struct wl_client *client, struct wl_resource *resource)
 
 		/* If sub became effectively desynchronized, flush. */
 		if (!sub->effectively_synchronized)
-			weston_subsurface_commit_from_cache(sub);
+			weston_subsurface_apply_from_cache(sub);
 	}
 }
 
