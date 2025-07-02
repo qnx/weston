@@ -5459,18 +5459,6 @@ weston_subsurface_commit(struct weston_subsurface *sub)
 }
 
 static enum weston_surface_status
-weston_subsurface_synchronized_commit(struct weston_subsurface *sub)
-{
-	/* From now on, commit_from_cache the whole sub-tree, regardless of
-	 * the synchronized mode of each child. This sub-surface or some
-	 * of its ancestors were synchronized, so we are synchronized
-	 * all the way down.
-	 */
-
-	return weston_subsurface_commit_from_cache(sub);
-}
-
-static enum weston_surface_status
 weston_subsurface_parent_apply(struct weston_subsurface *sub)
 {
 	enum weston_surface_status status = WESTON_SURFACE_CLEAN;
@@ -5485,7 +5473,7 @@ weston_subsurface_parent_apply(struct weston_subsurface *sub)
 	}
 
 	if (sub->effectively_synchronized)
-		status = weston_subsurface_synchronized_commit(sub);
+		status = weston_subsurface_commit_from_cache(sub);
 
 	return status;
 }
@@ -5935,7 +5923,7 @@ subsurface_set_desync(struct wl_client *client, struct wl_resource *resource)
 
 		/* If sub became effectively desynchronized, flush. */
 		if (!sub->effectively_synchronized)
-			weston_subsurface_synchronized_commit(sub);
+			weston_subsurface_commit_from_cache(sub);
 	}
 }
 
