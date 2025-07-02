@@ -3472,7 +3472,6 @@ load_drm_backend(struct weston_compositor *c, int *argc, char **argv,
 		config.renderer = renderer;
 	}
 
-	section = weston_config_get_section(wc, "core", NULL, NULL);
 	weston_config_section_get_string(section,
 					 "gbm-format", &config.gbm_format,
 					 NULL);
