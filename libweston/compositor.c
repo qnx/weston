@@ -5895,8 +5895,10 @@ subsurface_set_sync(struct wl_client *client, struct wl_resource *resource)
 {
 	struct weston_subsurface *sub = wl_resource_get_user_data(resource);
 
-	if (sub)
-		sub->synchronized = true;
+	if (!sub)
+		return;
+
+	sub->synchronized = true;
 }
 
 static void
@@ -5904,7 +5906,10 @@ subsurface_set_desync(struct wl_client *client, struct wl_resource *resource)
 {
 	struct weston_subsurface *sub = wl_resource_get_user_data(resource);
 
-	if (sub && sub->synchronized) {
+	if (!sub)
+		return;
+
+	if (sub->synchronized) {
 		sub->synchronized = false;
 
 		/* If sub became effectively desynchronized, flush. */
