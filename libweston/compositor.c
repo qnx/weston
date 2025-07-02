@@ -5060,6 +5060,12 @@ weston_surface_apply_state(struct weston_surface *surface,
 }
 
 static enum weston_surface_status
+weston_subsurface_commit(struct weston_subsurface *sub);
+
+static enum weston_surface_status
+weston_subsurface_parent_commit(struct weston_subsurface *sub);
+
+static enum weston_surface_status
 weston_surface_apply(struct weston_surface *surface,
 		     struct weston_surface_state *state)
 {
@@ -5075,12 +5081,6 @@ weston_surface_apply(struct weston_surface *surface,
 
 	return status;
 }
-
-static enum weston_surface_status
-weston_subsurface_commit(struct weston_subsurface *sub);
-
-static enum weston_surface_status
-weston_subsurface_parent_commit(struct weston_subsurface *sub);
 
 static enum weston_surface_status
 weston_surface_commit(struct weston_surface *surface)
