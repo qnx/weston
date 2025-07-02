@@ -4713,7 +4713,7 @@ surface_set_input_region(struct wl_client *client,
 }
 
 static void
-weston_surface_commit_subsurface_order(struct weston_surface *surface)
+weston_surface_apply_subsurface_order(struct weston_surface *surface)
 {
 	struct weston_subsurface *sub;
 	struct weston_view *view;
@@ -5068,7 +5068,7 @@ weston_surface_commit(struct weston_surface *surface)
 	status = weston_surface_apply_state(surface, &surface->pending);
 
 	if (status & WESTON_SURFACE_DIRTY_SUBSURFACE_CONFIG)
-		weston_surface_commit_subsurface_order(surface);
+		weston_surface_apply_subsurface_order(surface);
 
 	weston_surface_schedule_repaint(surface);
 
@@ -5347,7 +5347,7 @@ weston_subsurface_commit_from_cache(struct weston_subsurface *sub)
 				BUFFER_WILL_NOT_BE_ACCESSED);
 
 	if (status & WESTON_SURFACE_DIRTY_SUBSURFACE_CONFIG)
-		weston_surface_commit_subsurface_order(surface);
+		weston_surface_apply_subsurface_order(surface);
 
 	weston_surface_schedule_repaint(surface);
 
