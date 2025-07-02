@@ -5892,6 +5892,74 @@ subsurface_place_below(struct wl_client *client,
 	sub->parent->pending.status |= WESTON_SURFACE_DIRTY_SUBSURFACE_CONFIG;
 }
 
+/** Recursively update effectively_synchronized state for a subsurface tree
+ *
+ * \param sub Subsurface to start from
+ *
+ * From wayland.xml :
+ *   Even if a sub-surface is in desynchronized mode, it will behave as
+ *   in synchronized mode, if its parent surface behaves as in
+ *   synchronized mode. This rule is applied recursively throughout the
+ *   tree of surfaces.
+ *
+ * In Weston, we call a surface "effectively synchronized" if it is either
+ * synchronized, or is forced to "behave as in synchronized mode" by a
+ * parent surface that is effectively synchronized.
+ *
+ * Calling weston_subsurface_update_effectively_synchronized on a subsurface
+ * will update the tree of subsurfaces to have accurate
+ * effectively_synchronized state below that point, by walking all descendants
+ * and combining their state with their immediate parent's state.
+ *
+ * Since every subsurface starts off synchronized, they also start off
+ * effectively synchronized, so we only need to call this function in response
+ * to synchronization changes from protocol requests (set_sync, set_desync) to
+ * keep the subsurface tree state up to date.
+ */
+static void
+weston_subsurface_update_effectively_synchronized(struct weston_subsurface *sub)
+{
+	bool parent_e_sync = false;
+	struct weston_subsurface *child;
+	struct weston_surface *surf = sub->surface;
+
+	if (sub->parent) {
+		struct weston_subsurface *parent;
+
+		parent = weston_surface_to_subsurface(sub->parent);
+		if (parent)
+			parent_e_sync = parent->effectively_synchronized;
+	}
+
+	/* This subsurface will be effectively synchronized if it is
+	 * explicitly synchronized, or if a parent surface is effectively
+	 * synchronized.
+	 *
+	 * Since we're called for every protocol driven change, and update
+	 * recursively at that point, we know that the immediate parent
+	 * state is always up to date, so we only have to test that here.
+	 */
+	sub->effectively_synchronized = parent_e_sync || sub->synchronized;
+
+	wl_list_for_each(child, &surf->subsurface_list, parent_link) {
+		if (child->surface == surf)
+			continue;
+
+		weston_subsurface_update_effectively_synchronized(child);
+	}
+}
+
+static void
+weston_subsurface_set_synchronized(struct weston_subsurface *sub, bool sync)
+{
+	if (sub->synchronized == sync)
+		return;
+
+	sub->synchronized = sync;
+
+	weston_subsurface_update_effectively_synchronized(sub);
+}
+
 static void
 subsurface_set_sync(struct wl_client *client, struct wl_resource *resource)
 {
@@ -5900,7 +5968,7 @@ subsurface_set_sync(struct wl_client *client, struct wl_resource *resource)
 	if (!sub)
 		return;
 
-	sub->synchronized = true;
+	weston_subsurface_set_synchronized(sub, true);
 }
 
 static void
@@ -5912,7 +5980,7 @@ subsurface_set_desync(struct wl_client *client, struct wl_resource *resource)
 		return;
 
 	if (sub->synchronized) {
-		sub->synchronized = false;
+		weston_subsurface_set_synchronized(sub, false);
 
 		/* If sub became effectively desynchronized, flush. */
 		if (!weston_subsurface_is_synchronized(sub))
@@ -6087,6 +6155,7 @@ weston_subsurface_create(uint32_t id, struct weston_surface *surface,
 	weston_surface_state_init(surface, &sub->cached);
 	sub->cached_buffer_ref.buffer = NULL;
 	sub->synchronized = true;
+	sub->effectively_synchronized = true;
 
 	return sub;
 }
