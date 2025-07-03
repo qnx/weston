@@ -1901,7 +1901,6 @@ struct weston_subsurface {
 		bool changed;
 	} position;
 
-	int has_cached_data;
 	struct weston_surface_state cached;
 	struct weston_buffer_reference cached_buffer_ref;
 

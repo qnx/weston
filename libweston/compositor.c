@@ -5352,7 +5352,6 @@ weston_subsurface_commit_from_cache(struct weston_subsurface *sub)
 	weston_buffer_reference(&sub->cached_buffer_ref, NULL,
 				BUFFER_WILL_NOT_BE_ACCESSED);
 
-	sub->has_cached_data = 0;
 	return status;
 }
 
@@ -5446,7 +5445,6 @@ weston_subsurface_commit_to_cache(struct weston_subsurface *sub)
 					&surface->pending,
 					&sub->cached_buffer_ref,
 					surface);
-	sub->has_cached_data = 1;
 }
 
 static enum weston_surface_status
