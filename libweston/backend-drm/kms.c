@@ -1352,6 +1352,11 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
 			ret |= connector_add_prop(req, &wb_state->wb->connector,
 						  WDRM_CONNECTOR_WRITEBACK_OUT_FENCE_PTR,
 						  (uintptr_t)&wb_state->out_fence_fd);
+
+			drm_debug(b, "\t\t\t[CONN:%lu] FORMAT: %s\n",
+				  (unsigned long) wb_state->wb->connector.connector_id,
+				  wb_state->fb->format->drm_format_name);
+
 			if (!(*flags & DRM_MODE_ATOMIC_TEST_ONLY))
 				wb_state->state = DRM_OUTPUT_WB_SCREENSHOT_CHECK_FENCE;
 		}
