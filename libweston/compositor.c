@@ -5474,7 +5474,7 @@ static enum weston_surface_status
 weston_subsurface_synchronized_commit(struct weston_subsurface *sub)
 {
 	struct weston_surface *surface = sub->surface;
-	enum weston_surface_status status = WESTON_SURFACE_CLEAN;
+	enum weston_surface_status status;
 	struct weston_subsurface *tmp;
 
 	/* From now on, commit_from_cache the whole sub-tree, regardless of
@@ -5483,8 +5483,7 @@ weston_subsurface_synchronized_commit(struct weston_subsurface *sub)
 	 * all the way down.
 	 */
 
-	if (sub->has_cached_data)
-		status |= weston_subsurface_commit_from_cache(sub);
+	status = weston_subsurface_commit_from_cache(sub);
 
 	wl_list_for_each(tmp, &surface->subsurface_list, parent_link) {
 		if (tmp->surface != surface)
