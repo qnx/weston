@@ -676,13 +676,6 @@ weston_output_mode_switch_to_temporary(struct weston_output *output,
 	return 0;
 }
 
-static void
-region_init_infinite(pixman_region32_t *region)
-{
-	pixman_region32_init_rect(region, INT32_MIN, INT32_MIN,
-				  UINT32_MAX, UINT32_MAX);
-}
-
 static struct weston_subsurface *
 weston_surface_to_subsurface(struct weston_surface *surface);
 

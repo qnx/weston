@@ -737,4 +737,11 @@ void
 weston_output_copy_native_mode(struct weston_output *output,
 			       struct weston_mode *mode);
 
+static inline void
+region_init_infinite(pixman_region32_t *region)
+{
+	pixman_region32_init_rect(region, INT32_MIN, INT32_MIN,
+				  UINT32_MAX, UINT32_MAX);
+}
+
 #endif
