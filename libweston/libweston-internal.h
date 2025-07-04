@@ -744,7 +744,32 @@ region_init_infinite(pixman_region32_t *region)
 				  UINT32_MAX, UINT32_MAX);
 }
 
+void
+weston_surface_state_set_buffer(struct weston_surface_state *state,
+			        struct weston_buffer *buffer);
+
 struct weston_subsurface *
 weston_surface_to_subsurface(struct weston_surface *surface);
+
+void
+weston_presentation_feedback_discard_list(struct wl_list *list);
+
+void
+weston_surface_update_size(struct weston_surface *surface);
+
+/* Surface state helpers from surface-state.c */
+
+enum weston_surface_status
+weston_surface_commit(struct weston_surface *surface);
+
+void
+weston_subsurface_set_synchronized(struct weston_subsurface *sub, bool sync);
+
+void
+weston_surface_state_init(struct weston_surface *surface,
+			  struct weston_surface_state *state);
+
+void
+weston_surface_state_fini(struct weston_surface_state *state);
 
 #endif

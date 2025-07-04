@@ -37,6 +37,7 @@ srcs_libweston = [
 	'pixman-renderer.c',
 	'plugin-registry.c',
 	'screenshooter.c',
+	'surface-state.c',
 	'timeline.c',
 	'touch-calibration.c',
 	'weston-log-wayland.c',
