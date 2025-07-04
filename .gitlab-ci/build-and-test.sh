@@ -1,5 +1,8 @@
 #!/bin/bash
 
+source "${FDO_CI_BASH_HELPERS}"
+
+fdo_log_section_start_collapsed build_weston "build_weston"
 cd "$BUILDDIR"
 meson --prefix="$PREFIX" --wrap-mode=nofallback -Db_sanitize=address ${MESON_OPTIONS} ${MESON_TOOLCHAIN_OPTIONS} ${MESON_DIST_OPTIONS} ..
 ninja -k0 -j${FDO_CI_CONCURRENT:-4}
@@ -15,6 +18,7 @@ if [ "$CI_JOB_NAME" == "x86_64-debian-full-build" ]; then
 	ninja clean
 	cd -
 fi
+fdo_log_section_end build_weston
 
 test -n "${QEMU_SMP}" || QEMU_SMP=${FDO_CI_CONCURRENT:-4}
 virtme-run --rw --pwd --kimg /weston-virtme/${KERNEL_IMAGE} --kopt quiet --kopt log_buf_len=2M --script-sh ../.gitlab-ci/virtme-scripts/run-weston-tests.sh --qemu-opts -m 4096 -smp ${QEMU_SMP}
