@@ -70,8 +70,7 @@ fdo_log_section_end install_meson
 # a newer upstream version which fixes AArch64 support.
 fdo_log_section_start_collapsed install_kernel "install_kernel"
 if [[ -n "$KERNEL_DEFCONFIG" ]]; then
-	# 6.3 is (still) used as >= 6.5 drm-writeback test will timeout
-	git clone --depth=1 --branch=v6.3 https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git linux
+	git clone --depth=1 --branch=v6.14 https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git linux
 	cd linux
 
 	if [[ "${BUILD_ARCH}" = "x86-64" ]]; then
