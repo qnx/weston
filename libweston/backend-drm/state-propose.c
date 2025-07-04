@@ -506,8 +506,11 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 
 	/* filter out non-cursor views in renderer-and-cursor mode */
 	if (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR &&
-	    ev->layer_link.layer != &b->compositor->cursor_layer)
-			return NULL;
+	    ev->layer_link.layer != &b->compositor->cursor_layer) {
+		pnode->try_view_on_plane_failure_reasons |=
+			FAILURE_REASONS_FORCE_RENDERER;
+		return NULL;
+	}
 
 	/* check view for valid buffer, doesn't make sense to even try */
 	if (!weston_view_has_valid_buffer(ev)) {
