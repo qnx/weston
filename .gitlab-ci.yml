@@ -1,6 +1,6 @@
 # vim: set expandtab shiftwidth=2 tabstop=8 textwidth=0:
 
-.templates_sha: &template_sha f210ea84576f756816da37908771edcee14ef7e6 # see https://docs.gitlab.com/ee/ci/yaml/#includefile
+.templates_sha: &template_sha 32afe5644697e503af18a736587c8619fa036a72 # see https://docs.gitlab.com/ee/ci/yaml/#includefile
 # This file uses the freedesktop ci-templates to build Weston and run our
 # tests in CI.
 #
