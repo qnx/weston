@@ -836,6 +836,7 @@ wet_module_init(struct weston_compositor *ec,
 	struct weston_test *test;
 	struct weston_output *output;
 	struct wl_event_loop *loop;
+	struct weston_test_output *to, *tmp;
 
 	test = zalloc(sizeof *test);
 	if (test == NULL)
@@ -880,6 +881,12 @@ wet_module_init(struct weston_compositor *ec,
 out_free:
 	if (test->log)
 		weston_log_scope_destroy(test->log);
+
+	wl_list_for_each_safe(to, tmp, &test->output_list, link) {
+		wl_list_remove(&to->repaint_listener.link);
+		wl_list_remove(&to->link);
+		free(to);
+	}
 
 	wl_list_remove(&test->output_destroyed_listener.link);
 	wl_list_remove(&test->destroy_listener.link);
