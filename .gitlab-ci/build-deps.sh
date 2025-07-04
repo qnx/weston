@@ -4,6 +4,8 @@
 # .gitlab-ci.yml for more information. This script is called from an
 # OS-specific build scripts like debian-install.sh.
 
+source "${FDO_CI_BASH_HELPERS}"
+
 set -o xtrace -o errexit
 
 # Set concurrency to an appropriate level for our shared runners, falling back
@@ -25,6 +27,7 @@ esac
 
 # Build and install Meson. Generally we want to keep this in sync with what
 # we require inside meson.build.
+fdo_log_section_start_collapsed install_meson "install_meson"
 pip3 install $PIP_ARGS git+https://github.com/mesonbuild/meson.git@1.3.2
 export PATH=$HOME/.local/bin:$PATH
 
@@ -41,6 +44,8 @@ pip3 install $PIP_ARGS sphinxcontrib-qthelp==1.0.3
 pip3 install $PIP_ARGS sphinxcontrib-serializinghtml==1.1.5
 pip3 install $PIP_ARGS breathe==4.31.0
 pip3 install $PIP_ARGS sphinx_rtd_theme==1.0.0
+fdo_log_section_end install_meson
+
 
 # Build a Linux kernel for use in testing. We enable the VKMS module so we can
 # predictably test the DRM backend in the absence of real hardware. We lock the
@@ -63,6 +68,7 @@ pip3 install $PIP_ARGS sphinx_rtd_theme==1.0.0
 #
 # The fork pulls in this support from the original GitHub PR, rebased on top of
 # a newer upstream version which fixes AArch64 support.
+fdo_log_section_start_collapsed install_kernel "install_kernel"
 if [[ -n "$KERNEL_DEFCONFIG" ]]; then
 	# 6.3 is (still) used as >= 6.5 drm-writeback test will timeout
 	git clone --depth=1 --branch=v6.3 https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git linux
@@ -107,9 +113,11 @@ if [[ -n "$KERNEL_DEFCONFIG" ]]; then
 	./setup.py install
 	cd ..
 fi
+fdo_log_section_end install_kernel
 
 # Build and install Wayland; keep this version in sync with our dependency
 # in meson.build.
+fdo_log_section_start_collapsed install_wayland "install_wayland"
 git clone --branch 1.22.0 --depth=1 https://gitlab.freedesktop.org/wayland/wayland
 cd wayland
 git show -s HEAD
@@ -128,11 +136,13 @@ meson setup build --wrap-mode=nofallback -Dtests=false
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf wayland-protocols
+fdo_log_section_end install_wayland
 
 # Build and install our own version of libdrm. Debian 11 (bullseye) provides
 # libdrm 2.4.104 which doesn't have the IN_FORMATS iterator api, and Mesa
 # depends on 2.4.109 as well.
 # Bump to 2.4.118 to include DRM_FORMAT_NV{15,20,30}
+fdo_log_section_start_collapsed install_libdrm "install_libdrm"
 git clone --branch libdrm-2.4.118 --depth=1 https://gitlab.freedesktop.org/mesa/drm.git
 cd drm
 meson setup build --wrap-mode=nofallback -Dauto_features=disabled \
@@ -140,6 +150,7 @@ meson setup build --wrap-mode=nofallback -Dauto_features=disabled \
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf drm
+fdo_log_section_end install_libdrm
 
 # Build and install our own version of Mesa. Debian provides a perfectly usable
 # Mesa, however llvmpipe's rendering behaviour can change subtly over time.
@@ -148,6 +159,7 @@ rm -rf drm
 # features from Mesa then bump this version and $FDO_DISTRIBUTION_TAG, however
 # please be prepared for some of the tests to change output, which will need to
 # be manually inspected for correctness.
+fdo_log_section_start_collapsed install_mesa "install_mesa"
 git clone --single-branch --branch main https://gitlab.freedesktop.org/mesa/mesa.git
 cd mesa
 git checkout -b snapshot 7b68e1da91732b7d9bb9bf620cf8d4f63a48ea8c
@@ -158,12 +170,14 @@ meson setup build --wrap-mode=nofallback -Dauto_features=disabled \
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf mesa
+fdo_log_section_end install_mesa
 
 # PipeWire is used for remoting support. Unlike our other dependencies its
 # behaviour will be stable, however as a pre-1.0 project its API is not yet
 # stable, so again we lock it to a fixed version.
 #
 # ... the version chosen is 0.3.32 with a small Clang-specific build fix.
+fdo_log_section_start_collapsed install_pipewire "install_pipewire"
 git clone --single-branch --branch master https://gitlab.freedesktop.org/pipewire/pipewire.git pipewire-src
 cd pipewire-src
 git checkout -b snapshot bf112940d0bf8f526dd6229a619c1283835b49c2
@@ -171,9 +185,11 @@ meson setup build --wrap-mode=nofallback
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf pipewire-src
+fdo_log_section_end install_pipewire
 
 # seatd lets us avoid the pain of open-coding TTY assignment within Weston.
 # We use this for our tests using the DRM backend.
+fdo_log_section_start_collapsed install_seatd "install_seatd"
 git clone --depth=1 --branch 0.6.1 https://git.sr.ht/~kennylevinsen/seatd
 cd seatd
 meson setup build --wrap-mode=nofallback -Dauto_features=disabled \
@@ -181,8 +197,10 @@ meson setup build --wrap-mode=nofallback -Dauto_features=disabled \
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf seatd
+fdo_log_section_end install_seatd
 
 # Build and install aml and neatvnc, which are required for the VNC backend
+fdo_log_section_start_collapsed install_aml_neatvnc "install_aml_neatvnc"
 git clone --branch v0.3.0 --depth=1 https://github.com/any1/aml.git
 cd aml
 meson setup build --wrap-mode=nofallback
@@ -195,16 +213,20 @@ meson setup build --wrap-mode=nofallback -Dauto_features=disabled
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf neatvnc
+fdo_log_section_end install_aml_neatvnc
 
 # Build and install libdisplay-info, used by drm-backend
+fdo_log_section_start_collapsed install_libdisplay-info "install_libdisplay-info"
 git clone --branch 0.2.0 --depth=1 https://gitlab.freedesktop.org/emersion/libdisplay-info.git
 cd libdisplay-info
 meson setup build --wrap-mode=nofallback
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf libdisplay-info
+fdo_log_section_end install_libdisplay-info
 
 # Build and install lcms2, which we use to support color-management.
+fdo_log_section_start_collapsed install_lcms2 "install_lcms2"
 git clone --branch master https://github.com/mm2/Little-CMS.git lcms2
 cd lcms2
 git checkout -b snapshot lcms2.16
@@ -212,3 +234,4 @@ meson setup build --wrap-mode=nofallback
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm  -rf lcms2
+fdo_log_section_end install_lcms2
