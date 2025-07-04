@@ -91,7 +91,6 @@ if [[ -n "$KERNEL_DEFCONFIG" ]]; then
 	./scripts/config \
 		--enable CONFIG_DRM \
 		--enable CONFIG_DRM_KMS_HELPER \
-		--enable CONFIG_DRM_KMS_FB_HELPER \
 		--enable CONFIG_DRM_VKMS \
 		--enable CONFIG_UDMABUF
 	make ARCH=${LINUX_ARCH} oldconfig
