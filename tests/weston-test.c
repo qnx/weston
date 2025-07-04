@@ -822,8 +822,7 @@ handle_compositor_destroy(struct wl_listener *listener,
 
 	data->wl_client = NULL;
 
-	wl_list_remove(&test->layer.view_list.link);
-	wl_list_remove(&test->layer.link);
+	weston_layer_fini(&test->layer);
 
 	weston_log_scope_destroy(test->log);
 	free(test);
@@ -887,6 +886,8 @@ out_free:
 		wl_list_remove(&to->link);
 		free(to);
 	}
+
+	weston_layer_fini(&test->layer);
 
 	wl_list_remove(&test->output_destroyed_listener.link);
 	wl_list_remove(&test->destroy_listener.link);
