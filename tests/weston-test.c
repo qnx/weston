@@ -878,6 +878,9 @@ wet_module_init(struct weston_compositor *ec,
 	return 0;
 
 out_free:
+	if (test->log)
+		weston_log_scope_destroy(test->log);
+
 	wl_list_remove(&test->output_destroyed_listener.link);
 	wl_list_remove(&test->destroy_listener.link);
 	free(test);
