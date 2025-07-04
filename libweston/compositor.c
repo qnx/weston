@@ -3734,9 +3734,18 @@ output_assign_planes(struct weston_output *output)
 	WESTON_TRACE_FUNC();
 	struct weston_paint_node *pnode;
 
-	if (output->assign_planes && !output->disable_planes) {
+	if (output->assign_planes) {
+		/**
+		 * Even if output->disable_planes, we must call assign_planes().
+		 * Each backend should handle that accordingly. This gives the
+		 * backend a consistent starting point for a repaint loop.
+		 */
 		output->assign_planes(output);
 	} else {
+		/**
+		 * Backend does not have an assign_planes() callback, so move
+		 * all paint nodes to the primary plane.
+		 */
 		wl_list_for_each(pnode, &output->paint_node_z_order_list,
 				 z_order_link) {
 			weston_paint_node_move_to_plane(pnode, &output->primary_plane);

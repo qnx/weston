@@ -1082,6 +1082,9 @@ vnc_output_assign_planes(struct weston_output *base)
 
 	assert(output);
 
+	if (output->base.disable_planes)
+		return;
+
 	if (wl_list_empty(&output->peers))
 		return;
 

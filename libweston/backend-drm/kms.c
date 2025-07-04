@@ -897,18 +897,6 @@ drm_output_apply_state_legacy(struct drm_output_state *state)
 		connectors[n_conn++] = head->connector.connector_id;
 	}
 
-	/* If disable_planes is set then assign_planes() wasn't
-	 * called for this render, so we could still have a stale
-	 * cursor plane set up.
-	 */
-	if (output->base.disable_planes) {
-		drm_output_set_cursor_view(output, NULL);
-		if (output->cursor_plane) {
-			output->cursor_plane->base.x = INT32_MIN;
-			output->cursor_plane->base.y = INT32_MIN;
-		}
-	}
-
 	if (state->dpms != WESTON_DPMS_ON) {
 		if (output->cursor_plane) {
 			ret = drmModeSetCursor(device->drm.fd, crtc->crtc_id,

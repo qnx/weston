@@ -48,12 +48,14 @@
 enum drm_output_propose_state_mode {
 	DRM_OUTPUT_PROPOSE_STATE_MIXED, /**< mix renderer & planes */
 	DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR, /**< only assign to renderer & cursor plane */
+	DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY, /**< only assign to renderer */
 	DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY, /**< no renderer use, only planes */
 };
 
 static const char *const drm_output_propose_state_mode_as_string[] = {
 	[DRM_OUTPUT_PROPOSE_STATE_MIXED] = "mixed state",
 	[DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR] = "renderer-and-cursor state",
+	[DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY] = "renderer-only state",
 	[DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY]	= "plane-only state"
 };
 
@@ -503,6 +505,13 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 	bool any_candidate_picked = false;
 
 	pnode->try_view_on_plane_failure_reasons = FAILURE_REASONS_NONE;
+
+	/* renderer-only mode, so no view assignments to planes */
+	if (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY) {
+		pnode->try_view_on_plane_failure_reasons |=
+			FAILURE_REASONS_FORCE_RENDERER;
+		return NULL;
+	}
 
 	/* filter out non-cursor views in renderer-and-cursor mode */
 	if (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR &&
@@ -1032,9 +1041,10 @@ drm_output_propose_state(struct weston_output *output_base,
 	pixman_region32_fini(&renderer_region);
 	pixman_region32_fini(&occluded_region);
 
-	/* In renderer-and-cursor mode, we can't test the state as we don't have
-	 * a renderer buffer yet. */
-	if (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR)
+	/* In renderer-only and renderer-and-cursor modes, we can't test the
+	 * state as we don't have a renderer buffer yet. */
+	if (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY ||
+	    mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR)
 		return state;
 
 	/* check if we have invalid zpos values, like duplicate(s) */
@@ -1086,7 +1096,8 @@ drm_assign_planes(struct weston_output *output_base)
 	drm_debug(b, "\t[repaint] preparing state for output %s (%lu)\n",
 		  output_base->name, (unsigned long) output_base->id);
 
-	if (!device->sprites_are_broken && !output->is_virtual && b->gbm) {
+	if (!device->sprites_are_broken && !output_base->disable_planes &&
+	    !output->is_virtual && b->gbm) {
 		drm_debug(b, "\t[repaint] trying planes-only build state\n");
 		state = drm_output_propose_state(output_base, pending_state, mode);
 		if (!state) {
@@ -1105,17 +1116,26 @@ drm_assign_planes(struct weston_output *output_base)
 	 * 1. If we didn't enter the last block (for some reason we can't use planes)
 	 * 2. If we entered but both the planes-only and the mixed modes didn't work */
 	if (!state) {
+		if (output_base->disable_planes)
+			mode = DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY;
+		else
+			mode = DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR;
+
 		drm_debug(b, "\t[repaint] could not build state with planes, "
-			     "trying renderer-and-cursor\n");
-		mode = DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR;
+			     "trying %s\n",
+			     (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY) ?
+			     "renderer-only" : "renderer-and-cursor");
+
 		state = drm_output_propose_state(output_base, pending_state,
 						 mode);
-		/* If renderer-and-cursor mode failed and we are in a writeback
-		 * screenshot, let's abort the writeback screenshot and try
-		 * again. */
+		/* If renderer/renderer-and-cursor mode failed and we are in a
+		 * writeback screenshot, let's abort the writeback screenshot
+		 * and try again. */
 		if (!state && drm_output_get_writeback_state(output) != DRM_OUTPUT_WB_SCREENSHOT_OFF) {
-			drm_debug(b, "\t[repaint] could not build renderer-and-cursor "
-				     "state, trying without writeback setup\n");
+			drm_debug(b, "\t[repaint] could not build %s "
+				     "state, trying without writeback setup\n",
+				     (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY) ?
+				     "renderer-only" : "renderer-and-cursor");
 			drm_writeback_fail_screenshot(wb_state, "drm: failed to propose state");
 			state = drm_output_propose_state(output_base, pending_state,
 							 mode);
