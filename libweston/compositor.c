@@ -5891,12 +5891,17 @@ weston_subsurface_update_effectively_synchronized(struct weston_subsurface *sub)
 static void
 weston_subsurface_set_synchronized(struct weston_subsurface *sub, bool sync)
 {
+	bool old_e_sync = sub->effectively_synchronized;
 	if (sub->synchronized == sync)
 		return;
 
 	sub->synchronized = sync;
 
 	weston_subsurface_update_effectively_synchronized(sub);
+
+	/* If sub became effectively desynchronized, flush */
+	if (old_e_sync && !sub->effectively_synchronized)
+		weston_subsurface_apply_from_cache(sub);
 }
 
 static void
@@ -5918,13 +5923,7 @@ subsurface_set_desync(struct wl_client *client, struct wl_resource *resource)
 	if (!sub)
 		return;
 
-	if (sub->synchronized) {
-		weston_subsurface_set_synchronized(sub, false);
-
-		/* If sub became effectively desynchronized, flush. */
-		if (!sub->effectively_synchronized)
-			weston_subsurface_apply_from_cache(sub);
-	}
+	weston_subsurface_set_synchronized(sub, false);
 }
 
 static void
