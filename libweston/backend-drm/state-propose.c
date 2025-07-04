@@ -47,13 +47,13 @@
 
 enum drm_output_propose_state_mode {
 	DRM_OUTPUT_PROPOSE_STATE_MIXED, /**< mix renderer & planes */
-	DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY, /**< only assign to renderer & cursor */
+	DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR, /**< only assign to renderer & cursor plane */
 	DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY, /**< no renderer use, only planes */
 };
 
 static const char *const drm_output_propose_state_mode_as_string[] = {
 	[DRM_OUTPUT_PROPOSE_STATE_MIXED] = "mixed state",
-	[DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY] = "render-only state",
+	[DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR] = "renderer-and-cursor state",
 	[DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY]	= "plane-only state"
 };
 
@@ -504,8 +504,8 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 
 	pnode->try_view_on_plane_failure_reasons = FAILURE_REASONS_NONE;
 
-	/* filter out non-cursor views in renderer-only mode */
-	if (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY &&
+	/* filter out non-cursor views in renderer-and-cursor mode */
+	if (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR &&
 	    ev->layer_link.layer != &b->compositor->cursor_layer)
 			return NULL;
 
@@ -547,9 +547,9 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 		if (pnode->try_view_on_plane_failure_reasons == FAILURE_REASONS_NONE)
 			possible_plane_mask = (1 << output->cursor_plane->plane_idx);
 	} else {
-		if (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY) {
+		if (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR) {
 			drm_debug(b, "\t\t\t\t[view] not assigning view %p "
-				     "to plane: renderer-only mode\n", ev);
+				     "to plane: renderer-and-cursor mode\n", ev);
 			return NULL;
 		}
 
@@ -613,7 +613,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 				continue;
 			break;
 		case WDRM_PLANE_TYPE_OVERLAY:
-			assert(mode != DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY);
+			assert(mode != DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR);
 			/* if the view covers the whole output, put it in the
 			 * scanout plane, not overlay */
 			if (view_matches_entire_output &&
@@ -1029,9 +1029,9 @@ drm_output_propose_state(struct weston_output *output_base,
 	pixman_region32_fini(&renderer_region);
 	pixman_region32_fini(&occluded_region);
 
-	/* In renderer-only mode, we can't test the state as we don't have a
-	 * renderer buffer yet. */
-	if (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY)
+	/* In renderer-and-cursor mode, we can't test the state as we don't have
+	 * a renderer buffer yet. */
+	if (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR)
 		return state;
 
 	/* check if we have invalid zpos values, like duplicate(s) */
@@ -1103,15 +1103,15 @@ drm_assign_planes(struct weston_output *output_base)
 	 * 2. If we entered but both the planes-only and the mixed modes didn't work */
 	if (!state) {
 		drm_debug(b, "\t[repaint] could not build state with planes, "
-			     "trying renderer-only\n");
-		mode = DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY;
+			     "trying renderer-and-cursor\n");
+		mode = DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR;
 		state = drm_output_propose_state(output_base, pending_state,
 						 mode);
-		/* If renderer only mode failed and we are in a writeback
+		/* If renderer-and-cursor mode failed and we are in a writeback
 		 * screenshot, let's abort the writeback screenshot and try
 		 * again. */
 		if (!state && drm_output_get_writeback_state(output) != DRM_OUTPUT_WB_SCREENSHOT_OFF) {
-			drm_debug(b, "\t[repaint] could not build renderer-only "
+			drm_debug(b, "\t[repaint] could not build renderer-and-cursor "
 				     "state, trying without writeback setup\n");
 			drm_writeback_fail_screenshot(wb_state, "drm: failed to propose state");
 			state = drm_output_propose_state(output_base, pending_state,
