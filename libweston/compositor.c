@@ -5084,7 +5084,15 @@ weston_surface_apply(struct weston_surface *surface,
 static enum weston_surface_status
 weston_surface_commit(struct weston_surface *surface)
 {
-	return weston_surface_apply(surface, &surface->pending);
+	struct weston_subsurface *sub = weston_surface_to_subsurface(surface);
+	enum weston_surface_status status;
+
+	if (sub)
+		status = weston_subsurface_commit(sub);
+	else
+		status = weston_surface_apply(surface, &surface->pending);
+
+	return status;
 }
 
 static void
@@ -5092,7 +5100,6 @@ surface_commit(struct wl_client *client, struct wl_resource *resource)
 {
 	struct weston_surface *surface = wl_resource_get_user_data(resource);
 	WESTON_TRACE_FUNC_FLOW(&surface->flow_id);
-	struct weston_subsurface *sub = weston_surface_to_subsurface(surface);
 	enum weston_surface_status status;
 
 	if (!weston_surface_is_pending_viewport_source_valid(surface)) {
@@ -5148,11 +5155,7 @@ surface_commit(struct wl_client *client, struct wl_resource *resource)
 		return;
 	}
 
-	if (sub) {
-		status = weston_subsurface_commit(sub);
-	} else {
-		status = weston_surface_commit(surface);
-	}
+	status = weston_surface_commit(surface);
 
 	if (status & WESTON_SURFACE_DIRTY_SUBSURFACE_CONFIG)
 		surface->compositor->view_list_needs_rebuild = true;
