@@ -213,8 +213,12 @@ test_seat_init(struct weston_test *test)
 
 	/* add devices */
 	weston_seat_init_pointer(&test->seat);
-	if (weston_seat_init_keyboard(&test->seat, NULL) < 0)
+	if (weston_seat_init_keyboard(&test->seat, NULL) < 0) {
+		weston_seat_release_pointer(&test->seat);
+		weston_seat_release(&test->seat);
+		test->is_seat_initialized = false;
 		return -1;
+	}
 	weston_seat_init_touch(&test->seat);
 	touch_device_add(test);
 
