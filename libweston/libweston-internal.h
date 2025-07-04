@@ -744,4 +744,7 @@ region_init_infinite(pixman_region32_t *region)
 				  UINT32_MAX, UINT32_MAX);
 }
 
+struct weston_subsurface *
+weston_surface_to_subsurface(struct weston_surface *surface);
+
 #endif

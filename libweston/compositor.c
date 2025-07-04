@@ -676,9 +676,6 @@ weston_output_mode_switch_to_temporary(struct weston_output *output,
 	return 0;
 }
 
-static struct weston_subsurface *
-weston_surface_to_subsurface(struct weston_surface *surface);
-
 static struct weston_view *
 weston_view_create_internal(struct weston_surface *surface)
 {
@@ -5200,9 +5197,6 @@ surface_set_buffer_scale(struct wl_client *client,
 	surface->pending.status |= WESTON_SURFACE_DIRTY_SIZE;
 }
 
-static struct weston_subsurface *
-weston_surface_to_subsurface(struct weston_surface *surface);
-
 static void
 surface_offset(struct wl_client *client,
 	       struct wl_resource *resource,
@@ -5526,7 +5520,7 @@ subsurface_committed(struct weston_surface *surface,
 	}
 }
 
-static struct weston_subsurface *
+struct weston_subsurface *
 weston_surface_to_subsurface(struct weston_surface *surface)
 {
 	if (surface->committed == subsurface_committed)
