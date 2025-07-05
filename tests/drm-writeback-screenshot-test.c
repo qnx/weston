@@ -82,7 +82,9 @@ TEST(drm_writeback_screenshot) {
 
 	struct client *client;
 	struct buffer *buffer;
+	struct buffer *buffer_for_second_screenshot;
 	struct buffer *screenshot = NULL;
+	struct buffer *second_screenshot = NULL;
 	pixman_image_t *reference = NULL;
 	pixman_image_t *diffimg = NULL;
 	struct wl_surface *surface;
@@ -117,10 +119,20 @@ TEST(drm_writeback_screenshot) {
 	test_assert_ptr_not_null(screenshot);
 	buffer_destroy(screenshot);
 
+	/* Use new buffer to avoid deadlock between first and second screenshot. */
+	buffer_for_second_screenshot = create_shm_buffer_a8r8g8b8(client, 100, 100);
+	draw_stuff(buffer_for_second_screenshot->image);
+
+	wl_surface_attach(surface, buffer_for_second_screenshot->proxy, 0, 0);
+	wl_surface_damage(surface, 0, 0, 100, 100);
+	frame_callback_set(surface, &frame);
+	wl_surface_commit(surface);
+	frame_callback_wait(client, &frame);
+
 	/* take another screenshot; this is important to ensure the
 	 * writeback state machine is working correctly */
 	testlog("Taking another screenshot\n");
-	screenshot = client_capture_output(client, client->output,
+	second_screenshot = client_capture_output(client, client->output,
                                            WESTON_CAPTURE_V1_SOURCE_WRITEBACK);
 	test_assert_ptr_not_null(screenshot);
 
@@ -137,10 +149,10 @@ TEST(drm_writeback_screenshot) {
 	clip.y = 100;
 	clip.width = 100;
 	clip.height = 100;
-	match = check_images_match(screenshot->image, reference, &clip, NULL);
+	match = check_images_match(second_screenshot->image, reference, &clip, NULL);
 	testlog("Screenshot %s reference image\n", match? "equal to" : "different from");
 	if (!match) {
-		diffimg = visualize_image_difference(screenshot->image, reference, &clip, NULL);
+		diffimg = visualize_image_difference(second_screenshot->image, reference, &clip, NULL);
 		fname = output_filename_for_test_case("error", 0, "png");
 		write_image_as_png(diffimg, fname);
 		pixman_image_unref(diffimg);
@@ -148,8 +160,9 @@ TEST(drm_writeback_screenshot) {
 	}
 
 	pixman_image_unref(reference);
-	buffer_destroy(screenshot);
+	buffer_destroy(second_screenshot);
 	buffer_destroy(buffer);
+	buffer_destroy(buffer_for_second_screenshot);
 	client_destroy(client);
 
 	test_assert_true(match);
