@@ -30,15 +30,21 @@ function sort_views(views)
   return count, sorted_views
 end
 
-function relayout()
+function relayout(output)
   local views = normal_layer:get_views()
+  local output_width, output_height
   local count = 0
   local col = 0
   local x = 0
   local row = 0
   local y = 0
   local count, sorted_views = sort_views(views)
-  local output_width, output_height = primary_output:get_dimensions()
+
+  if (output == nil) then
+    output_width, output_height = primary_output:get_dimensions()
+  else
+    output_width, output_height = output:get_dimensions()
+  end
 
   local cols, rows = get_tile_row_col(count)
   local width = math.floor(output_width / cols)
@@ -109,6 +115,11 @@ function output_moved(output, move_x, move_y)
   end
 end
 
+function output_resized(output)
+  recreate_background(output)
+  relayout(output)
+end
+
 function surface_added(surface)
   local pd = {last_width = 0, last_height = 0, maximized = false,
 	      map_fullscreen = false, fullscreen_output = nil}
@@ -151,7 +162,7 @@ function surface_removed(surface)
 
   current_width = current_width * 2
   current_height = current_height * 2
-  relayout()
+  relayout(nil)
 end
 
 function surface_maximize(surface, maximized)
@@ -168,7 +179,7 @@ function surface_maximize(surface, maximized)
     pd.maximized = true
   else
     pd.maximized = false
-    relayout()
+    relayout(nil)
   end
 end
 
@@ -202,7 +213,7 @@ function unset_fullscreen(surface)
   surf_pd.view:set_layer(normal_layer)
   output_pd.has_fullscreen_view = false
   surf_pd.fullscreen_output = nil
-  relayout()
+  relayout(nil)
 end
 
 function surface_fullscreen(surface, output, fullscreen)
@@ -223,7 +234,7 @@ function surface_fullscreen(surface, output, fullscreen)
     end
   else
     unset_fullscreen(surface)
-    relayout()
+    relayout(nil)
   end
 end
 
@@ -248,7 +259,7 @@ function lower_fullscreen_layer(surface, output)
         pd.map_fullscreen = false
         pd.fullscreen_output = nil
         output_pd.has_fullscreen_view = false
-        relayout()
+        relayout(nil)
       end
     end
   end
@@ -270,7 +281,7 @@ function surface_committed(surface)
   pd.height = h
 
   if (is_resized) then
-    relayout()
+    relayout(nil)
   end
 
   if surface:is_mapped() then
@@ -303,7 +314,7 @@ function surface_committed(surface)
     return
   end
 
-  relayout()
+  relayout(nil)
 end
 
 function click_to_activate(focus_view, seat, button)
@@ -345,4 +356,5 @@ lua_shell_callbacks = {
   surface_removed = surface_removed,
   output_create = my_output_create,
   output_moved = output_moved,
+  output_resized = output_resized,
 }
