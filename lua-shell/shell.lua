@@ -2,6 +2,7 @@ background_layer = {}
 normal_layer = {}
 hidden_layer = {}
 fullscreen_layer = {}
+background_curtain = nil
 current_width = 0
 current_height = 0
 
@@ -59,15 +60,14 @@ function relayout()
   end
 end
 
-function my_output_create(output)
-  local pd = { has_fullscreen_view = false }
+function recreate_background(output)
+  local x, y = output:get_position()
+  local w, h = output:get_dimensions()
 
-  if (primary_output == nil) then
-    primary_output = output
+  if (background_curtain ~= nil) then
+    background_curtain:dispose()
   end
 
-  x, y = output:get_position()
-  w, h = output:get_dimensions()
   background_curtain = weston:create_curtain("output curtain")
   background_curtain:set_color(0xFF000000)
   background_curtain:set_position(x, y)
@@ -76,6 +76,16 @@ function my_output_create(output)
   bv = background_curtain:get_view()
   bv:set_output(output)
   bv:set_layer(background_layer)
+end
+
+function my_output_create(output)
+  local pd = { has_fullscreen_view = false }
+
+  if (primary_output == nil) then
+    primary_output = output
+  end
+
+  recreate_background(output)
 
   pd.background_view = bv
   output:set_private(pd)
