@@ -3331,6 +3331,21 @@ wet_output_compute_output_from_mirror(struct weston_output *output,
 	mode->height = output->native_mode_copy.height /
 			mirror->current_scale;
 
+	/* Switch width and height for transform 90 or 270 */
+	switch (output->transform) {
+	case WL_OUTPUT_TRANSFORM_90:
+	case WL_OUTPUT_TRANSFORM_270:
+	case WL_OUTPUT_TRANSFORM_FLIPPED_90:
+	case WL_OUTPUT_TRANSFORM_FLIPPED_270: {
+		int32_t tmp = mode->width;
+		mode->width = mode->height;
+		mode->height = tmp;
+		break;
+	}
+	default:
+		break;
+	}
+
 	mode->refresh = output->native_mode_copy.refresh;
 	*scale = output->current_scale;
 }
