@@ -151,6 +151,15 @@ cd ..
 rm -rf drm
 fdo_log_section_end install_libdrm
 
+# Build and install Vulkan-Headers with a defined version, mostly because
+# the version in Debian 11 (bullseye) is too old to build vulkan-renderer.
+git clone --branch sdk-1.3.239.0 --depth=1 https://github.com/KhronosGroup/Vulkan-Headers
+cd Vulkan-Headers
+cmake -G Ninja -B build
+ninja ${NINJAFLAGS} -C build install
+cd ..
+rm -rf Vulkan-Headers
+
 # Build and install our own version of Mesa. Debian provides a perfectly usable
 # Mesa, however llvmpipe's rendering behaviour can change subtly over time.
 # This doesn't work for our tests which expect pixel-precise reproduction, so

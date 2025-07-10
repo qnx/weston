@@ -26,6 +26,13 @@ MESA_DEV_PKGS="
 	python3-mako
 "
 
+# These get temporarily installed for other build dependencies and then
+# force-removed.
+# cmake is used by Vulkan-Headers
+BUILD_DEV_PKGS="
+	cmake
+"
+
 # Needed for running the custom-built mesa
 MESA_RUNTIME_PKGS="
 	libllvm${LLVM_VERSION}
@@ -125,6 +132,7 @@ apt-get -y --no-install-recommends install \
 	cargo rustc \
 	iproute2 udev \
 	$MESA_DEV_PKGS \
+	$BUILD_DEV_PKGS \
 	$MESA_RUNTIME_PKGS \
 	$LINUX_DEV_PKGS \
 
@@ -138,4 +146,4 @@ fi
 
 # And remove packages which are only required for our build dependencies,
 # which we don't need bloating the image whilst we build and run Weston.
-apt-get -y --autoremove purge $LINUX_DEV_PKGS $MESA_DEV_PKGS
+apt-get -y --autoremove purge $LINUX_DEV_PKGS $MESA_DEV_PKGS $BUILD_DEV_PKGS
