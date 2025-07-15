@@ -293,11 +293,14 @@ weston_color_profile_param_builder_set_tf_named(struct weston_color_profile_para
 {
 	struct weston_compositor *compositor = builder->compositor;
 	struct weston_color_manager *cm = compositor->color_manager;
+	const struct weston_color_tf_info *info;
 	bool success = true;
+
+	info = weston_color_tf_info_from(compositor, tf);
 
 	if (!((cm->supported_tf_named >> tf) & 1)) {
 		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_TF,
-			    "named tf %u not supported by the color manager", tf);
+			    "%s not supported by the color manager", info->desc);
 		success = false;
 	}
 
@@ -310,7 +313,7 @@ weston_color_profile_param_builder_set_tf_named(struct weston_color_profile_para
 	if (!success)
 		return false;
 
-	builder->params.tf.info = weston_color_tf_info_from(compositor, tf);
+	builder->params.tf.info = info;
 	weston_assert_uint_eq(builder->compositor,
 			      builder->params.tf.info->count_parameters, 0);
 
