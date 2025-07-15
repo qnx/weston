@@ -104,9 +104,6 @@ static void
 weston_output_transform_scale_init(struct weston_output *output,
 				   uint32_t transform, uint32_t scale);
 
-static void
-weston_compositor_build_view_list(struct weston_compositor *compositor);
-
 static char *
 weston_output_create_heads_string(struct weston_output *output);
 
