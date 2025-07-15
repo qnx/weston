@@ -4433,7 +4433,8 @@ surface_attach(struct wl_client *client,
 
 	/* Attach, attach, without commit in between does not send
 	 * wl_buffer.release. */
-	weston_surface_state_set_buffer(&surface->pending, buffer);
+	weston_buffer_reference(&surface->pending.buffer_ref, buffer,
+				BUFFER_WILL_NOT_BE_ACCESSED);
 
 	surface->pending.status |= WESTON_SURFACE_DIRTY_BUFFER;
 }
@@ -4605,11 +4606,13 @@ weston_surface_is_pending_viewport_source_valid(
 
 	if ((pend->status & WESTON_SURFACE_DIRTY_BUFFER) ||
 		(pend->status & WESTON_SURFACE_DIRTY_SIZE)) {
-		if (pend->buffer) {
+		if (pend->buffer_ref.buffer) {
+			struct weston_buffer *buf = pend->buffer_ref.buffer;
+
 			convert_size_by_transform_scale(&width_from_buffer,
 							&height_from_buffer,
-							pend->buffer->width,
-							pend->buffer->height,
+							buf->width,
+							buf->height,
 							vp->buffer.transform,
 							vp->buffer.scale);
 		} else {
@@ -4697,7 +4700,7 @@ surface_commit(struct wl_client *client, struct wl_resource *resource)
 	if (surface->pending.acquire_fence_fd >= 0) {
 		assert(surface->synchronization_resource);
 
-		if (!surface->pending.buffer) {
+		if (!surface->pending.buffer_ref.buffer) {
 			fd_clear(&surface->pending.acquire_fence_fd);
 			wl_resource_post_error(surface->synchronization_resource,
 				ZWP_LINUX_SURFACE_SYNCHRONIZATION_V1_ERROR_NO_BUFFER,
@@ -4706,7 +4709,7 @@ surface_commit(struct wl_client *client, struct wl_resource *resource)
 			return;
 		}
 
-		if (surface->pending.buffer->type == WESTON_BUFFER_SHM) {
+		if (surface->pending.buffer_ref.buffer->type == WESTON_BUFFER_SHM) {
 			fd_clear(&surface->pending.acquire_fence_fd);
 			wl_resource_post_error(surface->synchronization_resource,
 				ZWP_LINUX_SURFACE_SYNCHRONIZATION_V1_ERROR_UNSUPPORTED_BUFFER,
@@ -4717,7 +4720,7 @@ surface_commit(struct wl_client *client, struct wl_resource *resource)
 	}
 
 	if (surface->pending.buffer_release_ref.buffer_release &&
-	    !surface->pending.buffer) {
+	    !surface->pending.buffer_ref.buffer) {
 		assert(surface->synchronization_resource);
 
 		wl_resource_post_error(surface->synchronization_resource,
@@ -5395,8 +5398,6 @@ weston_subsurface_destroy(struct weston_subsurface *sub)
 			weston_subsurface_unlink_parent(sub);
 
 		weston_surface_state_fini(&sub->cached);
-		weston_buffer_reference(&sub->cached_buffer_ref, NULL,
-					BUFFER_WILL_NOT_BE_ACCESSED);
 
 		sub->surface->committed = NULL;
 		sub->surface->committed_private = NULL;
@@ -5447,7 +5448,6 @@ weston_subsurface_create(uint32_t id, struct weston_surface *surface,
 	weston_subsurface_link_surface(sub, surface);
 	weston_subsurface_link_parent(sub, parent);
 	weston_surface_state_init(surface, &sub->cached);
-	sub->cached_buffer_ref.buffer = NULL;
 	sub->synchronized = true;
 	sub->effectively_synchronized = true;
 

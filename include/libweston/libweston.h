@@ -1664,8 +1664,7 @@ struct weston_surface_state {
 	enum weston_surface_status status;
 
 	/* wl_surface.attach */
-	struct weston_buffer *buffer;
-	struct wl_listener buffer_destroy_listener;
+	struct weston_buffer_reference buffer_ref;
 
 	struct weston_coord_surface buf_offset;
 
@@ -1902,7 +1901,6 @@ struct weston_subsurface {
 	} position;
 
 	struct weston_surface_state cached;
-	struct weston_buffer_reference cached_buffer_ref;
 
 	bool synchronized;
 	bool effectively_synchronized;

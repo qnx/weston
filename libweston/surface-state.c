@@ -54,24 +54,12 @@ weston_surface_dirty_paint_nodes(struct weston_surface *surface,
 	}
 }
 
-static void
-surface_state_handle_buffer_destroy(struct wl_listener *listener, void *data)
-{
-	struct weston_surface_state *state =
-		container_of(listener, struct weston_surface_state,
-			     buffer_destroy_listener);
-
-	state->buffer = NULL;
-}
-
 void
 weston_surface_state_init(struct weston_surface *surface,
 			  struct weston_surface_state *state)
 {
 	state->status = WESTON_SURFACE_CLEAN;
-	state->buffer = NULL;
-	state->buffer_destroy_listener.notify =
-		surface_state_handle_buffer_destroy;
+	state->buffer_ref.buffer = NULL;
 	state->buf_offset = weston_coord_surface(0, 0, surface);
 
 	pixman_region32_init(&state->damage_surface);
@@ -111,9 +99,8 @@ weston_surface_state_fini(struct weston_surface_state *state)
 	pixman_region32_fini(&state->damage_surface);
 	pixman_region32_fini(&state->damage_buffer);
 
-	if (state->buffer)
-		wl_list_remove(&state->buffer_destroy_listener.link);
-	state->buffer = NULL;
+	weston_buffer_reference(&state->buffer_ref, NULL,
+				BUFFER_WILL_NOT_BE_ACCESSED);
 
 	fd_clear(&state->acquire_fence_fd);
 	weston_buffer_release_reference(&state->buffer_release_ref, NULL);
@@ -123,28 +110,13 @@ weston_surface_state_fini(struct weston_surface_state *state)
 	state->render_intent = NULL;
 }
 
-void
-weston_surface_state_set_buffer(struct weston_surface_state *state,
-				struct weston_buffer *buffer)
-{
-	if (state->buffer == buffer)
-		return;
-
-	if (state->buffer)
-		wl_list_remove(&state->buffer_destroy_listener.link);
-	state->buffer = buffer;
-	if (state->buffer)
-		wl_signal_add(&state->buffer->destroy_signal,
-			      &state->buffer_destroy_listener);
-}
-
 static enum weston_surface_status
 weston_surface_attach(struct weston_surface *surface,
 		      struct weston_surface_state *state,
 		      enum weston_surface_status status)
 {
 	WESTON_TRACE_FUNC_FLOW(&surface->flow_id);
-	struct weston_buffer *buffer = state->buffer;
+	struct weston_buffer *buffer = state->buffer_ref.buffer;
 	struct weston_buffer *old_buffer = surface->buffer_ref.buffer;
 
 	if (!buffer) {
@@ -316,7 +288,8 @@ weston_surface_apply_state(struct weston_surface *surface,
 
 		status |= weston_surface_attach(surface, state, status);
 	}
-	weston_surface_state_set_buffer(state, NULL);
+	weston_buffer_reference(&state->buffer_ref, NULL,
+				BUFFER_WILL_NOT_BE_ACCESSED);
 	assert(state->acquire_fence_fd == -1);
 	assert(state->buffer_release_ref.buffer_release == NULL);
 
@@ -427,8 +400,6 @@ weston_subsurface_apply_from_cache(struct weston_subsurface *sub)
 	enum weston_surface_status status;
 
 	status = weston_surface_apply(surface, &sub->cached);
-	weston_buffer_reference(&sub->cached_buffer_ref, NULL,
-				BUFFER_WILL_NOT_BE_ACCESSED);
 
 	return status;
 }
@@ -479,7 +450,6 @@ weston_surface_apply(struct weston_surface *surface,
 static void
 weston_surface_state_merge_from(struct weston_surface_state *dst,
 				struct weston_surface_state *src,
-				struct weston_buffer_reference *buffer_ref,
 				struct weston_surface *surface)
 {
 	WESTON_TRACE_FUNC();
@@ -511,11 +481,9 @@ weston_surface_state_merge_from(struct weston_surface_state *dst,
 		weston_color_profile_ref(src->color_profile);
 
 	if (src->status & WESTON_SURFACE_DIRTY_BUFFER) {
-		weston_surface_state_set_buffer(dst,
-						src->buffer);
-		weston_buffer_reference(buffer_ref,
-					src->buffer,
-					src->buffer ?
+		weston_buffer_reference(&dst->buffer_ref,
+					src->buffer_ref.buffer,
+					src->buffer_ref.buffer ?
 						BUFFER_MAY_BE_ACCESSED :
 						BUFFER_WILL_NOT_BE_ACCESSED);
 		weston_presentation_feedback_discard_list(
@@ -537,7 +505,8 @@ weston_surface_state_merge_from(struct weston_surface_state *dst,
 	dst->buffer_viewport.buffer = src->buffer_viewport.buffer;
 	dst->buffer_viewport.surface = src->buffer_viewport.surface;
 
-	weston_surface_state_set_buffer(&surface->pending, NULL);
+	weston_buffer_reference(&src->buffer_ref,
+				NULL, BUFFER_WILL_NOT_BE_ACCESSED);
 
 	src->buf_offset = weston_coord_surface(0, 0, surface);
 
@@ -564,7 +533,6 @@ weston_subsurface_commit_to_cache(struct weston_subsurface *sub)
 
 	weston_surface_state_merge_from(&sub->cached,
 					&surface->pending,
-					&sub->cached_buffer_ref,
 					surface);
 }
 
