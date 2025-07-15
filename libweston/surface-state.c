@@ -393,18 +393,6 @@ weston_surface_apply_state(struct weston_surface *surface,
 }
 
 static enum weston_surface_status
-weston_subsurface_apply_from_cache(struct weston_subsurface *sub)
-{
-	WESTON_TRACE_FUNC();
-	struct weston_surface *surface = sub->surface;
-	enum weston_surface_status status;
-
-	status = weston_surface_apply(surface, &sub->cached);
-
-	return status;
-}
-
-static enum weston_surface_status
 weston_subsurface_parent_apply(struct weston_subsurface *sub)
 {
 	enum weston_surface_status status = WESTON_SURFACE_CLEAN;
@@ -419,7 +407,7 @@ weston_subsurface_parent_apply(struct weston_subsurface *sub)
 	}
 
 	if (sub->effectively_synchronized)
-		status = weston_subsurface_apply_from_cache(sub);
+		status = weston_surface_apply(sub->surface, &sub->cached);
 
 	return status;
 }
@@ -543,7 +531,7 @@ weston_subsurface_commit(struct weston_subsurface *sub)
 	if (sub->effectively_synchronized)
 		return WESTON_SURFACE_CLEAN;
 
-	return weston_subsurface_apply_from_cache(sub);
+	return weston_surface_apply(sub->surface, &sub->cached);
 }
 
 enum weston_surface_status
@@ -631,5 +619,5 @@ weston_subsurface_set_synchronized(struct weston_subsurface *sub, bool sync)
 
 	/* If sub became effectively desynchronized, flush */
 	if (old_e_sync && !sub->effectively_synchronized)
-		weston_subsurface_apply_from_cache(sub);
+		weston_surface_apply(sub->surface, &sub->cached);
 }
