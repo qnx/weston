@@ -215,7 +215,7 @@ ivi_shell_surface_get_label(struct weston_surface *surface,
 {
 	struct ivi_shell_surface *shell_surf = get_ivi_shell_surface(surface);
 
-	return snprintf(buf, len, "ivi-surface %#x", shell_surf->id_surface);
+	return snprintf(buf, len, "ivi-surface %u", shell_surf->id_surface);
 }
 
 static void
