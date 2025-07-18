@@ -30,14 +30,38 @@
 #include "weston-output-capture-client-protocol.h"
 #include "weston-test-assert.h"
 
+struct setup_args {
+	struct fixture_metadata meta;
+	enum weston_renderer_type renderer;
+	enum client_buffer_type buffer_type;
+};
+
+static const struct setup_args my_setup_args[] = {
+	{
+		.meta.name = "Pixman",
+		.renderer = WESTON_RENDERER_PIXMAN,
+		.buffer_type = CLIENT_BUFFER_TYPE_SHM,
+	},
+	{
+		.meta.name = "GL - dmabuf",
+		.renderer = WESTON_RENDERER_GL,
+		.buffer_type = CLIENT_BUFFER_TYPE_DMABUF,
+	},
+	{
+		.meta.name = "Vulkan - dmabuf",
+		.renderer = WESTON_RENDERER_VULKAN,
+		.buffer_type = CLIENT_BUFFER_TYPE_DMABUF,
+	},
+};
+
 static enum test_result_code
-fixture_setup(struct weston_test_harness *harness)
+fixture_setup(struct weston_test_harness *harness, const struct setup_args *arg)
 {
 	struct compositor_setup setup;
 
 	compositor_setup_defaults(&setup);
 	setup.backend = WESTON_BACKEND_DRM;
-	setup.renderer = WESTON_RENDERER_PIXMAN;
+	setup.renderer = arg->renderer;
 	setup.shell = SHELL_TEST_DESKTOP;
 	setup.logging_scopes = "log,drm-backend";
 
@@ -47,7 +71,7 @@ fixture_setup(struct weston_test_harness *harness)
 
 	return weston_test_harness_execute_as_client(harness, &setup);
 }
-DECLARE_FIXTURE_SETUP(fixture_setup);
+DECLARE_FIXTURE_SETUP_WITH_ARG(fixture_setup, my_setup_args, meta);
 
 static void
 draw_stuff(pixman_image_t *image)
@@ -79,7 +103,7 @@ draw_stuff(pixman_image_t *image)
 }
 
 TEST(drm_writeback_screenshot) {
-
+	const struct setup_args *args = &my_setup_args[get_test_fixture_index()];
 	struct client *client;
 	struct buffer *buffer;
 	struct buffer *buffer_for_second_screenshot;
@@ -116,7 +140,7 @@ TEST(drm_writeback_screenshot) {
 	testlog("Taking a screenshot\n");
 	screenshot = client_capture_output(client, client->output,
 					   WESTON_CAPTURE_V1_SOURCE_WRITEBACK,
-					   CLIENT_BUFFER_TYPE_SHM);
+					   args->buffer_type);
 	test_assert_ptr_not_null(screenshot);
 	buffer_destroy(screenshot);
 
@@ -135,7 +159,7 @@ TEST(drm_writeback_screenshot) {
 	testlog("Taking another screenshot\n");
 	second_screenshot = client_capture_output(client, client->output,
 						  WESTON_CAPTURE_V1_SOURCE_WRITEBACK,
-						  CLIENT_BUFFER_TYPE_SHM);
+						  args->buffer_type);
 	test_assert_ptr_not_null(screenshot);
 
 	/* load reference image */
@@ -151,6 +175,7 @@ TEST(drm_writeback_screenshot) {
 	clip.y = 100;
 	clip.width = 100;
 	clip.height = 100;
+	client_buffer_util_maybe_sync_dmabuf_start(second_screenshot->buf);
 	match = check_images_match(second_screenshot->image, reference, &clip, NULL);
 	testlog("Screenshot %s reference image\n", match? "equal to" : "different from");
 	if (!match) {
@@ -160,6 +185,7 @@ TEST(drm_writeback_screenshot) {
 		pixman_image_unref(diffimg);
 		free(fname);
 	}
+	client_buffer_util_maybe_sync_dmabuf_end(second_screenshot->buf);
 
 	pixman_image_unref(reference);
 	buffer_destroy(second_screenshot);
