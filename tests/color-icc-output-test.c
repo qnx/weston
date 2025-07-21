@@ -105,10 +105,6 @@ struct setup_args {
 	 * Tolerance depends more on the 1D LUT used for the
 	 * inv EOTF than the tested 3D LUT size:
 	 * 9x9x9, 17x17x17, 33x33x33, 127x127x127
-	 *
-	 * TODO: when we add power-law in the curve enumeration
-	 * in GL-renderer, then we should fix the tolerance
-	 * as the error should reduce a lot.
 	 */
 	float max_tol;
 
