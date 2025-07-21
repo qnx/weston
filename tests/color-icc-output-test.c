@@ -100,6 +100,12 @@ struct setup_args {
 
 	/**
 	 * Two-norm color error tolerance in units of 1.0/255, computed in
+	 * output electrical space, of the average error in the whole strip.
+	 */
+	float avg_tol;
+
+	/**
+	 * Two-norm color error tolerance in units of 1.0/255, computed in
 	 * output electrical space, of the maximum error in the whole strip.
 	 *
 	 * Tolerance depends more on the 1D LUT used for the
@@ -129,6 +135,7 @@ static const struct setup_args my_setup_args[] = {
 		.meta = { "sRGB->sRGB MAT" },
 		.ref_image_index = 0,
 		.pipeline = &pipeline_sRGB,
+		.avg_tol = 0.0,
 		.max_tol = 0.0,
 		.dim_size = 0,
 		.type = PTYPE_MATRIX_SHAPER,
@@ -137,6 +144,7 @@ static const struct setup_args my_setup_args[] = {
 		.meta = { "sRGB->sRGB MAT VCGT" },
 		.ref_image_index = 3,
 		.pipeline = &pipeline_sRGB,
+		.avg_tol = 0.34,
 		.max_tol = 0.9,
 		.dim_size = 0,
 		.type = PTYPE_MATRIX_SHAPER,
@@ -146,6 +154,7 @@ static const struct setup_args my_setup_args[] = {
 		.meta = { "sRGB->adobeRGB MAT" },
 		.ref_image_index = 1,
 		.pipeline = &pipeline_adobeRGB,
+		.avg_tol = 0.46,
 		.max_tol = 1.6,
 		.dim_size = 0,
 		.type = PTYPE_MATRIX_SHAPER,
@@ -154,6 +163,7 @@ static const struct setup_args my_setup_args[] = {
 		.meta = { "sRGB->adobeRGB MAT VCGT" },
 		.ref_image_index = 4,
 		.pipeline = &pipeline_adobeRGB,
+		.avg_tol = 0.46,
 		.max_tol = 1.0,
 		.dim_size = 0,
 		.type = PTYPE_MATRIX_SHAPER,
@@ -163,6 +173,7 @@ static const struct setup_args my_setup_args[] = {
 		.meta = { "sRGB->BT2020 MAT" },
 		.ref_image_index = 2,
 		.pipeline = &pipeline_BT2020,
+		.avg_tol = 0.47,
 		.max_tol = 0.9,
 		.dim_size = 0,
 		.type = PTYPE_MATRIX_SHAPER,
@@ -171,6 +182,7 @@ static const struct setup_args my_setup_args[] = {
 		.meta = { "sRGB->sRGB CLUT" },
 		.ref_image_index = 0,
 		.pipeline = &pipeline_sRGB,
+		.avg_tol = 1.06,
 		.max_tol = 1.8,
 		.dim_size = 17,
 		.type = PTYPE_CLUT,
@@ -180,6 +192,7 @@ static const struct setup_args my_setup_args[] = {
 		.meta = { "sRGB->sRGB CLUT VCGT" },
 		.ref_image_index = 3,
 		.pipeline = &pipeline_sRGB,
+		.avg_tol = 0.72,
 		.max_tol = 1.3,
 		.dim_size = 17,
 		.type = PTYPE_CLUT,
@@ -190,6 +203,7 @@ static const struct setup_args my_setup_args[] = {
 		.meta = { "sRGB->adobeRGB CLUT" },
 		.ref_image_index = 1,
 		.pipeline = &pipeline_adobeRGB,
+		.avg_tol = 0.51,
 		.max_tol = 1.8,
 		.dim_size = 17,
 		.type = PTYPE_CLUT,
@@ -199,6 +213,7 @@ static const struct setup_args my_setup_args[] = {
 		.meta = { "sRGB->adobeRGB CLUT VCGT" },
 		.ref_image_index = 4,
 		.pipeline = &pipeline_adobeRGB,
+		.avg_tol = 0.52,
 		.max_tol = 1.1,
 		.dim_size = 17,
 		.type = PTYPE_CLUT,
@@ -406,6 +421,8 @@ process_pipeline_comparison(const struct buffer *src_buf,
 	struct color_float pix_src_pipeline;
 	struct color_float pix_shot;
 	struct rgb_diff_stat diffstat = { .dump = dump };
+	float avg_err;
+	float max_err;
 	bool ok;
 
 	/* no point to compare different images */
@@ -432,12 +449,13 @@ process_pipeline_comparison(const struct buffer *src_buf,
 		}
 	}
 
-	ok = diffstat.two_norm.max <= arg->max_tol / 255.0f;
+	avg_err = diffstat.two_norm.sum / diffstat.two_norm.count * 255.0f;
+	max_err = diffstat.two_norm.max * 255.0f;
+	ok = max_err <= arg->max_tol && avg_err <= arg->avg_tol;
 
-	testlog("%s %s %s tolerance %f %s\n", __func__,
-		ok ? "SUCCESS" : "FAILURE",
-		arg->meta.name, arg->max_tol,
-		arg->type == PTYPE_MATRIX_SHAPER ? "matrix-shaper" : "cLUT");
+	testlog("%s %s %s tolerances avg: %.2f <= %.2f, max: %.2f <= %.2f\n",
+		__func__, ok ? "SUCCESS" : "FAILURE", arg->meta.name,
+		avg_err, arg->avg_tol, max_err, arg->max_tol);
 
 	rgb_diff_stat_print(&diffstat, __func__, 8);
 
