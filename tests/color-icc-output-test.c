@@ -100,7 +100,7 @@ struct setup_args {
 
 	/**
 	 * Two-norm color error tolerance in units of 1.0/255, computed in
-	 * output electrical space.
+	 * output electrical space, of the maximum error in the whole strip.
 	 *
 	 * Tolerance depends more on the 1D LUT used for the
 	 * inv EOTF than the tested 3D LUT size:
@@ -110,7 +110,7 @@ struct setup_args {
 	 * in GL-renderer, then we should fix the tolerance
 	 * as the error should reduce a lot.
 	 */
-	float tolerance;
+	float max_tol;
 
 	/**
 	 * 3DLUT dimension size
@@ -129,7 +129,7 @@ struct setup_args {
 };
 
 static const struct setup_args my_setup_args[] = {
-	/* name,                    ref img, pipeline,     tolerance, dim, profile type, clut tolerance, vcgt_exponents */
+	/* name,                    ref img, pipeline,       max_tol, dim, profile type, clut tolerance, vcgt_exponents */
 	{ { "sRGB->sRGB MAT" },           0, &pipeline_sRGB,     0.0,  0, PTYPE_MATRIX_SHAPER },
 	{ { "sRGB->sRGB MAT VCGT" },      3, &pipeline_sRGB,     0.9,  0, PTYPE_MATRIX_SHAPER, 0.0000,   {1.1, 1.2, 1.3} },
 	{ { "sRGB->adobeRGB MAT" },       1, &pipeline_adobeRGB, 1.6,  0, PTYPE_MATRIX_SHAPER },
@@ -366,11 +366,11 @@ process_pipeline_comparison(const struct buffer *src_buf,
 		}
 	}
 
-	ok = diffstat.two_norm.max <= arg->tolerance / 255.0f;
+	ok = diffstat.two_norm.max <= arg->max_tol / 255.0f;
 
 	testlog("%s %s %s tolerance %f %s\n", __func__,
 		ok ? "SUCCESS" : "FAILURE",
-		arg->meta.name, arg->tolerance,
+		arg->meta.name, arg->max_tol,
 		arg->type == PTYPE_MATRIX_SHAPER ? "matrix-shaper" : "cLUT");
 
 	rgb_diff_stat_print(&diffstat, __func__, 8);
