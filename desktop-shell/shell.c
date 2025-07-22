@@ -4575,6 +4575,12 @@ handle_output_move_layer(struct desktop_shell *shell,
 		if (view->output != output)
 			continue;
 
+		/* We can't simply reposition popups and such, they must move with
+		 * the parent.
+		 */
+		if (view->geometry.parent)
+			continue;
+
 		pos = weston_coord_global_add(
 		      weston_view_get_pos_offset_global(view),
 		      output->move);
