@@ -3755,7 +3755,7 @@ output_assign_planes(struct weston_output *output)
 }
 
 static int
-weston_output_repaint(struct weston_output *output, struct timespec *now)
+weston_output_repaint(struct weston_output *output)
 {
 	WESTON_TRACE_FUNC();
 	struct weston_compositor *ec = output->compositor;
@@ -3884,10 +3884,8 @@ weston_output_repaint(struct weston_output *output, struct timespec *now)
 
 	/* If repaint fails, we aren't going to get weston_output_finish_frame
 	 * to trigger a new repaint, so drop it from repaint and hope
-	 * something schedules a successful repaint later. As repainting may
-	 * take some time, re-read our clock as a courtesy to the next
-	 * output. */
-	weston_compositor_read_presentation_clock(ec, now);
+	 * something schedules a successful repaint later.
+	 */
 	if (r != 0)
 		weston_output_schedule_repaint_reset(output);
 
@@ -4123,7 +4121,7 @@ output_repaint_timer_handler(void *data)
 			if (!output->will_repaint)
 				continue;
 
-			ret = weston_output_repaint(output, &now);
+			ret = weston_output_repaint(output);
 			if (ret)
 				break;
 		}
