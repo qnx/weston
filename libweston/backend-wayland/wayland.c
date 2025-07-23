@@ -98,7 +98,6 @@ struct wayland_backend {
 	bool fullscreen;
 
 	struct theme *theme;
-	cairo_device_t *frame_device;
 	struct wl_cursor_theme *cursor_theme;
 	struct wl_cursor *cursor;
 
@@ -2724,9 +2723,6 @@ wayland_destroy(struct weston_backend *backend)
 	if (b->theme)
 		theme_destroy(b->theme);
 
-	if (b->frame_device)
-		cairo_device_destroy(b->frame_device);
-
 	wl_cursor_theme_destroy(b->cursor_theme);
 
 	free(b->formats);
@@ -2930,8 +2926,6 @@ wayland_backend_destroy(struct wayland_backend *b)
 
 	if (b->theme)
 		theme_destroy(b->theme);
-	if (b->frame_device)
-		cairo_device_destroy(b->frame_device);
 	wl_cursor_theme_destroy(b->cursor_theme);
 
 	wl_list_remove(&b->base.link);
