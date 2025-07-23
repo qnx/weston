@@ -36,9 +36,6 @@
 #include <wayland-util.h>
 
 void
-surface_flush_device(cairo_surface_t *surface);
-
-void
 render_shadow(cairo_t *cr, cairo_surface_t *surface,
 	      int x, int y, int width, int height, int margin, int top_margin);
 

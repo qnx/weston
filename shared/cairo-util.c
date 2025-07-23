@@ -45,16 +45,6 @@
 #include <pango/pangocairo.h>
 #endif
 
-void
-surface_flush_device(cairo_surface_t *surface)
-{
-	cairo_device_t *device;
-
-	device = cairo_surface_get_device(surface);
-	if (device)
-		cairo_device_flush(device);
-}
-
 static int
 blur_surface(cairo_surface_t *surface, int margin)
 {
