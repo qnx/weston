@@ -1425,6 +1425,8 @@ struct weston_compositor {
 	/* if set use this placeholder-color to use instead of the default
 	 * grenadier one */
 	uint32_t placeholder_color;
+
+	bool no_xwm_decorations;
 };
 
 struct weston_solid_buffer_values {

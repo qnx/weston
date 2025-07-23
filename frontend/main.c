@@ -721,6 +721,7 @@ usage(int error_code)
 		"  -i, --idle-time=SECS\tIdle time in seconds\n"
 #if defined(BUILD_XWAYLAND)
 		"  --xwayland\t\tLoad the xwayland module\n"
+		"  --no-xwm-decorations\tDisable Xwayland window decor\n"
 #endif
 		"  --modules\t\tLoad the comma-separated list of modules\n"
 		"  --log=FILE\t\tLog to the given file\n"
@@ -4532,6 +4533,7 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 	char *renderer = NULL;
 	char *shell = NULL;
 	bool xwayland = false;
+	bool no_xwm_decorations = false;
 	char *modules = NULL;
 	char *option_modules = NULL;
 	char *log = NULL;
@@ -4574,6 +4576,7 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 		{ WESTON_OPTION_INTEGER, "idle-time", 'i', &idle_time },
 #if defined(BUILD_XWAYLAND)
 		{ WESTON_OPTION_BOOLEAN, "xwayland", 0, &xwayland },
+		{ WESTON_OPTION_BOOLEAN, "no-xwm-decorations", 0, &no_xwm_decorations },
 #endif
 		{ WESTON_OPTION_STRING, "modules", 0, &option_modules },
 		{ WESTON_OPTION_STRING, "log", 0, &log },
@@ -4847,6 +4850,7 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 		if (!wet_xwl)
 			goto out;
 	}
+	wet.compositor->no_xwm_decorations = no_xwm_decorations;
 
 	weston_config_section_get_string(section, "modules", &modules, "");
 	if (load_modules(wet.compositor, modules, &argc, argv) < 0)

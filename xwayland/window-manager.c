@@ -663,7 +663,14 @@ static void
 weston_wm_window_get_frame_size(struct weston_wm_window *window,
 				int *width, int *height)
 {
+	struct weston_compositor *comp = window->wm->server->compositor;
 	struct theme *t = window->wm->theme;
+
+	if (comp->no_xwm_decorations) {
+		*width = window->width;
+		*height = window->height;
+		return;
+	}
 
 	if (window->fullscreen) {
 		*width = window->width;
@@ -681,7 +688,14 @@ static void
 weston_wm_window_get_child_position(struct weston_wm_window *window,
 				    int *x, int *y)
 {
+	struct weston_compositor *comp = window->wm->server->compositor;
 	struct theme *t = window->wm->theme;
+
+	if (comp->no_xwm_decorations) {
+		*x = 0;
+		*y = 0;
+		return;
+	}
 
 	if (window->fullscreen) {
 		*x = 0;
@@ -1096,6 +1110,9 @@ weston_wm_window_set_net_frame_extents(struct weston_wm_window *window)
 	uint32_t property[4];
 	int top = 0, bottom = 0, left = 0, right = 0;
 
+	if (!window->frame)
+		return;
+
 	if (!window->fullscreen)
 		frame_decoration_sizes(window->frame, &top, &bottom, &left, &right);
 
@@ -1149,6 +1166,7 @@ static void
 weston_wm_window_create_frame(struct weston_wm_window *window)
 {
 	struct weston_wm *wm = window->wm;
+	struct weston_compositor *comp = wm->server->compositor;
 	uint32_t values[3];
 	int x, y, width, height;
 	int buttons = FRAME_BUTTON_CLOSE;
@@ -1159,14 +1177,19 @@ weston_wm_window_create_frame(struct weston_wm_window *window)
 	if (window->decorate & MWM_DECOR_MINIMIZE)
 		buttons |= FRAME_BUTTON_MINIMIZE;
 
-	window->frame = frame_create(window->wm->theme,
-				     window->width, window->height,
-				     buttons, window->name, NULL);
+	window->frame = NULL;
 
-	if (!window->frame)
-		return;
+	if (!comp->no_xwm_decorations) {
+		window->frame = frame_create(window->wm->theme,
+					     window->width, window->height,
+					     buttons, window->name, NULL);
 
-	frame_resize_inside(window->frame, window->width, window->height);
+		if (!window->frame)
+			return;
+	}
+
+	if (window->frame)
+		frame_resize_inside(window->frame, window->width, window->height);
 
 	weston_wm_window_get_frame_size(window, &width, &height);
 	weston_wm_window_get_child_position(window, &x, &y);
@@ -1204,13 +1227,14 @@ weston_wm_window_create_frame(struct weston_wm_window *window)
 	weston_wm_configure_window(wm, window->id,
 				   XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
 
-	window->cairo_surface =
-		cairo_xcb_surface_create_with_xrender_format(wm->conn,
-							     wm->screen,
-							     window->frame_id,
-							     &wm->format_rgba,
-							     width, height);
-
+	window->cairo_surface = NULL;
+	if (!comp->no_xwm_decorations)
+		window->cairo_surface =
+			cairo_xcb_surface_create_with_xrender_format(wm->conn,
+								     wm->screen,
+								     window->frame_id,
+								     &wm->format_rgba,
+								     width, height);
 	hash_table_insert(wm->window_hash, window->frame_id, window);
 	weston_wm_window_send_configure_notify(window);
 }
@@ -1369,6 +1393,9 @@ weston_wm_window_draw_decoration(struct weston_wm_window *window)
 	int width, height;
 	const char *how;
 
+	if (!window->frame)
+		return;
+
 	weston_wm_window_get_frame_size(window, &width, &height);
 
 	cairo_xcb_surface_set_size(window->cairo_surface, width, height);
@@ -1426,7 +1453,7 @@ weston_wm_window_set_pending_state(struct weston_wm_window *window)
 					  window->height + 2);
 	}
 
-	if (window->decorate && !window->fullscreen) {
+	if (window->decorate && !window->fullscreen && window->frame) {
 		frame_input_rect(window->frame, &input_x, &input_y,
 				 &input_w, &input_h);
 	} else {
@@ -2282,7 +2309,7 @@ weston_wm_handle_button(struct weston_wm *wm, xcb_generic_event_t *event)
 		  "PRESS" : "RELEASE", button->detail);
 
 	if (!wm_lookup_window(wm, button->event, &window) ||
-	    !window->decorate)
+	    !window->decorate || !window->frame)
 		return;
 
 	if (button->detail != 1 && button->detail != 2)
@@ -2380,7 +2407,7 @@ weston_wm_handle_motion(struct weston_wm *wm, xcb_generic_event_t *event)
 	int cursor;
 
 	if (!wm_lookup_window(wm, motion->event, &window) ||
-	    !window->decorate)
+	    !window->decorate || !window->frame)
 		return;
 
 	location = frame_pointer_motion(window->frame, NULL,
@@ -2401,7 +2428,7 @@ weston_wm_handle_enter(struct weston_wm *wm, xcb_generic_event_t *event)
 	int cursor;
 
 	if (!wm_lookup_window(wm, enter->event, &window) ||
-	    !window->decorate)
+	    !window->decorate || !window->frame)
 		return;
 
 	location = frame_pointer_enter(window->frame, NULL,
@@ -2420,7 +2447,7 @@ weston_wm_handle_leave(struct weston_wm *wm, xcb_generic_event_t *event)
 	struct weston_wm_window *window;
 
 	if (!wm_lookup_window(wm, leave->event, &window) ||
-	    !window->decorate)
+	    !window->decorate || !window->frame)
 		return;
 
 	frame_pointer_leave(window->frame, NULL);
