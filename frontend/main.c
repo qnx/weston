@@ -3044,12 +3044,18 @@ drm_process_layoutputs(struct wet_compositor *wet)
 	}
 
 	if (wet->require_outputs == REQUIRE_OUTPUTS_ALL_FOUND &&
-	    failed_layoutputs > 0)
+	    failed_layoutputs > 0) {
+		weston_log("Error: Could not enable all found outputs\n");
 		return -1;
+	}
 	if (wet->require_outputs == REQUIRE_OUTPUTS_ANY &&
-	    failed_layoutputs == wl_list_length(&wet->layoutput_list))
+	    failed_layoutputs == wl_list_length(&wet->layoutput_list)) {
+		weston_log("Error: Could not enable any output\n");
 		return -1;
+	}
 
+	weston_log("Warning: No output enabled, but none required "
+		   "as per configuration\n");
 	return 0;
 }
 
