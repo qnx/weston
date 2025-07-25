@@ -832,6 +832,12 @@ drm_fb_get_from_paint_node(struct drm_output_state *state,
 extern bool
 drm_can_scanout_dmabuf(struct weston_backend *backend,
 		       struct linux_dmabuf_buffer *dmabuf);
+
+struct drm_fb *
+drm_fb_get_from_dmabuf_attributes(struct dmabuf_attributes *attributes,
+				  struct drm_device *device, bool is_opaque,
+				  bool direct_display,
+				  uint32_t *try_view_on_plane_failure_reasons);
 #else
 static inline struct drm_fb *
 drm_fb_get_from_paint_node(struct drm_output_state *state,

@@ -398,20 +398,21 @@ drm_fb_destroy_dmabuf(struct drm_fb *fb)
 	drm_fb_destroy(fb);
 }
 
-static struct drm_fb *
-drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf,
-		       struct drm_device *device, bool is_opaque,
-		       uint32_t *try_view_on_plane_failure_reasons)
+struct drm_fb *
+drm_fb_get_from_dmabuf_attributes(struct dmabuf_attributes *attributes,
+				  struct drm_device *device, bool is_opaque,
+				  bool direct_display,
+				  uint32_t *try_view_on_plane_failure_reasons)
 {
 	struct drm_backend *backend = device->backend;
 	struct drm_fb *fb;
 	int i;
 	struct gbm_import_fd_modifier_data import_mod = {
-		.width = dmabuf->attributes.width,
-		.height = dmabuf->attributes.height,
-		.format = dmabuf->attributes.format,
-		.num_fds = dmabuf->attributes.n_planes,
-		.modifier = dmabuf->attributes.modifier,
+		.width = attributes->width,
+		.height = attributes->height,
+		.format = attributes->format,
+		.num_fds = attributes->n_planes,
+		.modifier = attributes->modifier,
 	};
 
 	/* We should not import to KMS a buffer that has been allocated using no
@@ -421,7 +422,7 @@ drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf,
 	 * KMS driver can't know. So giving the buffer to KMS is not safe, as
 	 * not knowing its layout can result in garbage being displayed. In
 	 * short, importing a buffer to KMS requires explicit modifiers. */
-	if (dmabuf->attributes.modifier == DRM_FORMAT_MOD_INVALID) {
+	if (attributes->modifier == DRM_FORMAT_MOD_INVALID) {
 		if (try_view_on_plane_failure_reasons)
 			*try_view_on_plane_failure_reasons |=
 				FAILURE_REASONS_DMABUF_MODIFIER_INVALID;
@@ -437,7 +438,7 @@ drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf,
 	 * these types of buffers should be handled through buffer
 	 * transforms and not as spot-checks requiring specific
 	 * knowledge. */
-	if (dmabuf->attributes.flags)
+	if (attributes->flags)
 		return NULL;
 
 	fb = zalloc(sizeof *fb);
@@ -448,17 +449,17 @@ drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf,
 	fb->type = BUFFER_DMABUF;
 	fb->backend = device->backend;
 
-	ARRAY_COPY(import_mod.fds, dmabuf->attributes.fd);
-	ARRAY_COPY(import_mod.strides, dmabuf->attributes.stride);
-	ARRAY_COPY(import_mod.offsets, dmabuf->attributes.offset);
+	ARRAY_COPY(import_mod.fds, attributes->fd);
+	ARRAY_COPY(import_mod.strides, attributes->stride);
+	ARRAY_COPY(import_mod.offsets, attributes->offset);
 
 	/* skip bo import if dmabuf is using direct-display extension */
-	if (dmabuf->direct_display) {
+	if (direct_display) {
 		fb->direct_display = true;
-		/* we're making a dup of the fds from dmabuf->attributes.fd as
+		/* we're making a dup of the fds from attributes->fd as
 		 * opposed to just copying the fds with ARRAY_COPY() */
-		for (i = 0; i < dmabuf->attributes.n_planes; i++) {
-			fb->fds[i] = dup(dmabuf->attributes.fd[i]);
+		for (i = 0; i < attributes->n_planes; i++) {
+			fb->fds[i] = dup(attributes->fd[i]);
 			if (fb->fds[i] == -1) {
 				weston_log("failed to dup dmabuf attribute fd: %s\n",
 					   strerror(errno));
@@ -480,19 +481,19 @@ drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf,
 	}
 
 bo_import_skip:
-	fb->width = dmabuf->attributes.width;
-	fb->height = dmabuf->attributes.height;
-	fb->modifier = dmabuf->attributes.modifier;
+	fb->width = attributes->width;
+	fb->height = attributes->height;
+	fb->modifier = attributes->modifier;
 	fb->size = 0;
 	fb->fd = device->drm.fd;
 
-	ARRAY_COPY(fb->strides, dmabuf->attributes.stride);
-	ARRAY_COPY(fb->offsets, dmabuf->attributes.offset);
+	ARRAY_COPY(fb->strides, attributes->stride);
+	ARRAY_COPY(fb->offsets, attributes->offset);
 
-	fb->format = pixel_format_get_info(dmabuf->attributes.format);
+	fb->format = pixel_format_get_info(attributes->format);
 	if (!fb->format) {
 		weston_log("couldn't look up format info for 0x%lx\n",
-			   (unsigned long) dmabuf->attributes.format);
+			   (unsigned long) attributes->format);
 		goto err_free;
 	}
 
@@ -507,8 +508,8 @@ bo_import_skip:
 		goto err_free;
 	}
 
-	fb->num_planes = dmabuf->attributes.n_planes;
-	for (i = 0; fb->bo && i < dmabuf->attributes.n_planes; i++) {
+	fb->num_planes = attributes->n_planes;
+	for (i = 0; fb->bo && i < attributes->n_planes; i++) {
 		union gbm_bo_handle handle;
 
 	        handle = gbm_bo_get_handle_for_plane(fb->bo, i);
@@ -532,6 +533,17 @@ bo_import_skip:
 err_free:
 	drm_fb_destroy_dmabuf(fb);
 	return NULL;
+}
+
+static struct drm_fb *
+drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf,
+		       struct drm_device *device, bool is_opaque,
+		       uint32_t *try_view_on_plane_failure_reasons)
+{
+	return drm_fb_get_from_dmabuf_attributes(&dmabuf->attributes,
+						 device, is_opaque,
+						 dmabuf->direct_display,
+						 try_view_on_plane_failure_reasons);
 }
 
 struct drm_fb *
