@@ -276,7 +276,6 @@ enum drm_fb_type {
 	BUFFER_PIXMAN_DUMB, /**< internal Pixman rendering */
 	BUFFER_GBM_SURFACE, /**< internal EGL rendering */
 	BUFFER_CURSOR, /**< internal cursor buffer */
-	BUFFER_GBM_BO, /**< internal Vulkan rendering */
 };
 
 struct drm_fb {
@@ -574,8 +573,7 @@ struct drm_output {
 	int current_cursor;
 
 	struct gbm_surface *gbm_surface;
-	struct gbm_bo *gbm_bos[2];
-	int current_bo;
+	struct linux_dmabuf_memory *linux_dmabuf_memory[2];
 	const struct pixel_format_info *format;
 	uint32_t gbm_bo_flags;
 

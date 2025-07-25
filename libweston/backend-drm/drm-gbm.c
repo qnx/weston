@@ -45,6 +45,7 @@
 #include "shared/weston-egl-ext.h"
 #include "linux-dmabuf.h"
 #include "linux-explicit-synchronization.h"
+#include "shared/xalloc.h"
 
 /* When initializing EGL, if the preferred buffer format isn't available
  * we may be able to substitute an ARGB format for an XRGB one.
@@ -92,7 +93,6 @@ drm_backend_create_vulkan_renderer(struct drm_backend *b)
 		fallback_format_for(b->format),
 	};
 	struct vulkan_renderer_display_options options = {
-		.gbm_device = b->gbm,
 		.formats = format,
 		.formats_count = 1,
 	};
@@ -544,14 +544,24 @@ drm_output_init_egl(struct drm_output *output, struct drm_backend *b)
 	return 0;
 }
 
-static void
-create_gbm_bos(struct gbm_device *gbm, struct drm_output *output, unsigned int n)
+static struct gbm_bo *
+drm_gbm_create_bo(struct gbm_device *gbm, struct drm_output *output)
 {
 	struct weston_mode *mode = output->base.current_mode;
 	struct drm_plane *plane = output->scanout_plane;
 	struct weston_drm_format *fmt;
 	const uint64_t *modifiers;
 	unsigned int num_modifiers;
+	struct gbm_bo *bo = NULL;
+
+	/*
+	 * TODO: Currently, this method allocates a buffer based on the list
+	 * of acceptable modifiers received from the DRM backend but does not
+	 * check it against formats renderable by the renderer.
+	 * To support cases where the renderer may not support the same
+	 * modifiers (e.g. Vulkan software renderer) it should match against
+	 * renderer modifiers.
+	 */
 
 	fmt = weston_drm_format_array_find_format(&plane->formats,
 						  output->format->format);
@@ -559,18 +569,14 @@ create_gbm_bos(struct gbm_device *gbm, struct drm_output *output, unsigned int n
 		weston_log("format %s not supported by output %s\n",
 			   output->format->drm_format_name,
 			   output->base.name);
-		return;
+		return NULL;
 	}
 
 	if (!weston_drm_format_has_modifier(fmt, DRM_FORMAT_MOD_INVALID)) {
 		modifiers = weston_drm_format_get_modifiers(fmt, &num_modifiers);
-		for (unsigned int i = 0; i < n; i++) {
-			output->gbm_bos[i] =
-				gbm_bo_create_with_modifiers(gbm,
-							     mode->width, mode->height,
-							     output->format->format,
-							     modifiers, num_modifiers);
-		}
+		bo = gbm_bo_create_with_modifiers(gbm, mode->width, mode->height,
+						  output->format->format,
+						  modifiers, num_modifiers);
 	}
 
 	/*
@@ -582,38 +588,96 @@ create_gbm_bos(struct gbm_device *gbm, struct drm_output *output, unsigned int n
 	if (gbm_device_get_fd(gbm) != output->device->drm.fd)
 		output->gbm_bo_flags |= GBM_BO_USE_LINEAR;
 
-	if (!output->gbm_bos[0]) {
-		for (unsigned int i = 0; i < n; i++) {
-			output->gbm_bos[i] = gbm_bo_create(gbm,
-							   mode->width, mode->height,
-							   output->format->format,
-							   output->gbm_bo_flags);
-		}
+	if (!bo) {
+		bo = gbm_bo_create(gbm, mode->width, mode->height,
+				   output->format->format, output->gbm_bo_flags);
 	}
+
+	return bo;
+}
+
+static void
+drm_gbm_dmabuf_destroy(struct linux_dmabuf_memory *dmabuf)
+{
+	struct dmabuf_attributes *attributes;
+
+	attributes = dmabuf->attributes;
+	for (int i = 0; i < attributes->n_planes; ++i)
+		close(attributes->fd[i]);
+	free(dmabuf->attributes);
+
+	free(dmabuf);
+}
+
+static struct linux_dmabuf_memory *
+drm_gbm_bo_get_dmabuf(struct gbm_device *gbm, struct drm_output *output, struct gbm_bo *bo)
+{
+	struct linux_dmabuf_memory *dmabuf;
+	struct dmabuf_attributes *attributes;
+
+	attributes = xzalloc(sizeof(*attributes));
+	attributes->width = gbm_bo_get_width(bo);
+	attributes->height = gbm_bo_get_height(bo);
+	attributes->format = gbm_bo_get_format(bo);
+	attributes->n_planes = gbm_bo_get_plane_count(bo);
+	for (int i = 0; i < attributes->n_planes; ++i) {
+		attributes->fd[i] = gbm_bo_get_fd(bo);
+		attributes->stride[i] = gbm_bo_get_stride_for_plane(bo, i);
+		attributes->offset[i] = gbm_bo_get_offset(bo, i);
+	}
+	attributes->modifier = gbm_bo_get_modifier(bo);
+
+	dmabuf = xzalloc(sizeof(*dmabuf));
+	dmabuf->attributes = attributes;
+	dmabuf->destroy = drm_gbm_dmabuf_destroy;
+
+	return dmabuf;
+}
+
+static void
+create_renderbuffers(struct gbm_device *gbm, struct drm_output *output, unsigned int n)
+{
+	struct weston_renderer *renderer = output->base.compositor->renderer;
 
 	struct drm_device *device = output->device;
 	for (unsigned int i = 0; i < n; i++) {
-		assert(output->gbm_bos[i]);
-		drm_fb_get_from_bo(output->gbm_bos[i], device, !output->format->opaque_substitute,
-				   BUFFER_GBM_BO);
-	}
+		struct linux_dmabuf_memory *dmabuf;
+		struct gbm_bo *bo;
 
-	assert(output->gbm_surface == NULL);
+		bo = drm_gbm_create_bo(gbm, output);
+		if (!bo) {
+			weston_log("failed to allocate bo\n");
+			return;
+		}
+
+		dmabuf = drm_gbm_bo_get_dmabuf(gbm, output, bo);
+		if (!dmabuf) {
+			weston_log("failed to allocate dmabuf\n");
+			return;
+		}
+
+		output->renderbuffer[i] =
+			renderer->create_renderbuffer_dmabuf(&output->base,
+							     dmabuf,
+							     NULL, NULL);
+		if (!output->renderbuffer[i]) {
+			weston_log("failed to allocate renderbuffer\n");
+			return;
+		}
+
+		drm_fb_get_from_dmabuf_attributes(dmabuf->attributes, device, true, false, NULL);
+
+		output->linux_dmabuf_memory[i] = dmabuf;
+	}
 }
 
-/* Init output state that depends on vulkan or gbm */
+/* Init output state that depends on vulkan */
 int
 drm_output_init_vulkan(struct drm_output *output, struct drm_backend *b)
 {
-	const struct weston_renderer *renderer = b->compositor->renderer;
 	const struct weston_mode *mode = output->base.current_mode;
-	const struct pixel_format_info *format[2] = {
-		output->format,
-		fallback_format_for(output->format),
-	};
-	struct vulkan_renderer_surface_options options = {
-		.formats = format,
-		.formats_count = 1,
+	struct weston_renderer *renderer = b->compositor->renderer;
+	const struct vulkan_renderer_surfaceless_options options = {
 		.area.x = 0,
 		.area.y = 0,
 		.area.width = mode->width,
@@ -622,37 +686,14 @@ drm_output_init_vulkan(struct drm_output *output, struct drm_backend *b)
 		.fb_size.height = mode->height,
 	};
 
-	assert(output->gbm_surface == NULL);
-
-	/*
-	 * TODO: This method for BO allocation needs to be reworked.
-	 * Currently, it allocates a buffer based on the list of acceptable
-	 * modifiers received from the DRM backend but does not check it
-	 * against formats renderable by the renderer (and there is no
-	 * straightforward way to do so yet).
-	 * Most likely this should be replaced by sending the acceptable
-	 * modifiers list from the DRM backend to the renderer and doing the
-	 * optimal dmabuf allocation in the renderer. But as of this writing,
-	 * this API for dmabuf allocation is not yet implemented in the
-	 * Vulkan renderer.
-	 */
-	create_gbm_bos(b->gbm, output, NUM_GBM_BOS);
-	if (!output->gbm_bos[0]) {
-		weston_log("failed to create gbm bos\n");
+	if (renderer->vulkan->output_surfaceless_create(&output->base, &options) < 0) {
+		weston_log("failed to create vulkan renderer output state\n");
 		return -1;
 	}
-	options.num_gbm_bos = NUM_GBM_BOS;
 
-	if (options.formats[1])
-		options.formats_count = 2;
-
-	for (unsigned int i = 0; i < options.num_gbm_bos; i++)
-		options.gbm_bos[i] = output->gbm_bos[i];
-
-	if (renderer->vulkan->output_surface_create(&output->base, &options) < 0) {
-		weston_log("failed to create vulkan renderer output state\n");
-		gbm_surface_destroy(output->gbm_surface);
-		output->gbm_surface = NULL;
+	create_renderbuffers(b->gbm, output, ARRAY_LENGTH(output->renderbuffer));
+	if (!output->linux_dmabuf_memory[0]) {
+		weston_log("failed to create dmabufs\n");
 		return -1;
 	}
 
@@ -687,18 +728,17 @@ drm_output_fini_vulkan(struct drm_output *output)
 	struct drm_backend *b = output->backend;
 	const struct weston_renderer *renderer = b->compositor->renderer;
 
-	/* Destroying the GBM surface will destroy all our GBM buffers,
-	 * regardless of refcount. Ensure we destroy them here. */
 	if (!b->compositor->shutting_down &&
 	    output->scanout_plane->state_cur->fb &&
-	    output->scanout_plane->state_cur->fb->type == BUFFER_GBM_BO) {
+	    output->scanout_plane->state_cur->fb->type == BUFFER_DMABUF) {
 		drm_plane_reset_state(output->scanout_plane);
 	}
 
+	for (unsigned int i = 0; i < ARRAY_LENGTH(output->renderbuffer); i++)
+		renderer->destroy_renderbuffer(output->renderbuffer[i]);
+
 	renderer->vulkan->output_destroy(&output->base);
-	for (unsigned int i = 0; i < NUM_GBM_BOS; i++)
-		gbm_bo_destroy(output->gbm_bos[i]);
-	output->gbm_surface = NULL;
+
 	drm_output_fini_cursor_vulkan(output);
 }
 
@@ -739,30 +779,29 @@ drm_output_render_vulkan(struct drm_output_state *state, pixman_region32_t *dama
 {
 	struct drm_output *output = state->output;
 	struct drm_device *device = output->device;
-	struct gbm_bo *bo;
+	struct linux_dmabuf_memory *dmabuf;
 	struct drm_fb *ret;
 
 	output->base.compositor->renderer->repaint_output(&output->base,
-							  damage, NULL);
+							  damage,
+							  output->renderbuffer[output->current_image]);
 
-	bo = output->gbm_bos[output->current_bo];
-	if (!bo) {
-		weston_log("failed to get gbm_bo\n");
+	dmabuf = output->linux_dmabuf_memory[output->current_image];
+	if (!dmabuf) {
+		weston_log("failed to get dmabuf\n");
 		return NULL;
 	}
 
 	/* Output transparent/opaque image according to the format required by
 	 * the client. */
-	ret = drm_fb_get_from_bo(bo, device, !output->format->opaque_substitute,
-	                         BUFFER_GBM_BO);
+	ret = drm_fb_get_from_dmabuf_attributes(dmabuf->attributes, device,
+						!output->format->opaque_substitute, false, NULL);
 	if (!ret) {
-		weston_log("failed to get drm_fb for bo\n");
+		weston_log("failed to get drm_fb for dmabuf\n");
 		return NULL;
 	}
-	ret->bo = bo;
 
-	ret->gbm_surface = NULL;
-	output->current_bo = (output->current_bo + 1) % NUM_GBM_BOS;
+	output->current_image = (output->current_image + 1) % ARRAY_LENGTH(output->renderbuffer);
 
 	return ret;
 }

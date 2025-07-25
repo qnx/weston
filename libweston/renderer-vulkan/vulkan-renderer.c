@@ -91,25 +91,21 @@ struct vulkan_border_image {
 	void *fs_ubo_map;
 };
 
-struct vulkan_renderbuffer_dmabuf {
-	struct vulkan_renderer *vr;
-	struct linux_dmabuf_memory *memory;
-};
-
 struct vulkan_renderbuffer {
 	struct weston_output *output;
 	pixman_region32_t damage;
 	enum vulkan_border_status border_status;
 	bool stale;
 
-	struct vulkan_renderbuffer_dmabuf dmabuf;
+	/* Used by dmabuf renderbuffers */
+	struct linux_dmabuf_memory *dmabuf;
 
 	void *buffer;
 	int stride;
 	weston_renderbuffer_discarded_func discarded_cb;
 	void *user_data;
 
-	/* Unused by drm and swapchain outputs */
+	/* Unused by swapchain outputs */
 	struct vulkan_renderer_image *image;
 
 	struct wl_list link;
@@ -123,8 +119,6 @@ struct vulkan_renderer_image {
 
 	VkSemaphore render_done;
 	struct vulkan_renderbuffer *renderbuffer;
-	struct gbm_bo *bo;
-
 };
 
 struct vulkan_renderer_frame_acquire_fence {
@@ -165,7 +159,6 @@ struct vulkan_renderer_frame {
 
 enum vulkan_output_type {
 	VULKAN_OUTPUT_HEADLESS,
-	VULKAN_OUTPUT_DRM,
 	VULKAN_OUTPUT_SWAPCHAIN,
 };
 
@@ -189,11 +182,8 @@ struct vulkan_output_state {
 		VkPresentModeKHR present_mode;
 		VkSurfaceKHR surface;
 	} swapchain;
-	struct {
-		uint32_t image_index;
-	} drm;
 
-	/* For drm and swapchain outputs only */
+	/* For swapchain outputs only */
 	uint32_t image_count;
 	struct vulkan_renderer_image images[MAX_NUM_IMAGES];
 
@@ -607,8 +597,8 @@ vulkan_renderer_destroy_renderbuffer(weston_renderbuffer_t weston_renderbuffer)
 		free(rb->image);
 	}
 
-	if (rb->dmabuf.memory)
-		rb->dmabuf.memory->destroy(rb->dmabuf.memory);
+	if (rb->dmabuf)
+		rb->dmabuf->destroy(rb->dmabuf);
 
 	free(rb);
 }
@@ -2473,10 +2463,6 @@ vulkan_renderer_repaint_output(struct weston_output *output,
 		rb = renderbuffer;
 		im = rb->image;
 		break;
-	case VULKAN_OUTPUT_DRM:
-		im = &vo->images[vo->drm.image_index];
-		rb = im->renderbuffer;
-		break;
 	default:
 		abort();
 	}
@@ -2495,7 +2481,7 @@ vulkan_renderer_repaint_output(struct weston_output *output,
 	result = vkBeginCommandBuffer(cmd_buffer, &begin_info);
 	check_vk_success(result, "vkBeginCommandBuffer");
 
-	if (vo->output_type == VULKAN_OUTPUT_DRM) {
+	if (rb->dmabuf) {
 		// Transfer ownership of the dmabuf to Vulkan
 		assert(vulkan_device_has(vr, EXTENSION_EXT_QUEUE_FAMILY_FOREIGN));
 		transfer_image_queue_family(cmd_buffer, im->image,
@@ -2538,7 +2524,7 @@ vulkan_renderer_repaint_output(struct weston_output *output,
 
 	vkCmdEndRenderPass(cmd_buffer);
 
-	if (vo->output_type == VULKAN_OUTPUT_DRM) {
+	if (rb->dmabuf) {
 		// Transfer ownership of the dmabuf to DRM
 		assert(vulkan_device_has(vr, EXTENSION_EXT_QUEUE_FAMILY_FOREIGN));
 		transfer_image_queue_family(cmd_buffer, im->image,
@@ -2674,9 +2660,6 @@ vulkan_renderer_repaint_output(struct weston_output *output,
 	pixman_region32_clear(&rb->damage);
 
 	vo->frame_index = (vo->frame_index + 1) % vo->num_frames;
-
-	if (vo->output_type == VULKAN_OUTPUT_DRM)
-		vo->drm.image_index = (vo->drm.image_index + 1) % vo->image_count;
 }
 
 static void
@@ -3444,57 +3427,6 @@ create_dmabuf_image(struct vulkan_renderer *vr,
 }
 
 static int
-vulkan_renderer_output_window_create_gbm(struct weston_output *output,
-					 const struct vulkan_renderer_surface_options *options)
-{
-	struct weston_compositor *ec = output->compositor;
-	struct vulkan_output_state *vo = get_output_state(output);
-	struct vulkan_renderer *vr = get_renderer(ec);
-	const struct pixel_format_info *pixel_format = vo->pixel_format;
-	const VkFormat format = pixel_format->vulkan_format;
-
-	vo->image_count = options->num_gbm_bos;
-
-	for (uint32_t i = 0; i < vo->image_count; i++) {
-		struct vulkan_renderer_image *im = &vo->images[i];
-		struct gbm_bo *bo = options->gbm_bos[i];
-
-		im->bo = bo;
-
-		struct dmabuf_attributes attributes;
-		attributes.fd[0] = gbm_bo_get_fd(bo);
-		attributes.width = gbm_bo_get_width(bo);
-		attributes.height = gbm_bo_get_height(bo);
-		attributes.modifier = gbm_bo_get_modifier(bo);
-		attributes.n_planes = gbm_bo_get_plane_count(bo);
-		attributes.format = pixel_format->format;
-
-		for (int i = 0; i < attributes.n_planes; i++) {
-			attributes.offset[i] = gbm_bo_get_offset(bo, i);
-			attributes.stride[i] = gbm_bo_get_stride_for_plane(bo, i);
-		}
-
-		create_dmabuf_image(vr, &attributes,
-				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-				&im->image);
-
-		import_dmabuf(vr, im->image, &im->memory, &attributes);
-		close(attributes.fd[0]); /* fd is duped */
-
-		create_image_view(vr->dev, im->image, format, &im->image_view);
-		create_framebuffer(vr->dev, vo->renderpass, im->image_view,
-				   options->fb_size.width, options->fb_size.height, &im->framebuffer);
-
-		create_image_semaphores(vr, vo, im);
-
-		im->renderbuffer = xzalloc(sizeof(*im->renderbuffer));
-		vulkan_renderbuffer_init(im->renderbuffer, NULL, NULL, NULL, output);
-	}
-
-	return 0;
-}
-
-static int
 vulkan_renderer_output_window_create_swapchain(struct weston_output *output,
 					       const struct vulkan_renderer_surface_options *options)
 {
@@ -3689,21 +3621,11 @@ vulkan_renderer_output_surface_create(struct weston_output *output,
 	assert(ret == 0);
 
 	struct vulkan_output_state *vo = get_output_state(output);
-	if ((options->wayland_display && options->wayland_surface) ||
-	    (options->xcb_connection && options->xcb_window)) {
-		vo->output_type = VULKAN_OUTPUT_SWAPCHAIN;
-	} else {
-		vo->output_type = VULKAN_OUTPUT_DRM;
-	}
+	vo->output_type = VULKAN_OUTPUT_SWAPCHAIN;
 	vo->pixel_format = pixel_format;
 
-	if (vo->output_type == VULKAN_OUTPUT_SWAPCHAIN) {
-		create_renderpass(output, pixel_format->vulkan_format, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-		vulkan_renderer_output_window_create_swapchain(output, options);
-	} else {
-		create_renderpass(output, pixel_format->vulkan_format, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-		vulkan_renderer_output_window_create_gbm(output, options);
-	}
+	create_renderpass(output, pixel_format->vulkan_format, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+	vulkan_renderer_output_window_create_swapchain(output, options);
 
 	weston_output_update_capture_info(output,
 					  WESTON_OUTPUT_CAPTURE_SOURCE_FRAMEBUFFER,
@@ -3755,7 +3677,7 @@ vulkan_renderer_output_surfaceless_create(struct weston_output *output,
 					  fb_size->width, fb_size->height,
 					  output->compositor->read_format);
 
-	vulkan_renderer_create_output_frames(output, &options->fb_size, &options->area, 1);
+	vulkan_renderer_create_output_frames(output, fb_size, area, MAX_CONCURRENT_FRAMES);
 
 	return 0;
 }
@@ -3993,8 +3915,7 @@ vulkan_renderer_create_renderbuffer_dmabuf(struct weston_output *output,
 
 	vulkan_renderbuffer_init(renderbuffer, im, discarded_cb, user_data, output);
 
-	renderbuffer->dmabuf.vr = vr;
-	renderbuffer->dmabuf.memory = dmabuf;
+	renderbuffer->dmabuf = dmabuf;
 
 	return (weston_renderbuffer_t) renderbuffer;
 }

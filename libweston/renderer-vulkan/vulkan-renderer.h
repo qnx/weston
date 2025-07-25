@@ -50,15 +50,11 @@ typedef uint32_t xcb_window_t;
  */
 struct vulkan_renderer_display_options {
 	struct weston_renderer_options base;
-	void *gbm_device;
 	const struct pixel_format_info **formats;
 	unsigned formats_count;
 };
 
-#define NUM_GBM_BOS 2
-
 struct vulkan_renderer_surface_options {
-	struct gbm_bo *gbm_bos[NUM_GBM_BOS];
 	unsigned int num_gbm_bos;
 	struct weston_size fb_size;
 	struct weston_geometry area;
