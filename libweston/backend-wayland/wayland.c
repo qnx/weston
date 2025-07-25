@@ -814,7 +814,7 @@ wayland_output_init_vulkan_renderer(struct wayland_output *output)
 	const struct weston_mode *mode = output->base.current_mode;
 	struct wayland_backend *b = output->backend;
 	const struct weston_renderer *renderer;
-	struct vulkan_renderer_output_options options = {
+	struct vulkan_renderer_surface_options options = {
 		.formats = b->formats,
 		.formats_count = b->formats_count,
 	};
@@ -838,7 +838,7 @@ wayland_output_init_vulkan_renderer(struct wayland_output *output)
 
 	renderer = output->base.compositor->renderer;
 
-	if (renderer->vulkan->output_window_create(&output->base, &options) < 0)
+	if (renderer->vulkan->output_surface_create(&output->base, &options) < 0)
 		goto cleanup_window;
 
 	return 0;

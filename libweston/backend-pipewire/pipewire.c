@@ -366,12 +366,12 @@ pipewire_output_enable_vulkan(struct pipewire_output *output)
 		.width = fb_size.width,
 		.height = fb_size.height
 	};
-	const struct vulkan_renderer_fbo_options options = {
+	const struct vulkan_renderer_surfaceless_options options = {
 		.fb_size = fb_size,
 		.area = area,
 	};
 
-	return renderer->vulkan->output_fbo_create(&output->base, &options);
+	return renderer->vulkan->output_surfaceless_create(&output->base, &options);
 }
 
 static void

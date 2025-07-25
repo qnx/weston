@@ -3445,7 +3445,7 @@ create_dmabuf_image(struct vulkan_renderer *vr,
 
 static int
 vulkan_renderer_output_window_create_gbm(struct weston_output *output,
-					 const struct vulkan_renderer_output_options *options)
+					 const struct vulkan_renderer_surface_options *options)
 {
 	struct weston_compositor *ec = output->compositor;
 	struct vulkan_output_state *vo = get_output_state(output);
@@ -3496,7 +3496,7 @@ vulkan_renderer_output_window_create_gbm(struct weston_output *output,
 
 static int
 vulkan_renderer_output_window_create_swapchain(struct weston_output *output,
-					       const struct vulkan_renderer_output_options *options)
+					       const struct vulkan_renderer_surface_options *options)
 {
 	struct weston_compositor *ec = output->compositor;
 	struct vulkan_renderer *vr = get_renderer(ec);
@@ -3677,8 +3677,8 @@ create_renderpass(struct weston_output *output, VkFormat format, VkImageLayout a
 }
 
 static int
-vulkan_renderer_output_window_create(struct weston_output *output,
-				     const struct vulkan_renderer_output_options *options)
+vulkan_renderer_output_surface_create(struct weston_output *output,
+				      const struct vulkan_renderer_surface_options *options)
 {
 	int ret;
 	const struct weston_size *fb_size = &options->fb_size;
@@ -3721,8 +3721,8 @@ vulkan_renderer_output_window_create(struct weston_output *output,
 }
 
 static int
-vulkan_renderer_output_fbo_create(struct weston_output *output,
-				  const struct vulkan_renderer_fbo_options *options)
+vulkan_renderer_output_surfaceless_create(struct weston_output *output,
+					  const struct vulkan_renderer_surfaceless_options *options)
 {
 	/* TODO: a format is needed here because right now a renderpass object
 	 * is created per output.
@@ -4518,8 +4518,8 @@ vulkan_renderer_display_create(struct weston_compositor *ec,
 
 WL_EXPORT struct vulkan_renderer_interface vulkan_renderer_interface = {
 	.display_create = vulkan_renderer_display_create,
-	.output_window_create = vulkan_renderer_output_window_create,
-	.output_fbo_create = vulkan_renderer_output_fbo_create,
+	.output_surface_create = vulkan_renderer_output_surface_create,
+	.output_surfaceless_create = vulkan_renderer_output_surfaceless_create,
 	.output_destroy = vulkan_renderer_output_destroy,
 	.create_fence_fd = vulkan_renderer_create_fence_fd,
 };

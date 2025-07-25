@@ -846,7 +846,7 @@ vnc_output_enable(struct weston_output *base)
 		break;
 	}
 	case WESTON_RENDERER_VULKAN: {
-		const struct vulkan_renderer_fbo_options options = {
+		const struct vulkan_renderer_surfaceless_options options = {
 			.area = {
 				.width = output->base.current_mode->width,
 				.height = output->base.current_mode->height,
@@ -856,7 +856,7 @@ vnc_output_enable(struct weston_output *base)
 				.height = output->base.current_mode->height,
 			},
 		};
-		if (renderer->vulkan->output_fbo_create(&output->base, &options) < 0)
+		if (renderer->vulkan->output_surfaceless_create(&output->base, &options) < 0)
 			return -1;
 		break;
 	}

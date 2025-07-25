@@ -57,7 +57,7 @@ struct vulkan_renderer_display_options {
 
 #define NUM_GBM_BOS 2
 
-struct vulkan_renderer_output_options {
+struct vulkan_renderer_surface_options {
 	struct gbm_bo *gbm_bos[NUM_GBM_BOS];
 	unsigned int num_gbm_bos;
 	struct weston_size fb_size;
@@ -75,7 +75,7 @@ struct vulkan_renderer_output_options {
 	void *wayland_surface;
 };
 
-struct vulkan_renderer_fbo_options {
+struct vulkan_renderer_surfaceless_options {
 	/** Size of the framebuffer in pixels, including borders */
 	struct weston_size fb_size;
 	/** Area inside the framebuffer in pixels for composited content */
@@ -86,11 +86,11 @@ struct vulkan_renderer_interface {
 	int (*display_create)(struct weston_compositor *ec,
 			      const struct vulkan_renderer_display_options *options);
 
-	int (*output_window_create)(struct weston_output *output,
-				    const struct vulkan_renderer_output_options *options);
+	int (*output_surface_create)(struct weston_output *output,
+				     const struct vulkan_renderer_surface_options *options);
 
-	int (*output_fbo_create)(struct weston_output *output,
-				 const struct vulkan_renderer_fbo_options *options);
+	int (*output_surfaceless_create)(struct weston_output *output,
+					 const struct vulkan_renderer_surfaceless_options *options);
 
 	void (*output_destroy)(struct weston_output *output);
 

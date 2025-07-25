@@ -1151,7 +1151,7 @@ x11_output_enable(struct weston_output *base)
 		break;
 	}
 	case WESTON_RENDERER_VULKAN: {
-		struct vulkan_renderer_output_options options = {
+		struct vulkan_renderer_surface_options options = {
 			.formats = b->formats,
 			.formats_count = b->formats_count,
 			.area.x = 0,
@@ -1166,7 +1166,7 @@ x11_output_enable(struct weston_output *base)
 		options.xcb_visualid = screen->root_visual;
 		options.xcb_window = output->window;
 
-		ret = renderer->vulkan->output_window_create(base, &options);
+		ret = renderer->vulkan->output_surface_create(base, &options);
 		if (ret < 0)
 			goto err;
 

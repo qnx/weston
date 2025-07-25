@@ -611,7 +611,7 @@ drm_output_init_vulkan(struct drm_output *output, struct drm_backend *b)
 		output->format,
 		fallback_format_for(output->format),
 	};
-	struct vulkan_renderer_output_options options = {
+	struct vulkan_renderer_surface_options options = {
 		.formats = format,
 		.formats_count = 1,
 		.area.x = 0,
@@ -649,7 +649,7 @@ drm_output_init_vulkan(struct drm_output *output, struct drm_backend *b)
 	for (unsigned int i = 0; i < options.num_gbm_bos; i++)
 		options.gbm_bos[i] = output->gbm_bos[i];
 
-	if (renderer->vulkan->output_window_create(&output->base, &options) < 0) {
+	if (renderer->vulkan->output_surface_create(&output->base, &options) < 0) {
 		weston_log("failed to create vulkan renderer output state\n");
 		gbm_surface_destroy(output->gbm_surface);
 		output->gbm_surface = NULL;

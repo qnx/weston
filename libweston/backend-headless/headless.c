@@ -338,7 +338,7 @@ headless_output_enable_vulkan(struct headless_output *output)
 	struct headless_backend *b = output->backend;
 	const struct weston_renderer *renderer = b->compositor->renderer;
 	const struct weston_mode *mode = output->base.current_mode;
-	struct vulkan_renderer_fbo_options options = { 0 };
+	struct vulkan_renderer_surfaceless_options options = { 0 };
 
 	if (b->decorate) {
 		/*
@@ -366,7 +366,7 @@ headless_output_enable_vulkan(struct headless_output *output)
 		options.fb_size.height = mode->height;
 	}
 
-	if (renderer->vulkan->output_fbo_create(&output->base, &options) < 0) {
+	if (renderer->vulkan->output_surfaceless_create(&output->base, &options) < 0) {
 		weston_log("failed to create vulkan renderer output state\n");
 		if (output->frame) {
 			frame_destroy(output->frame);
