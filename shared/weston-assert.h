@@ -75,6 +75,8 @@ weston_assert_fail_(const struct weston_compositor *compositor, const char *fmt,
 	cond;									\
 })
 
+/* Misc asserts. */
+
 #define weston_assert_not_reached(compositor, reason)				\
 do {										\
 	struct weston_compositor *ec = compositor;				\
@@ -82,11 +84,15 @@ do {										\
 			    __FILE__, __LINE__, reason);					\
 } while (0)
 
+/* Boolean asserts. */
+
 #define weston_assert_true(compositor, a) \
 	weston_assert_(compositor, a, true, bool, "%d", ==)
 
 #define weston_assert_false(compositor, a) \
 	weston_assert_(compositor, a, false, bool, "%d", ==)
+
+/* Pointer asserts. */
 
 #define weston_assert_ptr_not_null(compositor, a) \
 	weston_assert_(compositor, a, NULL, const void *, "%p", !=)
@@ -97,34 +103,42 @@ do {										\
 #define weston_assert_ptr_eq(compositor, a, b) \
 	weston_assert_(compositor, a, b, const void *, "%p", ==)
 
-#define weston_assert_double_eq(compositor, a, b) \
+/* Floating-point asserts. */
+
+#define weston_assert_f64_eq(compositor, a, b) \
 	weston_assert_(compositor, a, b, double, "%.10g", ==)
 
-#define weston_assert_uint32_eq(compositor, a, b) \
+/* Unsigned int asserts. */
+
+#define weston_assert_u32_eq(compositor, a, b) \
 	weston_assert_(compositor, a, b, uint32_t, "%u", ==)
 
-#define weston_assert_uint32_neq(compositor, a, b) \
+#define weston_assert_u32_ne(compositor, a, b) \
 	weston_assert_(compositor, a, b, uint32_t, "%u", !=)
 
-#define weston_assert_uint32_gt(compositor, a, b) \
+#define weston_assert_u32_gt(compositor, a, b) \
 	weston_assert_(compositor, a, b, uint32_t, "%u", >)
 
-#define weston_assert_uint32_gt_or_eq(compositor, a, b) \
+#define weston_assert_u32_ge(compositor, a, b) \
 	weston_assert_(compositor, a, b, uint32_t, "%u", >=)
 
-#define weston_assert_uint32_lt(compositor, a, b) \
+#define weston_assert_u32_lt(compositor, a, b) \
 	weston_assert_(compositor, a, b, uint32_t, "%u", <)
 
-#define weston_assert_uint32_lt_or_eq(compositor, a, b) \
+#define weston_assert_u32_le(compositor, a, b) \
 	weston_assert_(compositor, a, b, uint32_t, "%u", <=)
 
-#define weston_assert_uint64_eq(compositor, a, b) \
+#define weston_assert_u64_eq(compositor, a, b) \
 	weston_assert_(compositor, a, b, uint64_t, "%" PRIx64, ==)
+
+/* String asserts. */
 
 #define weston_assert_str_eq(compositor, a, b) \
 	weston_assert_fn_(compositor, strcmp, a, b, const char *, "%s", ==)
 
-#define weston_assert_bit_is_set(compositor, value, bit)			\
+/* Bitmask asserts. */
+
+#define weston_assert_bit_set(compositor, value, bit)				\
 ({										\
 	struct weston_compositor *ec = compositor;				\
 	uint64_t v = (value);							\
@@ -137,7 +151,7 @@ do {										\
 	cond;									\
 })
 
-#define weston_assert_bit_is_not_set(compositor, value, bit)			\
+#define weston_assert_bit_not_set(compositor, value, bit)			\
 ({										\
 	struct weston_compositor *ec = compositor;				\
 	uint64_t v = (value);							\

@@ -260,7 +260,7 @@ weston_color_curve_enum_get_parametric(struct weston_compositor *compositor,
 	}
 
 	/* No other TF's have params. */
-	weston_assert_uint32_eq(compositor, curve->tf->count_parameters, 0);
+	weston_assert_u32_eq(compositor, curve->tf->count_parameters, 0);
 
 	if (!curve->tf->curve_params_valid)
 		return false;
@@ -456,7 +456,7 @@ find_neighbors(struct weston_compositor *compositor, uint32_t len, float *array,
 	int32_t mid;
 
 	/* We need at least 2 elements in the array. */
-	weston_assert_uint32_gt(compositor, len, 1);
+	weston_assert_u32_gt(compositor, len, 1);
 
 	while (right - left > 1) {
 		mid = left + ((right - left) / 2);

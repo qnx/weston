@@ -290,7 +290,7 @@ get_uniform_location(struct gl_renderer *gr,
 	int ret;
 
 	ret = snprintf(str, sizeof str, "%s_%s", prefix, field);
-	weston_assert_uint32_lt(gr->compositor, ret, sizeof str);
+	weston_assert_u32_lt(gr->compositor, ret, sizeof str);
 
 	return glGetUniformLocation(program, str);
 }

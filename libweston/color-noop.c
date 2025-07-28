@@ -245,8 +245,8 @@ cmnoop_destroy(struct weston_color_manager *cm_base)
 	 * Currently we have a bug in which we leak surfaces when shutting down
 	 * Weston with client surfaces alive, and these surfaces may have a
 	 * reference to the stock sRGB profile. */
-	weston_assert_uint32_gt_or_eq(cm_base->compositor,
-				      cmnoop->stock_cprof->base.ref_count, 1);
+	weston_assert_u32_ge(cm_base->compositor,
+			     cmnoop->stock_cprof->base.ref_count, 1);
 	unref_cprof(cmnoop->stock_cprof);
 
 	free(cmnoop);

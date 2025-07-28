@@ -100,15 +100,15 @@ TEST(asserts)
 	abort_if_not(ret == false);
 
 	double fifteen = 15.0;
-	ret = weston_assert_double_eq(compositor, fifteen, 15.000001);
+	ret = weston_assert_f64_eq(compositor, fifteen, 15.000001);
 	abort_if_not(ret == false);
 
-	ret = weston_assert_double_eq(compositor, fifteen, 15);
+	ret = weston_assert_f64_eq(compositor, fifteen, 15);
 	abort_if_not(ret);
 
-	ret = weston_assert_uint32_lt_or_eq(compositor, 0, 0);
+	ret = weston_assert_u32_le(compositor, 0, 0);
 	abort_if_not(ret);
-	ret = weston_assert_uint32_lt_or_eq(compositor, 1, 0);
+	ret = weston_assert_u32_le(compositor, 1, 0);
 	abort_if_not(ret == false);
 
 	const char *nom = "bar";
@@ -125,13 +125,13 @@ TEST(asserts)
 	abort_if_not(ret == false);
 
 	uint32_t bitfield = 0xffff;
-	ret = weston_assert_bit_is_set(compositor, bitfield, 1ull << 2);
+	ret = weston_assert_bit_set(compositor, bitfield, 1ull << 2);
 	abort_if_not(ret);
-	ret = weston_assert_bit_is_set(compositor, bitfield, 1ull << 57);
+	ret = weston_assert_bit_set(compositor, bitfield, 1ull << 57);
 	abort_if_not(ret == false);
 
 	uint64_t max_uint64 = UINT64_MAX;
-	ret = weston_assert_uint64_eq(compositor, max_uint64, 0);
+	ret = weston_assert_u64_eq(compositor, max_uint64, 0);
 	abort_if_not(ret == false);
 
 	uint64_t val = 0x200010001000ffff;

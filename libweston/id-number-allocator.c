@@ -103,7 +103,7 @@ update_lowest_free_bucket(struct weston_idalloc *idalloc)
 
 	/* We didn't find any free bucket, so we need to add more buckets. */
 	next_num = idalloc->num_buckets * 2;
-	weston_assert_uint32_gt(idalloc->compositor, next_num, idalloc->num_buckets);
+	weston_assert_u32_gt(idalloc->compositor, next_num, idalloc->num_buckets);
 
 	idalloc->buckets = xrealloc(idalloc->buckets, next_num * sizeof(*idalloc->buckets));
 	memset(&idalloc->buckets[idalloc->num_buckets], 0,
@@ -129,7 +129,7 @@ weston_idalloc_get_id(struct weston_idalloc *idalloc)
 	uint32_t id;
 
 	/* Sanity check: lowest free bucket should not be full. */
-	weston_assert_uint32_neq(idalloc->compositor, *bucket, 0xffffffff);
+	weston_assert_u32_ne(idalloc->compositor, *bucket, 0xffffffff);
 
 	for (i = 0; i < 32; i++) {
 		/* Id already used, skip it. */
@@ -170,11 +170,11 @@ weston_idalloc_put_id(struct weston_idalloc *idalloc, uint32_t id)
 	uint32_t *bucket;
 
 	/* Shouldn't try to release index 0, we never advertise this id to anyone. */
-	weston_assert_uint32_neq(idalloc->compositor, id, 0);
+	weston_assert_u32_ne(idalloc->compositor, id, 0);
 
 	/* Bucket index should be lower than num_buckets. */
-	weston_assert_uint32_lt(idalloc->compositor,
-				bucket_index, idalloc->num_buckets);
+	weston_assert_u32_lt(idalloc->compositor,
+			     bucket_index, idalloc->num_buckets);
 
 	bucket = &idalloc->buckets[bucket_index];
 

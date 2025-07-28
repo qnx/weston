@@ -2164,8 +2164,8 @@ lut_3x1d_from_blend_to_output(struct weston_compositor *compositor,
 	 * No need to craft LUT 3x1D from identity. But there shouldn't be a
 	 * blend-to-output xform like this in first place.
 	 */
-	weston_assert_uint32_neq(compositor, xform->pre_curve.type,
-					     WESTON_COLOR_CURVE_TYPE_IDENTITY);
+	weston_assert_u32_ne(compositor, xform->pre_curve.type,
+					 WESTON_COLOR_CURVE_TYPE_IDENTITY);
 
 	return weston_color_curve_to_3x1D_LUT(compositor, xform,
 					      WESTON_COLOR_CURVE_STEP_PRE,

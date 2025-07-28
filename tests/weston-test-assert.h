@@ -166,8 +166,8 @@ test_assert_fail(void *compositor, const char *fmt, ...)
 
 /* Various helpers. */
 
-#define test_assert_bit_set(a, bit)     weston_assert_bit_is_set(NULL, a, bit)
-#define test_assert_bit_not_set(a, bit) weston_assert_bit_is_not_set(NULL, a, bit)
+#define test_assert_bit_set(a, bit)     weston_assert_bit_set(NULL, a, bit)
+#define test_assert_bit_not_set(a, bit) weston_assert_bit_not_set(NULL, a, bit)
 #define test_assert_errno(a)            test_assert_int_eq(a, errno)
 #define test_assert_enum(a, b)          test_assert_u64_eq(a, b)
 

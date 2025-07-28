@@ -748,7 +748,7 @@ cmlcms_send_image_desc_info(struct cm_image_desc_info *cm_image_desc_info,
 		}
 
 		len = os_ro_anonymous_file_size(cprof->icc.prof_rofile);
-		weston_assert_uint32_gt(compositor, len, 0);
+		weston_assert_u32_gt(compositor, len, 0);
 
 		weston_cm_send_icc_file(cm_image_desc_info, fd, len);
 

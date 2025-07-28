@@ -424,8 +424,8 @@ lcms_curve_matches_any_tf(struct weston_compositor *compositor,
 		return NULL;
 	}
 
-	weston_assert_uint32_lt_or_eq(compositor,
-				      n_lcms_curve_params, MAX_PARAMS_LCMS_PARAM_CURVE);
+	weston_assert_u32_le(compositor,
+			     n_lcms_curve_params, MAX_PARAMS_LCMS_PARAM_CURVE);
 
 	for (i = 0; i < 3; i++)
 		for (j = 0; j < n_lcms_curve_params; j++)
@@ -880,7 +880,7 @@ translate_curve_element_LUT(struct cmlcms_color_transform *xform,
 	curve->type = WESTON_COLOR_CURVE_TYPE_LUT_3x1D;
 	curve->u.lut_3x1d.optimal_len = cmlcms_reasonable_1D_points();
 
-	weston_assert_uint32_eq(compositor, trc_data->nCurves, 3);
+	weston_assert_u32_eq(compositor, trc_data->nCurves, 3);
 	for (i = 0; i < 3; i++) {
 		stash[i] = cmsDupToneCurve(trc_data->TheCurves[i]);
 		abort_oom_if_null(stash[i]);
@@ -896,8 +896,8 @@ translate_curve_element(struct cmlcms_color_transform *xform,
 	struct weston_compositor *compositor = xform->base.cm->compositor;
 	_cmsStageToneCurvesData *trc_data;
 
-	weston_assert_uint64_eq(compositor, cmsStageType(elem),
-				cmsSigCurveSetElemType);
+	weston_assert_u64_eq(compositor, cmsStageType(elem),
+			     cmsSigCurveSetElemType);
 
 	trc_data = cmsStageData(elem);
 	if (trc_data->nCurves != 3)
@@ -1314,10 +1314,10 @@ init_icc_to_icc_chain(struct cmlcms_color_transform *xform)
 	struct lcmsProfilePtr chain[5];
 	unsigned chain_len = 0;
 
-	weston_assert_uint32_eq(cm->base.compositor, out_prof->type, CMLCMS_PROFILE_TYPE_ICC);
+	weston_assert_u32_eq(cm->base.compositor, out_prof->type, CMLCMS_PROFILE_TYPE_ICC);
 	if (in_prof) {
-		weston_assert_uint32_eq(cm->base.compositor, in_prof->type,
-					CMLCMS_PROFILE_TYPE_ICC);
+		weston_assert_u32_eq(cm->base.compositor, in_prof->type,
+				     CMLCMS_PROFILE_TYPE_ICC);
 	}
 
 	render_intent = xform->search_key.render_intent;
@@ -1393,9 +1393,9 @@ init_blend_to_parametric(struct cmlcms_color_transform *xform)
 {
 	struct weston_color_profile_params *out = xform->search_key.output_profile->params;
 
-	weston_assert_uint32_eq(xform->base.cm->compositor,
-				xform->search_key.output_profile->type,
-				CMLCMS_PROFILE_TYPE_PARAMS);
+	weston_assert_u32_eq(xform->base.cm->compositor,
+			     xform->search_key.output_profile->type,
+			     CMLCMS_PROFILE_TYPE_PARAMS);
 
 	/*
 	 * For blend-to-output with a parametric output profile, all we need
@@ -1560,12 +1560,10 @@ init_parametric_to_parametric(struct cmlcms_color_transform *xform)
 	struct weston_mat4f mat;
 	char *errmsg = NULL;
 
-	weston_assert_uint32_eq(cm->base.compositor,
-				recipe->input_profile->type,
-				CMLCMS_PROFILE_TYPE_PARAMS);
-	weston_assert_uint32_eq(cm->base.compositor,
-				recipe->output_profile->type,
-				CMLCMS_PROFILE_TYPE_PARAMS);
+	weston_assert_u32_eq(cm->base.compositor, recipe->input_profile->type,
+			     CMLCMS_PROFILE_TYPE_PARAMS);
+	weston_assert_u32_eq(cm->base.compositor, recipe->output_profile->type,
+			     CMLCMS_PROFILE_TYPE_PARAMS);
 
 	/*
 	 * Decode input TF

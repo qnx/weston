@@ -311,8 +311,8 @@ weston_color_profile_param_builder_set_tf_named(struct weston_color_profile_para
 		return false;
 
 	builder->params.tf_info = weston_color_tf_info_from(compositor, tf);
-	weston_assert_uint32_eq(builder->compositor,
-				builder->params.tf_info->count_parameters, 0);
+	weston_assert_u32_eq(builder->compositor,
+			     builder->params.tf_info->count_parameters, 0);
 
 	builder->group_mask |= WESTON_COLOR_PROFILE_PARAMS_TF;
 
