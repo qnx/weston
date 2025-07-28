@@ -38,6 +38,7 @@
 #include "drm-internal.h"
 #include "pixel-formats.h"
 #include "renderer-gl/gl-renderer.h"
+#include "shared/weston-assert.h"
 
 #define POISON_PTR ((void *)8)
 
@@ -205,6 +206,7 @@ static int
 drm_virtual_output_repaint(struct weston_output *output_base)
 {
 	struct drm_output_state *state = NULL;
+	struct weston_compositor *compositor = output_base->compositor;
 	struct drm_output *output = to_drm_output(output_base);
 	struct drm_plane *scanout_plane = output->scanout_plane;
 	struct drm_plane_state *scanout_state;
@@ -227,14 +229,10 @@ drm_virtual_output_repaint(struct weston_output *output_base)
 
 	assert(!output->state_last);
 
-	/* If planes have been disabled in the core, we might not have
-	 * hit assign_planes at all, so might not have valid output state
-	 * here. */
+	/* assign_planes() is always called before a repaint, so we must have a
+	 * valid output state here. */
 	state = drm_pending_state_get_output(pending_state, output);
-	if (!state)
-		state = drm_output_state_duplicate(output->state_cur,
-						   pending_state,
-						   DRM_OUTPUT_STATE_CLEAR_PLANES);
+	weston_assert_ptr_not_null(compositor, state);
 
 	drm_output_render(state);
 	scanout_state = drm_output_state_get_plane(state, scanout_plane);
