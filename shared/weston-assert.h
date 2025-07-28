@@ -75,66 +75,35 @@ weston_assert_fail_(const struct weston_compositor *compositor, const char *fmt,
 	cond;									\
 })
 
-/* Misc asserts. */
-
-#define weston_assert_not_reached(compositor, reason)				\
-do {										\
-	struct weston_compositor *ec = compositor;				\
-	custom_assert_fail_(ec, "%s:%u: Assertion failed! This should not be reached: %s\n",	\
-			    __FILE__, __LINE__, reason);					\
-} while (0)
-
 /* Boolean asserts. */
 
-#define weston_assert_true(compositor, a) \
-	weston_assert_(compositor, a, true, bool, "%d", ==)
-
-#define weston_assert_false(compositor, a) \
-	weston_assert_(compositor, a, false, bool, "%d", ==)
+#define weston_assert_true(comp, a) weston_assert_(comp, a, true, bool, "%d", ==)
+#define weston_assert_false(comp, a) weston_assert_(comp, a, false, bool, "%d", ==)
 
 /* Pointer asserts. */
 
-#define weston_assert_ptr_not_null(compositor, a) \
-	weston_assert_(compositor, a, NULL, const void *, "%p", !=)
-
-#define weston_assert_ptr_null(compositor, a) \
-	weston_assert_(compositor, a, NULL, const void *, "%p", ==)
-
-#define weston_assert_ptr_eq(compositor, a, b) \
-	weston_assert_(compositor, a, b, const void *, "%p", ==)
+#define weston_assert_ptr_not_null(comp, a) weston_assert_(comp, a, NULL, const void *, "%p", !=)
+#define weston_assert_ptr_null(comp, a) weston_assert_(comp, a, NULL, const void *, "%p", ==)
+#define weston_assert_ptr_eq(comp, a, b) weston_assert_(comp, a, b, const void *, "%p", ==)
 
 /* Floating-point asserts. */
 
-#define weston_assert_f64_eq(compositor, a, b) \
-	weston_assert_(compositor, a, b, double, "%.10g", ==)
+#define weston_assert_f64_eq(comp, a, b) weston_assert_(comp, a, b, double, "%.10g", ==)
 
 /* Unsigned int asserts. */
 
-#define weston_assert_u32_eq(compositor, a, b) \
-	weston_assert_(compositor, a, b, uint32_t, "%u", ==)
+#define weston_assert_u32_eq(comp, a, b) weston_assert_(comp, a, b, uint32_t, "%" PRIu32, ==)
+#define weston_assert_u32_ne(comp, a, b) weston_assert_(comp, a, b, uint32_t, "%" PRIu32, !=)
+#define weston_assert_u32_gt(comp, a, b) weston_assert_(comp, a, b, uint32_t, "%" PRIu32, >)
+#define weston_assert_u32_ge(comp, a, b) weston_assert_(comp, a, b, uint32_t, "%" PRIu32, >=)
+#define weston_assert_u32_lt(comp, a, b) weston_assert_(comp, a, b, uint32_t, "%" PRIu32, <)
+#define weston_assert_u32_le(comp, a, b) weston_assert_(comp, a, b, uint32_t, "%" PRIu32, <=)
 
-#define weston_assert_u32_ne(compositor, a, b) \
-	weston_assert_(compositor, a, b, uint32_t, "%u", !=)
-
-#define weston_assert_u32_gt(compositor, a, b) \
-	weston_assert_(compositor, a, b, uint32_t, "%u", >)
-
-#define weston_assert_u32_ge(compositor, a, b) \
-	weston_assert_(compositor, a, b, uint32_t, "%u", >=)
-
-#define weston_assert_u32_lt(compositor, a, b) \
-	weston_assert_(compositor, a, b, uint32_t, "%u", <)
-
-#define weston_assert_u32_le(compositor, a, b) \
-	weston_assert_(compositor, a, b, uint32_t, "%u", <=)
-
-#define weston_assert_u64_eq(compositor, a, b) \
-	weston_assert_(compositor, a, b, uint64_t, "%" PRIx64, ==)
+#define weston_assert_u64_eq(comp, a, b) weston_assert_(comp, a, b, uint64_t, "%" PRIu64, ==)
 
 /* String asserts. */
 
-#define weston_assert_str_eq(compositor, a, b) \
-	weston_assert_fn_(compositor, strcmp, a, b, const char *, "%s", ==)
+#define weston_assert_str_eq(comp, a, b) weston_assert_fn_(comp, strcmp, a, b, const char *, "%s", ==)
 
 /* Bitmask asserts. */
 
@@ -178,3 +147,12 @@ do {										\
 				    __FILE__, __LINE__, #value, v_, ill, #mask, m_); \
 	cond;									\
 })
+
+/* Misc asserts. */
+
+#define weston_assert_not_reached(compositor, reason)				\
+do {										\
+	struct weston_compositor *ec = compositor;				\
+	custom_assert_fail_(ec, "%s:%u: Assertion failed! This should not be reached: %s\n",	\
+			    __FILE__, __LINE__, reason);					\
+} while (0)
