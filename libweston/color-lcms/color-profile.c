@@ -709,10 +709,7 @@ cmlcms_get_color_profile_from_params(struct weston_color_manager *cm_base,
 		return true;
 	}
 
-	str_printf(&desc, "Parametric (%s): %s primaries, %s transfer function",
-			  name_part,
-			  params->primaries_info ? params->primaries_info->desc : "custom",
-			  params->tf.info->desc);
+	str_printf(&desc, "Parametric %s", name_part);
 
 	cprof = cmlcms_color_profile_alloc(cm, CMLCMS_PROFILE_TYPE_PARAMS, desc);
 	*cprof->params = *params;
