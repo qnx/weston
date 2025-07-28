@@ -522,6 +522,10 @@ struct weston_color_manager {
 	void
 	(*destroy_color_profile)(struct weston_color_profile *cprof);
 
+	/** Print detailed description of the color profile */
+	char *
+	(*print_color_profile_details)(const struct weston_color_profile *cprof);
+
 	/** Gets a new reference to the stock sRGB color profile
 	 *
 	 * \param cm The color manager.

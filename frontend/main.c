@@ -1340,6 +1340,19 @@ wet_output_set_transform(struct weston_output *output,
 	return 0;
 }
 
+static void
+weston_log_indent_multiline(int indent, const char *multiline)
+{
+	const char *delim = multiline;
+
+	while (*delim) {
+		delim = strchrnul(multiline, '\n');
+		weston_log_continue(STAMP_SPACE "%*s%.*s\n",
+				    indent, "", (int)(delim - multiline), multiline);
+		multiline = delim + 1;
+	}
+}
+
 static int
 wet_output_set_vrr_mode(struct weston_output *output,
 			struct weston_config_section *section)
@@ -1434,6 +1447,7 @@ wet_output_set_color_profile(struct weston_output *output,
 	struct wet_compositor *compositor = to_wet_compositor(output->compositor);
 	struct weston_color_profile *cprof;
 	char *icc_file = NULL;
+	char *details;
 	bool ok;
 
 	if (!compositor->use_color_manager)
@@ -1459,6 +1473,11 @@ wet_output_set_color_profile(struct weston_output *output,
 			   weston_color_profile_get_description(cprof),
 			   output->name);
 	}
+
+	weston_log("Output '%s' set to color profile:\n", output->name);
+	details = weston_color_profile_get_details(cprof);
+	weston_log_indent_multiline(0, details);
+	free(details);
 
 	weston_color_profile_unref(cprof);
 	return ok ? 0 : -1;

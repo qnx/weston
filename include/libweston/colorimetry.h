@@ -312,6 +312,9 @@ weston_color_profile_unref(struct weston_color_profile *cprof);
 const char *
 weston_color_profile_get_description(struct weston_color_profile *cprof);
 
+char *
+weston_color_profile_get_details(struct weston_color_profile *cprof);
+
 struct weston_color_profile *
 weston_compositor_load_icc_file(struct weston_compositor *compositor,
 				const char *path);

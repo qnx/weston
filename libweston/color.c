@@ -107,6 +107,27 @@ weston_color_profile_get_description(struct weston_color_profile *cprof)
 }
 
 /**
+ * Get color profile detailed description
+ *
+ * A detailed, multi-line description of the profile is meant for
+ * human readable logs.
+ *
+ * \param cprof The color profile, NULL is accepted too.
+ * \returns The detailed description. Must be free()'d.
+ */
+WL_EXPORT char *
+weston_color_profile_get_details(struct weston_color_profile *cprof)
+{
+	if (!cprof)
+		return xstrdup("NULL profile.\n");
+
+	if (cprof->cm->print_color_profile_details)
+		return cprof->cm->print_color_profile_details(cprof);
+	else
+		return xstrdup("No details.\n");
+}
+
+/**
  * Initializes a newly allocated color profile object
  *
  * This is used only by color managers. They sub-class weston_color_profile.

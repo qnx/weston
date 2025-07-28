@@ -368,6 +368,15 @@ profiles_scope_new_sub(struct weston_log_subscription *subs, void *data)
 	}
 }
 
+static char *
+cmlcms_print_color_profile_details(const struct weston_color_profile *cprof_base)
+{
+	const struct cmlcms_color_profile *prof =
+		container_of(cprof_base, const struct cmlcms_color_profile, base);
+
+	return cmlcms_color_profile_print(prof);
+}
+
 static void
 lcms_error_logger(cmsContext context_id,
 		  cmsUInt32Number error_code,
@@ -495,6 +504,7 @@ weston_color_manager_create(struct weston_compositor *compositor)
 	cm->base.init = cmlcms_init;
 	cm->base.destroy = cmlcms_destroy;
 	cm->base.destroy_color_profile = cmlcms_destroy_color_profile;
+	cm->base.print_color_profile_details = cmlcms_print_color_profile_details;
 	cm->base.ref_stock_sRGB_color_profile = cmlcms_ref_stock_sRGB_color_profile;
 	cm->base.get_color_profile_from_icc = cmlcms_get_color_profile_from_icc;
 	cm->base.get_color_profile_from_params = cmlcms_get_color_profile_from_params;
