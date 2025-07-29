@@ -33,6 +33,9 @@
 #include <assert.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
+
+#include "shared/helpers.h"
 
 /* Convert string to integer
  *
@@ -141,5 +144,70 @@ yesno(bool cond)
 {
 	return cond ? "yes" : "no";
 }
+
+struct weston_enum_map {
+	const char *name;
+	uint32_t value;
+};
+
+/** Find a name-value pair by name.
+ *
+ * \param map Array of enum mappings.
+ * \param len Length of the array.
+ * \param name The name string to look an exact match for.
+ * \return Pointer to the array element or NULL if not found.
+ */
+static inline const struct weston_enum_map *
+weston_enum_map_find_name_(const struct weston_enum_map *map, size_t map_len,
+			   const char *name)
+{
+	size_t i;
+
+	for (i = 0; i < map_len; i++) {
+		if (strcmp(map[i].name, name) == 0)
+			return &map[i];
+	}
+
+	return NULL;
+}
+
+/** Find a name-value pair by name.
+ *
+ * \param map Array of enum mappings. The length is determined by ARRAY_LENGTH(map).
+ * \param name The name string to look an exact match for.
+ * \return Pointer to the array element or NULL if not found.
+ */
+#define weston_enum_map_find_name(map, name) \
+	weston_enum_map_find_name_((map), ARRAY_LENGTH(map), (name))
+
+/** Find a name-value pair by value.
+ *
+ * \param map Array of enum mappings.
+ * \param len Length of the array.
+ * \param value The value to look for.
+ * \return Pointer to the array element or NULL if not found.
+ */
+static inline const struct weston_enum_map *
+weston_enum_map_find_value_(const struct weston_enum_map *map, size_t map_len,
+			    uint32_t value)
+{
+	size_t i;
+
+	for (i = 0; i < map_len; i++) {
+		if (map[i].value == value)
+			return &map[i];
+	}
+
+	return NULL;
+}
+
+/** Find a name-value pair by value.
+ *
+ * \param map Array of enum mappings. The length is determined by ARRAY_LENGTH(map).
+ * \param value The value to look for.
+ * \return Pointer to the array element or NULL if not found.
+ */
+#define weston_enum_map_find_value(map, value) \
+	weston_enum_map_find_value_((map), ARRAY_LENGTH(map), (value))
 
 #endif /* WESTON_STRING_HELPERS_H */
