@@ -32,6 +32,7 @@ extern "C" {
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 #define WESTON_CONFIG_FILE_ENV_VAR "WESTON_CONFIG_FILE"
 
@@ -106,6 +107,20 @@ int weston_config_next_section(struct weston_config *config,
 
 uint32_t
 weston_config_get_binding_modifier(struct weston_config *config, uint32_t default_mod);
+
+/** Container for an array of strings. */
+struct weston_string_array {
+	/** Length of \c array. */
+	size_t len;
+	/** Pointer to an array of strings. */
+	char **array;
+};
+
+void
+weston_string_array_fini(struct weston_string_array *strarr);
+
+struct weston_string_array
+weston_parse_space_separated_list(const char *str);
 
 #ifdef  __cplusplus
 }

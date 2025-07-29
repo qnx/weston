@@ -1,5 +1,6 @@
 /*
  * Copyright © 2012 Kristian Høgsberg
+ * Copyright 2025 Collabora, Ltd.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -33,8 +34,10 @@
 #include <assert.h>
 #include <errno.h>
 
+#include <wayland-util.h>
 #include <libweston/config-parser.h>
 #include "string-helpers.h"
+#include "xalloc.h"
 
 static bool
 handle_option(const struct weston_option *option, char *value)
@@ -208,4 +211,72 @@ parse_options(const struct weston_option *options,
 	*argc = j;
 
 	return j;
+}
+
+/** Free string array contents
+ *
+ * Does not free \c strarr itself but resets it.
+ */
+void
+weston_string_array_fini(struct weston_string_array *strarr)
+{
+	size_t i;
+
+	for (i = 0; i < strarr->len; i++)
+		free(strarr->array[i]);
+	free(strarr->array);
+	strarr->len = 0;
+	strarr->array = NULL;
+}
+
+static bool
+is_space_for_split(char c)
+{
+	return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+}
+
+/** Split a string at spaces, tabs, CRs, LFs
+ *
+ * \param str An arbitrary string, can be empty but not NULL.
+ * \return An array of sub-strings. Must be finalized with
+ * weston_string_array_fini().
+ *
+ * Takes the given string, and splits it into items. Empty items are skipped.
+ * The items are returned in the array in the same order they appeared in the
+ * string. Spaces, tabs, newlines or carriage returns will not be present in
+ * the items as they cannot be escaped.
+ */
+struct weston_string_array
+weston_parse_space_separated_list(const char *str)
+{
+	struct wl_array arr;
+	const char *p = str;
+	char **item;
+
+	wl_array_init(&arr);
+
+	while (*p) {
+		const char *end = p;
+		while (*end && !is_space_for_split(*end))
+			end++;
+		size_t len = end - p;
+
+		if (len > 0) {
+			item = wl_array_add(&arr, sizeof *item);
+
+			*item = strndup(p, len);
+			abort_oom_if_null(*item);
+		}
+
+		p = end;
+
+		/* Skip whitespaces */
+		while (*p && is_space_for_split(*p))
+			p++;
+	}
+
+	return (struct weston_string_array){
+		.len = arr.size / sizeof *item,
+		.array = arr.data
+	};
 }

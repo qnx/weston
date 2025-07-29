@@ -1,5 +1,6 @@
 /*
  * Copyright © 2013 Intel Corporation
+ * Copyright 2025 Collabora, Ltd.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -921,6 +922,81 @@ TEST(section_from_null)
 	struct weston_config_section *section;
 	section = weston_config_get_section(NULL, "bucket", NULL, NULL);
 	test_assert_ptr_null(section);
+
+	return RESULT_OK;
+}
+
+TEST(parse_comma_separated_list)
+{
+	const char *matter;
+	struct weston_string_array strarr;
+
+	matter = "";
+	strarr = weston_parse_space_separated_list(matter);
+	test_assert_u64_eq(strarr.len, 0);
+
+	matter = "   ";
+	strarr = weston_parse_space_separated_list(matter);
+	test_assert_u64_eq(strarr.len, 0);
+
+	matter = " \t    \t \t";
+	strarr = weston_parse_space_separated_list(matter);
+	test_assert_u64_eq(strarr.len, 0);
+
+	matter = "k";
+	strarr = weston_parse_space_separated_list(matter);
+	test_assert_u64_eq(strarr.len, 1);
+	test_assert_str_eq(strarr.array[0], "k");
+	weston_string_array_fini(&strarr);
+
+	matter = " k";
+	strarr = weston_parse_space_separated_list(matter);
+	test_assert_u64_eq(strarr.len, 1);
+	test_assert_str_eq(strarr.array[0], "k");
+	weston_string_array_fini(&strarr);
+
+	matter = "k ";
+	strarr = weston_parse_space_separated_list(matter);
+	test_assert_u64_eq(strarr.len, 1);
+	test_assert_str_eq(strarr.array[0], "k");
+	weston_string_array_fini(&strarr);
+
+	matter = " k ";
+	strarr = weston_parse_space_separated_list(matter);
+	test_assert_u64_eq(strarr.len, 1);
+	test_assert_str_eq(strarr.array[0], "k");
+	weston_string_array_fini(&strarr);
+
+	matter = "kissa kassi";
+	strarr = weston_parse_space_separated_list(matter);
+	test_assert_u64_eq(strarr.len, 2);
+	test_assert_str_eq(strarr.array[0], "kissa");
+	test_assert_str_eq(strarr.array[1], "kassi");
+	weston_string_array_fini(&strarr);
+
+	matter = "kissa\tkassi";
+	strarr = weston_parse_space_separated_list(matter);
+	test_assert_u64_eq(strarr.len, 2);
+	test_assert_str_eq(strarr.array[0], "kissa");
+	test_assert_str_eq(strarr.array[1], "kassi");
+	weston_string_array_fini(&strarr);
+
+	matter = "  kissa\t kassi";
+	strarr = weston_parse_space_separated_list(matter);
+	test_assert_u64_eq(strarr.len, 2);
+	test_assert_str_eq(strarr.array[0], "kissa");
+	test_assert_str_eq(strarr.array[1], "kassi");
+	weston_string_array_fini(&strarr);
+
+	matter = " 4.556\ra bab c \nkoe\t";
+	strarr = weston_parse_space_separated_list(matter);
+	test_assert_u64_eq(strarr.len, 5);
+	test_assert_str_eq(strarr.array[0], "4.556");
+	test_assert_str_eq(strarr.array[1], "a");
+	test_assert_str_eq(strarr.array[2], "bab");
+	test_assert_str_eq(strarr.array[3], "c");
+	test_assert_str_eq(strarr.array[4], "koe");
+	weston_string_array_fini(&strarr);
 
 	return RESULT_OK;
 }
