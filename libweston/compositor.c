@@ -3629,6 +3629,11 @@ output_assign_planes(struct weston_output *output)
 /* The "latch" point is the last possible instant before a repaint. After
  * the latch, no more content updates can be applied by the compositor
  * until after the scheduled repaint completes.
+ *
+ * Since transactions are considered on a compositor wide basis, we have
+ * to take care to make sure to call this at the right time so no other
+ * call to weston_compositor_apply_transactions() occurs between latch
+ * and repaint.
  */
 static void
 weston_output_latch(struct weston_output *output)
@@ -3636,6 +3641,14 @@ weston_output_latch(struct weston_output *output)
 	struct weston_compositor *compositor = output->compositor;
 
 	assert(!compositor->latched);
+	/* Since this is the last moment when transactions can be applied
+	 * before we repaint this output, let's test them all now.
+	 *
+	 * This can theoretically catch transactions that are ready now, but
+	 * otherwise wouldn't have their readiness noticed until a later pass
+	 * through the event loop.
+	 */
+	weston_compositor_apply_transactions(output->compositor);
 	compositor->latched = true;
 
 	wl_signal_emit(&output->post_latch_signal, output);
@@ -3982,6 +3995,16 @@ output_repaint_timer_handler(void *data)
 	struct weston_output *output;
 	struct timespec now;
 	int ret = 0;
+
+	/* We may have transactions with constraints that cleared after
+	 * the last repaint. That repaint would have unconditionally
+	 * scheduled this timer from output_finish_frame, but we may not
+	 * have applied transactions since.
+	 *
+	 * We need to try now as this is our last chance to add outputs for
+	 * this repaint opportunity.
+	 */
+	weston_compositor_apply_transactions(compositor);
 
 	weston_compositor_read_presentation_clock(compositor, &now);
 	compositor->last_repaint_start = now;
@@ -9692,7 +9715,7 @@ weston_compositor_create(struct wl_display *display,
 	wl_list_init(&ec->axis_binding_list);
 	wl_list_init(&ec->debug_binding_list);
 	wl_list_init(&ec->tablet_manager_resource_list);
-
+	wl_list_init(&ec->transaction_queue_list);
 	wl_list_init(&ec->backend_list);
 
 	wl_list_init(&ec->plugin_api_list);

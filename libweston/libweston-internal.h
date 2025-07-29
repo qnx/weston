@@ -866,4 +866,7 @@ weston_plane_failure_reasons_to_str(enum try_view_on_plane_failure_reasons failu
 uint32_t
 weston_surface_visibility_mask(struct weston_surface *surface);
 
+void
+weston_compositor_apply_transactions(struct weston_compositor *compositor);
+
 #endif

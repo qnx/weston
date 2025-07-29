@@ -1321,6 +1321,7 @@ struct weston_color_manager;
 struct weston_dmabuf_feedback;
 struct weston_dmabuf_feedback_format_table;
 struct weston_renderer;
+struct weston_content_update;
 
 /** Main object, container-like structure which aggregates all other objects.
  *
@@ -1501,6 +1502,8 @@ struct weston_compositor {
 	 * that repaint occurs.
 	 */
 	bool latched;
+
+	struct wl_list transaction_queue_list; /* weston_transaction_queue::link */
 };
 
 struct weston_solid_buffer_values {

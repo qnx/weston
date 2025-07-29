@@ -35,8 +35,54 @@
 #include "pixel-formats.h"
 #include "shared/fd-util.h"
 #include "shared/weston-assert.h"
+#include "shared/xalloc.h"
 #include "timeline.h"
 #include "weston-trace.h"
+
+/* Deferred content updates:
+ *
+ * In the absence of readiness constraints, weston will apply content updates
+ * as they're delivered from clients via wl_surface.commit() requests.
+ *
+ * When readiness constraints exist, we must instead store the content update
+ * for later application. This is done by creating a weston_content_update,
+ * which is a wrapper for a weston_surface_state to be applied to a
+ * weston_surface.
+ *
+ * The weston_content_update is then added to a weston_transaction, which is
+ * an atomic group of content updates that can only be applied when the
+ * entire set is ready.
+ *
+ * The transactions themselves are stored within weston_transaction_queues,
+ * which contain an ordered sequence of transactions, each of which depends
+ * on the one before it in the list. Only the head transaction can be
+ * considered for application.
+ *
+ * The compositor holds a list of these queues, and will consider the head
+ * of each list any time transactions are applied (which must happen
+ * immediately before we "latch" content for a repaint, and some time
+ * after that repaint clears but before outputs are selected for the
+ * next repaint)
+ */
+struct weston_transaction_queue {
+	struct wl_list link; /* weston_compositor::transaction_queue_list */
+	struct wl_list transaction_list; /* weston_transaction::link */
+};
+
+struct weston_transaction {
+	struct weston_transaction_queue *queue;
+	uint64_t flow_id;
+	struct wl_list link; /* weston_transaction_queue::transaction_list */
+	struct wl_list content_update_list; /* weston_content_update::link */
+};
+
+struct weston_content_update {
+	struct weston_transaction *transaction;
+	struct weston_surface *surface;
+	struct weston_surface_state state;
+	struct wl_listener surface_destroy_listener;
+	struct wl_list link; /* weston_transaction::content_update_list */
+};
 
 static void
 weston_surface_apply(struct weston_surface *surface,
@@ -586,12 +632,133 @@ weston_surface_state_merge_from(struct weston_surface_state *dst,
 	src->status = WESTON_SURFACE_CLEAN;
 }
 
+static struct weston_transaction_queue *
+weston_surface_find_parent_transaction_queue(struct weston_compositor *comp,
+					     struct weston_surface *surface)
+{
+	struct weston_transaction_queue *tq;
+	struct weston_transaction *tr;
+	struct weston_content_update *cu;
+
+	wl_list_for_each(tq, &comp->transaction_queue_list, link) {
+		wl_list_for_each(tr, &tq->transaction_list, link)
+			wl_list_for_each(cu, &tr->content_update_list, link) {
+				if (cu->surface == surface)
+					return tq;
+			}
+	}
+
+	return NULL;
+}
+
+static void
+weston_content_update_fini(struct weston_content_update *cu)
+{
+	wl_list_remove(&cu->link);
+	weston_surface_state_fini(&cu->state);
+	wl_list_remove(&cu->surface_destroy_listener.link);
+	free(cu);
+}
+
+static void
+content_update_surface_destroy(struct wl_listener *listener, void *data)
+{
+	struct weston_content_update *cu = container_of(listener,
+							struct weston_content_update,
+							surface_destroy_listener);
+	struct weston_transaction *tr = cu->transaction;
+	struct weston_transaction_queue *tq = tr->queue;
+
+	weston_content_update_fini(cu);
+
+	/* If we were the last update in the transaction, remove it */
+	if (wl_list_empty(&tr->content_update_list)) {
+		wl_list_remove(&tr->link);
+		free(tr);
+	}
+
+	/* If removing a transaction emptied a list, remove that too */
+	if (wl_list_empty(&tq->transaction_list)) {
+		wl_list_remove(&tq->link);
+		free(tq);
+	}
+}
+
+static void
+weston_transaction_add_content_update(struct weston_transaction *tr,
+				      struct weston_surface *surface,
+				      struct weston_surface_state *state)
+{
+	struct weston_content_update *cu;
+
+	cu = xzalloc(sizeof *cu);
+	cu->transaction = tr;
+	/* Since surfaces don't maintain a list of transactions they're on, we
+	 * can either have the surface destructor walk all transaction lists
+	 * to remove any content updates for a destroyed surface, or hook
+	 * the surface_destroy signal.
+	 *
+	 * The latter is a little easier, so set that up.
+	 */
+	cu->surface_destroy_listener.notify = content_update_surface_destroy;
+	wl_signal_add(&surface->destroy_signal,
+		      &cu->surface_destroy_listener);
+	cu->surface = surface;
+	weston_surface_state_init(surface, &cu->state);
+
+	cu->state.flow_id = state->flow_id;
+	weston_surface_state_merge_from(&cu->state, state, surface);
+
+	wl_list_insert(&tr->content_update_list, &cu->link);
+}
+
+static void
+weston_surface_create_transaction(struct weston_compositor *comp,
+				  struct weston_surface *surface,
+				  struct weston_surface_state *state)
+{
+	uint64_t transaction_flow_id = 0;
+	WESTON_TRACE_FUNC_FLOW(&transaction_flow_id);
+
+	struct weston_transaction *tr;
+	struct weston_transaction_queue *parent;
+
+	tr = xzalloc(sizeof *tr);
+	tr->flow_id = transaction_flow_id;
+	wl_list_init(&tr->content_update_list);
+
+	weston_transaction_add_content_update(tr, surface, state);
+
+	/* Figure out if we need to be blocked behind an existing transaction */
+	parent = weston_surface_find_parent_transaction_queue(comp, surface);
+	if (!parent) {
+		/* We weren't blocked by any existing transactions, so set up
+		 * a new list so content updates for this surface can block
+		 * behind us in the future
+		 */
+		parent = xzalloc(sizeof *parent);
+		wl_list_init(&parent->transaction_list);
+		wl_list_insert(&comp->transaction_queue_list, &parent->link);
+	}
+	tr->queue = parent;
+	wl_list_insert(parent->transaction_list.prev, &tr->link);
+}
+
+static bool
+weston_surface_state_ready(struct weston_surface *surface,
+			   struct weston_surface_state *state)
+{
+	return true;
+}
+
 void
 weston_surface_commit(struct weston_surface *surface)
 {
 	WESTON_TRACE_FUNC_FLOW(&surface->pending.flow_id);
+	struct weston_compositor *comp = surface->compositor;
 	struct weston_subsurface *sub = weston_surface_to_subsurface(surface);
 	struct weston_surface_state *state = &surface->pending;
+	struct weston_transaction_queue *tq;
 
 	if (sub) {
 		weston_surface_state_merge_from(&sub->cached,
@@ -601,6 +768,20 @@ weston_surface_commit(struct weston_surface *surface)
 			return;
 
 		state = &sub->cached;
+	}
+
+	/* Check if this surface is a member of a transaction list already.
+	 * If it is, we're not ready to apply this state, so we'll have
+	 * to make a new transaction and wait until we are.
+	 *
+	 * For now, we don't have a way to combine multiple content updates
+	 * in a single transaction, so these effectively become per surface
+	 * update streams.
+	 */
+	tq = weston_surface_find_parent_transaction_queue(comp, surface);
+	if (tq || !weston_surface_state_ready(surface, state)) {
+		weston_surface_create_transaction(comp, surface, state);
+		return;
 	}
 
 	weston_surface_apply(surface, state);
@@ -680,4 +861,68 @@ weston_subsurface_set_synchronized(struct weston_subsurface *sub, bool sync)
 	/* If sub became effectively desynchronized, flush */
 	if (old_e_sync && !sub->effectively_synchronized)
 		weston_surface_apply(sub->surface, &sub->cached);
+}
+
+static void
+apply_transaction(struct weston_transaction *transaction)
+{
+	WESTON_TRACE_FUNC_FLOW(&transaction->flow_id);
+	struct weston_content_update *cu, *tmp;
+
+	wl_list_remove(&transaction->link);
+
+	wl_list_for_each_safe(cu, tmp, &transaction->content_update_list, link) {
+		weston_surface_apply(cu->surface, &cu->state);
+		weston_content_update_fini(cu);
+	}
+
+	free(transaction);
+}
+
+static bool
+transaction_ready(struct weston_transaction *transaction)
+{
+	WESTON_TRACE_FUNC_FLOW(&transaction->flow_id);
+	struct weston_content_update *cu;
+
+	/* Every content update within the transaction must be ready
+	 * for the transaction to be applied.
+	 */
+	wl_list_for_each(cu, &transaction->content_update_list, link)
+		if (!weston_surface_state_ready(cu->surface, &cu->state))
+			return false;
+
+	return true;
+}
+
+void
+weston_compositor_apply_transactions(struct weston_compositor *compositor)
+{
+	WESTON_TRACE_FUNC();
+	struct weston_transaction_queue *tq, *tq_tmp;
+	struct weston_transaction *tr, *tr_tmp;
+
+	assert(!compositor->latched);
+
+	/* The compositor has a list of transaction queues. These queues are
+	 * independent streams of transactions, and the head of a queue blocks
+	 * every transaction after it. We must consider (only) each queue head.
+	 */
+	wl_list_for_each_safe(tq, tq_tmp, &compositor->transaction_queue_list, link) {
+		/* Walk this queue and greedily consume any that are ready.
+		 * As soon as one is not, we're done with the list, as all
+		 * further members are blocked.
+		 */
+		wl_list_for_each_safe(tr, tr_tmp, &tq->transaction_list, link) {
+			if (!transaction_ready(tr))
+				break;
+
+			apply_transaction(tr);
+		}
+
+		if (wl_list_empty(&tq->transaction_list)) {
+			wl_list_remove(&tq->link);
+			free(tq);
+		}
+	}
 }
