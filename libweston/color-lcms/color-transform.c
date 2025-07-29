@@ -1314,10 +1314,10 @@ init_icc_to_icc_chain(struct cmlcms_color_transform *xform)
 	struct lcmsProfilePtr chain[5];
 	unsigned chain_len = 0;
 
-	weston_assert_u32_eq(cm->base.compositor, out_prof->type, CMLCMS_PROFILE_TYPE_ICC);
+	weston_assert_enum(cm->base.compositor, out_prof->type, CMLCMS_PROFILE_TYPE_ICC);
 	if (in_prof) {
-		weston_assert_u32_eq(cm->base.compositor, in_prof->type,
-				     CMLCMS_PROFILE_TYPE_ICC);
+		weston_assert_enum(cm->base.compositor, in_prof->type,
+				   CMLCMS_PROFILE_TYPE_ICC);
 	}
 
 	render_intent = xform->search_key.render_intent;
@@ -1393,9 +1393,9 @@ init_blend_to_parametric(struct cmlcms_color_transform *xform)
 {
 	struct weston_color_profile_params *out = xform->search_key.output_profile->params;
 
-	weston_assert_u32_eq(xform->base.cm->compositor,
-			     xform->search_key.output_profile->type,
-			     CMLCMS_PROFILE_TYPE_PARAMS);
+	weston_assert_enum(xform->base.cm->compositor,
+			   xform->search_key.output_profile->type,
+			   CMLCMS_PROFILE_TYPE_PARAMS);
 
 	/*
 	 * For blend-to-output with a parametric output profile, all we need
@@ -1560,10 +1560,10 @@ init_parametric_to_parametric(struct cmlcms_color_transform *xform)
 	struct weston_mat4f mat;
 	char *errmsg = NULL;
 
-	weston_assert_u32_eq(cm->base.compositor, recipe->input_profile->type,
-			     CMLCMS_PROFILE_TYPE_PARAMS);
-	weston_assert_u32_eq(cm->base.compositor, recipe->output_profile->type,
-			     CMLCMS_PROFILE_TYPE_PARAMS);
+	weston_assert_enum(cm->base.compositor, recipe->input_profile->type,
+			   CMLCMS_PROFILE_TYPE_PARAMS);
+	weston_assert_enum(cm->base.compositor, recipe->output_profile->type,
+			   CMLCMS_PROFILE_TYPE_PARAMS);
 
 	/*
 	 * Decode input TF

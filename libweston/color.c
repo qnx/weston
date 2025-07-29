@@ -260,7 +260,7 @@ weston_color_curve_enum_get_parametric(struct weston_compositor *compositor,
 	}
 
 	/* No other TF's have params. */
-	weston_assert_u32_eq(compositor, curve->tf->count_parameters, 0);
+	weston_assert_uint_eq(compositor, curve->tf->count_parameters, 0);
 
 	if (!curve->tf->curve_params_valid)
 		return false;
