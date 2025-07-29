@@ -1384,13 +1384,11 @@ static int
 wet_output_set_vrr_mode(struct weston_output *output,
 			struct weston_config_section *section)
 {
-	static const struct {
-		const char *name;
-		enum weston_vrr_mode vrr_mode;
-	} vrr_modes[] = {
+	static const struct weston_enum_map vrr_modes[] = {
 		{ "none",	WESTON_VRR_MODE_NONE },
 		{ "game", 	WESTON_VRR_MODE_GAME },
 	};
+	const struct weston_enum_map *entry;
 	enum weston_vrr_mode vrr_mode = WESTON_VRR_MODE_NONE;
 	char *vrr_str = NULL;
 	unsigned int i;
@@ -1399,11 +1397,8 @@ wet_output_set_vrr_mode(struct weston_output *output,
 	if (!vrr_str)
 		return vrr_mode;
 
-	for (i = 0; i < ARRAY_LENGTH(vrr_modes); i++)
-		if (strcmp(vrr_str, vrr_modes[i].name) == 0)
-			break;
-
-	if (i == ARRAY_LENGTH(vrr_modes)) {
+	entry = weston_enum_map_find_name(vrr_modes, vrr_str);
+	if (!entry) {
 		weston_log("Error in config for output '%s': '%s' is not a valid vrr mode. Try one of:",
 			   output->name, vrr_str);
 		for (i = 0; i < ARRAY_LENGTH(vrr_modes); i++)
@@ -1413,7 +1408,7 @@ wet_output_set_vrr_mode(struct weston_output *output,
 		return -1;
 	}
 
-	vrr_mode = vrr_modes[i].vrr_mode;
+	vrr_mode = entry->value;
 
 	if (vrr_mode && (weston_output_get_supported_vrr_modes(output) & vrr_mode) == 0) {
 		weston_log("Error: output '%s' does not support output format %s.\n",
