@@ -85,12 +85,39 @@ weston_assert_fail_(const struct weston_compositor *compositor, const char *fmt,
 #define weston_assert_ptr_not_null(comp, a) weston_assert_(comp, a, NULL, const void *, "%p", !=)
 #define weston_assert_ptr_null(comp, a) weston_assert_(comp, a, NULL, const void *, "%p", ==)
 #define weston_assert_ptr_eq(comp, a, b) weston_assert_(comp, a, b, const void *, "%p", ==)
+#define weston_assert_ptr_ne(comp, a, b) weston_assert_(comp, a, b, const void *, "%p", !=)
 
 /* Floating-point asserts. */
 
+#define weston_assert_f32_eq(comp, a, b) weston_assert_(comp, a, b, float, "%.10g", ==)
+#define weston_assert_f32_ne(comp, a, b) weston_assert_(comp, a, b, float, "%.10g", !=)
+#define weston_assert_f32_gt(comp, a, b) weston_assert_(comp, a, b, float, "%.10g", >)
+#define weston_assert_f32_ge(comp, a, b) weston_assert_(comp, a, b, float, "%.10g", >=)
+#define weston_assert_f32_lt(comp, a, b) weston_assert_(comp, a, b, float, "%.10g", <)
+#define weston_assert_f32_le(comp, a, b) weston_assert_(comp, a, b, float, "%.10g", <=)
+
 #define weston_assert_f64_eq(comp, a, b) weston_assert_(comp, a, b, double, "%.10g", ==)
+#define weston_assert_f64_ne(comp, a, b) weston_assert_(comp, a, b, double, "%.10g", !=)
+#define weston_assert_f64_gt(comp, a, b) weston_assert_(comp, a, b, double, "%.10g", >)
+#define weston_assert_f64_ge(comp, a, b) weston_assert_(comp, a, b, double, "%.10g", >=)
+#define weston_assert_f64_lt(comp, a, b) weston_assert_(comp, a, b, double, "%.10g", <)
+#define weston_assert_f64_le(comp, a, b) weston_assert_(comp, a, b, double, "%.10g", <=)
 
 /* Unsigned int asserts. */
+
+#define weston_assert_u8_eq(comp, a, b) weston_assert_(comp, a, b, uint8_t, "%" PRIu8, ==)
+#define weston_assert_u8_ne(comp, a, b) weston_assert_(comp, a, b, uint8_t, "%" PRIu8, !=)
+#define weston_assert_u8_gt(comp, a, b) weston_assert_(comp, a, b, uint8_t, "%" PRIu8, >)
+#define weston_assert_u8_ge(comp, a, b) weston_assert_(comp, a, b, uint8_t, "%" PRIu8, >=)
+#define weston_assert_u8_lt(comp, a, b) weston_assert_(comp, a, b, uint8_t, "%" PRIu8, <)
+#define weston_assert_u8_le(comp, a, b) weston_assert_(comp, a, b, uint8_t, "%" PRIu8, <=)
+
+#define weston_assert_u16_eq(comp, a, b) weston_assert_(comp, a, b, uint16_t, "%" PRIu16, ==)
+#define weston_assert_u16_ne(comp, a, b) weston_assert_(comp, a, b, uint16_t, "%" PRIu16, !=)
+#define weston_assert_u16_gt(comp, a, b) weston_assert_(comp, a, b, uint16_t, "%" PRIu16, >)
+#define weston_assert_u16_ge(comp, a, b) weston_assert_(comp, a, b, uint16_t, "%" PRIu16, >=)
+#define weston_assert_u16_lt(comp, a, b) weston_assert_(comp, a, b, uint16_t, "%" PRIu16, <)
+#define weston_assert_u16_le(comp, a, b) weston_assert_(comp, a, b, uint16_t, "%" PRIu16, <=)
 
 #define weston_assert_u32_eq(comp, a, b) weston_assert_(comp, a, b, uint32_t, "%" PRIu32, ==)
 #define weston_assert_u32_ne(comp, a, b) weston_assert_(comp, a, b, uint32_t, "%" PRIu32, !=)
@@ -100,6 +127,55 @@ weston_assert_fail_(const struct weston_compositor *compositor, const char *fmt,
 #define weston_assert_u32_le(comp, a, b) weston_assert_(comp, a, b, uint32_t, "%" PRIu32, <=)
 
 #define weston_assert_u64_eq(comp, a, b) weston_assert_(comp, a, b, uint64_t, "%" PRIu64, ==)
+#define weston_assert_u64_ne(comp, a, b) weston_assert_(comp, a, b, uint64_t, "%" PRIu64, !=)
+#define weston_assert_u64_gt(comp, a, b) weston_assert_(comp, a, b, uint64_t, "%" PRIu64, >)
+#define weston_assert_u64_ge(comp, a, b) weston_assert_(comp, a, b, uint64_t, "%" PRIu64, >=)
+#define weston_assert_u64_lt(comp, a, b) weston_assert_(comp, a, b, uint64_t, "%" PRIu64, <)
+#define weston_assert_u64_le(comp, a, b) weston_assert_(comp, a, b, uint64_t, "%" PRIu64, <=)
+
+#define weston_assert_uint_eq(comp, a, b) weston_assert_(comp, a, b, unsigned int, "%u", ==)
+#define weston_assert_uint_ne(comp, a, b) weston_assert_(comp, a, b, unsigned int, "%u", !=)
+#define weston_assert_uint_gt(comp, a, b) weston_assert_(comp, a, b, unsigned int, "%u", >)
+#define weston_assert_uint_ge(comp, a, b) weston_assert_(comp, a, b, unsigned int, "%u", >=)
+#define weston_assert_uint_lt(comp, a, b) weston_assert_(comp, a, b, unsigned int, "%u", <)
+#define weston_assert_uint_le(comp, a, b) weston_assert_(comp, a, b, unsigned int, "%u", <=)
+
+/* Signed int asserts. */
+
+#define weston_assert_s8_eq(comp, a, b) weston_assert_(comp, a, b, int8_t, "%" PRId8, ==)
+#define weston_assert_s8_ne(comp, a, b) weston_assert_(comp, a, b, int8_t, "%" PRId8, !=)
+#define weston_assert_s8_gt(comp, a, b) weston_assert_(comp, a, b, int8_t, "%" PRId8, >)
+#define weston_assert_s8_ge(comp, a, b) weston_assert_(comp, a, b, int8_t, "%" PRId8, >=)
+#define weston_assert_s8_lt(comp, a, b) weston_assert_(comp, a, b, int8_t, "%" PRId8, <)
+#define weston_assert_s8_le(comp, a, b) weston_assert_(comp, a, b, int8_t, "%" PRId8, <=)
+
+#define weston_assert_s16_eq(comp, a, b) weston_assert_(comp, a, b, int16_t, "%" PRId16, ==)
+#define weston_assert_s16_ne(comp, a, b) weston_assert_(comp, a, b, int16_t, "%" PRId16, !=)
+#define weston_assert_s16_gt(comp, a, b) weston_assert_(comp, a, b, int16_t, "%" PRId16, >)
+#define weston_assert_s16_ge(comp, a, b) weston_assert_(comp, a, b, int16_t, "%" PRId16, >=)
+#define weston_assert_s16_lt(comp, a, b) weston_assert_(comp, a, b, int16_t, "%" PRId16, <)
+#define weston_assert_s16_le(comp, a, b) weston_assert_(comp, a, b, int16_t, "%" PRId16, <=)
+
+#define weston_assert_s32_eq(comp, a, b) weston_assert_(comp, a, b, int32_t, "%" PRId32, ==)
+#define weston_assert_s32_ne(comp, a, b) weston_assert_(comp, a, b, int32_t, "%" PRId32, !=)
+#define weston_assert_s32_gt(comp, a, b) weston_assert_(comp, a, b, int32_t, "%" PRId32, >)
+#define weston_assert_s32_ge(comp, a, b) weston_assert_(comp, a, b, int32_t, "%" PRId32, >=)
+#define weston_assert_s32_lt(comp, a, b) weston_assert_(comp, a, b, int32_t, "%" PRId32, <)
+#define weston_assert_s32_le(comp, a, b) weston_assert_(comp, a, b, int32_t, "%" PRId32, <=)
+
+#define weston_assert_s64_eq(comp, a, b) weston_assert_(comp, a, b, int64_t, "%" PRId64, ==)
+#define weston_assert_s64_ne(comp, a, b) weston_assert_(comp, a, b, int64_t, "%" PRId64, !=)
+#define weston_assert_s64_gt(comp, a, b) weston_assert_(comp, a, b, int64_t, "%" PRId64, >)
+#define weston_assert_s64_ge(comp, a, b) weston_assert_(comp, a, b, int64_t, "%" PRId64, >=)
+#define weston_assert_s64_lt(comp, a, b) weston_assert_(comp, a, b, int64_t, "%" PRId64, <)
+#define weston_assert_s64_le(comp, a, b) weston_assert_(comp, a, b, int64_t, "%" PRId64, <=)
+
+#define weston_assert_int_eq(comp, a, b) weston_assert_(comp, a, b, int, "%d", ==)
+#define weston_assert_int_ne(comp, a, b) weston_assert_(comp, a, b, int, "%d", !=)
+#define weston_assert_int_gt(comp, a, b) weston_assert_(comp, a, b, int, "%d", >)
+#define weston_assert_int_ge(comp, a, b) weston_assert_(comp, a, b, int, "%d", >=)
+#define weston_assert_int_lt(comp, a, b) weston_assert_(comp, a, b, int, "%d", <)
+#define weston_assert_int_le(comp, a, b) weston_assert_(comp, a, b, int, "%d", <=)
 
 /* String asserts. */
 
@@ -156,3 +232,5 @@ do {										\
 	custom_assert_fail_(ec, "%s:%u: Assertion failed! This should not be reached: %s\n",	\
 			    __FILE__, __LINE__, reason);					\
 } while (0)
+
+#define weston_assert_enum(comp, a, b) weston_assert_u64_eq(comp, a, b)
