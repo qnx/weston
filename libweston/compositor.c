@@ -4728,7 +4728,7 @@ static void
 surface_commit(struct wl_client *client, struct wl_resource *resource)
 {
 	struct weston_surface *surface = wl_resource_get_user_data(resource);
-	WESTON_TRACE_FUNC_FLOW(&surface->flow_id);
+	WESTON_TRACE_FUNC_FLOW(&surface->pending.flow_id);
 	enum weston_surface_status status;
 	struct weston_buffer *buffer;
 	int32_t tmp_w, tmp_h;

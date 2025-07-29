@@ -1733,6 +1733,7 @@ enum weston_surface_status {
 };
 
 struct weston_surface_state {
+	uint64_t flow_id;
 	enum weston_surface_status status;
 
 	/* wl_surface.attach */

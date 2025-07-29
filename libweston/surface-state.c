@@ -59,6 +59,7 @@ void
 weston_surface_state_init(struct weston_surface *surface,
 			  struct weston_surface_state *state)
 {
+	state->flow_id = 0;
 	state->status = WESTON_SURFACE_CLEAN;
 	state->buffer_ref.buffer = NULL;
 	state->buf_offset = weston_coord_surface(0, 0, surface);
@@ -90,6 +91,7 @@ weston_surface_state_fini(struct weston_surface_state *state)
 {
 	struct wl_resource *cb, *next;
 
+	state->flow_id = 0;
 	wl_resource_for_each_safe(cb, next, &state->frame_callback_list)
 		wl_resource_destroy(cb);
 
@@ -265,10 +267,13 @@ static enum weston_surface_status
 weston_surface_apply_state(struct weston_surface *surface,
 			   struct weston_surface_state *state)
 {
-	WESTON_TRACE_FUNC_FLOW(&surface->flow_id);
+	WESTON_TRACE_FUNC_FLOW(&state->flow_id);
 	struct weston_view *view;
 	pixman_region32_t opaque;
 	enum weston_surface_status status = state->status;
+
+	surface->flow_id = state->flow_id;
+	state->flow_id = 0;
 
 	/* wl_surface.set_buffer_transform */
 	/* wl_surface.set_buffer_scale */
@@ -420,7 +425,7 @@ static enum weston_surface_status
 weston_surface_apply(struct weston_surface *surface,
 		     struct weston_surface_state *state)
 {
-	WESTON_TRACE_FUNC_FLOW(&surface->flow_id);
+	WESTON_TRACE_FUNC_FLOW(&state->flow_id);
 	enum weston_surface_status status;
 	struct weston_subsurface *sub;
 
@@ -444,7 +449,9 @@ weston_surface_state_merge_from(struct weston_surface_state *dst,
 				struct weston_surface_state *src,
 				struct weston_surface *surface)
 {
-	WESTON_TRACE_FUNC();
+	WESTON_TRACE_FUNC_FLOW(&dst->flow_id);
+	src->flow_id = 0;
+
 
 	/*
 	 * If this commit would cause the surface to move by the
@@ -521,6 +528,7 @@ weston_surface_state_merge_from(struct weston_surface_state *dst,
 enum weston_surface_status
 weston_surface_commit(struct weston_surface *surface)
 {
+	WESTON_TRACE_FUNC_FLOW(&surface->pending.flow_id);
 	struct weston_subsurface *sub = weston_surface_to_subsurface(surface);
 	struct weston_surface_state *state = &surface->pending;
 	enum weston_surface_status status;
@@ -569,6 +577,7 @@ weston_subsurface_update_effectively_synchronized(struct weston_subsurface *sub)
 	bool parent_e_sync = false;
 	struct weston_subsurface *child;
 	struct weston_surface *surf = sub->surface;
+	WESTON_TRACE_FUNC_FLOW(&surf->flow_id);
 
 	if (sub->parent) {
 		struct weston_subsurface *parent;
@@ -599,6 +608,7 @@ weston_subsurface_update_effectively_synchronized(struct weston_subsurface *sub)
 void
 weston_subsurface_set_synchronized(struct weston_subsurface *sub, bool sync)
 {
+	WESTON_TRACE_FUNC_FLOW(&sub->surface->flow_id);
 	bool old_e_sync = sub->effectively_synchronized;
 
 	if (sub->synchronized == sync)
