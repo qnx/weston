@@ -518,20 +518,20 @@ enum weston_surface_status
 weston_surface_commit(struct weston_surface *surface)
 {
 	struct weston_subsurface *sub = weston_surface_to_subsurface(surface);
+	struct weston_surface_state *state = &surface->pending;
 	enum weston_surface_status status;
 
 	if (sub) {
 		weston_surface_state_merge_from(&sub->cached,
-						&surface->pending,
+						state,
 						surface);
 		if (sub->effectively_synchronized)
 			return WESTON_SURFACE_CLEAN;
 
-		status = weston_surface_apply(sub->surface, &sub->cached);
-	} else {
-		status = weston_surface_apply(surface, &surface->pending);
+		state = &sub->cached;
 	}
 
+	status = weston_surface_apply(surface, state);
 	return status;
 }
 
