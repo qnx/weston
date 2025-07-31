@@ -1145,10 +1145,7 @@ out:
 	return ret;
 }
 
-static const struct {
-	const char *name;
-	enum require_outputs mode;
-} require_outputs_modes [] = {
+static const struct weston_enum_map require_outputs_modes [] = {
 	{ "all-found",	REQUIRE_OUTPUTS_ALL_FOUND },
 	{ "any",	REQUIRE_OUTPUTS_ANY },
 	{ "none",	REQUIRE_OUTPUTS_NONE },
@@ -1157,13 +1154,13 @@ static const struct {
 static int
 weston_parse_require_outputs(const char *name, enum require_outputs *mode)
 {
-	unsigned int i;
+	const struct weston_enum_map *entry;
 
-	for (i = 0; i < ARRAY_LENGTH(require_outputs_modes); i++)
-		if (strcmp(require_outputs_modes[i].name, name) == 0) {
-			*mode = require_outputs_modes[i].mode;
-			return 0;
-		}
+	entry = weston_enum_map_find_name(require_outputs_modes, name);
+	if (entry) {
+		*mode = entry->value;
+		return 0;
+	}
 
 	return -1;
 }
