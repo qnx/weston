@@ -1250,7 +1250,7 @@ weston_choose_default_backend(void)
 	return backend;
 }
 
-static const struct { const char *name; uint32_t token; } transforms[] = {
+static const struct weston_enum_map transforms[] = {
 	{ "normal",             WL_OUTPUT_TRANSFORM_NORMAL },
 	{ "rotate-90",          WL_OUTPUT_TRANSFORM_90 },
 	{ "rotate-180",         WL_OUTPUT_TRANSFORM_180 },
@@ -1264,13 +1264,13 @@ static const struct { const char *name; uint32_t token; } transforms[] = {
 WL_EXPORT int
 weston_parse_transform(const char *transform, uint32_t *out)
 {
-	unsigned int i;
+	const struct weston_enum_map *entry;
 
-	for (i = 0; i < ARRAY_LENGTH(transforms); i++)
-		if (strcmp(transforms[i].name, transform) == 0) {
-			*out = transforms[i].token;
-			return 0;
-		}
+	entry = weston_enum_map_find_name(transforms, transform);
+	if (entry) {
+		*out = entry->value;
+		return 0;
+	}
 
 	*out = WL_OUTPUT_TRANSFORM_NORMAL;
 	return -1;
@@ -1279,11 +1279,11 @@ weston_parse_transform(const char *transform, uint32_t *out)
 WL_EXPORT const char *
 weston_transform_to_string(uint32_t output_transform)
 {
-	unsigned int i;
+	const struct weston_enum_map *entry;
 
-	for (i = 0; i < ARRAY_LENGTH(transforms); i++)
-		if (transforms[i].token == output_transform)
-			return transforms[i].name;
+	entry = weston_enum_map_find_value(transforms, output_transform);
+	if (entry)
+		return entry->name;
 
 	return "<illegal value>";
 }
