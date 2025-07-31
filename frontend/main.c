@@ -2223,9 +2223,16 @@ static void
 configure_input_device_scroll(struct weston_config_section *s,
 		struct libinput_device *device)
 {
+	static const struct weston_enum_map scroll_modes[] = {
+		{ "two-finger", LIBINPUT_CONFIG_SCROLL_2FG },
+		{ "edge", LIBINPUT_CONFIG_SCROLL_EDGE },
+		{ "button", LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN },
+		{ "none", LIBINPUT_CONFIG_SCROLL_NO_SCROLL },
+	};
 	bool natural;
 	char *method_string = NULL;
 	uint32_t methods;
+	const struct weston_enum_map *entry;
 	enum libinput_config_scroll_method method;
 	char *button_string = NULL;
 	int button;
@@ -2242,15 +2249,10 @@ configure_input_device_scroll(struct weston_config_section *s,
 	if (weston_config_section_get_string(s, "scroll-method",
 					     &method_string, NULL) != 0)
 		goto done;
-	if (strcmp(method_string, "two-finger") == 0)
-		method = LIBINPUT_CONFIG_SCROLL_2FG;
-	else if (strcmp(method_string, "edge") == 0)
-		method = LIBINPUT_CONFIG_SCROLL_EDGE;
-	else if (strcmp(method_string, "button") == 0)
-		method = LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN;
-	else if (strcmp(method_string, "none") == 0)
-		method = LIBINPUT_CONFIG_SCROLL_NO_SCROLL;
-	else {
+	entry = weston_enum_map_find_name(scroll_modes, method_string);
+	if (entry) {
+		method = entry->value;
+	} else {
 		weston_log("warning: no such scroll-method: %s\n",
 			   method_string);
 		goto done;
