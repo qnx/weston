@@ -4458,7 +4458,7 @@ weston_log_print_all_advertised_scopes(struct weston_compositor *ec)
 		const char *name = weston_log_scope_get_name(nscope);
 		const char *desc = weston_log_scope_get_description(nscope);
 
-		if (weston_log_scope_to_be_advertised(ec->weston_log_ctx, name)) 
+		if (weston_log_scope_to_be_advertised(ec->weston_log_ctx, name))
 			weston_log_continue(STAMP_SPACE "'%s' - %s", name, desc);
 	}
 }
