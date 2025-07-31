@@ -88,3 +88,56 @@ TEST(strtol_conversions)
 
 	return RESULT_OK;
 }
+
+TEST(strtof_conversions)
+{
+	float val;
+
+	test_assert_true(safe_strtofloat("0.0", &val));
+	test_assert_f32_eq(val, 0.0);
+
+	test_assert_true(safe_strtofloat("-0.25", &val));
+	test_assert_f32_eq(val, -0.25);
+
+	test_assert_true(safe_strtofloat("  10", &val));
+	test_assert_f32_eq(val, 10.0);
+
+	test_assert_true(safe_strtofloat("+2.2e-4", &val));
+	test_assert_f32_eq(val, 2.2e-4);
+
+	test_assert_true(safe_strtofloat("3.3e3", &val));
+	test_assert_f32_eq(val, 3.3e3);
+
+	test_assert_true(safe_strtofloat("nan", &val));
+	test_assert_true(isnan(val));
+
+	test_assert_true(safe_strtofloat("inf", &val));
+	test_assert_f32_eq(val, HUGE_VALF);
+
+	test_assert_true(safe_strtofloat("-inf", &val));
+	test_assert_f32_eq(val, -HUGE_VALF);
+
+
+	test_assert_false(safe_strtofloat("", &val));
+	test_assert_int_eq(errno, EINVAL);
+
+	test_assert_false(safe_strtofloat("x", &val));
+	test_assert_int_eq(errno, EINVAL);
+
+	test_assert_false(safe_strtofloat("15k", &val));
+	test_assert_int_eq(errno, EINVAL);
+
+	test_assert_false(safe_strtofloat("b2.2", &val));
+	test_assert_int_eq(errno, EINVAL);
+
+	test_assert_false(safe_strtofloat("1.3f", &val));
+	test_assert_int_eq(errno, EINVAL);
+
+	test_assert_false(safe_strtofloat("1e-500", &val));
+	test_assert_int_eq(errno, ERANGE);
+
+	test_assert_false(safe_strtofloat("1e+500", &val));
+	test_assert_int_eq(errno, ERANGE);
+
+	return RESULT_OK;
+}

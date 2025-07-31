@@ -73,6 +73,37 @@ safe_strtoint(const char *str, int32_t *value)
 	return true;
 }
 
+/** Convert a localized string to a single-precision floating point value
+ *
+ * \param str The string to parse. Leading whitespace is ignored,
+ * otherwise the string must be exactly a real number in the current locale.
+ * \param[out] value Pointer to store the result to on success.
+ * \return True on success. False on failure and errno set to
+ * either ERANGE (under- or overflow) or EINVAL (the string is not strictly
+ * a number).
+ */
+static inline bool
+safe_strtofloat(const char *str, float *value)
+{
+	float ret;
+	char *end;
+
+	assert(str != NULL);
+
+	errno = 0;
+	ret = strtof(str, &end);
+	if (errno != 0) {
+		return false;
+	} else if (end == str || *end != '\0') {
+		errno = EINVAL;
+		return false;
+	}
+
+	*value = ret;
+
+	return true;
+}
+
 /**
  * Exactly like asprintf(), but sets *str_out to NULL if it fails.
  *
