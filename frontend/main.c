@@ -1521,10 +1521,7 @@ wet_output_set_colorimetry_mode(struct weston_output *output,
 				struct weston_config_section *section,
 				bool have_color_manager)
 {
-	static const struct {
-		const char *name;
-		enum weston_colorimetry_mode cmode;
-	} modes[] = {
+	static const struct weston_enum_map modes[] = {
 		{ "default",	WESTON_COLORIMETRY_MODE_DEFAULT },
 		{ "bt2020cycc",	WESTON_COLORIMETRY_MODE_BT2020_CYCC },
 		{ "bt2020ycc",	WESTON_COLORIMETRY_MODE_BT2020_YCC },
@@ -1534,6 +1531,7 @@ wet_output_set_colorimetry_mode(struct weston_output *output,
 		{ "ictcp",	WESTON_COLORIMETRY_MODE_ICTCP },
 	};
 	enum weston_colorimetry_mode cmode = WESTON_COLORIMETRY_MODE_DEFAULT;
+	const struct weston_enum_map *entry;
 	char *str = NULL;
 	unsigned i;
 
@@ -1545,11 +1543,8 @@ wet_output_set_colorimetry_mode(struct weston_output *output,
 		return 0;
 	}
 
-	for (i = 0; i < ARRAY_LENGTH(modes); i++)
-		if (strcmp(str, modes[i].name) == 0)
-			break;
-
-	if (i == ARRAY_LENGTH(modes)) {
+	entry = weston_enum_map_find_name(modes, str);
+	if (!entry) {
 		weston_log("Error in config for output '%s': '%s' is not a valid colorimetry mode. Try one of:",
 			   output->name, str);
 		for (i = 0; i < ARRAY_LENGTH(modes); i++)
@@ -1558,7 +1553,7 @@ wet_output_set_colorimetry_mode(struct weston_output *output,
 		free(str);
 		return -1;
 	}
-	cmode = modes[i].cmode;
+	cmode = entry->value;
 
 	if ((weston_output_get_supported_colorimetry_modes(output) & cmode) == 0) {
 		weston_log("Error: output '%s' does not support colorimetry mode %s.\n",
