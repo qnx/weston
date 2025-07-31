@@ -1465,16 +1465,14 @@ wet_output_set_eotf_mode(struct weston_output *output,
 			 struct weston_config_section *section,
 			 bool have_color_manager)
 {
-	static const struct {
-		const char *name;
-		enum weston_eotf_mode eotf_mode;
-	} modes[] = {
+	static const struct weston_enum_map modes[] = {
 		{ "sdr",	WESTON_EOTF_MODE_SDR },
 		{ "hdr-gamma",	WESTON_EOTF_MODE_TRADITIONAL_HDR },
 		{ "st2084",	WESTON_EOTF_MODE_ST2084 },
 		{ "hlg",	WESTON_EOTF_MODE_HLG },
 	};
 	enum weston_eotf_mode eotf_mode = WESTON_EOTF_MODE_SDR;
+	const struct weston_enum_map *entry;
 	char *str = NULL;
 	unsigned i;
 
@@ -1486,11 +1484,8 @@ wet_output_set_eotf_mode(struct weston_output *output,
 		return 0;
 	}
 
-	for (i = 0; i < ARRAY_LENGTH(modes); i++)
-		if (strcmp(str, modes[i].name) == 0)
-			break;
-
-	if (i == ARRAY_LENGTH(modes)) {
+	entry = weston_enum_map_find_name(modes, str);
+	if (!entry) {
 		weston_log("Error in config for output '%s': '%s' is not a valid EOTF mode. Try one of:",
 			   output->name, str);
 		for (i = 0; i < ARRAY_LENGTH(modes); i++)
@@ -1499,7 +1494,7 @@ wet_output_set_eotf_mode(struct weston_output *output,
 		free(str);
 		return -1;
 	}
-	eotf_mode = modes[i].eotf_mode;
+	eotf_mode = entry->value;
 
 	if ((weston_output_get_supported_eotf_modes(output) & eotf_mode) == 0) {
 		weston_log("Error: output '%s' does not support EOTF mode %s.\n",
