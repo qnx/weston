@@ -31,6 +31,7 @@
 #include <libweston/config-parser.h>
 
 #include "shared/helpers.h"
+#include "shared/string-helpers.h"
 #include "weston-private.h"
 
 struct {
@@ -64,10 +65,7 @@ get_backend_from_string(const char *name,
 	return false;
 }
 
-struct {
-	char *name;
-	enum weston_renderer_type renderer;
-} renderer_name_map[] = {
+static const struct weston_enum_map renderer_name_map[] = {
 	{ "auto", WESTON_RENDERER_AUTO },
 	{ "gl", WESTON_RENDERER_GL },
 	{ "vulkan", WESTON_RENDERER_VULKAN },
@@ -79,16 +77,15 @@ bool
 get_renderer_from_string(const char *name,
 			 enum weston_renderer_type *renderer)
 {
-	size_t i;
+	const struct weston_enum_map *entry;
 
 	if (!name)
 		name = "auto";
 
-	for (i = 0; i < ARRAY_LENGTH(renderer_name_map); i++) {
-		if (strcmp(name, renderer_name_map[i].name) == 0) {
-			*renderer = renderer_name_map[i].renderer;
-			return true;
-		}
+	entry = weston_enum_map_find_name(renderer_name_map, name);
+	if (entry) {
+		*renderer = entry->value;
+		return true;
 	}
 
 	return false;
