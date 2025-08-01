@@ -51,23 +51,12 @@ fdo_log_section_end install_meson
 # predictably test the DRM backend in the absence of real hardware. We lock the
 # version here so we see predictable results.
 #
-# To run this we use virtme, a QEMU wrapper: https://github.com/amluto/virtme
+# To run this we use virtme-ng, a QEMU wrapper. It is a fork from virtme, whose
+# development stalled.
 #
-# virtme makes our lives easier by abstracting handling of the console,
+# virtme-ng makes our lives easier by abstracting handling of the console,
 # filesystem, etc, so we can pretend that the VM we execute in is actually
 # just a regular container.
-#
-# The reason why we are using a fork here is that it adds a patch to have the
-# --script-dir command line option. With that we can run scripts that are in a
-# certain folder when virtme starts, which is necessary in our use case.
-#
-# The upstream also has some commands that could help us to reach the same
-# results: --script-sh and --script-exec. Unfornutately they are not completely
-# implemented yet, so we had some trouble to use them and it was becoming
-# hackery.
-#
-# The fork pulls in this support from the original GitHub PR, rebased on top of
-# a newer upstream version which fixes AArch64 support.
 fdo_log_section_start_collapsed install_kernel "install_kernel"
 if [[ -n "$KERNEL_DEFCONFIG" ]]; then
 	git clone --depth=1 --branch=v6.14 https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git linux
