@@ -2970,11 +2970,19 @@ weston_wm_create(struct weston_xserver *wxs, int fd)
 	return wm;
 }
 
+static void
+window_destroy(void *entry, void *data)
+{
+	struct weston_wm_window *window = entry;
+
+	weston_wm_window_destroy(window);
+}
+
 void
 weston_wm_destroy(struct weston_wm *wm)
 {
 	wl_global_destroy(wm->xwayland_shell_global);
-	/* FIXME: Free windows in hash. */
+	hash_table_for_each(wm->window_hash, window_destroy, NULL);
 	hash_table_destroy(wm->window_hash);
 	weston_wm_destroy_cursors(wm);
 	theme_destroy(wm->theme);
