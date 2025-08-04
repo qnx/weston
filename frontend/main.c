@@ -3001,8 +3001,10 @@ drm_process_layoutputs(struct wet_compositor *wet)
 		return -1;
 	}
 
-	weston_log("Warning: No output enabled, but none required "
-		   "as per configuration\n");
+	if (wet->require_outputs != REQUIRE_OUTPUTS_ANY &&
+	    !wl_list_length(&wet->layoutput_list))
+		weston_log("Warning: No output enabled, but none required "
+			   "as per configuration\n");
 	return 0;
 }
 
