@@ -1818,6 +1818,7 @@ struct output_capturer {
 	int width;
 	int height;
 	uint32_t drm_format;
+	bool formats_done;
 
 	struct weston_capture_v1 *factory;
 	struct weston_capture_source_v1 *source;
@@ -1832,7 +1833,22 @@ output_capturer_handle_format(void *data,
 {
 	struct output_capturer *capt = data;
 
-	capt->drm_format = drm_format;
+	if (capt->formats_done) {
+		capt->drm_format = DRM_FORMAT_INVALID;
+		capt->formats_done = false;
+	}
+
+	if (!capt->drm_format)
+		capt->drm_format = drm_format;
+}
+
+static void
+output_capturer_handle_formats_done(void *data,
+				    struct weston_capture_source_v1 *proxy)
+{
+	struct output_capturer *capt = data;
+
+	capt->formats_done = true;
 }
 
 static void
@@ -1874,6 +1890,7 @@ output_capturer_handle_failed(void *data,
 
 static const struct weston_capture_source_v1_listener output_capturer_source_handlers = {
 	.format = output_capturer_handle_format,
+	.formats_done = output_capturer_handle_formats_done,
 	.size = output_capturer_handle_size,
 	.complete = output_capturer_handle_complete,
 	.retry = output_capturer_handle_retry,
@@ -1890,7 +1907,7 @@ client_capture_output(struct client *client,
 
 	capt.factory = bind_to_singleton_global(client,
 						&weston_capture_v1_interface,
-						1);
+						2);
 
 	capt.source = weston_capture_v1_create(capt.factory,
 					       output->wl_output, src);
@@ -1903,6 +1920,7 @@ client_capture_output(struct client *client,
 	test_assert_true(capt.width != 0 &&
 			 capt.height != 0 &&
 			 capt.drm_format != 0 &&
+			 capt.formats_done &&
 			 "capture source not available");
 
 	buf = create_shm_buffer(client,

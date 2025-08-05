@@ -89,6 +89,7 @@ struct capturer {
 	struct {
 		bool size;
 		bool format;
+		bool formats_done;
 		bool reply;
 	} events;
 
@@ -104,8 +105,25 @@ capture_source_handle_format(void *data,
 
 	test_assert_ptr_eq(capt->source, proxy);
 
+	if (capt->events.formats_done) {
+		capt->drm_format = DRM_FORMAT_INVALID;
+		capt->events.formats_done = false;
+	}
+
 	capt->events.format = true;
-	capt->drm_format = drm_format;
+	if (capt->drm_format == DRM_FORMAT_INVALID)
+		capt->drm_format = drm_format;
+}
+
+static void
+capture_source_handle_formats_done(void *data,
+				   struct weston_capture_source_v1 *proxy)
+{
+	struct capturer *capt = data;
+
+	test_assert_ptr_eq(capt->source, proxy);
+
+	capt->events.formats_done = true;
 }
 
 static void
@@ -164,6 +182,7 @@ capture_source_handle_failed(void *data,
 
 static const struct weston_capture_source_v1_listener capture_source_handlers = {
 	.format = capture_source_handle_format,
+	.formats_done = capture_source_handle_formats_done,
 	.size = capture_source_handle_size,
 	.complete = capture_source_handle_complete,
 	.retry = capture_source_handle_retry,
@@ -181,7 +200,7 @@ capturer_create(struct client *client,
 
 	capt->factory = bind_to_singleton_global(client,
 						 &weston_capture_v1_interface,
-						 1);
+						 2);
 
 	capt->source = weston_capture_v1_create(capt->factory,
 						output->wl_output, src);
@@ -217,6 +236,7 @@ TEST(simple_shot)
 	client_roundtrip(client);
 
 	test_assert_true(capt->events.format);
+	test_assert_true(capt->events.formats_done);
 	test_assert_true(capt->events.size);
 	test_assert_enum(capt->state, CAPTURE_TASK_PENDING);
 	test_assert_u32_eq(capt->drm_format, fix->expected_drm_format);
@@ -257,6 +277,7 @@ TEST(retry_on_wrong_format)
 	client_roundtrip(client);
 
 	test_assert_true(capt->events.format);
+	test_assert_true(capt->events.formats_done);
 	test_assert_true(capt->events.size);
 	test_assert_enum(capt->state, CAPTURE_TASK_PENDING);
 
@@ -298,6 +319,7 @@ TEST(retry_on_wrong_size)
 	client_roundtrip(client);
 
 	test_assert_true(capt->events.format);
+	test_assert_true(capt->events.formats_done);
 	test_assert_true(capt->events.size);
 	test_assert_enum(capt->state, CAPTURE_TASK_PENDING);
 	test_assert_int_gt(capt->width, 5);
@@ -337,6 +359,7 @@ TEST(writeback_on_headless_fails)
 	client_roundtrip(client);
 
 	test_assert_false(capt->events.format);
+	test_assert_false(capt->events.formats_done);
 	test_assert_false(capt->events.size);
 	test_assert_enum(capt->state, CAPTURE_TASK_PENDING);
 
@@ -345,6 +368,7 @@ TEST(writeback_on_headless_fails)
 	client_roundtrip(client);
 
 	test_assert_false(capt->events.format);
+	test_assert_false(capt->events.formats_done);
 	test_assert_false(capt->events.size);
 	test_assert_enum(capt->state, CAPTURE_TASK_FAILED);
 	test_assert_str_eq(capt->last_failure, "source unavailable");

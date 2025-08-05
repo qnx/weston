@@ -66,6 +66,7 @@ struct screenshooter_buffer {
 
 struct screenshooter_output {
 	struct screenshooter_app *app;
+	uint32_t name;
 	struct wl_list link; /* struct screenshooter_app::output_list */
 
 	struct wl_output *wl_output;
@@ -75,7 +76,8 @@ struct screenshooter_output {
 
 	int buffer_width;
 	int buffer_height;
-	const struct pixel_format_info *fmt;
+	struct wl_array formats;
+	bool formats_done;
 	struct screenshooter_buffer *buffer;
 };
 
@@ -131,10 +133,28 @@ capture_source_handle_format(void *data,
 			     uint32_t drm_format)
 {
 	struct screenshooter_output *output = data;
+	uint32_t *fmt;
 
 	assert(output->source == proxy);
 
-	output->fmt = pixel_format_get_info(drm_format);
+	if (output->formats_done) {
+		wl_array_release(&output->formats);
+		wl_array_init(&output->formats);
+		output->formats_done = false;
+	}
+
+	fmt = wl_array_add(&output->formats, sizeof(uint32_t));
+	assert(fmt);
+	*fmt = drm_format;
+}
+
+static void
+capture_source_handle_formats_done(void *data,
+				   struct weston_capture_source_v1 *proxy)
+{
+	struct screenshooter_output *output = data;
+
+	output->formats_done = true;
 }
 
 static void
@@ -188,6 +208,7 @@ capture_source_handle_failed(void *data,
 
 static const struct weston_capture_source_v1_listener capture_source_handlers = {
 	.format = capture_source_handle_format,
+	.formats_done = capture_source_handle_formats_done,
 	.size = capture_source_handle_size,
 	.complete = capture_source_handle_complete,
 	.retry = capture_source_handle_retry,
@@ -202,6 +223,7 @@ create_output(struct screenshooter_app *app, uint32_t output_name, uint32_t vers
 	version = MIN(version, 4);
 	output = xzalloc(sizeof *output);
 	output->app = app;
+	output->name = output_name;
 	output->wl_output = wl_registry_bind(app->registry, output_name,
 					     &wl_output_interface, version);
 	abort_oom_if_null(output->wl_output);
@@ -213,6 +235,8 @@ create_output(struct screenshooter_app *app, uint32_t output_name, uint32_t vers
 	weston_capture_source_v1_add_listener(output->source,
 					      &capture_source_handlers, output);
 
+	wl_array_init(&output->formats);
+
 	wl_list_insert(&app->output_list, &output->link);
 }
 
@@ -220,6 +244,8 @@ static void
 destroy_output(struct screenshooter_output *output)
 {
 	weston_capture_source_v1_destroy(output->source);
+
+	wl_array_release(&output->formats);
 
 	if (wl_output_get_version(output->wl_output) >= WL_OUTPUT_RELEASE_SINCE_VERSION)
 		wl_output_release(output->wl_output);
@@ -248,7 +274,7 @@ handle_global(void *data, struct wl_registry *registry,
 	} else if (strcmp(interface, weston_capture_v1_interface.name) == 0) {
 		app->capture_factory = wl_registry_bind(registry, name,
 							&weston_capture_v1_interface,
-							1);
+							2);
 	}
 }
 
@@ -266,11 +292,25 @@ static const struct wl_registry_listener registry_listener = {
 static void
 screenshooter_output_capture(struct screenshooter_output *output)
 {
+	const struct pixel_format_info *fmt_info = NULL;
+	uint32_t *fmt;
+
 	screenshooter_buffer_destroy(output->buffer);
+
+	wl_array_for_each(fmt, &output->formats) {
+		fmt_info = pixel_format_get_info(*fmt);
+		assert(fmt_info);
+		break;
+	}
+	if (!fmt_info) {
+		fprintf(stderr, "No supported format found\n");
+		exit(1);
+	}
+
 	output->buffer = screenshot_create_shm_buffer(output->app,
 						      output->buffer_width,
 						      output->buffer_height,
-						      output->fmt);
+						      fmt_info);
 	abort_oom_if_null(output->buffer);
 
 	weston_capture_source_v1_capture(output->source,
@@ -353,6 +393,18 @@ screenshot_set_buffer_size(struct buffer_size *buff_size,
 	return 0;
 }
 
+static bool
+received_formats_for_all_outputs(struct screenshooter_app *app)
+{
+	struct screenshooter_output *output;
+
+	wl_list_for_each(output, &app->output_list, link) {
+		if (!output->formats_done)
+			return false;
+	}
+	return true;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -388,6 +440,13 @@ main(int argc, char *argv[])
 
 	/* Process initial events for wl_output and weston_capture_source_v1 */
 	wl_display_roundtrip(display);
+
+	while (!received_formats_for_all_outputs(&app)) {
+		if (wl_display_dispatch(display) < 0) {
+			fprintf(stderr, "Error: connection terminated\n");
+			return -1;
+		}
+	}
 
 	do {
 		app.retry = false;

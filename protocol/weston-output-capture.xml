@@ -24,7 +24,7 @@
     DEALINGS IN THE SOFTWARE.
   </copyright>
 
-  <interface name="weston_capture_v1" version="1">
+  <interface name="weston_capture_v1" version="2">
     <description summary="image capture factory">
       The global interface exposing Weston screenshooting functionality
       intended for single shots.
@@ -91,7 +91,7 @@
     </request>
   </interface>
 
-  <interface name="weston_capture_source_v1" version="1">
+  <interface name="weston_capture_source_v1" version="2">
     <description summary="image capturing source">
       An object representing image capturing functionality for a single
       source. When created, it sends the initial events if and only if the
@@ -151,16 +151,24 @@
 
     <event name="format">
       <description summary="pixel format for a buffer">
-        This event delivers the pixel format that should be used for the
+        This event delivers one pixel format that can be used for the
         image buffer. Any buffer is incompatible if it does not have
-        this pixel format.
+        a pixel format delivered by one of this events.
 
         The format modifier is linear (DRM_FORMAT_MOD_LINEAR).
 
-        This is an initial event, and sent whenever the required format
-        changes.
+        This is an initial event, and sent whenever the supported formats
+        change.
+
+        This event may be send multiple times, followed by a format_done event.
       </description>
       <arg name="drm_format" type="uint" summary="DRM pixel format code"/>
+    </event>
+
+    <event name="formats_done" since="2">
+      <description summary="sending formats is complete">
+        This event is sent after all formats have been sent.
+      </description>
     </event>
 
     <event name="size">

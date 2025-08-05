@@ -214,6 +214,10 @@ capture_info_send_source_info(struct weston_output_capture_info *ci,
 
 		weston_capture_source_v1_send_format(csrc->resource,
 						     csi->drm_format);
+		if (wl_resource_get_version(csrc->resource) >=
+		    WESTON_CAPTURE_SOURCE_V1_FORMATS_DONE_SINCE_VERSION)
+			weston_capture_source_v1_send_formats_done(csrc->resource);
+
 		weston_capture_source_v1_send_size(csrc->resource,
 						   csi->width, csi->height);
 	}
@@ -671,7 +675,7 @@ weston_compositor_install_capture_protocol(struct weston_compositor *compositor)
 	compositor->output_capture.weston_capture_v1 =
 		wl_global_create(compositor->wl_display,
 				 &weston_capture_v1_interface,
-				 1, NULL, bind_weston_capture);
+				 2, NULL, bind_weston_capture);
 	abort_oom_if_null(compositor->output_capture.weston_capture_v1);
 }
 
