@@ -306,7 +306,7 @@ paint_node_update_late(struct weston_paint_node *pnode)
 	 * visible region up to date.
 	 */
 	pixman_region32_intersect(&pnode->visible,
-				  &pnode->view->visible,
+				  &pnode->visible_next,
 				  &pnode->output->region);
 
 	/* If our visible region was dirty, we should damage the entire
@@ -381,7 +381,8 @@ weston_paint_node_create(struct weston_surface *surface,
 
 	pixman_region32_init(&pnode->damage);
 	pixman_region32_init(&pnode->visible);
-	pixman_region32_copy(&pnode->visible, &view->visible);
+	pixman_region32_init(&pnode->visible_next);
+	pixman_region32_copy(&pnode->visible, &view->transform.boundingbox);
 
 	pnode->plane = &pnode->output->primary_plane;
 	pnode->plane_next = NULL;
@@ -407,6 +408,7 @@ weston_paint_node_destroy(struct weston_paint_node *pnode)
 	weston_surface_color_transform_fini(&pnode->surf_xform);
 	pixman_region32_fini(&pnode->damage);
 	pixman_region32_fini(&pnode->visible);
+	pixman_region32_fini(&pnode->visible_next);
 	free(pnode);
 }
 
@@ -681,8 +683,6 @@ weston_view_create_internal(struct weston_surface *surface)
 	wl_list_init(&view->layer_link.link);
 	wl_list_init(&view->paint_node_list);
 
-	pixman_region32_init(&view->visible);
-
 	view->alpha = 1.0;
 	pixman_region32_init(&view->transform.opaque);
 
@@ -695,7 +695,6 @@ weston_view_create_internal(struct weston_surface *surface)
 	pixman_region32_init(&view->transform.boundingbox);
 	view->transform.dirty = 1;
 	weston_view_update_transform(view);
-	pixman_region32_copy(&view->visible, &view->transform.boundingbox);
 
 	return view;
 }
@@ -2599,7 +2598,6 @@ weston_view_destroy(struct weston_view *view)
 	wl_list_init(&view->layer_link.link);
 	view->layer_link.layer = NULL;
 
-	pixman_region32_fini(&view->visible);
 	pixman_region32_fini(&view->geometry.scissor);
 	pixman_region32_fini(&view->transform.boundingbox);
 	pixman_region32_fini(&view->transform.opaque);
@@ -3217,12 +3215,14 @@ out:
 }
 
 static void
-view_update_visible(struct weston_view *view,
-                             pixman_region32_t *opaque)
+paint_node_update_visible(struct weston_paint_node *pnode,
+			  pixman_region32_t *opaque)
 {
+	struct weston_view *view = pnode->view;
+
 	assert(!view->transform.dirty);
 
-	pixman_region32_subtract(&view->visible, &view->transform.boundingbox,
+	pixman_region32_subtract(&pnode->visible_next, &view->transform.boundingbox,
 				 opaque);
 	pixman_region32_union(opaque, opaque, &view->transform.opaque);
 }
@@ -3241,7 +3241,7 @@ output_update_visibility(struct weston_output *output)
 
 	wl_list_for_each(pnode, &output->paint_node_z_order_list,
 			 z_order_link) {
-		view_update_visible(pnode->view, &opaque);
+		paint_node_update_visible(pnode, &opaque);
 
 		pixman_region32_union(&clip, &clip, &opaque);
 	}

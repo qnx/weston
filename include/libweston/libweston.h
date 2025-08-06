@@ -1568,7 +1568,6 @@ struct weston_view {
 
 	unsigned int click_to_activate_serial;
 
-	pixman_region32_t visible;       /* Unoccluded region in global space */
 	float alpha;                     /* part of geometry, see below */
 
 	/* Surface geometry state, mutable.
