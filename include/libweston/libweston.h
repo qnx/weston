@@ -1712,10 +1712,15 @@ struct weston_view {
 	struct wl_listener output_destroy_listener;
 
 	/*
-	 * A more complete representation of all outputs this surface is
-	 * displayed on.
+	 * A bitfield of outputs this view intersects - though it may not be
+	 * visible on them.
 	 */
 	uint32_t output_mask;
+
+	/*
+	 * A bitfield of outputs this view is visible (has unoccluded pixels) on.
+	 */
+	uint32_t output_visibility_mask;
 
 	bool is_mapped;
 	struct weston_log_pacer subsurface_parent_log_pacer;
@@ -1961,6 +1966,12 @@ struct weston_surface {
 	/** computed after each frame_counter_interval */
 	float frame_commit_fps_counter;
 	float painted_frame_fps_counter;
+
+	/** Visibility won't be calculated until repaint, but we use this to
+	 * track whether we can safely use the last repaint's visibility
+	 * calculations when considering this surface's visibility.
+	 */
+	uint32_t output_visibility_dirty_mask;
 };
 
 struct weston_subsurface {

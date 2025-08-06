@@ -309,6 +309,8 @@ paint_node_update_late(struct weston_paint_node *pnode)
 	WESTON_TRACE_FUNC_FLOW(&pnode->surface->flow_id);
 	struct weston_surface *surf = pnode->surface;
 	struct weston_buffer *buffer = surf->buffer_ref.buffer;
+	struct weston_view *view = pnode->view;
+	struct weston_output *output = pnode->output;
 	bool vis_dirty = pnode->status & WESTON_PAINT_NODE_VISIBILITY_DIRTY;
 	bool plane_dirty = pnode->status & WESTON_PAINT_NODE_PLANE_DIRTY;
 
@@ -322,6 +324,12 @@ paint_node_update_late(struct weston_paint_node *pnode)
 	 */
 	if (vis_dirty || plane_dirty)
 		paint_node_damage_below(pnode, &pnode->visible_previous);
+
+	/* Update the view's output visibility mask */
+	if (pixman_region32_not_empty(&pnode->visible))
+		view->output_visibility_mask |= 1u << output->id;
+	else
+		view->output_visibility_mask &= ~(1u << output->id);
 
 	/* If our visible region was dirty, we should damage the entire
 	 * new visible region to ensure a redraw of our content.
@@ -446,6 +454,8 @@ weston_paint_node_destroy(struct weston_paint_node *pnode)
 	assert(pnode->view->surface == pnode->surface);
 
 	weston_paint_node_remove_z_order_link(pnode);
+
+	pnode->view->output_visibility_mask &= ~(1u << pnode->output->id);
 
 	wl_list_remove(&pnode->surface_link);
 	wl_list_remove(&pnode->view_link);
@@ -1396,6 +1406,13 @@ weston_surface_update_output_mask(struct weston_surface *es, uint32_t mask)
 		return;
 	if (different == 0)
 		return;
+
+	/* Surface visibility can't be dirty on outputs it's not on */
+	es->output_visibility_dirty_mask &= ~mask;
+	/* Surface visibility must be dirty on outputs that have been entered,
+	 * until the output is repainted.
+	 */
+	es->output_visibility_dirty_mask |= entered;
 
 	wl_list_for_each(output, &es->compositor->output_list, link) {
 		output_bit = 1u << output->id;
@@ -2527,6 +2544,7 @@ weston_view_unmap(struct weston_view *view)
 	wl_list_remove(&view->link);
 	wl_list_init(&view->link);
 	weston_view_set_output_mask(view, 0x0);
+	view->output_visibility_mask = 0;
 	weston_surface_assign_output(view->surface);
 
 	if (!weston_surface_is_mapped(view->surface)) {
@@ -3231,6 +3249,7 @@ paint_node_update_visible(struct weston_paint_node *pnode,
 			  pixman_region32_t *opaque)
 {
 	struct weston_view *view = pnode->view;
+	struct weston_surface *surface = view->surface;
 
 	assert(!view->transform.dirty);
 
@@ -3247,6 +3266,14 @@ paint_node_update_visible(struct weston_paint_node *pnode,
 		pixman_region32_union(opaque, opaque, &pnode->visible);
 	else if (view->alpha == 1.0)
 		pixman_region32_union(opaque, opaque, &view->transform.opaque);
+
+	/* This might not be the only paint node that contributes to this
+	 * surface's visibility on this output, but since we can only end up
+	 * here when doing a full walk of this output's paint nodes, we know
+	 * that all paint nodes that contribute to this dirty bit will be
+	 * considered before the walk is finished.
+	 */
+	surface->output_visibility_dirty_mask &= ~(1u << pnode->output->id);
 }
 
 
@@ -7531,6 +7558,7 @@ weston_compositor_remove_output(struct weston_output *output)
 	 * after a view came on it, lacking a paint node. Just to be sure.
 	 */
 	wl_list_for_each(view, &compositor->view_list, link) {
+		view->output_visibility_mask &= ~(1u << output->id);
 		if (view->output_mask & (1u << output->id))
 			weston_view_assign_output(view);
 	}

@@ -863,4 +863,7 @@ weston_surface_state_fini(struct weston_surface_state *state);
 const char *
 weston_plane_failure_reasons_to_str(enum try_view_on_plane_failure_reasons failure_reasons);
 
+uint32_t
+weston_surface_visibility_mask(struct weston_surface *surface);
+
 #endif

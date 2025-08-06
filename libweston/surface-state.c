@@ -42,6 +42,27 @@ static void
 weston_surface_apply(struct weston_surface *surface,
 		     struct weston_surface_state *state);
 
+uint32_t
+weston_surface_visibility_mask(struct weston_surface *surface)
+{
+	struct weston_view *view;
+	uint32_t visibility_mask;
+
+	/* Assume the surface is visible on any output without up to date
+	 * visibility information.
+	 */
+	visibility_mask = surface->output_visibility_dirty_mask;
+
+	/* We can skip the loop if it's dirty everywhere */
+	if (visibility_mask == surface->output_mask)
+		return visibility_mask;
+
+	wl_list_for_each(view, &surface->views, surface_link)
+		visibility_mask |= view->output_visibility_mask;
+
+	return visibility_mask;
+}
+
 static void
 weston_surface_dirty_paint_nodes(struct weston_surface *surface,
 				 enum weston_paint_node_status status)
@@ -265,6 +286,15 @@ weston_surface_set_protection_mode(struct weston_surface *surface,
 	}
 }
 
+static bool
+weston_surface_status_invalidates_visibility(enum weston_surface_status status)
+{
+	return status & WESTON_SURFACE_DIRTY_SIZE ||
+	       status & WESTON_SURFACE_DIRTY_POS ||
+	       status & WESTON_SURFACE_DIRTY_BUFFER_PARAMS ||
+	       status & WESTON_SURFACE_DIRTY_SUBSURFACE_CONFIG;
+}
+
 static enum weston_surface_status
 weston_surface_apply_state(struct weston_surface *surface,
 			   struct weston_surface_state *state)
@@ -403,6 +433,10 @@ weston_surface_apply_state(struct weston_surface *surface,
 	/* Surface is now quiescent */
 	surface->is_unmapping = false;
 	surface->is_mapping = false;
+
+	if (weston_surface_status_invalidates_visibility(status))
+		surface->output_visibility_dirty_mask |= surface->output_mask;
+
 	state->status = WESTON_SURFACE_CLEAN;
 
 	return status;
