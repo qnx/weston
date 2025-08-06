@@ -3439,8 +3439,13 @@ drm_writeback_populate_formats(struct drm_writeback *wb)
 	blob_formats = blob->data;
 
 	for (i = 0; i < blob->length / sizeof(uint32_t); i++) {
-		if (!weston_drm_format_array_add_format(&wb->formats,
-							blob_formats[i])) {
+		struct weston_drm_format *fmt;
+
+		fmt = weston_drm_format_array_add_format(&wb->formats,
+							 blob_formats[i]);
+		if (fmt == NULL ||
+		    weston_drm_format_add_modifier(fmt,
+						   DRM_FORMAT_MOD_LINEAR) < 0) {
 			ret = -1;
 			break;
 		}
