@@ -385,7 +385,8 @@ dmabuf_feedback_maybe_update(struct drm_device *device, struct weston_view *ev,
 						 FAILURE_REASONS_NO_GBM |
 						 FAILURE_REASONS_NO_COLOR_TRANSFORM |
 						 FAILURE_REASONS_SOLID_SURFACE |
-						 FAILURE_REASONS_OCCLUDED_BY_RENDERER)) {
+						 FAILURE_REASONS_OCCLUDED_BY_RENDERER |
+						 FAILURE_REASONS_OUTPUT_COLOR_EFFECT)) {
 		action_needed = ACTION_NEEDED_REMOVE_SCANOUT_TRANCHE;
 	/* Direct scanout may be possible if client re-allocates using the
 	 * params from the scanout tranche. */
@@ -912,6 +913,10 @@ drm_output_propose_state(struct weston_output *output_base,
 		    ev->surface->buffer_ref.buffer->type == WESTON_BUFFER_SOLID)
 			pnode->try_view_on_plane_failure_reasons |=
 				FAILURE_REASONS_SOLID_SURFACE;
+
+		if (pnode->output->color_effect)
+			pnode->try_view_on_plane_failure_reasons |=
+				FAILURE_REASONS_OUTPUT_COLOR_EFFECT;
 
 		if (pnode->surf_xform.transform != NULL ||
 		    !pnode->surf_xform.identity_pipeline)

@@ -223,6 +223,13 @@ enum gl_shader_texture_variant {
 };
 
 /* Keep the following in sync with fragment.glsl. */
+enum gl_shader_color_effect {
+	SHADER_COLOR_EFFECT_NONE = 0,
+	SHADER_COLOR_EFFECT_INVERSION,
+	SHADER_COLOR_EFFECT_CVD_CORRECTION,
+};
+
+/* Keep the following in sync with fragment.glsl. */
 enum gl_shader_color_curve {
 	SHADER_COLOR_CURVE_IDENTITY = 0,
 	SHADER_COLOR_CURVE_LUT_3x1D,
@@ -289,6 +296,8 @@ struct gl_shader_requirements
 	bool tint:1;
 	bool wireframe:1;
 
+	unsigned color_effect:2; /* enum gl_shader_color_effect */
+
 	unsigned color_pre_curve:3; /* enum gl_shader_color_curve */
 	unsigned color_mapping:2; /* enum gl_shader_color_mapping */
 	unsigned color_post_curve:3; /* enum gl_shader_color_curve */
@@ -297,7 +306,7 @@ struct gl_shader_requirements
 	 * The total size of all bitfields plus pad_bits_ must fill up exactly
 	 * how many bytes the compiler allocates for them together.
 	 */
-	unsigned pad_bits_:16;
+	unsigned pad_bits_:14;
 };
 static_assert(sizeof(struct gl_shader_requirements) ==
 	      4 /* total bitfield size in bytes */,
@@ -332,6 +341,13 @@ struct gl_texture_parameters {
 struct gl_shader;
 struct weston_color_transform;
 struct dmabuf_allocator;
+
+union gl_shader_config_color_effect {
+	struct  {
+		struct weston_mat3f simulation;
+		struct weston_mat3f redistribution;
+	} cvd_correction;
+};
 
 union gl_shader_config_color_curve {
 	struct {
@@ -368,6 +384,8 @@ struct gl_shader_config {
 	int input_num;
 
 	GLuint wireframe_tex;
+
+	union gl_shader_config_color_effect color_effect;
 
 	union gl_shader_config_color_curve color_pre_curve;
 	union gl_shader_config_color_mapping color_mapping;
@@ -733,5 +751,10 @@ bool
 gl_shader_config_set_color_transform(struct gl_renderer *gr,
 				     struct gl_shader_config *sconf,
 				     struct weston_color_transform *xform);
+
+bool
+gl_shader_config_set_color_effect(struct gl_renderer *gr,
+				  struct gl_shader_config *sconf,
+				  struct weston_output_color_effect *effect);
 
 #endif /* GL_RENDERER_INTERNAL_H */

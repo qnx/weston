@@ -52,6 +52,11 @@
 /* static const char fragment_shader[]; fragment.glsl */
 #include "fragment-shader.h"
 
+struct gl_shader_cvd_correction_uniforms {
+	GLint simulation_uniform;
+	GLint redistribution_uniform;
+};
+
 union gl_shader_color_curve_uniforms {
 	struct {
 		GLint tex_2d_uniform;
@@ -90,6 +95,7 @@ struct gl_shader {
 	GLint view_alpha_uniform;
 	GLint color_uniform;
 	GLint tint_uniform;
+	struct gl_shader_cvd_correction_uniforms cvd;
 	union gl_shader_color_curve_uniforms color_pre_curve;
 	union gl_shader_color_mapping_uniforms color_mapping;
 	union gl_shader_color_curve_uniforms color_post_curve;
@@ -120,6 +126,20 @@ gl_shader_texture_variant_to_string(enum gl_shader_texture_variant v)
 	CASERET(SHADER_VARIANT_XYUV)
 	CASERET(SHADER_VARIANT_SOLID)
 	CASERET(SHADER_VARIANT_EXTERNAL)
+#undef CASERET
+	}
+
+	return "!?!?"; /* never reached */
+}
+
+static const char *
+gl_shader_color_effect_to_string(enum gl_shader_color_effect kind)
+{
+	switch(kind) {
+#define CASERET(x) case x: return #x;
+	CASERET(SHADER_COLOR_EFFECT_NONE)
+	CASERET(SHADER_COLOR_EFFECT_INVERSION)
+	CASERET(SHADER_COLOR_EFFECT_CVD_CORRECTION)
 #undef CASERET
 	}
 
@@ -222,9 +242,10 @@ create_shader_description_string(const struct gl_shader_requirements *req)
 	int size;
 	char *str;
 
-	size = asprintf(&str, "%s %s %s %s %s %cinput_is_premult %ctint",
+	size = asprintf(&str, "%s %s %s %s %s %s %cinput_is_premult %ctint",
 			gl_shader_texcoord_input_to_string(req->texcoord_input),
 			gl_shader_texture_variant_to_string(req->variant),
+			gl_shader_color_effect_to_string(req->color_effect),
 			gl_shader_color_curve_to_string(req->color_pre_curve),
 			gl_shader_color_mapping_to_string(req->color_mapping),
 			gl_shader_color_curve_to_string(req->color_post_curve),
@@ -266,6 +287,7 @@ create_fragment_shader_config_string(const struct gl_shader_requirements *req)
 			"#define DEF_COLOR_PRE_CURVE %s\n"
 			"#define DEF_COLOR_MAPPING %s\n"
 			"#define DEF_COLOR_POST_CURVE %s\n"
+			"#define DEF_COLOR_EFFECT %s\n"
 			"#define DEF_VARIANT %s\n",
 			ARRAY_LENGTH(((union weston_color_curve_parametric_chan_data){}).data),
 			req->tint ? "true" : "false",
@@ -274,6 +296,7 @@ create_fragment_shader_config_string(const struct gl_shader_requirements *req)
 			gl_shader_color_curve_to_string(req->color_pre_curve),
 			gl_shader_color_mapping_to_string(req->color_mapping),
 			gl_shader_color_curve_to_string(req->color_post_curve),
+			gl_shader_color_effect_to_string(req->color_effect),
 			gl_shader_texture_variant_to_string(req->variant));
 	if (size < 0)
 		return NULL;
@@ -441,6 +464,16 @@ gl_shader_create(struct gl_renderer *gr,
 		assert(shader->tint_uniform != -1);
 	} else {
 		shader->tint_uniform = -1;
+	}
+
+	if (requirements->color_effect == SHADER_COLOR_EFFECT_CVD_CORRECTION) {
+		shader->cvd.simulation_uniform =
+			glGetUniformLocation(shader->program, "color_cvd_simulation");
+		shader->cvd.redistribution_uniform =
+			glGetUniformLocation(shader->program, "color_cvd_redistribution");
+	} else {
+		shader->cvd.simulation_uniform = -1;
+		shader->cvd.redistribution_uniform = -1;
 	}
 
 	get_curve_uniform_locations(gr, &shader->color_pre_curve,
@@ -806,6 +839,15 @@ gl_shader_load_config(struct gl_renderer *gr,
 		if (sconf->input_tex[i])
 			gl_texture_parameters_flush(gr, &sconf->input_param[i]);
 	}
+
+	if (shader->cvd.simulation_uniform)
+		glUniformMatrix3fv(shader->cvd.simulation_uniform,
+				   1, GL_FALSE,
+				   sconf->color_effect.cvd_correction.simulation.colmaj);
+	if (shader->cvd.redistribution_uniform)
+		glUniformMatrix3fv(shader->cvd.redistribution_uniform,
+				   1, GL_FALSE,
+				   sconf->color_effect.cvd_correction.redistribution.colmaj);
 
 	/* Fixed texture unit for color_pre_curve LUT if it is available */
 	gl_shader_load_config_curve(gr->compositor, sconf->req.color_pre_curve,

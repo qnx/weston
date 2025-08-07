@@ -56,6 +56,13 @@ struct gl_renderer_color_transform {
 	struct gl_renderer_color_curve post_curve;
 };
 
+struct gl_renderer_color_effect {
+	struct weston_output_color_effect *owner;
+	struct wl_listener destroy_listener;
+	enum gl_shader_color_effect type;
+	union gl_shader_config_color_effect u;
+};
+
 static void
 gl_renderer_color_curve_fini(struct gl_renderer_color_curve *gl_curve)
 {
@@ -463,6 +470,100 @@ gl_shader_config_set_color_transform(struct gl_renderer *gr,
 
 	sconf->req.color_mapping = gl_xform->mapping.type;
 	sconf->color_mapping = gl_xform->mapping.u;
+
+	return true;
+}
+
+static void
+gl_renderer_color_effect_destroy(struct gl_renderer_color_effect *gl_effect)
+{
+	wl_list_remove(&gl_effect->destroy_listener.link);
+	free(gl_effect);
+}
+
+static void
+color_effect_destroy_handler(struct wl_listener *l, void *data)
+{
+	struct gl_renderer_color_effect *gl_effect;
+
+	gl_effect = wl_container_of(l, gl_effect, destroy_listener);
+	weston_assert_ptr_eq(gl_effect->owner->compositor, gl_effect->owner, data);
+
+	gl_renderer_color_effect_destroy(gl_effect);
+}
+
+static struct gl_renderer_color_effect *
+gl_renderer_color_effect_create(struct weston_output_color_effect *effect)
+{
+	struct gl_renderer_color_effect *gl_effect;
+
+	gl_effect = zalloc(sizeof *gl_effect);
+	if (!gl_effect)
+		return NULL;
+
+	gl_effect->owner = effect;
+	gl_effect->destroy_listener.notify = color_effect_destroy_handler;
+	wl_signal_add(&effect->destroy_signal, &gl_effect->destroy_listener);
+
+	return gl_effect;
+}
+
+static struct gl_renderer_color_effect *
+gl_renderer_color_effect_get(struct weston_output_color_effect *effect)
+{
+	struct wl_listener *l;
+
+	l = wl_signal_get(&effect->destroy_signal,
+			  color_effect_destroy_handler);
+	if (!l)
+		return NULL;
+
+	return container_of(l, struct gl_renderer_color_effect,
+			    destroy_listener);
+}
+
+static const struct gl_renderer_color_effect *
+gl_renderer_color_effect_from(struct weston_output_color_effect *effect)
+{
+	struct gl_renderer_color_effect *gl_effect;
+
+	/* Cached effect */
+	gl_effect = gl_renderer_color_effect_get(effect);
+	if (gl_effect)
+		return gl_effect;
+
+	/* New effect */
+	return gl_renderer_color_effect_create(effect);
+}
+
+bool
+gl_shader_config_set_color_effect(struct gl_renderer *gr,
+				  struct gl_shader_config *sconf,
+				  struct weston_output_color_effect *effect)
+{
+	const struct gl_renderer_color_effect *gl_effect;
+
+	if (!effect) {
+		sconf->req.color_effect = SHADER_COLOR_EFFECT_NONE;
+		return true;
+	}
+
+	gl_effect = gl_renderer_color_effect_from(effect);
+	if (!gl_effect)
+		return false;
+
+	switch (effect->type) {
+	case WESTON_OUTPUT_COLOR_EFFECT_TYPE_INVERSION:
+		sconf->req.color_effect = SHADER_COLOR_EFFECT_INVERSION;
+		break;
+	case WESTON_OUTPUT_COLOR_EFFECT_TYPE_CVD_CORRECTION:
+		sconf->req.color_effect = SHADER_COLOR_EFFECT_CVD_CORRECTION;
+		sconf->color_effect.cvd_correction.simulation = effect->u.cvd.simulation;
+		sconf->color_effect.cvd_correction.redistribution = effect->u.cvd.redistribution;
+		break;
+	}
+	weston_assert_u32_ne(gr->compositor, sconf->req.color_effect,
+			     SHADER_COLOR_EFFECT_NONE);
 
 	return true;
 }

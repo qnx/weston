@@ -175,6 +175,19 @@ weston_m3f_sub_m3f(struct weston_mat3f A, struct weston_mat3f B)
 	return R;
 }
 
+/** Element-wise scalar multiplication */
+static inline struct weston_mat3f
+weston_m3f_mul_scalar(struct weston_mat3f M, float scalar)
+{
+	struct weston_mat3f R;
+	unsigned i;
+
+	for (i = 0; i < 3 * 3; i++)
+		R.colmaj[i] = scalar * M.colmaj[i];
+
+	return R;
+}
+
 bool
 weston_m3f_invert(struct weston_mat3f *out, struct weston_mat3f M);
 

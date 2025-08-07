@@ -131,6 +131,17 @@ enum weston_surface_protection_mode {
 	WESTON_SURFACE_PROTECTION_MODE_ENFORCED
 };
 
+enum weston_output_color_effect_type {
+	WESTON_OUTPUT_COLOR_EFFECT_TYPE_INVERSION = 0,
+	WESTON_OUTPUT_COLOR_EFFECT_TYPE_CVD_CORRECTION,
+};
+
+enum weston_cvd_correction_type {
+	WESTON_CVD_CORRECTION_TYPE_DEUTERANOPIA = 0,
+	WESTON_CVD_CORRECTION_TYPE_PROTANOPIA,
+	WESTON_CVD_CORRECTION_TYPE_TRITANOPIA,
+};
+
 /** Possible mode of an output
  *
  * \ingroup output
@@ -447,6 +458,8 @@ struct weston_output {
 
 	struct weston_output_color_outcome *color_outcome;
 	uint64_t color_outcome_serial;
+
+	struct weston_output_color_effect *color_effect;
 
 	int (*enable)(struct weston_output *output);
 	int (*disable)(struct weston_output *output);
@@ -2502,6 +2515,13 @@ weston_output_set_scale(struct weston_output *output,
 void
 weston_output_set_transform(struct weston_output *output,
 			    uint32_t transform);
+
+void
+weston_output_color_effect_inversion(struct weston_output *output);
+
+void
+weston_output_color_effect_cvd_correction(struct weston_output *output,
+					  enum weston_cvd_correction_type type);
 
 bool
 weston_output_set_color_profile(struct weston_output *output,

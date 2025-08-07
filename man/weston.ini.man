@@ -586,6 +586,28 @@ is true, load the given ICC file as the output color profile. This works only
 on DRM, headless, wayland, and x11 backends, and for remoting and pipewire
 outputs.
 .TP 7
+.BI "color-effect=" name
+Use the given color effect for the output. For now we only provide color effects
+for color vision deficiencies (CVD). Only works when option
+.B color-management
+is false.
+
+The effect can be one of the following strings:
+.RS 11
+.TP
+.B inversion
+color inversion
+.TP
+.B deuteranopia
+color correction (not simulation) for deuteranopia
+.TP
+.B protanopia
+color correction (not simulation) for protanopia
+.TP
+.B tritanopia
+color correction (not simulation) for tritanopia
+.RE
+.TP 7
 .BI "seat=" name
 The logical seat name that this output should be associated with. If this
 is set then the seat's input will be confined to the output that has the seat

@@ -41,6 +41,11 @@
 #define SHADER_VARIANT_SOLID    5
 #define SHADER_VARIANT_EXTERNAL 6
 
+/* enum gl_shader_color_effect */
+#define SHADER_COLOR_EFFECT_NONE 0
+#define SHADER_COLOR_EFFECT_INVERSION 1
+#define SHADER_COLOR_EFFECT_CVD_CORRECTION 2
+
 /* enum gl_shader_color_curve */
 #define SHADER_COLOR_CURVE_IDENTITY 0
 #define SHADER_COLOR_CURVE_LUT_3x1D 1
@@ -78,6 +83,7 @@ compile_const int c_variant = DEF_VARIANT;
 compile_const int c_color_pre_curve = DEF_COLOR_PRE_CURVE;
 compile_const int c_color_mapping = DEF_COLOR_MAPPING;
 compile_const int c_color_post_curve = DEF_COLOR_POST_CURVE;
+compile_const int c_color_effect = DEF_COLOR_EFFECT;
 
 compile_const bool c_input_is_premult = DEF_INPUT_IS_PREMULT;
 compile_const bool c_tint = DEF_TINT;
@@ -86,6 +92,8 @@ compile_const bool c_need_color_pipeline =
 	c_color_pre_curve != SHADER_COLOR_CURVE_IDENTITY ||
 	c_color_mapping != SHADER_COLOR_MAPPING_IDENTITY ||
 	c_color_post_curve != SHADER_COLOR_CURVE_IDENTITY;
+compile_const bool c_need_straight_alpha =
+	c_need_color_pipeline || c_color_effect != SHADER_COLOR_EFFECT_NONE;
 
 vec4
 yuva2rgba(vec4 yuva)
@@ -160,6 +168,9 @@ uniform HIGHPRECISION vec2 color_mapping_lut_scale_offset;
 #endif
 uniform HIGHPRECISION mat3 color_mapping_matrix;
 uniform HIGHPRECISION vec3 color_mapping_offset;
+
+uniform HIGHPRECISION mat3 color_cvd_simulation;
+uniform HIGHPRECISION mat3 color_cvd_redistribution;
 
 /*
  * 2D texture sampler abstracting away the lack of swizzles on OpenGL ES 2. This
@@ -459,19 +470,39 @@ color_mapping(vec3 color)
 vec4
 color_pipeline(vec4 color)
 {
-	/* Ensure straight alpha */
-	if (c_input_is_premult) {
-		if (color.a == 0.0)
-			color.rgb = vec3(0, 0, 0);
-		else
-			color.rgb *= 1.0 / color.a;
-	}
-
 	color.rgb = color_curve(c_color_pre_curve, color_pre_curve_lut,
 				color_pre_curve_par, color.rgb);
 	color.rgb = color_mapping(color.rgb);
 	color.rgb = color_curve(c_color_post_curve, color_post_curve_lut,
 				color_post_curve_par, color.rgb);
+
+	return color;
+}
+
+vec4
+color_inversion(vec4 color)
+{
+	color.rgb = 1.0 - color.rgb;
+
+	return color;
+}
+
+vec4
+color_cvd_correction(vec4 color)
+{
+	vec3 original, error;
+	vec4 res;
+
+	/**
+	 * See weston_output_color_effect_cvd_correction() for more details.
+	 */
+
+	original = color.rgb;
+
+	color.rgb = color_cvd_simulation * original;
+	error = original - color.rgb;
+	color.rgb = original + color_cvd_redistribution * error;
+	color.rgb = clamp(color.rgb, 0.0, 1.0);
 
 	return color;
 }
@@ -494,11 +525,24 @@ main()
 	/* Electrical (non-linear) RGBA values, may be premult or not */
 	color = sample_input_texture();
 
+	/* Ensure straight alpha for color pipeline and color effects */
+	if (c_input_is_premult && c_need_straight_alpha) {
+		if (color.a == 0.0)
+			color.rgb = vec3(0, 0, 0);
+		else
+			color.rgb *= 1.0 / color.a;
+	}
+
+	/* For now color management and color effects do not coexist */
 	if (c_need_color_pipeline)
-		color = color_pipeline(color); /* Produces straight alpha */
+		color = color_pipeline(color);
+	else if (c_color_effect == SHADER_COLOR_EFFECT_INVERSION)
+		color = color_inversion(color);
+	else if (c_color_effect == SHADER_COLOR_EFFECT_CVD_CORRECTION)
+		color = color_cvd_correction(color);
 
 	/* Ensure pre-multiplied for blending */
-	if (!c_input_is_premult || c_need_color_pipeline)
+	if (!c_input_is_premult || (c_input_is_premult && c_need_straight_alpha))
 		color.rgb *= color.a;
 
 	color *= view_alpha;

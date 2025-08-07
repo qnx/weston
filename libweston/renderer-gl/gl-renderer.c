@@ -1503,6 +1503,11 @@ gl_shader_config_init_for_paint_node(struct gl_shader_config *sconf,
 		return false;
 	}
 
+	if (!gl_shader_config_set_color_effect(gr, sconf, pnode->output->color_effect)) {
+		weston_log("GL-renderer: %s failed to generate a color effect.\n", __func__);
+		return false;
+	}
+
 	return true;
 }
 

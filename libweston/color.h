@@ -419,6 +419,25 @@ struct weston_color_transform {
 				uint32_t len_lut3d, float *lut3d);
 };
 
+struct weston_cvd_correction {
+	enum weston_cvd_correction_type type;
+	struct weston_mat3f simulation;
+	struct weston_mat3f redistribution;
+};
+
+struct weston_output_color_effect {
+	struct weston_compositor *compositor;
+	struct wl_signal destroy_signal;
+
+	/** Which member of 'u' defines the effect. */
+	enum weston_output_color_effect_type type;
+
+	union {
+		/* color inversion: no parameters */
+		struct weston_cvd_correction cvd;
+	} u;
+};
+
 /**
  * How content color needs to be transformed
  *

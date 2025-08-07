@@ -7210,6 +7210,165 @@ out_error:
 	return false;
 }
 
+static void
+weston_output_color_effect_destroy(struct weston_output_color_effect *effect)
+{
+	if (!effect)
+		return;
+
+	wl_signal_emit(&effect->destroy_signal, effect);
+	free(effect);
+}
+
+static struct weston_output_color_effect *
+weston_output_color_effect_create(struct weston_compositor *compositor)
+{
+	struct weston_output_color_effect *effect;
+
+	effect = xzalloc(sizeof(*effect));
+	effect->compositor = compositor;
+	wl_signal_init(&effect->destroy_signal);
+
+	return effect;
+}
+
+/** Set output's color effect as color inversion
+ *
+ * The color effect is an effect applied to the whole scenegraph. Note that in
+ * some cases this may force all the surfaces to be composed on the primary
+ * plane, i.e. offloading to overlay planes won't be possible.
+ *
+ * \param output The output to set the effect.
+ *
+ * \ingroup output
+ */
+WL_EXPORT void
+weston_output_color_effect_inversion(struct weston_output *output)
+{
+	struct weston_compositor *compositor = output->compositor;
+
+	weston_assert_ptr_null(compositor, output->color_effect);
+
+	output->color_effect = weston_output_color_effect_create(compositor);
+	output->color_effect->type = WESTON_OUTPUT_COLOR_EFFECT_TYPE_INVERSION;
+}
+
+/** Set output's color effect as CVD correction
+ *
+ * The color effect is an effect applied to the whole scenegraph. Note that in
+ * some cases this may force all the surfaces to be composed on the primary
+ * plane, i.e. offloading to overlay planes won't be possible.
+ *
+ * \param output The output to set the effect.
+ * \param type The color blidness correction type.
+ *
+ * \ingroup output
+ */
+WL_EXPORT void
+weston_output_color_effect_cvd_correction(struct weston_output *output,
+					  enum weston_cvd_correction_type type)
+{
+	struct weston_compositor *compositor = output->compositor;
+	struct weston_cvd_correction *cvd;
+	float correction_factor = 0.7f; /* TODO: allow tweaking this from ini */
+
+	/**
+	 * Color vision correction algorithms depend on color vision deficiency
+	 * (CVD) simulation. The majority of FOSS applications uses CVD
+	 * simulation and/or correction pipelines that expects content in sRGB
+	 * color space.
+	 *
+	 * To get an idea of how CVD simulation works, "Designing for Color
+	 * blindness" [1] is a good source. "Online Color Blindness Simulators"
+	 * [2] is another good source, as it contains comparison between
+	 * pipelines for simulating CVD, and you can upload images and check the
+	 * results of each model. They also created Daltonlens-Python [3], which
+	 * provides implementation of all famous methods.
+	 *
+	 * The most reliable method to perform CVD simulation was developed in
+	 * Brettel et al. "Computerized simulation of color appearance for
+	 * dichromats" [4]. But it is expensive for us to apply that for every
+	 * frame, so we need something else.
+	 *
+	 * Many modern applications (as Firefox, see [5]) are using the CVD
+	 * simulation matrices from Machado et al. "A Physiologically-based
+	 * Model for Simulation of Color Vision Deficiency" [6], both because
+	 * baked-in matrices pipelines are easy to implement and efficient, but
+	 * also because they seem to produce nice results. Such matrices are
+	 * usually applied in linear RGB, althought there are discussions [7]
+	 * mentioning that authors didn't notice differences applying their
+	 * simulation matrices directly to electrical. So we do that in
+	 * electrical.
+	 *
+	 * After simulating the CVD, we need to apply the correction. We compute
+	 * the "error" (original linear RGB minus simulation), and use the
+	 * redistribution matrix to shift the lost content to the other color
+	 * channels (depending on the CVD type). This shifted content is summed
+	 * to the original, but we multiply it by a correction_factor first:
+	 *
+	 * color = original + correction_factor * (redistribution_matrix * error)
+	 *
+	 * We pre-multiply the redistribution matrix by this correction_factor
+	 * here just to avoid carrying the coefficient.
+	 *
+	 * [1] https://mk.bcgsc.ca/colorblind/math.mhtml#projecthome
+	 * [2] https://daltonlens.org/colorblindness-simulator
+	 * [3] https://github.com/DaltonLens/DaltonLens-Python
+	 * [4] https://vision.psychol.cam.ac.uk/jdmollon/papers/Dichromatsimulation.pdf
+	 * [5] https://firefox-source-docs.mozilla.org/devtools-user/accessibility_inspector/simulation/index.html
+	 * [6] https://www.inf.ufrgs.br/~oliveira/pubs_files/CVD_Simulation/CVD_Simulation.html
+	 * [7] https://bugzilla.mozilla.org/show_bug.cgi?id=1655053#c22
+	 */
+
+	weston_assert_ptr_null(compositor, output->color_effect);
+
+	output->color_effect = weston_output_color_effect_create(compositor);
+	output->color_effect->type = WESTON_OUTPUT_COLOR_EFFECT_TYPE_CVD_CORRECTION;
+
+	cvd = &output->color_effect->u.cvd;
+	cvd->type = type;
+
+	/**
+	 * CVD simulation matrices from "A Physiologically-based Model for
+	 * Simulation of Color Deficiency". The redistribution matrices are
+	 * based on each type of CVD (i.e. the defective cone). We use the
+	 * 100% severity matrices for the simulation.
+	 */
+	switch (cvd->type) {
+	case WESTON_CVD_CORRECTION_TYPE_DEUTERANOPIA:
+		cvd->simulation = WESTON_MAT3F( 0.367322, 0.860646, -0.227968,
+						0.280085, 0.672501,  0.047413,
+					       -0.011820, 0.042940,  0.968881);
+		cvd->redistribution = WESTON_MAT3F(1.0, 0.5, 0.0, /* redistribute green */
+						   0.0, 0.0, 0.0,
+						   0.0, 0.5, 1.0);
+		cvd->redistribution = weston_m3f_mul_scalar(cvd->redistribution,
+							    correction_factor);
+		return;
+	case WESTON_CVD_CORRECTION_TYPE_PROTANOPIA:
+		cvd->simulation = WESTON_MAT3F( 0.152286,  1.052583, -0.204868,
+						0.114503,  0.786281,  0.099216,
+					       -0.003882, -0.048116,  1.051998);
+		cvd->redistribution = WESTON_MAT3F(0.0, 0.0, 0.0, /* redistribute red */
+						   0.5, 1.0, 0.0,
+						   0.5, 0.0, 1.0);
+		cvd->redistribution = weston_m3f_mul_scalar(cvd->redistribution,
+							    correction_factor);
+		return;
+	case WESTON_CVD_CORRECTION_TYPE_TRITANOPIA:
+		cvd->simulation = WESTON_MAT3F( 1.255528, -0.076749, -0.178779,
+					       -0.078411,  0.930809,  0.147602,
+						0.004733,  0.691367,  0.303900);
+		cvd->redistribution = WESTON_MAT3F(1.0, 0.0, 0.5, /* redistribute blue */
+						   0.0, 1.0, 0.5,
+						   0.0, 0.0, 0.0);
+		cvd->redistribution = weston_m3f_mul_scalar(cvd->redistribution,
+							    correction_factor);
+		return;
+	}
+	weston_assert_not_reached(compositor, "unknown color correction type");
+}
+
 /** Removes output from compositor's list of enabled outputs
  *
  * \param output The weston_output object that is being removed.
@@ -8041,6 +8200,7 @@ weston_output_get_destroy_listener(struct weston_output *output,
 WL_EXPORT void
 weston_output_release(struct weston_output *output)
 {
+	struct weston_compositor *compositor = output->compositor;
 	struct weston_head *head, *tmp;
 
 	output->destroying = 1;
@@ -8050,13 +8210,16 @@ weston_output_release(struct weston_output *output)
 	if (output->enabled)
 		weston_compositor_remove_output(output);
 
+	weston_assert_ptr_null(compositor, output->color_outcome);
+
 	/* We always have a color profile set, as weston_output_init() sets the
 	 * output cprof to the stock sRGB one. */
 	assert(output->color_profile);
 	weston_color_profile_unref(output->color_profile);
 	output->color_profile = NULL;
 
-	assert(output->color_outcome == NULL);
+	weston_output_color_effect_destroy(output->color_effect);
+	output->color_effect = NULL;
 
 	pixman_region32_fini(&output->region);
 	wl_list_remove(&output->link);
@@ -8958,6 +9121,7 @@ weston_plane_failure_reasons_to_str(enum try_view_on_plane_failure_reasons failu
 	case FAILURE_REASONS_NO_COLOR_TRANSFORM:	    return "no color transform";
 	case FAILURE_REASONS_SOLID_SURFACE:		    return "solid surface";
 	case FAILURE_REASONS_OCCLUDED_BY_RENDERER:	    return "occluded by renderer";
+	case FAILURE_REASONS_OUTPUT_COLOR_EFFECT:	    return "output contains color effect";
 	}
 	return "???";
 }
