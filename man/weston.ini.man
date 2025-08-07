@@ -398,7 +398,7 @@ sets the path for the background image file (string).
 .TP 7
 .BI "background-type=" tile
 determines how the background image is drawn (string). Can be
-.BR centered ", " scale ", " scale-crop " or " tile " (default)."
+.BR centered ", " scale ", " scale-crop ", " scale-fit " or " tile " (default)."
 Centered shows the image once centered. If the image is smaller than the
 output, the rest of the surface will be in background color. If the image
 size does fit the output it will be cropped left and right, or top and bottom.
@@ -406,7 +406,8 @@ Scale means scaled to fit the output precisely, not preserving aspect ratio.
 Scale-crop preserves aspect ratio, scales the background image just big
 enough to cover the output, and centers it. The image ends up cropped from
 left and right, or top and bottom, if the aspect ratio does not match the
-output. Tile repeats the background image to fill the output.
+output. Scale-fit is similar to scale-crop but it fits to the output so the
+image does not get cropped. Tile repeats the background image to fill the output.
 .TP 7
 .BI "background-color=" 0xRRGGBB
 sets the color of the background (unsigned integer). The hexadecimal

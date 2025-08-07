@@ -777,6 +777,7 @@ panel_add_launcher(struct panel *panel, const char *icon, const char *path, cons
 enum {
 	BACKGROUND_SCALE,
 	BACKGROUND_SCALE_CROP,
+	BACKGROUND_SCALE_FIT,
 	BACKGROUND_TILE,
 	BACKGROUND_CENTERED
 };
@@ -830,7 +831,11 @@ background_draw(struct widget *widget, void *data)
 			cairo_pattern_set_extend(pattern, CAIRO_EXTEND_PAD);
 			break;
 		case BACKGROUND_SCALE_CROP:
-			s = (sx < sy) ? sx : sy;
+		case BACKGROUND_SCALE_FIT:
+			if (background->type == BACKGROUND_SCALE_CROP)
+				s = (sx < sy) ? sx : sy;
+			else
+				s = (sx > sy) ? sx : sy;
 			/* align center */
 			tx = (im_w - s * allocation.width) * 0.5;
 			ty = (im_h - s * allocation.height) * 0.5;
@@ -1206,6 +1211,8 @@ background_create(struct desktop *desktop, struct output *output)
 		background->type = BACKGROUND_SCALE;
 	} else if (strcmp(type, "scale-crop") == 0) {
 		background->type = BACKGROUND_SCALE_CROP;
+	} else if (strcmp(type, "scale-fit") == 0) {
+		background->type = BACKGROUND_SCALE_FIT;
 	} else if (strcmp(type, "tile") == 0) {
 		background->type = BACKGROUND_TILE;
 	} else if (strcmp(type, "centered") == 0) {
