@@ -286,6 +286,124 @@ struct dmabuf_format {
 	int num_modifiers;
 };
 
+/* Keep in sync with vulkan-renderer-internal.h. */
+static const struct vulkan_extension_table vulkan_inst_ext_table[] = {
+	{
+		.name = VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,
+		.flag = EXTENSION_KHR_EXTERNAL_MEMORY_CAPABILITIES,
+		.instance_dep = EXTENSION_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2,
+	},
+	{
+		.name = VK_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME,
+		.flag = EXTENSION_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES,
+		.instance_dep = EXTENSION_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2,
+	},
+	{
+		.name = VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
+		.flag = EXTENSION_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2,
+	},
+	{
+		.name = VK_KHR_SURFACE_EXTENSION_NAME,
+		.flag = EXTENSION_KHR_SURFACE,
+	},
+	{
+		.name = VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,
+		.flag = EXTENSION_KHR_WAYLAND_SURFACE,
+		.instance_dep = EXTENSION_KHR_SURFACE,
+	},
+	{
+		.name = VK_KHR_XCB_SURFACE_EXTENSION_NAME,
+		.flag = EXTENSION_KHR_XCB_SURFACE,
+		.instance_dep = EXTENSION_KHR_SURFACE,
+	},
+};
+
+/* Keep in sync with vulkan-renderer-internal.h. */
+static const struct vulkan_extension_table vulkan_device_ext_table[] = {
+	{
+		.name = VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
+		.flag = EXTENSION_EXT_EXTERNAL_MEMORY_DMA_BUF,
+		.device_dep = EXTENSION_KHR_EXTERNAL_MEMORY_FD,
+	},
+	{
+		.name = VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
+		.flag = EXTENSION_EXT_IMAGE_DRM_FORMAT_MODIFIER,
+		.instance_dep = EXTENSION_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2,
+		.device_dep = EXTENSION_KHR_BIND_MEMORY_2 |
+			      EXTENSION_KHR_SAMPLER_YCBCR_CONVERSION |
+			      EXTENSION_KHR_IMAGE_FORMAT_LIST,
+	},
+	{
+		.name = VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME,
+		.flag = EXTENSION_EXT_PHYSICAL_DEVICE_DRM,
+		.instance_dep = EXTENSION_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2,
+	},
+	{
+		.name = VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME,
+		.flag = EXTENSION_EXT_QUEUE_FAMILY_FOREIGN,
+		.device_dep = EXTENSION_KHR_EXTERNAL_MEMORY,
+	},
+	{
+		.name = VK_KHR_BIND_MEMORY_2_EXTENSION_NAME,
+		.flag = EXTENSION_KHR_BIND_MEMORY_2,
+	},
+	{
+		.name = VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME,
+		.flag = EXTENSION_KHR_DEDICATED_ALLOCATION,
+		.device_dep = EXTENSION_KHR_GET_MEMORY_REQUIREMENTS_2,
+	},
+	{
+		.name = VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
+		.flag = EXTENSION_KHR_EXTERNAL_MEMORY,
+		.instance_dep = EXTENSION_KHR_EXTERNAL_MEMORY_CAPABILITIES,
+	},
+	{
+		.name = VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+		.flag = EXTENSION_KHR_EXTERNAL_MEMORY_FD,
+		.device_dep = EXTENSION_KHR_EXTERNAL_MEMORY,
+	},
+	{
+		.name = VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
+		.flag = EXTENSION_KHR_EXTERNAL_SEMAPHORE,
+		.instance_dep = EXTENSION_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES,
+	},
+	{
+		.name = VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
+		.flag = EXTENSION_KHR_EXTERNAL_SEMAPHORE_FD,
+		.device_dep = EXTENSION_KHR_EXTERNAL_SEMAPHORE,
+	},
+	{
+		.name = VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
+		.flag = EXTENSION_KHR_GET_MEMORY_REQUIREMENTS_2,
+	},
+	{
+		.name = VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME,
+		.flag = EXTENSION_KHR_IMAGE_FORMAT_LIST,
+	},
+	{
+		.name = VK_KHR_INCREMENTAL_PRESENT_EXTENSION_NAME,
+		.flag = EXTENSION_KHR_INCREMENTAL_PRESENT,
+		.device_dep = EXTENSION_KHR_SWAPCHAIN,
+	},
+	{
+		.name = VK_KHR_MAINTENANCE_1_EXTENSION_NAME,
+		.flag = EXTENSION_KHR_MAINTENANCE_1,
+	},
+	{
+		.name = VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME,
+		.flag = EXTENSION_KHR_SAMPLER_YCBCR_CONVERSION,
+		.instance_dep = EXTENSION_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2,
+		.device_dep = EXTENSION_KHR_MAINTENANCE_1 |
+			      EXTENSION_KHR_BIND_MEMORY_2 |
+			      EXTENSION_KHR_GET_MEMORY_REQUIREMENTS_2,
+	},
+	{
+		.name = VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+		.flag = EXTENSION_KHR_SWAPCHAIN,
+		.instance_dep = EXTENSION_KHR_SURFACE,
+	},
+};
+
 static void
 transfer_image_queue_family(VkCommandBuffer cmd_buffer, VkImage image,
 			    uint32_t src_index, uint32_t dst_index)
@@ -1619,6 +1737,8 @@ ensure_surface_buffer_is_ready(struct vulkan_renderer *vr,
 		return -1;
 	}
 
+	assert(vulkan_device_has(vr, EXTENSION_KHR_EXTERNAL_SEMAPHORE_FD));
+
 	const VkImportSemaphoreFdInfoKHR import_info = {
 		.sType = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
 		.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
@@ -2205,6 +2325,8 @@ vulkan_renderer_create_swapchain(struct weston_output *output,
 	const struct pixel_format_info *pixel_format = vo->pixel_format;
 	const VkFormat format = pixel_format->vulkan_format;
 
+	assert(vulkan_device_has(vr, EXTENSION_KHR_SWAPCHAIN));
+
 	VkSurfaceCapabilitiesKHR surface_caps;
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vr->phys_dev, vo->swapchain.surface, &surface_caps);
 
@@ -2375,8 +2497,7 @@ vulkan_renderer_repaint_output(struct weston_output *output,
 
 	if (vo->output_type == VULKAN_OUTPUT_DRM) {
 		// Transfer ownership of the dmabuf to Vulkan
-		if (!vr->has_queue_family_foreign)
-			abort();
+		assert(vulkan_device_has(vr, EXTENSION_EXT_QUEUE_FAMILY_FOREIGN));
 		transfer_image_queue_family(cmd_buffer, im->image,
 					    VK_QUEUE_FAMILY_FOREIGN_EXT,
 					    vr->queue_family);
@@ -2419,8 +2540,7 @@ vulkan_renderer_repaint_output(struct weston_output *output,
 
 	if (vo->output_type == VULKAN_OUTPUT_DRM) {
 		// Transfer ownership of the dmabuf to DRM
-		if (!vr->has_queue_family_foreign)
-			abort();
+		assert(vulkan_device_has(vr, EXTENSION_EXT_QUEUE_FAMILY_FOREIGN));
 		transfer_image_queue_family(cmd_buffer, im->image,
 					    vr->queue_family,
 					    VK_QUEUE_FAMILY_FOREIGN_EXT);
@@ -2463,6 +2583,8 @@ vulkan_renderer_repaint_output(struct weston_output *output,
 	check_vk_success(result, "vkQueueSubmit");
 
 	if (vo->output_type == VULKAN_OUTPUT_SWAPCHAIN) {
+		assert(vulkan_device_has(vr, EXTENSION_KHR_SWAPCHAIN));
+
 		VkPresentInfoKHR present_info = {
 			.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 			.waitSemaphoreCount = 1,
@@ -2473,7 +2595,7 @@ vulkan_renderer_repaint_output(struct weston_output *output,
 			.pResults = NULL,
 		};
 
-		if (vr->has_incremental_present) {
+		if (vulkan_device_has(vr, EXTENSION_KHR_INCREMENTAL_PRESENT)) {
 			uint32_t nrects;
 			VkRectLayerKHR *rects;
 			pixman_region_to_present_region(output, output_damage,
@@ -2502,6 +2624,8 @@ vulkan_renderer_repaint_output(struct weston_output *output,
 			abort();
 		}
 	} else if (vr->semaphore_import_export) {
+		assert(vulkan_device_has(vr, EXTENSION_KHR_EXTERNAL_SEMAPHORE_FD));
+
 		int fd;
 		const VkSemaphoreGetFdInfoKHR semaphore_fd_info = {
 			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR,
@@ -3189,8 +3313,10 @@ import_dmabuf(struct vulkan_renderer *vr,
 
 	int fd0 = attributes->fd[0];
 
-	if (!vr->has_external_memory_dma_buf)
-		abort();
+	assert(vulkan_device_has(vr, EXTENSION_EXT_EXTERNAL_MEMORY_DMA_BUF));
+	assert(vulkan_device_has(vr, EXTENSION_KHR_DEDICATED_ALLOCATION));
+	assert(vulkan_device_has(vr, EXTENSION_KHR_EXTERNAL_MEMORY_FD));
+	assert(vulkan_device_has(vr, EXTENSION_KHR_GET_MEMORY_REQUIREMENTS_2));
 
 	VkMemoryFdPropertiesKHR fd_props = {
 		.sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR,
@@ -3262,6 +3388,9 @@ create_dmabuf_image(struct vulkan_renderer *vr,
 	int n_planes = attributes->n_planes;
 	VkFormat format = 0;
 
+	assert(vulkan_device_has(vr, EXTENSION_KHR_EXTERNAL_MEMORY));
+	assert(vulkan_device_has(vr, EXTENSION_EXT_EXTERNAL_MEMORY_DMA_BUF));
+
 	const struct pixel_format_info *pixel_format = pixel_format_get_info(attributes->format);
 	assert(pixel_format);
 
@@ -3286,7 +3415,7 @@ create_dmabuf_image(struct vulkan_renderer *vr,
 		.sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT,
 	};
 	VkSubresourceLayout plane_layouts[n_planes];
-	if (vr->has_image_drm_format_modifier) {
+	if (vulkan_device_has(vr, EXTENSION_EXT_IMAGE_DRM_FORMAT_MODIFIER)) {
 		image_info.tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
 
 		memset(plane_layouts, 0, sizeof(plane_layouts));
@@ -3374,9 +3503,10 @@ vulkan_renderer_output_window_create_swapchain(struct weston_output *output,
 	struct vulkan_output_state *vo = get_output_state(output);
 	VkResult result;
 	VkBool32 supported;
+	assert(vulkan_instance_has(vr, EXTENSION_KHR_SURFACE));
 
 	if (options->wayland_display && options->wayland_surface) {
-		assert(vr->has_wayland_surface);
+		assert(vulkan_instance_has(vr, EXTENSION_KHR_WAYLAND_SURFACE));
 
 		supported = vr->get_wayland_presentation_support(vr->phys_dev, 0, options->wayland_display);
 		assert(supported);
@@ -3390,7 +3520,7 @@ vulkan_renderer_output_window_create_swapchain(struct weston_output *output,
 						    &vo->swapchain.surface);
 		check_vk_success(result, "vkCreateWaylandSurfaceKHR");
 	} else if (options->xcb_connection && options->xcb_window) {
-		assert(vr->has_xcb_surface);
+		assert(vulkan_instance_has(vr, EXTENSION_KHR_XCB_SURFACE));
 
 		supported = vr->get_xcb_presentation_support(vr->phys_dev, 0, options->xcb_connection, options->xcb_visualid);
 		assert(supported);
@@ -3986,7 +4116,7 @@ create_default_dmabuf_feedback(struct weston_compositor *ec,
 static int
 open_drm_device_node(struct vulkan_renderer *vr)
 {
-	assert(vr->has_physical_device_drm);
+	assert(vulkan_device_has(vr, EXTENSION_EXT_PHYSICAL_DEVICE_DRM));
 
 	VkPhysicalDeviceProperties2 phys_dev_props = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
@@ -4032,15 +4162,32 @@ open_drm_device_node(struct vulkan_renderer *vr)
 	return drm_fd;
 }
 
-static bool
-check_extension(const VkExtensionProperties *avail, uint32_t avail_len, const char *name)
+/*
+ * Add extension flags to the bitfield that 'flags_out' points to.
+ * 'table' stores extension names and flags to check for and 'avail'
+ * is the list of available extensions retrieved from Vulkan.
+ */
+static void
+vulkan_extensions_add(const struct vulkan_extension_table *table,
+		      uint32_t table_num,
+		      VkExtensionProperties *avail,
+		      uint32_t avail_num,
+		      uint64_t *flags_out)
 {
-	for (size_t i = 0; i < avail_len; i++) {
-		if (strcmp(avail[i].extensionName, name) == 0) {
-			return true;
+	uint64_t flags = 0;
+
+	if (avail_num == 0)
+		return;
+
+	/* Match extensions with table. */
+	for (uint32_t i = 0; i < table_num; i++) {
+		for (uint32_t j = 0; j < avail_num; j++) {
+			if (strcmp(table[i].name, avail[j].extensionName) == 0)
+				flags |= table[i].flag;
 		}
 	}
-	return false;
+
+	*flags_out |= flags;
 }
 
 static void
@@ -4061,12 +4208,12 @@ load_instance_proc(struct vulkan_renderer *vr, const char *func, void *proc_ptr)
 static void
 vulkan_renderer_setup_instance_extensions(struct vulkan_renderer *vr)
 {
-	if (vr->has_wayland_surface) {
+	if (vulkan_instance_has(vr, EXTENSION_KHR_WAYLAND_SURFACE)) {
 		load_instance_proc(vr, "vkCreateWaylandSurfaceKHR", &vr->create_wayland_surface);
 		load_instance_proc(vr, "vkGetPhysicalDeviceWaylandPresentationSupportKHR", &vr->get_wayland_presentation_support);
 	}
 
-	if (vr->has_xcb_surface) {
+	if (vulkan_instance_has(vr, EXTENSION_KHR_XCB_SURFACE)) {
 		load_instance_proc(vr, "vkCreateXcbSurfaceKHR", &vr->create_xcb_surface);
 		load_instance_proc(vr, "vkGetPhysicalDeviceXcbPresentationSupportKHR", &vr->get_xcb_presentation_support);
 	}
@@ -4086,36 +4233,17 @@ vulkan_renderer_create_instance(struct vulkan_renderer *vr)
 	result = vkEnumerateInstanceExtensionProperties(NULL, &num_avail_inst_extns, avail_inst_extns);
 	check_vk_success(result, "vkEnumerateInstanceExtensionProperties");
 
+	vulkan_extensions_add(vulkan_inst_ext_table, ARRAY_LENGTH(vulkan_inst_ext_table),
+			      avail_inst_extns, num_avail_inst_extns,
+			      &vr->inst_extensions);
+
 	const char **inst_extns = xmalloc(num_avail_inst_extns * sizeof(*inst_extns));
-	inst_extns[num_inst_extns++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
-	inst_extns[num_inst_extns++] = VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME;
-	inst_extns[num_inst_extns++] = VK_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME;
-	inst_extns[num_inst_extns++] = VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME;
 
-	if (check_extension(avail_inst_extns, num_avail_inst_extns, VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME)) {
-		inst_extns[num_inst_extns++] = VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME;
-		vr->has_wayland_surface = true;
-	}
+	for (uint32_t i = 0; i < ARRAY_LENGTH(vulkan_inst_ext_table); i++) {
+		const struct vulkan_extension_table *ext = &vulkan_inst_ext_table[i];
 
-	if (check_extension(avail_inst_extns, num_avail_inst_extns, VK_KHR_XCB_SURFACE_EXTENSION_NAME)) {
-		inst_extns[num_inst_extns++] = VK_KHR_XCB_SURFACE_EXTENSION_NAME;
-		vr->has_xcb_surface = true;
-	}
-
-	if (vr->has_wayland_surface || vr->has_xcb_surface)
-		inst_extns[num_inst_extns++] = VK_KHR_SURFACE_EXTENSION_NAME;
-
-	for (uint32_t i = 0; i < num_inst_extns; i++) {
-		uint32_t j;
-		for (j = 0; j < num_avail_inst_extns; j++) {
-			if (strcmp(inst_extns[i], avail_inst_extns[j].extensionName) == 0) {
-				break;
-			}
-		}
-		if (j == num_avail_inst_extns) {
-			weston_log("Unsupported instance extension: %s\n", inst_extns[i]);
-			abort();
-		}
+		if (vulkan_instance_has(vr, ext->flag | ext->instance_dep))
+			inst_extns[num_inst_extns++] = ext->name;
 	}
 
 	const VkApplicationInfo app_info = {
@@ -4159,13 +4287,15 @@ static void
 vulkan_renderer_setup_device_extensions(struct vulkan_renderer *vr)
 {
 	// VK_KHR_get_memory_requirements2
-	load_device_proc(vr, "vkGetImageMemoryRequirements2KHR", &vr->get_image_memory_requirements2);
+	if (vulkan_device_has(vr, EXTENSION_KHR_GET_MEMORY_REQUIREMENTS_2))
+		load_device_proc(vr, "vkGetImageMemoryRequirements2KHR", &vr->get_image_memory_requirements2);
 
 	// VK_KHR_external_memory_fd
-	load_device_proc(vr, "vkGetMemoryFdPropertiesKHR", &vr->get_memory_fd_properties);
+	if (vulkan_device_has(vr, EXTENSION_KHR_EXTERNAL_MEMORY_FD))
+		load_device_proc(vr, "vkGetMemoryFdPropertiesKHR", &vr->get_memory_fd_properties);
 
 	// VK_KHR_external_semaphore_fd
-	if (vr->has_external_semaphore_fd) {
+	if (vulkan_device_has(vr, EXTENSION_KHR_EXTERNAL_SEMAPHORE_FD)) {
 		load_device_proc(vr, "vkGetSemaphoreFdKHR", &vr->get_semaphore_fd);
 		load_device_proc(vr, "vkImportSemaphoreFdKHR", &vr->import_semaphore_fd);
 	}
@@ -4184,62 +4314,18 @@ vulkan_renderer_create_device(struct vulkan_renderer *vr)
 	result = vkEnumerateDeviceExtensionProperties(vr->phys_dev, NULL, &num_avail_device_extns, avail_device_extns);
 	check_vk_success(result, "vkEnumerateDeviceExtensionProperties");
 
+	vulkan_extensions_add(vulkan_device_ext_table, ARRAY_LENGTH(vulkan_device_ext_table),
+			      avail_device_extns, num_avail_device_extns,
+			      &vr->device_extensions);
+
 	const char **device_extns = xmalloc(num_avail_device_extns * sizeof(*device_extns));
-	device_extns[num_device_extns++] = VK_KHR_BIND_MEMORY_2_EXTENSION_NAME;
-	device_extns[num_device_extns++] = VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME;
-	device_extns[num_device_extns++] = VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME;
-	device_extns[num_device_extns++] = VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME;
-	device_extns[num_device_extns++] = VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME;
-	device_extns[num_device_extns++] = VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME;
-	device_extns[num_device_extns++] = VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME;
-	device_extns[num_device_extns++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
 
-	if (check_extension(avail_device_extns, num_avail_device_extns, VK_KHR_INCREMENTAL_PRESENT_EXTENSION_NAME)) {
-		device_extns[num_device_extns++] = VK_KHR_INCREMENTAL_PRESENT_EXTENSION_NAME;
-		vr->has_incremental_present = true;
-	}
+	for (uint32_t i = 0; i < ARRAY_LENGTH(vulkan_device_ext_table); i++) {
+		const struct vulkan_extension_table *ext = &vulkan_device_ext_table[i];
 
-	if (check_extension(avail_device_extns, num_avail_device_extns, VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME)) {
-		device_extns[num_device_extns++] = VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME;
-		vr->has_physical_device_drm = true;
-	}
-
-	if (check_extension(avail_device_extns, num_avail_device_extns, VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME) &&
-	    check_extension(avail_device_extns, num_avail_device_extns, VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME)) {
-		device_extns[num_device_extns++] = VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME;
-		/* Extension dependencies */
-		device_extns[num_device_extns++] = VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME;
-		device_extns[num_device_extns++] = VK_KHR_MAINTENANCE_1_EXTENSION_NAME;
-		vr->has_image_drm_format_modifier = true;
-	}
-
-	if (check_extension(avail_device_extns, num_avail_device_extns, VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME)) {
-		device_extns[num_device_extns++] = VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME;
-		vr->has_external_semaphore_fd = true;
-	}
-
-	/* These are really not optional for DRM backend, but are not used by
-	 * e.g. headless, software renderer, so make them optional for tests */
-	if (check_extension(avail_device_extns, num_avail_device_extns, VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME)) {
-		device_extns[num_device_extns++] = VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME;
-		vr->has_external_memory_dma_buf = true;
-	}
-	if (check_extension(avail_device_extns, num_avail_device_extns, VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME)) {
-		device_extns[num_device_extns++] = VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME;
-		vr->has_queue_family_foreign = true;
-	}
-
-	for (uint32_t i = 0; i < num_device_extns; i++) {
-		uint32_t j;
-		for (j = 0; j < num_avail_device_extns; j++) {
-			if (strcmp(device_extns[i], avail_device_extns[j].extensionName) == 0) {
-				break;
-			}
-		}
-		if (j == num_avail_device_extns) {
-			weston_log("Unsupported device extension: %s\n", device_extns[i]);
-			abort();
-		}
+		if (vulkan_instance_has(vr, ext->instance_dep) &&
+		    vulkan_device_has(vr, ext->flag | ext->device_dep))
+			device_extns[num_device_extns++] = ext->name;
 	}
 
 	const VkDeviceQueueCreateInfo device_queue_info = {
@@ -4261,7 +4347,7 @@ vulkan_renderer_create_device(struct vulkan_renderer *vr)
 	check_vk_success(result, "vkCreateDevice");
 
 	bool exportable_semaphore = false, importable_semaphore = false;
-	if (vr->has_external_semaphore_fd) {
+	if (vulkan_device_has(vr, EXTENSION_KHR_EXTERNAL_SEMAPHORE_FD)) {
 		const VkPhysicalDeviceExternalSemaphoreInfo ext_semaphore_info = {
 			.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_SEMAPHORE_INFO,
 			.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
@@ -4274,7 +4360,7 @@ vulkan_renderer_create_device(struct vulkan_renderer *vr)
 		exportable_semaphore = ext_semaphore_props.externalSemaphoreFeatures & VK_EXTERNAL_SEMAPHORE_FEATURE_EXPORTABLE_BIT;
 		importable_semaphore = ext_semaphore_props.externalSemaphoreFeatures & VK_EXTERNAL_SEMAPHORE_FEATURE_IMPORTABLE_BIT;
 	}
-	if (!vr->has_image_drm_format_modifier)
+	if (!vulkan_device_has(vr, EXTENSION_EXT_IMAGE_DRM_FORMAT_MODIFIER))
 		weston_log("DRM format modifiers not supported\n");
 	if (!exportable_semaphore)
 		weston_log("VkSemaphore is not exportable\n");
@@ -4331,8 +4417,24 @@ vulkan_renderer_display_create(struct weston_compositor *ec,
 
 	vulkan_renderer_create_device(vr);
 
+	weston_log("Vulkan instance extensions:\n");
+	for (uint32_t i = 0; i < ARRAY_LENGTH(vulkan_inst_ext_table); i++) {
+		const struct vulkan_extension_table *ext = &vulkan_inst_ext_table[i];
+
+		weston_log_continue(STAMP_SPACE "%s: %s\n", ext->name,
+				    yesno(vulkan_instance_has(vr, ext->flag)));
+	}
+
+	weston_log("Vulkan device extensions:\n");
+	for (uint32_t i = 0; i < ARRAY_LENGTH(vulkan_device_ext_table); i++) {
+		const struct vulkan_extension_table *ext = &vulkan_device_ext_table[i];
+
+		weston_log_continue(STAMP_SPACE "%s: %s\n", ext->name,
+				    yesno(vulkan_device_has(vr, ext->flag)));
+	}
+
 	vr->drm_fd = -1;
-	if (vr->has_physical_device_drm)
+	if (vulkan_device_has(vr, EXTENSION_EXT_PHYSICAL_DEVICE_DRM))
 		vr->drm_fd = open_drm_device_node(vr);
 
 	ec->capabilities |= WESTON_CAP_ROTATION_ANY;
@@ -4349,7 +4451,7 @@ vulkan_renderer_display_create(struct weston_compositor *ec,
 	if (vr->allocator)
 		vr->base.dmabuf_alloc = vulkan_renderer_dmabuf_alloc;
 
-	if (vr->has_external_memory_dma_buf) {
+	if (vulkan_device_has(vr, EXTENSION_EXT_EXTERNAL_MEMORY_DMA_BUF)) {
 		int ret;
 		vr->base.import_dmabuf = vulkan_renderer_import_dmabuf;
 		vr->base.get_supported_dmabuf_formats = vulkan_renderer_get_supported_dmabuf_formats;
@@ -4385,17 +4487,6 @@ vulkan_renderer_display_create(struct weston_compositor *ec,
 	ec->read_format = pixel_format_get_info(DRM_FORMAT_ARGB8888);
 
 	create_texture_image_dummy(vr); /* Workaround for solids */
-
-	weston_log("Vulkan features:\n");
-	weston_log_continue(STAMP_SPACE "wayland_surface: %s\n", yesno(vr->has_wayland_surface));
-	weston_log_continue(STAMP_SPACE "xcb_surface: %s\n", yesno(vr->has_xcb_surface));
-	weston_log_continue(STAMP_SPACE "incremental_present: %s\n", yesno(vr->has_incremental_present));
-	weston_log_continue(STAMP_SPACE "image_drm_format_modifier: %s\n", yesno(vr->has_image_drm_format_modifier));
-	weston_log_continue(STAMP_SPACE "external_semaphore_fd: %s\n", yesno(vr->has_external_semaphore_fd));
-	weston_log_continue(STAMP_SPACE "physical_device_drm: %s\n", yesno(vr->has_physical_device_drm));
-	weston_log_continue(STAMP_SPACE "external_memory_dma_buf: %s\n", yesno(vr->has_external_memory_dma_buf));
-	weston_log_continue(STAMP_SPACE "queue_family_foreign: %s\n", yesno(vr->has_queue_family_foreign));
-	weston_log_continue(STAMP_SPACE "semaphore_import_export: %s\n", yesno(vr->semaphore_import_export));
 
 	return 0;
 }

@@ -51,6 +51,8 @@ query_modifier_usage_support(struct vulkan_renderer *vr, VkFormat vk_format,
 {
 	VkResult result;
 
+	assert(vulkan_device_has(vr, EXTENSION_EXT_IMAGE_DRM_FORMAT_MODIFIER));
+
 	VkPhysicalDeviceImageFormatInfo2 pdev_image_format_info = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2,
 		.type = VK_IMAGE_TYPE_2D,
@@ -107,6 +109,8 @@ query_dmabuf_support(struct vulkan_renderer *vr, VkFormat vk_format,
 {
 	VkResult result;
 
+	assert(vulkan_device_has(vr, EXTENSION_KHR_IMAGE_FORMAT_LIST));
+
 	VkPhysicalDeviceImageFormatInfo2 pdev_image_format_info = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2,
 		.type = VK_IMAGE_TYPE_2D,
@@ -145,7 +149,7 @@ static void
 query_dmabuf_modifier_support(struct vulkan_renderer *vr, const struct pixel_format_info *format,
 			      struct weston_drm_format *fmt)
 {
-	if (!vr->has_image_drm_format_modifier) {
+	if (!vulkan_device_has(vr, EXTENSION_EXT_IMAGE_DRM_FORMAT_MODIFIER)) {
 		uint64_t modifier = DRM_FORMAT_MOD_INVALID;
 
 		int ret = weston_drm_format_add_modifier(fmt, modifier);

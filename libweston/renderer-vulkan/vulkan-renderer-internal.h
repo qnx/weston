@@ -50,6 +50,43 @@
 #define MAX_NUM_IMAGES 5
 #define MAX_CONCURRENT_FRAMES 2
 
+struct vulkan_extension_table {
+	const char *name;
+	uint64_t flag;
+	uint64_t instance_dep;
+	uint64_t device_dep;
+};
+
+/* Keep in sync with vulkan-renderer.c. */
+enum vulkan_inst_ext_flag {
+	EXTENSION_KHR_EXTERNAL_MEMORY_CAPABILITIES       = 1ull <<  0,
+	EXTENSION_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES    = 1ull <<  1,
+	EXTENSION_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2   = 1ull <<  2,
+	EXTENSION_KHR_SURFACE                            = 1ull <<  3,
+	EXTENSION_KHR_WAYLAND_SURFACE                    = 1ull <<  4,
+	EXTENSION_KHR_XCB_SURFACE                        = 1ull <<  5,
+};
+
+/* Keep in sync with vulkan-renderer.c. */
+enum vulkan_device_ext_flag {
+	EXTENSION_EXT_EXTERNAL_MEMORY_DMA_BUF            = 1ull <<  0,
+	EXTENSION_EXT_IMAGE_DRM_FORMAT_MODIFIER          = 1ull <<  1,
+	EXTENSION_EXT_PHYSICAL_DEVICE_DRM                = 1ull <<  2,
+	EXTENSION_EXT_QUEUE_FAMILY_FOREIGN               = 1ull <<  3,
+	EXTENSION_KHR_BIND_MEMORY_2                      = 1ull <<  4,
+	EXTENSION_KHR_DEDICATED_ALLOCATION               = 1ull <<  5,
+	EXTENSION_KHR_EXTERNAL_MEMORY                    = 1ull <<  6,
+	EXTENSION_KHR_EXTERNAL_MEMORY_FD                 = 1ull <<  7,
+	EXTENSION_KHR_EXTERNAL_SEMAPHORE                 = 1ull <<  8,
+	EXTENSION_KHR_EXTERNAL_SEMAPHORE_FD              = 1ull <<  9,
+	EXTENSION_KHR_GET_MEMORY_REQUIREMENTS_2          = 1ull << 10,
+	EXTENSION_KHR_IMAGE_FORMAT_LIST                  = 1ull << 11,
+	EXTENSION_KHR_INCREMENTAL_PRESENT                = 1ull << 12,
+	EXTENSION_KHR_MAINTENANCE_1                      = 1ull << 13,
+	EXTENSION_KHR_SAMPLER_YCBCR_CONVERSION           = 1ull << 14,
+	EXTENSION_KHR_SWAPCHAIN                          = 1ull << 15,
+};
+
 enum vulkan_pipeline_texture_variant {
 	PIPELINE_VARIANT_NONE = 0,
 /* Keep the following in sync with Vulkan shader.frag. */
@@ -113,20 +150,14 @@ struct vulkan_renderer {
 	struct weston_renderer base;
 	struct weston_compositor *compositor;
 
-	bool has_wayland_surface;
-	bool has_xcb_surface;
+	uint64_t inst_extensions;
 	VkInstance inst;
 
 	VkPhysicalDevice phys_dev;
 	VkQueue queue;
 	uint32_t queue_family;
 
-	bool has_incremental_present;
-	bool has_image_drm_format_modifier;
-	bool has_external_semaphore_fd;
-	bool has_physical_device_drm;
-	bool has_external_memory_dma_buf;
-	bool has_queue_family_foreign;
+	uint64_t device_extensions;
 	bool semaphore_import_export;
 	VkDevice dev;
 
@@ -185,6 +216,20 @@ static inline void _check_vk_success(const char *file, int line, const char *fun
 }
 #define check_vk_success(result, vk_func) \
 	_check_vk_success(__FILE__, __LINE__, __func__, (result), (vk_func))
+
+static inline bool
+vulkan_instance_has(struct vulkan_renderer *vr,
+		    enum vulkan_inst_ext_flag flag)
+{
+	return (vr->inst_extensions & ((uint64_t) flag)) == ((uint64_t) flag);
+}
+
+static inline bool
+vulkan_device_has(struct vulkan_renderer *vr,
+		  enum vulkan_device_ext_flag flag)
+{
+	return (vr->device_extensions & ((uint64_t) flag)) == ((uint64_t) flag);
+}
 
 void
 vulkan_pipeline_destroy(struct vulkan_renderer *vr, struct vulkan_pipeline *pipeline);
