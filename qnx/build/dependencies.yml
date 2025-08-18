@@ -1,0 +1,7 @@
+packages:
+- com.qnx.{baselineId}.target.screen.wayland
+- com.qnx.{baselineId}.target.screen.notify_fd
+- com.qnx.{baselineId}.target.screen.board.libdrm.dev: 2
+- com.qnx.{baselineId}.osr.pixman.dev
+- com.qnx.{baselineId}.osr.cairo.dev
+- com.qnx.{baselineId}.osr.xkbcommon
