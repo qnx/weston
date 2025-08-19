@@ -42,6 +42,10 @@
 #include "pixel-formats.h"
 #include "presentation-time-server-protocol.h"
 
+#ifndef DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP
+#define DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP 0x15
+#endif
+
 struct drm_property_enum_info plane_type_enums[] = {
 	[WDRM_PLANE_TYPE_PRIMARY] = {
 		.name = "Primary",
@@ -51,6 +55,27 @@ struct drm_property_enum_info plane_type_enums[] = {
 	},
 	[WDRM_PLANE_TYPE_CURSOR] = {
 		.name = "Cursor",
+	},
+};
+
+struct drm_property_enum_info plane_rotation_enums[] = {
+	[WDRM_PLANE_ROTATION_0] = {
+		.name = "rotate-0",
+	},
+	[WDRM_PLANE_ROTATION_90] = {
+		.name = "rotate-90",
+	},
+	[WDRM_PLANE_ROTATION_180] = {
+		.name = "rotate-180",
+	},
+	[WDRM_PLANE_ROTATION_270] = {
+		.name = "rotate-270",
+	},
+	[WDRM_PLANE_ROTATION_REFLECT_X] = {
+		.name = "reflect-x",
+	},
+	[WDRM_PLANE_ROTATION_REFLECT_Y] = {
+		.name = "reflect-y",
 	},
 };
 
@@ -74,6 +99,12 @@ const struct drm_property_info plane_props[] = {
 	[WDRM_PLANE_IN_FENCE_FD] = { .name = "IN_FENCE_FD" },
 	[WDRM_PLANE_FB_DAMAGE_CLIPS] = { .name = "FB_DAMAGE_CLIPS" },
 	[WDRM_PLANE_ZPOS] = { .name = "zpos" },
+	[WDRM_PLANE_ROTATION] = {
+		.name = "rotation",
+		.enum_values = plane_rotation_enums,
+		.num_enum_values = WDRM_PLANE_ROTATION__COUNT,
+	 },
+	[WDRM_PLANE_ALPHA] = { .name = "alpha" },
 };
 
 struct drm_property_enum_info dpms_state_enums[] = {
@@ -119,6 +150,14 @@ struct drm_property_enum_info panel_orientation_enums[] = {
 	[WDRM_PANEL_ORIENTATION_RIGHT_SIDE_UP] = { .name = "Right Side Up", },
 };
 
+struct drm_property_enum_info content_type_enums[] = {
+	[WDRM_CONTENT_TYPE_NO_DATA] = { .name = "No Data", },
+	[WDRM_CONTENT_TYPE_GRAPHICS] = { .name = "Graphics", },
+	[WDRM_CONTENT_TYPE_PHOTO] = { .name = "Photo", },
+	[WDRM_CONTENT_TYPE_CINEMA] = { .name = "Cinema", },
+	[WDRM_CONTENT_TYPE_GAME] = { .name = "Game", },
+};
+
 const struct drm_property_info connector_props[] = {
 	[WDRM_CONNECTOR_EDID] = { .name = "EDID" },
 	[WDRM_CONNECTOR_DPMS] = {
@@ -127,6 +166,9 @@ const struct drm_property_info connector_props[] = {
 		.num_enum_values = WDRM_DPMS_STATE__COUNT,
 	},
 	[WDRM_CONNECTOR_CRTC_ID] = { .name = "CRTC_ID", },
+	[WDRM_CONNECTOR_WRITEBACK_PIXEL_FORMATS] = { .name = "WRITEBACK_PIXEL_FORMATS", },
+	[WDRM_CONNECTOR_WRITEBACK_FB_ID] = { .name = "WRITEBACK_FB_ID", },
+	[WDRM_CONNECTOR_WRITEBACK_OUT_FENCE_PTR] = { .name = "WRITEBACK_OUT_FENCE_PTR", },
 	[WDRM_CONNECTOR_NON_DESKTOP] = { .name = "non-desktop", },
 	[WDRM_CONNECTOR_CONTENT_PROTECTION] = {
 		.name = "Content Protection",
@@ -147,11 +189,22 @@ const struct drm_property_info connector_props[] = {
 		.name = "HDR_OUTPUT_METADATA",
 	},
 	[WDRM_CONNECTOR_MAX_BPC] = { .name = "max bpc", },
+	[WDRM_CONNECTOR_CONTENT_TYPE] = {
+		.name = "content type",
+		.enum_values = content_type_enums,
+		.num_enum_values = WDRM_CONTENT_TYPE__COUNT,
+	},
 };
 
 const struct drm_property_info crtc_props[] = {
 	[WDRM_CRTC_MODE_ID] = { .name = "MODE_ID", },
 	[WDRM_CRTC_ACTIVE] = { .name = "ACTIVE", },
+	[WDRM_CRTC_CTM] = { .name = "CTM", },
+	[WDRM_CRTC_DEGAMMA_LUT] = { .name = "DEGAMMA_LUT", },
+	[WDRM_CRTC_DEGAMMA_LUT_SIZE] = { .name = "DEGAMMA_LUT_SIZE", },
+	[WDRM_CRTC_GAMMA_LUT] = { .name = "GAMMA_LUT", },
+	[WDRM_CRTC_GAMMA_LUT_SIZE] = { .name = "GAMMA_LUT_SIZE", },
+	[WDRM_CRTC_VRR_ENABLED] = { .name = "VRR_ENABLED", },
 };
 
 
@@ -249,6 +302,73 @@ drm_property_get_range_values(struct drm_property_info *info,
 	}
 
 	return NULL;
+}
+
+/* We use the fact that 0 is not a valid rotation here - if we return 0,
+ * the plane doesn't support the rotation requested. Otherwise the correct
+ * value to achieve the requested rotation on this plane is returned.
+ */
+uint64_t
+drm_rotation_from_output_transform(struct drm_plane *plane,
+				   enum wl_output_transform ot)
+{
+	struct drm_property_info *info = &plane->props[WDRM_PLANE_ROTATION];
+	enum wdrm_plane_rotation drm_rotation;
+	enum wdrm_plane_rotation drm_reflection = 0;
+	uint64_t out = 0;
+
+	if (info->prop_id == 0) {
+		if (ot == WL_OUTPUT_TRANSFORM_NORMAL)
+			return 1;
+
+		return 0;
+	}
+
+	switch (ot) {
+	case WL_OUTPUT_TRANSFORM_NORMAL:
+		drm_rotation = WDRM_PLANE_ROTATION_0;
+		break;
+	case WL_OUTPUT_TRANSFORM_90:
+		drm_rotation = WDRM_PLANE_ROTATION_90;
+		break;
+	case WL_OUTPUT_TRANSFORM_180:
+		drm_rotation = WDRM_PLANE_ROTATION_180;
+		break;
+	case WL_OUTPUT_TRANSFORM_270:
+		drm_rotation = WDRM_PLANE_ROTATION_270;
+		break;
+	case WL_OUTPUT_TRANSFORM_FLIPPED:
+		drm_rotation = WDRM_PLANE_ROTATION_0;
+		drm_reflection = WDRM_PLANE_ROTATION_REFLECT_X;
+		break;
+	case WL_OUTPUT_TRANSFORM_FLIPPED_90:
+		drm_rotation = WDRM_PLANE_ROTATION_90;
+		drm_reflection = WDRM_PLANE_ROTATION_REFLECT_X;
+		break;
+	case WL_OUTPUT_TRANSFORM_FLIPPED_180:
+		drm_rotation = WDRM_PLANE_ROTATION_180;
+		drm_reflection = WDRM_PLANE_ROTATION_REFLECT_X;
+		break;
+	case WL_OUTPUT_TRANSFORM_FLIPPED_270:
+		drm_rotation = WDRM_PLANE_ROTATION_270;
+		drm_reflection = WDRM_PLANE_ROTATION_REFLECT_X;
+		break;
+	default:
+		assert(0 && "bad output transform");
+	}
+
+	if (!info->enum_values[drm_rotation].valid)
+		return 0;
+
+	out |= 1 << info->enum_values[drm_rotation].value;
+
+	if (drm_reflection) {
+		if (!info->enum_values[drm_reflection].valid)
+			return 0;
+		out |= 1 << info->enum_values[drm_reflection].value;
+	}
+
+	return out;
 }
 
 /**
@@ -358,9 +478,11 @@ drm_property_info_populate(struct drm_device *device,
 			continue;
 		}
 
-		if (!(prop->flags & DRM_MODE_PROP_ENUM)) {
-			weston_log("DRM: expected property %s to be an enum,"
-				   " but it is not; ignoring\n", prop->name);
+		if (!(prop->flags & DRM_MODE_PROP_ENUM) &&
+		    !(prop->flags & DRM_MODE_PROP_BITMASK)) {
+			weston_log("DRM: expected property %s to be an enum"
+				   " or bitmask, but it is not; ignoring\n",
+				   prop->name);
 			drmModeFreeProperty(prop);
 			info[j].prop_id = 0;
 			continue;
@@ -494,6 +616,7 @@ drm_output_set_gamma(struct weston_output *output_base,
 	if (output_base->gamma_size != size)
 		return;
 
+	output->deprecated_gamma_is_set = true;
 	rc = drmModeCrtcSetGamma(device->drm.fd,
 				 output->crtc->crtc_id,
 				 size, r, g, b);
@@ -620,6 +743,41 @@ err:
 	drmModeSetCursor(device->drm.fd, crtc->crtc_id, 0, 0, 0);
 }
 
+static void
+drm_output_reset_legacy_gamma(struct drm_output *output)
+{
+	uint32_t len = output->base.gamma_size;
+	uint16_t *lut;
+	uint32_t i;
+	int ret;
+
+	if (len == 0)
+		return;
+
+	if (output->legacy_gamma_not_supported)
+		return;
+
+	lut = calloc(len, sizeof(uint16_t));
+	if (!lut)
+		return;
+
+	/* Identity curve */
+	for (i = 0; i < len; i++)
+		lut[i] = 0xffff * i / (len - 1);
+
+	ret = drmModeCrtcSetGamma(output->device->drm.fd,
+				  output->crtc->crtc_id,
+				  len, lut, lut, lut);
+	if (ret == -EOPNOTSUPP || ret == -ENOSYS)
+		output->legacy_gamma_not_supported = true;
+	else if (ret < 0) {
+		weston_log("%s failed for %s: %s\n", __func__,
+			   output->base.name, strerror(-ret));
+	}
+
+	free(lut);
+}
+
 static int
 drm_output_apply_state_legacy(struct drm_output_state *state)
 {
@@ -712,6 +870,9 @@ drm_output_apply_state_legacy(struct drm_output_state *state)
 			weston_log("set mode failed: %s\n", strerror(errno));
 			goto err;
 		}
+
+		if (!output->deprecated_gamma_is_set)
+			drm_output_reset_legacy_gamma(output);
 	}
 
 	pinfo = scanout_state->fb->format;
@@ -770,16 +931,47 @@ crtc_add_prop(drmModeAtomicReq *req, struct drm_crtc *crtc,
 	struct drm_property_info *info = &crtc->props_crtc[prop];
 	int ret;
 
+	drm_debug(b, "\t\t\t[CRTC:%lu] %lu (%s) -> %llu (0x%llx)\n",
+		  (unsigned long) crtc->crtc_id,
+		  (unsigned long) info->prop_id, info->name,
+		  (unsigned long long) val, (unsigned long long) val);
+
 	if (info->prop_id == 0)
 		return -1;
 
 	ret = drmModeAtomicAddProperty(req, crtc->crtc_id, info->prop_id,
 				       val);
-	drm_debug(b, "\t\t\t[CRTC:%lu] %lu (%s) -> %llu (0x%llx)\n",
-		  (unsigned long) crtc->crtc_id,
-		  (unsigned long) info->prop_id, info->name,
-		  (unsigned long long) val, (unsigned long long) val);
 	return (ret <= 0) ? -1 : 0;
+}
+
+/** Set a CRTC property, allowing zero value for non-existing property
+ *
+ * \param req The atomic KMS request to append to.
+ * \param crtc The CRTC whose property to set.
+ * \param prop Which CRTC property to set.
+ * \param val The value, cast to u64, to set to the CRTC property.
+ * \return 0 on succcess, -1 on failure.
+ *
+ * If the property does not exist, attempting to set it to value
+ * zero is ok, because the property with value zero has the same
+ * KMS effect as the property not existing.
+ *
+ * However, trying to set a non-existing property to a non-zero value
+ * must fail, because that would not achieve the desired KMS effect.
+ *
+ * It is up to the caller to understand which KMS properties work
+ * like this and which do not.
+ */
+static int
+crtc_add_prop_zero_ok(drmModeAtomicReq *req, struct drm_crtc *crtc,
+		      enum wdrm_crtc_property prop, uint64_t val)
+{
+	struct drm_property_info *info = &crtc->props_crtc[prop];
+
+	if (info->prop_id == 0 && val == 0)
+		return 0;
+
+	return crtc_add_prop(req, crtc, prop, val);
 }
 
 static int
@@ -792,14 +984,15 @@ connector_add_prop(drmModeAtomicReq *req, struct drm_connector *connector,
 	uint32_t connector_id = connector->connector_id;
 	int ret;
 
-	if (info->prop_id == 0)
-		return -1;
-
-	ret = drmModeAtomicAddProperty(req, connector_id, info->prop_id, val);
 	drm_debug(b, "\t\t\t[CONN:%lu] %lu (%s) -> %llu (0x%llx)\n",
 		  (unsigned long) connector_id,
 		  (unsigned long) info->prop_id, info->name,
 		  (unsigned long long) val, (unsigned long long) val);
+
+	if (info->prop_id == 0)
+		return -1;
+
+	ret = drmModeAtomicAddProperty(req, connector_id, info->prop_id, val);
 	return (ret <= 0) ? -1 : 0;
 }
 
@@ -812,15 +1005,16 @@ plane_add_prop(drmModeAtomicReq *req, struct drm_plane *plane,
 	struct drm_property_info *info = &plane->props[prop];
 	int ret;
 
+	drm_debug(b, "\t\t\t[PLANE:%lu] %lu (%s) -> %llu (0x%llx)\n",
+		  (unsigned long) plane->plane_id,
+		  (unsigned long) info->prop_id, info->name,
+		  (unsigned long long) val, (unsigned long long) val);
+
 	if (info->prop_id == 0)
 		return -1;
 
 	ret = drmModeAtomicAddProperty(req, plane->plane_id, info->prop_id,
 				       val);
-	drm_debug(b, "\t\t\t[PLANE:%lu] %lu (%s) -> %llu (0x%llx)\n",
-		  (unsigned long) plane->plane_id,
-		  (unsigned long) info->prop_id, info->name,
-		  (unsigned long long) val, (unsigned long long) val);
 	return (ret <= 0) ? -1 : 0;
 }
 
@@ -912,22 +1106,49 @@ drm_connector_set_max_bpc(struct drm_connector *connector,
 			  drmModeAtomicReq *req)
 {
 	const struct drm_property_info *info;
+	struct drm_head *head;
+	struct drm_backend *backend = output->device->backend;
 	uint64_t max_bpc;
 	uint64_t a, b;
 
 	if (!drm_connector_has_prop(connector, WDRM_CONNECTOR_MAX_BPC))
 		return 0;
 
-	info = &connector->props[WDRM_CONNECTOR_MAX_BPC];
-	assert(info->flags & DRM_MODE_PROP_RANGE);
-	assert(info->num_range_values == 2);
-	a = info->range_values[0];
-	b = info->range_values[1];
-	assert(a <= b);
+	if (output->max_bpc == 0) {
+		/* A value of 0 means that the current max_bpc must be programmed. */
+		head = drm_head_find_by_connector(backend, connector->connector_id);
+		max_bpc = head->inherited_max_bpc;
+	} else {
+		info = &connector->props[WDRM_CONNECTOR_MAX_BPC];
+		assert(info->flags & DRM_MODE_PROP_RANGE);
+		assert(info->num_range_values == 2);
+		a = info->range_values[0];
+		b = info->range_values[1];
+		assert(a <= b);
 
-	max_bpc = MAX(a, MIN(output->max_bpc, b));
+		max_bpc = MAX(a, MIN(output->max_bpc, b));
+	}
+
 	return connector_add_prop(req, connector,
 				  WDRM_CONNECTOR_MAX_BPC, max_bpc);
+}
+
+static int
+drm_connector_set_content_type(struct drm_connector *connector,
+			       enum wdrm_content_type content_type,
+			       drmModeAtomicReq *req)
+{
+	struct drm_property_enum_info *enum_info;
+	uint64_t prop_val;
+	struct drm_property_info *props = connector->props;
+
+	if (!drm_connector_has_prop(connector, WDRM_CONNECTOR_CONTENT_TYPE))
+		return 0;
+
+	enum_info = props[WDRM_CONNECTOR_CONTENT_TYPE].enum_values;
+	prop_val = enum_info[content_type].value;
+	return connector_add_prop(req, connector,
+				  WDRM_CONNECTOR_CONTENT_TYPE, prop_val);
 }
 
 static int
@@ -942,6 +1163,10 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
 	struct drm_plane_state *plane_state;
 	struct drm_mode *current_mode = to_drm_mode(output->base.current_mode);
 	struct drm_head *head;
+	struct drm_head *tmp;
+	struct drm_writeback_state *wb_state = output->wb_state;
+	enum writeback_screenshot_state wb_screenshot_state =
+		drm_output_get_writeback_state(output);
 	int ret = 0;
 
 	drm_debug(b, "\t\t[atomic] %s output %lu (%s) state\n",
@@ -950,6 +1175,11 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
 
 	if (state->dpms != output->state_cur->dpms) {
 		drm_debug(b, "\t\t\t[atomic] DPMS state differs, modeset OK\n");
+		*flags |= DRM_MODE_ATOMIC_ALLOW_MODESET;
+	}
+
+	if (wb_screenshot_state == DRM_OUTPUT_WB_SCREENSHOT_PREPARE_COMMIT) {
+		drm_debug(b, "\t\t\t[atomic] Writeback connector screenshot requested, modeset OK\n");
 		*flags |= DRM_MODE_ATOMIC_ALLOW_MODESET;
 	}
 
@@ -962,6 +1192,15 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
 				     current_mode->blob_id);
 		ret |= crtc_add_prop(req, crtc, WDRM_CRTC_ACTIVE, 1);
 
+		if (!output->deprecated_gamma_is_set) {
+			ret |= crtc_add_prop_zero_ok(req, crtc,
+						     WDRM_CRTC_GAMMA_LUT, 0);
+			ret |= crtc_add_prop_zero_ok(req, crtc,
+						     WDRM_CRTC_DEGAMMA_LUT, 0);
+		}
+		ret |= crtc_add_prop_zero_ok(req, crtc, WDRM_CRTC_CTM, 0);
+		ret |= crtc_add_prop_zero_ok(req, crtc, WDRM_CRTC_VRR_ENABLED, 0);
+
 		/* No need for the DPMS property, since it is implicit in
 		 * routing and CRTC activity. */
 		wl_list_for_each(head, &output->base.head_list, base.output_link) {
@@ -969,20 +1208,49 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
 						  WDRM_CONNECTOR_CRTC_ID,
 						  crtc->crtc_id);
 		}
+
+		if (wb_screenshot_state == DRM_OUTPUT_WB_SCREENSHOT_PREPARE_COMMIT) {
+			ret |= connector_add_prop(req, &wb_state->wb->connector,
+						  WDRM_CONNECTOR_CRTC_ID,
+						  crtc->crtc_id);
+			ret |= connector_add_prop(req, &wb_state->wb->connector,
+						  WDRM_CONNECTOR_WRITEBACK_FB_ID,
+						  wb_state->fb->fb_id);
+			ret |= connector_add_prop(req, &wb_state->wb->connector,
+						  WDRM_CONNECTOR_WRITEBACK_OUT_FENCE_PTR,
+						  (uintptr_t)&wb_state->out_fence_fd);
+			if (!(*flags & DRM_MODE_ATOMIC_TEST_ONLY))
+				wb_state->state = DRM_OUTPUT_WB_SCREENSHOT_CHECK_FENCE;
+		}
 	} else {
 		ret |= crtc_add_prop(req, crtc, WDRM_CRTC_MODE_ID, 0);
 		ret |= crtc_add_prop(req, crtc, WDRM_CRTC_ACTIVE, 0);
+
+		if (wb_screenshot_state == DRM_OUTPUT_WB_SCREENSHOT_PREPARE_COMMIT) {
+			drm_debug(b, "\t\t\t[atomic] Writeback connector screenshot requested but CRTC is off\n");
+			drm_writeback_fail_screenshot(wb_state, "drm: CRTC is off");
+		}
 
 		/* No need for the DPMS property, since it is implicit in
 		 * routing and CRTC activity. */
 		wl_list_for_each(head, &output->base.head_list, base.output_link)
 			ret |= connector_add_prop(req, &head->connector,
 						  WDRM_CONNECTOR_CRTC_ID, 0);
+
+		wl_list_for_each_safe(head, tmp, &output->disable_head,
+				      disable_head_link) {
+			ret |= connector_add_prop(req, &head->connector,
+						  WDRM_CONNECTOR_CRTC_ID, 0);
+			wl_list_remove(&head->disable_head_link);
+			wl_list_init(&head->disable_head_link);
+		}
 	}
 
 	wl_list_for_each(head, &output->base.head_list, base.output_link) {
 		drm_connector_set_hdcp_property(&head->connector,
 						state->protection, req);
+		ret |= drm_connector_set_content_type(&head->connector,
+						      output->content_type, req);
 
 		if (drm_connector_has_prop(&head->connector,
 					   WDRM_CONNECTOR_HDR_OUTPUT_METADATA)) {
@@ -1040,12 +1308,22 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
 					      plane_state->in_fence_fd);
 		}
 
+		if (plane->props[WDRM_PLANE_ROTATION].prop_id != 0)
+			ret |= plane_add_prop(req, plane, WDRM_PLANE_ROTATION,
+					      plane_state->rotation);
+
 		/* do note, that 'invented' zpos values are set as immutable */
 		if (plane_state->zpos != DRM_PLANE_ZPOS_INVALID_PLANE &&
 		    plane_state->plane->zpos_min != plane_state->plane->zpos_max)
 			ret |= plane_add_prop(req, plane,
 					      WDRM_PLANE_ZPOS,
 					      plane_state->zpos);
+
+		/*Plane-alpha support */
+		if (plane->alpha_max != plane->alpha_min)
+			ret |= plane_add_prop(req, plane,
+					      WDRM_PLANE_ALPHA,
+					      plane_state->alpha);
 
 		if (ret != 0) {
 			weston_log("couldn't set plane state\n");
@@ -1054,6 +1332,18 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
 	}
 
 	return 0;
+}
+
+static void
+drm_pending_state_clear_tearing(struct drm_pending_state *pending_state)
+{
+	struct drm_output_state *output_state;
+
+	wl_list_for_each(output_state, &pending_state->output_list, link) {
+		if (output_state->output->virtual)
+			continue;
+		output_state->tear = false;
+	}
 }
 
 /**
@@ -1069,7 +1359,8 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
 	struct drm_output_state *output_state, *tmp;
 	struct drm_plane *plane;
 	drmModeAtomicReq *req = drmModeAtomicAlloc();
-	uint32_t flags;
+	uint32_t flags, tear_flag = 0;
+	bool may_tear = true;
 	int ret = 0;
 
 	if (!req)
@@ -1179,6 +1470,7 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
 			continue;
 		if (mode == DRM_STATE_APPLY_SYNC)
 			assert(output_state->dpms == WESTON_DPMS_OFF);
+		may_tear &= output_state->tear;
 		ret |= drm_output_apply_state_atomic(output_state, req, &flags);
 	}
 
@@ -1186,10 +1478,22 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
 		weston_log("atomic: couldn't compile atomic state\n");
 		goto out;
 	}
+	if (may_tear)
+		tear_flag = DRM_MODE_PAGE_FLIP_ASYNC;
 
-	ret = drmModeAtomicCommit(device->drm.fd, req, flags, device);
+	ret = drmModeAtomicCommit(device->drm.fd, req, flags | tear_flag,
+				  device);
 	drm_debug(b, "[atomic] drmModeAtomicCommit\n");
-
+	if (ret != 0 && may_tear && mode == DRM_STATE_TEST_ONLY) {
+		/* If we failed trying to set up a tearing commit, try again
+		 * without tearing. If that succeeds, knock the tearing flag
+		 * out of our state in case we were testing for a later commit.
+		 */
+		drm_debug(b, "[atomic] drmModeAtomicCommit (no tear fallback)\n");
+		ret = drmModeAtomicCommit(device->drm.fd, req, flags, device);
+		if (ret == 0)
+			drm_pending_state_clear_tearing(pending_state);
+	}
 	/* Test commits do not take ownership of the state; return
 	 * without freeing here. */
 	if (mode == DRM_STATE_TEST_ONLY) {
@@ -1198,6 +1502,10 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
 	}
 
 	if (ret != 0) {
+		wl_list_for_each(output_state, &pending_state->output_list, link)
+			if (drm_output_get_writeback_state(output_state->output) != DRM_OUTPUT_WB_SCREENSHOT_OFF)
+				drm_writeback_fail_screenshot(output_state->output->wb_state,
+							      "drm: atomic commit failed");
 		weston_log("atomic: couldn't commit new state: %s\n",
 			   strerror(errno));
 		goto out;
@@ -1264,6 +1572,11 @@ drm_pending_state_apply(struct drm_pending_state *pending_state)
 	struct drm_output_state *output_state, *tmp;
 	struct drm_crtc *crtc;
 
+	if (wl_list_empty(&pending_state->output_list)) {
+		drm_pending_state_free(pending_state);
+		return 0;
+	}
+
 	if (device->atomic_modeset)
 		return drm_pending_state_apply_atomic(pending_state,
 						      DRM_STATE_APPLY_ASYNC);
@@ -1301,7 +1614,7 @@ drm_pending_state_apply(struct drm_pending_state *pending_state)
 			drm_output_state_free(output->state_cur);
 			output->state_cur = drm_output_state_alloc(output, NULL);
 			device->state_invalid = true;
-			if (!b->use_pixman) {
+			if (b->compositor->renderer->type == WESTON_RENDERER_GL) {
 				drm_output_fini_egl(output);
 				drm_output_init_egl(output, b);
 			}
@@ -1373,12 +1686,12 @@ drm_pending_state_apply_sync(struct drm_pending_state *pending_state)
 void
 drm_output_update_msc(struct drm_output *output, unsigned int seq)
 {
-	uint64_t msc_hi = output->base.msc >> 32;
+	uint32_t msc_hi = output->base.msc >> 32;
 
 	if (seq < (output->base.msc & 0xffffffff))
 		msc_hi++;
 
-	output->base.msc = (msc_hi << 32) + seq;
+	output->base.msc = u64_from_u32s(msc_hi, seq);
 }
 
 static void
@@ -1406,8 +1719,10 @@ atomic_flip_handler(int fd, unsigned int frame, unsigned int sec,
 {
 	struct drm_device *device = data;
 	struct drm_backend *b = device->backend;
+	struct weston_compositor *ec = b->compositor;
 	struct drm_crtc *crtc;
 	struct drm_output *output;
+	struct timespec now;
 	uint32_t flags = WP_PRESENTATION_FEEDBACK_KIND_VSYNC |
 			 WP_PRESENTATION_FEEDBACK_KIND_HW_COMPLETION |
 			 WP_PRESENTATION_FEEDBACK_KIND_HW_CLOCK;
@@ -1425,6 +1740,17 @@ atomic_flip_handler(int fd, unsigned int frame, unsigned int sec,
 
 	drm_output_update_msc(output, frame);
 
+	if (output->state_cur->tear) {
+		/* When tearing we might not get accurate timestamps from
+		 * the driver, so just use whatever time it is now.
+		 * Note: This could actually be after a vblank that occured
+		 * after entering this function.
+		 */
+		weston_compositor_read_presentation_clock(ec, &now);
+		sec = now.tv_sec;
+		usec = now.tv_nsec / 1000;
+	}
+
 	drm_debug(b, "[atomic][CRTC:%u] flip processing started\n", crtc_id);
 	assert(device->atomic_modeset);
 	assert(output->atomic_complete_pending);
@@ -1438,7 +1764,22 @@ int
 on_drm_input(int fd, uint32_t mask, void *data)
 {
 	struct drm_device *device = data;
+	struct drm_writeback_state *state;
+	struct drm_crtc *crtc;
+	bool wait_wb_completion = false;
 	drmEventContext evctx;
+
+	/* If we have a pending writeback job for this output, we can't continue
+	 * with the repaint loop. The KMS UAPI docs says that we need to wait
+	 * until the writeback is over before we send a new atomic commit that
+	 * uses the KMS objects (CRTC, planes, etc) in use by the writeback. */
+	wl_list_for_each(crtc, &device->crtc_list, link) {
+		state = crtc->output ? crtc->output->wb_state : NULL;
+		if (state && drm_writeback_should_wait_completion(state))
+			wait_wb_completion = true;
+	}
+	if (wait_wb_completion)
+		return 1;
 
 	memset(&evctx, 0, sizeof evctx);
 	evctx.version = 3;
@@ -1509,6 +1850,11 @@ init_kms_caps(struct drm_device *device)
 		   device->fb_modifiers ? "supports" : "does not support");
 
 	drmSetClientCap(device->drm.fd, DRM_CLIENT_CAP_WRITEBACK_CONNECTORS, 1);
+
+	ret = drmGetCap(device->drm.fd, DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP, &cap);
+	if (ret != 0)
+		cap = 0;
+	device->tearing_supported = cap;
 
 	/*
 	 * KMS support for hardware planes cannot properly synchronize

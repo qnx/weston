@@ -493,8 +493,8 @@ frame_resize(struct frame *frame, int32_t width, int32_t height)
 }
 
 void
-frame_decoration_sizes(struct frame *frame, int32_t *top, int32_t *bottom,
-		       int32_t *left, int32_t *right)
+frame_border_sizes(struct frame *frame, int32_t *top, int32_t *bottom,
+		   int32_t *left, int32_t *right)
 {
 	struct theme *t = frame->theme;
 
@@ -508,6 +508,14 @@ frame_decoration_sizes(struct frame *frame, int32_t *top, int32_t *bottom,
 	*bottom = t->width;
 	*right = t->width;
 	*left = t->width;
+}
+void
+frame_decoration_sizes(struct frame *frame, int32_t *top, int32_t *bottom,
+		       int32_t *left, int32_t *right)
+{
+	struct theme *t = frame->theme;
+
+	frame_border_sizes(frame, top, bottom, left, right);
 
 	if (frame->flags & FRAME_FLAG_MAXIMIZED)
 		return;
@@ -1005,6 +1013,44 @@ frame_double_touch_up(struct frame *frame, void *data, int32_t id)
 		frame_button_release(touch->button);
 		frame_touch_destroy(touch);
 	}
+}
+
+enum theme_location
+frame_tablet_tool_motion(struct frame *frame, void *data, int x, int y)
+{
+	struct frame_pointer *tool_pointer = frame_pointer_get(frame, data);
+	struct frame_button *button,
+			    *prev_button = tool_pointer->hover_button;
+	enum theme_location location;
+
+	location = theme_get_location(frame->theme, tool_pointer->x,
+				      tool_pointer->y, frame->width,
+				      frame->height,
+				      frame->flags & FRAME_FLAG_MAXIMIZED ?
+				      THEME_FRAME_MAXIMIZED : 0);
+
+	if (!tool_pointer)
+		return location;
+
+	tool_pointer->x = x;
+	tool_pointer->y = y;
+
+	button = frame_find_button(frame, x, y);
+
+	if (prev_button) {
+		if (prev_button == button)
+			/* The button hasn't changed so we're done here */
+			return location;
+		else
+			frame_button_leave(prev_button, tool_pointer);
+	}
+
+	if (button)
+		frame_button_enter(button);
+
+	tool_pointer->hover_button = button;
+
+	return location;
 }
 
 void

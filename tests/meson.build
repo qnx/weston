@@ -2,7 +2,7 @@ plugin_test_shell_desktop = shared_library(
 	'weston-test-desktop-shell',
 	'weston-test-desktop-shell.c',
 	include_directories: common_inc,
-	dependencies: [ dep_libweston_public, dep_libexec_weston, dep_shell_utils ],
+	dependencies: [ dep_libweston_public, dep_libexec_weston ],
 	name_prefix: '',
 	install: false
 )
@@ -31,8 +31,8 @@ lib_test_client = static_library(
 		'weston-test-fixture-compositor.c',
 		weston_test_client_protocol_h,
 		weston_test_protocol_c,
-		weston_screenshooter_client_protocol_h,
-		weston_screenshooter_protocol_c,
+		weston_output_capture_client_protocol_h,
+		weston_output_capture_protocol_c,
 		viewporter_client_protocol_h,
 		viewporter_protocol_c,
 		'color_util.h',
@@ -43,6 +43,8 @@ lib_test_client = static_library(
 		dep_libshared,
 		dep_wayland_client,
 		dep_libexec_weston,
+		dep_libweston_private,
+		dep_libdrm_headers,
 		dep_pixman,
 		dependency('cairo'),
 	],
@@ -57,6 +59,7 @@ dep_test_client = declare_dependency(
 		dep_wayland_client,
 		dep_test_runner,
 		dep_pixman,
+		dep_libdrm_headers,
 		dependency('libudev', version: '>= 136'),
 	]
 )
@@ -153,6 +156,7 @@ tests = [
 		'dep_objs': dep_libdrm_headers,
 	},
 	{	'name': 'drm-smoke', 'run_exclusive': true },
+	{	'name': 'drm-writeback-screenshot', 'run_exclusive': true },
 	{	'name': 'event', },
 	{	'name': 'internal-screenshot', },
 	{
@@ -176,7 +180,21 @@ tests = [
 		'name': 'matrix',
 		'dep_objs': [ dep_libm ]
 	},
+	{
+		'name': 'matrix-transform',
+		'dep_objs': dep_libm,
+	},
+	{
+		'name': 'output-capture-protocol',
+		'sources': [
+			'output-capture-protocol-test.c',
+			weston_output_capture_protocol_c,
+			weston_output_capture_client_protocol_h,
+		],
+		'dep_objs': [ dep_libdrm_headers ],
+	},
 	{	'name': 'output-damage', },
+	{	'name': 'output-decorations', },
 	{	'name': 'output-transforms', },
 	{	'name': 'plugin-registry', },
 	{
@@ -249,7 +267,7 @@ tests = [
 		'sources': [
 		  'safe-signal-output-removal-test.c',
 		],
-		'dep_objs': [ dep_shell_utils ]
+		'dep_objs': [ dep_libweston_public ]
 	},
 ]
 
@@ -292,14 +310,33 @@ tests_standalone = [
 ]
 
 if get_option('xwayland')
-	d = dependency('x11', required: false)
-	if not d.found()
-		error('Xwayland tests require libX11 which was not found. Or, you can use \'-Dxwayland=false\'.')
+	xcb_dep = dependency('xcb', required: false)
+	xcb_cursor_dep = dependency('xcb-cursor', required: false)
+
+	if not xcb_dep.found() or not xcb_cursor_dep.found()
+		error('xcb and xcb-cursor required for running xwayland tests')
 	endif
-	tests += {
+
+	libxwayland_test_client = static_library(
+		'test-xwayland-client',
+		[ 'xcb-client-helper.c', weston_test_client_protocol_h ],
+		include_directories: common_inc,
+		dependencies: [
+			dep_pixman, dep_xcb_xwayland,
+			xcb_dep, xcb_cursor_dep
+		],
+		install: false,
+	)
+
+	dep_libxwayland_test = declare_dependency(
+		dependencies: [ xcb_dep, xcb_cursor_dep ],
+		link_with: libxwayland_test_client,
+	)
+
+	tests += [ {
 		'name': 'xwayland',
-		'dep_objs': d,
-	}
+		'dep_objs': dep_libxwayland_test,
+	} ]
 endif
 
 # Manual test plugin, not used in the automatic suite

@@ -33,6 +33,22 @@
 #include "color.h"
 #include "color-lcms.h"
 #include "shared/helpers.h"
+#include "shared/xalloc.h"
+
+const char *
+cmlcms_category_name(enum cmlcms_category cat)
+{
+	static const char *const category_names[] = {
+		[CMLCMS_CATEGORY_INPUT_TO_BLEND] = "input-to-blend",
+		[CMLCMS_CATEGORY_BLEND_TO_OUTPUT] = "blend-to-output",
+		[CMLCMS_CATEGORY_INPUT_TO_OUTPUT] = "input-to-output",
+	};
+
+	if (cat < 0 || cat >= ARRAY_LENGTH(category_names))
+		return "[illegal category value]";
+
+	return category_names[cat] ?: "[undocumented category value]";
+}
 
 static cmsUInt32Number
 cmlcms_get_render_intent(enum cmlcms_category cat,
@@ -371,7 +387,56 @@ cmlcms_destroy(struct weston_color_manager *cm_base)
 	assert(wl_list_empty(&cm->color_profile_list));
 
 	cmsDeleteContext(cm->lcms_ctx);
+
+	weston_log_scope_destroy(cm->transforms_scope);
+	weston_log_scope_destroy(cm->optimizer_scope);
+	weston_log_scope_destroy(cm->profiles_scope);
+
 	free(cm);
+}
+
+static void
+transforms_scope_new_sub(struct weston_log_subscription *subs, void *data)
+{
+	struct weston_color_manager_lcms *cm = data;
+	struct cmlcms_color_transform *xform;
+	char *str;
+
+	if (wl_list_empty(&cm->color_transform_list))
+		return;
+
+	weston_log_subscription_printf(subs, "Existent:\n");
+	wl_list_for_each(xform, &cm->color_transform_list, link) {
+		weston_log_subscription_printf(subs, "Color transformation %p:\n", xform);
+
+		str = cmlcms_color_transform_search_param_string(&xform->search_key);
+		weston_log_subscription_printf(subs, "%s", str);
+		free(str);
+
+		str = weston_color_transform_string(&xform->base);
+		weston_log_subscription_printf(subs, "  %s", str);
+		free(str);
+	}
+}
+
+static void
+profiles_scope_new_sub(struct weston_log_subscription *subs, void *data)
+{
+	struct weston_color_manager_lcms *cm = data;
+	struct cmlcms_color_profile *cprof;
+	char *str;
+
+	if (wl_list_empty(&cm->color_profile_list))
+		return;
+
+	weston_log_subscription_printf(subs, "Existent:\n");
+	wl_list_for_each(cprof, &cm->color_profile_list, link) {
+		weston_log_subscription_printf(subs, "Color profile %p:\n", cprof);
+
+		str = cmlcms_color_profile_print(cprof);
+		weston_log_subscription_printf(subs, "%s", str);
+		free(str);
+	}
 }
 
 WL_EXPORT struct weston_color_manager *
@@ -397,5 +462,29 @@ weston_color_manager_create(struct weston_compositor *compositor)
 	wl_list_init(&cm->color_transform_list);
 	wl_list_init(&cm->color_profile_list);
 
+	cm->transforms_scope =
+		weston_compositor_add_log_scope(compositor, "color-lcms-transformations",
+						"Color transformation creation and destruction.\n",
+						transforms_scope_new_sub, NULL, cm);
+	cm->optimizer_scope =
+		weston_compositor_add_log_scope(compositor, "color-lcms-optimizer",
+						"Color transformation pipeline optimizer. It's best " \
+						"used together with the color-lcms-transformations " \
+						"log scope.\n", NULL, NULL, NULL);
+	cm->profiles_scope =
+		weston_compositor_add_log_scope(compositor, "color-lcms-profiles",
+						"Color profile creation and destruction.\n",
+						profiles_scope_new_sub, NULL, cm);
+
+	if (!cm->profiles_scope || !cm->transforms_scope || !cm->optimizer_scope)
+		goto err;
+
 	return &cm->base;
+
+err:
+	weston_log_scope_destroy(cm->transforms_scope);
+	weston_log_scope_destroy(cm->optimizer_scope);
+	weston_log_scope_destroy(cm->profiles_scope);
+	free(cm);
+	return NULL;
 }

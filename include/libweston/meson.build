@@ -1,6 +1,7 @@
 install_headers(
 	'config-parser.h',
 	'libweston.h',
+	'desktop.h',
 	'matrix.h',
 	'plugin-registry.h',
 	'windowed-output-api.h',
@@ -8,12 +9,15 @@ install_headers(
 	'zalloc.h',
 	'remoting-plugin.h',
 	'pipewire-plugin.h',
+	'shell-utils.h',
 	subdir: dir_include_libweston_install
 )
 
 backend_drm_h =      files('backend-drm.h')
 backend_headless_h = files('backend-headless.h')
+backend_pipewire_h = files('backend-pipewire.h')
 backend_rdp_h =      files('backend-rdp.h')
+backend_vnc_h =      files('backend-vnc.h')
 backend_wayland_h =  files('backend-wayland.h')
 backend_x11_h =      files('backend-x11.h')
 

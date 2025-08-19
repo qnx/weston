@@ -36,7 +36,7 @@
 
 struct setup_args {
 	struct fixture_metadata meta;
-	enum renderer_type renderer;
+	enum weston_renderer_type renderer;
 	bool color_management;
 };
 
@@ -45,17 +45,17 @@ static const int BLOCK_WIDTH = 3;
 
 static const struct setup_args my_setup_args[] = {
 	{
-		.renderer = RENDERER_PIXMAN,
+		.renderer = WESTON_RENDERER_PIXMAN,
 		.color_management = false,
 		.meta.name = "pixman"
 	},
 	{
-		.renderer = RENDERER_GL,
+		.renderer = WESTON_RENDERER_GL,
 		.color_management = false,
 		.meta.name = "GL"
 	},
 	{
-		.renderer = RENDERER_GL,
+		.renderer = WESTON_RENDERER_GL,
 		.color_management = true,
 		.meta.name = "GL sRGB EOTF"
 	},
@@ -346,9 +346,9 @@ TEST(alpha_blend)
 	/* attach, damage, commit background window */
 	move_client(client, 0, 0);
 
-	shot = capture_screenshot_of_output(client);
+	shot = capture_screenshot_of_output(client, NULL);
 	assert(shot);
-	match = verify_image(shot, "alpha_blend", seq_no, NULL, seq_no);
+	match = verify_image(shot->image, "alpha_blend", seq_no, NULL, seq_no);
 	assert(check_blend_pattern(bg, fg, shot, space));
 	assert(match);
 

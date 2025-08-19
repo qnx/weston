@@ -30,7 +30,7 @@ EXTRA_LIBVPATH += $(PROJECT_ROOT)/../../libs/toytoolkit/$(OS)/$(CPU)/$(shell ech
 SRCS += \
 	touch-calibrator.c \
 	matrix.c \
-        weston-touch-calibration-protocol.c
+	weston-touch-calibration-protocol.c
 
 LIBS += \
 	toytoolkitS \

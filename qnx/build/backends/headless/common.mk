@@ -14,11 +14,11 @@ EXTRA_INCVPATH += $(DIST_ROOT)
 EXTRA_INCVPATH += $(PROJECT_ROOT)/../../$(OS)
 EXTRA_INCVPATH += $(PROJECT_ROOT)/../../$(OS)/protocol
 EXTRA_INCVPATH += $(addsuffix /pixman-1,$(USE_ROOT_INCLUDE))
-#EXTRA_INCVPATH += $(addsuffix /cairo,$(USE_ROOT_INCLUDE))
+EXTRA_INCVPATH += $(addsuffix /cairo,$(USE_ROOT_INCLUDE))
 EXTRA_INCVPATH += $(addsuffix /libdrm,$(USE_ROOT_INCLUDE))
 
 EXTRA_SRCVPATH += $(DIST_ROOT)/libweston/backend-headless
-#EXTRA_SRCVPATH += $(PROJECT_ROOT)/../../$(OS)
+EXTRA_SRCVPATH += $(DIST_ROOT)/libweston
 EXTRA_SRCVPATH += $(PROJECT_ROOT)/../../$(OS)/protocol
 
 EXTRA_LIBVPATH += $(PROJECT_ROOT)/../../libs/weston/$(OS)/$(CPU)/$(shell echo $(VARIANT1) | sed 's/^dll\(.*\)$$/so\1/')
@@ -30,9 +30,10 @@ LDFLAGS += -Wl,--unresolved-symbols=report-all
 
 SRCS += \
 	headless.c \
+	gl-borders.c \
 	presentation-time-protocol.c
 
-LIBS += weston wayland-server pixman-1
+LIBS += weston wayland-server pixman-1 cairo shared-cairoS m png jpeg
 
 define PINFO
 PINFO DESCRIPTION = Weston Headless Backend Library

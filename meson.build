@@ -1,16 +1,16 @@
 project('weston',
 	'c',
-	version: '11.0.0',
+	version: '12.0.0',
 	default_options: [
 		'warning_level=3',
 		'c_std=gnu99',
 		'b_lundef=true',
 	],
-	meson_version: '>= 0.54.0',
+	meson_version: '>= 0.63.0',
 	license: 'MIT/Expat',
 )
 
-libweston_major = 11
+libweston_major = 12
 
 # libweston_revision is manufactured to follow the autotools build's
 # library file naming, thanks to libtool
@@ -27,7 +27,7 @@ else
 	error('Bad versions in meson.build: libweston_major is too low')
 endif
 
-if not (get_option('launcher-logind') or get_option('launcher-libseat'))
+if not (get_option('deprecated-launcher-logind') or get_option('launcher-libseat'))
        error('At least one launcher must be enabled')
 endif
 
@@ -44,6 +44,7 @@ dir_data_pc = join_paths(dir_data, 'pkgconfig')
 dir_lib_pc = join_paths(dir_lib, 'pkgconfig')
 dir_man = join_paths(dir_prefix, get_option('mandir'))
 dir_protocol_libweston = join_paths('libweston-@0@'.format(libweston_major), 'protocols')
+dir_sysconf = join_paths(dir_prefix, get_option('sysconfdir'))
 
 public_inc = include_directories('include')
 common_inc = [ include_directories('.'), public_inc ]
@@ -60,8 +61,7 @@ config_h = configuration_data()
 
 cc = meson.get_compiler('c')
 
-global_args = []
-global_args_maybe = [
+global_args = cc.get_supported_arguments(
 	'-Wmissing-prototypes',
 	'-Wno-unused-parameter',
 	'-Wno-shift-negative-value', # required due to Pixman
@@ -69,13 +69,8 @@ global_args_maybe = [
 	'-Wno-pedantic',
 	'-Wundef',
 	'-fvisibility=hidden',
-]
-foreach a : global_args_maybe
-	if cc.has_argument(a)
-		global_args += a
-	endif
-endforeach
-add_global_arguments(global_args, language: 'c')
+)
+add_project_arguments(global_args, language: 'c')
 
 if cc.has_header_symbol('sys/sysmacros.h', 'major')
 	config_h.set('MAJOR_IN_SYSMACROS', 1)
@@ -84,7 +79,8 @@ elif cc.has_header_symbol('sys/mkdev.h', 'major')
 endif
 
 optional_libc_funcs = [
-	'mkostemp', 'strchrnul', 'initgroups', 'posix_fallocate', 'memfd_create'
+	'mkostemp', 'strchrnul', 'initgroups', 'posix_fallocate',
+	'memfd_create', 'unreachable',
 ]
 foreach func : optional_libc_funcs
 	if cc.has_function(func)
@@ -129,8 +125,7 @@ if backend_default == 'auto'
 		endif
 	endforeach
 endif
-opt_backend_native = backend_default + '-backend.so'
-config_h.set_quoted('WESTON_NATIVE_BACKEND', opt_backend_native)
+config_h.set_quoted('WESTON_NATIVE_BACKEND', backend_default)
 message('The default backend is ' + backend_default)
 if not get_option('backend-' + backend_default)
 	error('Backend @0@ was chosen as native but is not being built.'.format(backend_default))
@@ -144,7 +139,7 @@ endif
 dep_wayland_server = dependency('wayland-server', version: '>= 1.20.0')
 dep_wayland_client = dependency('wayland-client', version: '>= 1.20.0')
 dep_pixman = dependency('pixman-1', version: '>= 0.25.2')
-dep_libinput = dependency('libinput', version: '>= 0.8.0')
+dep_libinput = dependency('libinput', version: '>= 1.2.0')
 dep_libevdev = dependency('libevdev')
 dep_libm = cc.find_library('m')
 dep_libdl = cc.find_library('dl')
@@ -163,7 +158,6 @@ subdir('protocol')
 subdir('shared')
 subdir('libweston')
 subdir('xwayland')
-subdir('shell-utils')
 subdir('compositor')
 subdir('desktop-shell')
 subdir('fullscreen-shell')
@@ -176,6 +170,14 @@ subdir('wcap')
 subdir('tests')
 subdir('data')
 subdir('man')
+subdir('pam')
+
+if meson.version().version_compare('>= 0.58.0')
+	devenv = environment()
+	devenv.set('WESTON_MODULE_MAP', env_modmap)
+	devenv.set('WESTON_DATA_DIR', join_paths(meson.current_source_dir(), 'data'))
+	meson.add_devenv(devenv)
+endif
 
 configure_file(output: 'config.h', configuration: config_h)
 

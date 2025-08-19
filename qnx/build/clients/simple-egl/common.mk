@@ -26,11 +26,8 @@ INCVPATH = $(empty)
 SRCS += \
 	matrix.c \
 	simple-egl.c \
-	xdg-shell-protocol.c \
-	xdg-shell-unstable-v6-protocol.c \
-	ivi-application-protocol.c
 
-LIBS += wayland-cursor wayland-egl wayland-client EGL GLESv2 m
+LIBS += toytoolkitS wayland-cursor wayland-egl wayland-client EGL GLESv2 m
 
 define PINFO
 PINFO DESCRIPTION = Weston Simple EGL Client

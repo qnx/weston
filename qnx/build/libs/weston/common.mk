@@ -7,6 +7,7 @@ DIST_ROOT = $(PROJECT_ROOT)/../../../..
 INSTALLDIR = usr/lib
 
 EXTRA_INCVPATH += $(DIST_ROOT)/include
+EXTRA_INCVPATH += $(DIST_ROOT)/libweston
 EXTRA_INCVPATH += $(DIST_ROOT)
 EXTRA_INCVPATH += $(PROJECT_ROOT)/../../$(OS)
 EXTRA_INCVPATH += $(PROJECT_ROOT)/../../$(OS)/libweston
@@ -16,6 +17,7 @@ EXTRA_INCVPATH += $(addsuffix /pixman-1,$(USE_ROOT_INCLUDE))
 EXTRA_INCVPATH += $(addsuffix /libdrm,$(USE_ROOT_INCLUDE))
 
 EXTRA_SRCVPATH += $(DIST_ROOT)/libweston
+EXTRA_SRCVPATH += $(DIST_ROOT)/libweston/shell-utils
 EXTRA_SRCVPATH += $(DIST_ROOT)/libweston/desktop
 EXTRA_SRCVPATH += $(PROJECT_ROOT)/../../$(OS)
 EXTRA_SRCVPATH += $(PROJECT_ROOT)/../../$(OS)/protocol
@@ -82,8 +84,13 @@ SRCS += \
 	xwayland.c \
 	xdg-shell.c \
 	xdg-shell-v6.c \
+	shell-utils.c \
 	xdg-shell-unstable-v6-protocol.c \
-	xdg-shell-protocol.c
+	xdg-shell-protocol.c \
+	output-capture.c \
+	weston-output-capture-protocol.c \
+	tearing-control-v1-protocol.c \
+	tablet-unstable-v2-protocol.c \
 
 LIBS += sharedS xkbcommon wayland-server pixman-1 memstream m
 

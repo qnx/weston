@@ -59,8 +59,10 @@
 #include "text-cursor-position-client-protocol.h"
 #include "pointer-constraints-unstable-v1-client-protocol.h"
 #include "relative-pointer-unstable-v1-client-protocol.h"
+#include "tablet-unstable-v2-client-protocol.h"
 #include "shared/os-compatibility.h"
 #include "shared/string-helpers.h"
+#include "libweston/matrix.h"
 
 #include "window.h"
 #include "viewporter-client-protocol.h"
@@ -88,6 +90,7 @@ struct display {
 	struct wl_data_device_manager *data_device_manager;
 	struct text_cursor_position *text_cursor_position;
 	struct xdg_wm_base *xdg_shell;
+	struct zwp_tablet_manager_v2 *tablet_manager;
 	struct zwp_relative_pointer_manager_v1 *relative_pointer_manager;
 	struct zwp_pointer_constraints_v1 *pointer_constraints;
 	uint32_t serial;
@@ -125,6 +128,39 @@ struct display {
 
 	int data_device_manager_version;
 	struct wp_viewporter *viewporter;
+};
+
+struct tablet {
+	struct zwp_tablet_v2 *tablet;
+	char *name;
+	int32_t vid;
+	int32_t pid;
+
+	void *user_data;
+
+	struct wl_list link;
+};
+
+struct tablet_tool {
+	struct zwp_tablet_tool_v2 *tool;
+	struct input *input;
+	void *user_data;
+	struct wl_list link;
+	struct tablet *current_tablet;
+	struct window *focus;
+	struct widget *focus_widget;
+	uint32_t enter_serial;
+	uint32_t cursor_serial;
+	int current_cursor;
+	struct wl_surface *cursor_surface;
+	uint32_t cursor_anim_start;
+	struct wl_callback *cursor_frame_cb;
+
+	enum zwp_tablet_tool_v2_type type;
+	uint64_t serial;
+	uint64_t hwid;
+
+	double sx, sy;
 };
 
 struct window_output {
@@ -278,10 +314,24 @@ struct widget {
 	widget_axis_source_handler_t axis_source_handler;
 	widget_axis_stop_handler_t axis_stop_handler;
 	widget_axis_discrete_handler_t axis_discrete_handler;
+	widget_tablet_tool_motion_handler_t tablet_tool_motion_handler;
+	widget_tablet_tool_up_handler_t tablet_tool_up_handler;
+	widget_tablet_tool_down_handler_t tablet_tool_down_handler;
+	widget_tablet_tool_pressure_handler_t tablet_tool_pressure_handler;
+	widget_tablet_tool_distance_handler_t tablet_tool_distance_handler;
+	widget_tablet_tool_tilt_handler_t tablet_tool_tilt_handler;
+	widget_tablet_tool_rotation_handler_t tablet_tool_rotation_handler;
+	widget_tablet_tool_slider_handler_t tablet_tool_slider_handler;
+	widget_tablet_tool_wheel_handler_t tablet_tool_wheel_handler;
+	widget_tablet_tool_proximity_in_handler_t tablet_tool_prox_in_handler;
+	widget_tablet_tool_proximity_out_handler_t tablet_tool_prox_out_handler;
+	widget_tablet_tool_button_handler_t tablet_tool_button_handler;
+	widget_tablet_tool_frame_handler_t tablet_tool_frame_handler;
 	void *user_data;
 	int opaque;
 	int tooltip_count;
 	int default_cursor;
+	int default_tablet_cursor;
 	/* If this is set to false then no cairo surface will be
 	 * created before redrawing the surface. This is useful if the
 	 * redraw handler is going to do completely custom rendering
@@ -361,6 +411,10 @@ struct input {
 	uint32_t repeat_key;
 	uint32_t repeat_time;
 	int seat_version;
+
+	struct zwp_tablet_seat_v2 *tablet_seat;
+	struct wl_list tablet_list;
+	struct wl_list tablet_tool_list;
 };
 
 struct output {
@@ -1477,6 +1531,7 @@ widget_create(struct window *window, struct surface *surface, void *data)
 	widget->tooltip = NULL;
 	widget->tooltip_count = 0;
 	widget->default_cursor = CURSOR_LEFT_PTR;
+	widget->default_tablet_cursor = CURSOR_LEFT_PTR;
 	widget->use_cairo = 1;
 	widget->viewport_dest_width = -1;
 	widget->viewport_dest_height = -1;
@@ -1537,6 +1592,12 @@ widget_set_default_cursor(struct widget *widget, int cursor)
 }
 
 void
+widget_set_default_tablet_cursor(struct widget *widget, int cursor)
+{
+	widget->default_tablet_cursor = cursor;
+}
+
+void
 widget_get_allocation(struct widget *widget, struct rectangle *allocation)
 {
 	*allocation = widget->allocation;
@@ -1592,78 +1653,16 @@ static void
 widget_cairo_update_transform(struct widget *widget, cairo_t *cr)
 {
 	struct surface *surface = widget->surface;
-	double angle;
+	struct weston_matrix matrix;
 	cairo_matrix_t m;
-	enum wl_output_transform transform;
-	int surface_width, surface_height;
-	int translate_x, translate_y;
-	int32_t scale;
 
-	surface_width = surface->allocation.width;
-	surface_height = surface->allocation.height;
-
-	transform = surface->buffer_transform;
-	scale = surface->buffer_scale;
-
-	switch (transform) {
-	case WL_OUTPUT_TRANSFORM_FLIPPED:
-	case WL_OUTPUT_TRANSFORM_FLIPPED_90:
-	case WL_OUTPUT_TRANSFORM_FLIPPED_180:
-	case WL_OUTPUT_TRANSFORM_FLIPPED_270:
-		cairo_matrix_init(&m, -1, 0, 0, 1, 0, 0);
-		break;
-	default:
-		cairo_matrix_init_identity(&m);
-		break;
-	}
-
-	switch (transform) {
-	case WL_OUTPUT_TRANSFORM_NORMAL:
-	default:
-		angle = 0;
-		translate_x = 0;
-		translate_y = 0;
-		break;
-	case WL_OUTPUT_TRANSFORM_FLIPPED:
-		angle = 0;
-		translate_x = surface_width;
-		translate_y = 0;
-		break;
-	case WL_OUTPUT_TRANSFORM_90:
-		angle = M_PI + M_PI_2;
-		translate_x = 0;
-		translate_y = surface_width;
-		break;
-	case WL_OUTPUT_TRANSFORM_FLIPPED_90:
-		angle = M_PI + M_PI_2;
-		translate_x = 0;
-		translate_y = 0;
-		break;
-	case WL_OUTPUT_TRANSFORM_180:
-		angle = M_PI;
-		translate_x = surface_width;
-		translate_y = surface_height;
-		break;
-	case WL_OUTPUT_TRANSFORM_FLIPPED_180:
-		angle = M_PI;
-		translate_x = 0;
-		translate_y = surface_height;
-		break;
-	case WL_OUTPUT_TRANSFORM_270:
-		angle = M_PI_2;
-		translate_x = surface_height;
-		translate_y = 0;
-		break;
-	case WL_OUTPUT_TRANSFORM_FLIPPED_270:
-		angle = M_PI_2;
-		translate_x = surface_height;
-		translate_y = surface_width;
-		break;
-	}
-
-	cairo_scale(cr, scale, scale);
-	cairo_translate(cr, translate_x, translate_y);
-	cairo_rotate(cr, angle);
+	weston_matrix_init_transform(&matrix, surface->buffer_transform,
+				     0, 0,
+				     surface->allocation.width,
+				     surface->allocation.height,
+				     surface->buffer_scale);
+	cairo_matrix_init(&m, matrix.d[0], matrix.d[4], matrix.d[1],
+			  matrix.d[5], matrix.d[12], matrix.d[13]);
 	cairo_transform(cr, &m);
 }
 
@@ -1817,6 +1816,62 @@ widget_set_axis_handlers(struct widget *widget,
 	widget->axis_source_handler = axis_source_handler;
 	widget->axis_stop_handler = axis_stop_handler;
 	widget->axis_discrete_handler = axis_discrete_handler;
+}
+
+void
+widget_set_tablet_tool_axis_handlers(struct widget *widget,
+				     widget_tablet_tool_motion_handler_t motion,
+				     widget_tablet_tool_pressure_handler_t pressure,
+				     widget_tablet_tool_distance_handler_t distance,
+				     widget_tablet_tool_tilt_handler_t tilt,
+				     widget_tablet_tool_rotation_handler_t rotation,
+				     widget_tablet_tool_slider_handler_t slider,
+				     widget_tablet_tool_wheel_handler_t wheel)
+{
+	widget->tablet_tool_motion_handler = motion;
+	widget->tablet_tool_pressure_handler = pressure;
+	widget->tablet_tool_distance_handler = distance;
+	widget->tablet_tool_tilt_handler = tilt;
+	widget->tablet_tool_rotation_handler = rotation;
+	widget->tablet_tool_slider_handler = slider;
+	widget->tablet_tool_wheel_handler = wheel;
+}
+
+void
+widget_set_tablet_tool_up_handler(struct widget *widget,
+				  widget_tablet_tool_up_handler_t handler)
+{
+	widget->tablet_tool_up_handler = handler;
+}
+
+void
+widget_set_tablet_tool_down_handler(struct widget *widget,
+				    widget_tablet_tool_down_handler_t handler)
+{
+	widget->tablet_tool_down_handler = handler;
+}
+
+void
+widget_set_tablet_tool_proximity_handlers(struct widget *widget,
+					  widget_tablet_tool_proximity_in_handler_t in_handler,
+					  widget_tablet_tool_proximity_out_handler_t out_handler)
+{
+	widget->tablet_tool_prox_in_handler = in_handler;
+	widget->tablet_tool_prox_out_handler = out_handler;
+}
+
+void
+widget_set_tablet_tool_button_handler(struct widget *widget,
+				      widget_tablet_tool_button_handler_t handler)
+{
+	widget->tablet_tool_button_handler = handler;
+}
+
+void
+widget_set_tablet_tool_frame_handler(struct widget *widget,
+				     widget_tablet_tool_frame_handler_t handler)
+{
+	widget->tablet_tool_frame_handler = handler;
 }
 
 static void
@@ -2360,6 +2415,54 @@ frame_touch_up_handler(struct widget *widget,
 	frame_handle_status(frame, input, time, THEME_LOCATION_CLIENT_AREA);
 }
 
+static int
+frame_tablet_tool_motion_handler(struct widget *widget,
+				 struct tablet_tool *tool,
+				 float x, float y,
+				 void *data)
+{
+	struct window_frame *frame = data;
+	enum theme_location location;
+
+	location = frame_tablet_tool_motion(frame->frame, tool, x, y);
+	if (frame_status(frame->frame) & FRAME_STATUS_REPAINT)
+		widget_schedule_redraw(frame->widget);
+
+	frame_get_pointer_image_for_location(data, location);
+
+	return CURSOR_LEFT_PTR;
+}
+
+static void
+frame_tablet_tool_down_handler(struct widget *widget,
+			       struct tablet_tool *tool,
+			       void *data)
+{
+	struct window_frame *frame = data;
+	enum theme_location location;
+	uint32_t time = 0; /* FIXME: we should be doing this in the frame
+			      handler where we have the timestamp  */
+
+	/* Map a stylus touch to the left mouse button */
+	location = frame_pointer_button(frame->frame, tool, BTN_LEFT, 1);
+	frame_handle_status(frame, tool->input, time, location);
+}
+
+static void
+frame_tablet_tool_up_handler(struct widget *widget, struct tablet_tool *tool,
+			     void *data)
+{
+	struct window_frame *frame = data;
+	enum theme_location location;
+	uint32_t time = 0; /* FIXME: we should be doing this in the frame
+			      handler where we have the timestamp  */
+
+	/* Map the stylus leaving contact with the tablet as releasing the left
+	 * mouse button */
+	location = frame_pointer_button(frame->frame, tool, BTN_LEFT, 0);
+	frame_handle_status(frame, tool->input, time, location);
+}
+
 struct widget *
 window_frame_create(struct window *window, void *data)
 {
@@ -2391,6 +2494,12 @@ window_frame_create(struct window *window, void *data)
 	widget_set_button_handler(frame->widget, frame_button_handler);
 	widget_set_touch_down_handler(frame->widget, frame_touch_down_handler);
 	widget_set_touch_up_handler(frame->widget, frame_touch_up_handler);
+	widget_set_tablet_tool_axis_handlers(frame->widget,
+					     frame_tablet_tool_motion_handler,
+					     NULL, NULL, NULL,
+					     NULL, NULL, NULL);
+	widget_set_tablet_tool_down_handler(frame->widget, frame_tablet_tool_down_handler);
+	widget_set_tablet_tool_up_handler(frame->widget, frame_tablet_tool_up_handler);
 
 	window->frame = frame;
 
@@ -4707,7 +4816,7 @@ relative_pointer_handle_motion(void *data, struct zwp_relative_pointer_v1 *point
 {
 	struct input *input = data;
 	struct window *window = input->pointer_focus;
-	uint32_t ms = (((uint64_t) utime_hi) << 32 | utime_lo) / 1000;
+	uint32_t ms = u64_from_u32s(utime_hi, utime_lo) / 1000;
 
 	if (window->locked_pointer_motion_handler &&
 	    window->pointer_locked) {
@@ -5249,6 +5358,16 @@ menu_touch_up_handler(struct widget *widget,
 }
 
 static void
+menu_tablet_tool_up_handler(struct widget *widget, struct tablet_tool *tool,
+			    void *data)
+{
+	struct menu *menu = data;
+
+	input_ungrab(tool->input);
+	menu_destroy(menu);
+}
+
+static void
 menu_redraw_handler(struct widget *widget, void *data)
 {
 	cairo_t *cr;
@@ -5354,6 +5473,7 @@ create_menu(struct display *display,
 	widget_set_motion_handler(menu->widget, menu_motion_handler);
 	widget_set_button_handler(menu->widget, menu_button_handler);
 	widget_set_touch_up_handler(menu->widget, menu_touch_up_handler);
+	widget_set_tablet_tool_up_handler(menu->widget, menu_tablet_tool_up_handler);
 
 	input_grab(input, menu->widget, 0);
 	frame_resize_inside(menu->frame, 200, count * 20);
@@ -5743,6 +5863,9 @@ display_add_input(struct display *d, uint32_t id, int display_seat_version)
 	wl_list_init(&input->touch_point_list);
 	wl_list_insert(d->input_list.prev, &input->link);
 
+	wl_list_init(&input->tablet_list);
+	wl_list_init(&input->tablet_tool_list);
+
 	wl_seat_add_listener(input->seat, &seat_listener, input);
 	wl_seat_set_user_data(input->seat, input);
 
@@ -5845,6 +5968,527 @@ static const struct xdg_wm_base_listener wm_base_listener = {
 };
 
 static void
+tablet_handle_name(void *data, struct zwp_tablet_v2 *zwp_tablet_v2, const char *name)
+{
+	struct tablet *tablet = data;
+
+	tablet->name = xstrdup(name);
+}
+
+static void
+tablet_handle_id(void *data, struct zwp_tablet_v2 *zwp_tablet_v2,
+		 uint32_t vid, uint32_t pid)
+{
+	struct tablet *tablet = data;
+
+	tablet->vid = vid;
+	tablet->pid = pid;
+}
+
+static void
+tablet_handle_path(void *data, struct zwp_tablet_v2 *zwp_tablet_v2, const char *path)
+{
+}
+
+static void
+tablet_handle_done(void *data, struct zwp_tablet_v2 *zwp_tablet_v2)
+{
+}
+
+static void
+tablet_handle_removed(void *data, struct zwp_tablet_v2 *zwp_tablet_v2)
+{
+	struct tablet *tablet = data;
+
+	zwp_tablet_v2_destroy(zwp_tablet_v2);
+
+	wl_list_remove(&tablet->link);
+	free(tablet->name);
+	free(tablet);
+}
+
+static const struct zwp_tablet_v2_listener tablet_listener = {
+	tablet_handle_name,
+	tablet_handle_id,
+	tablet_handle_path,
+	tablet_handle_done,
+	tablet_handle_removed,
+};
+
+static void
+tablet_added(void *data, struct zwp_tablet_seat_v2 *zwp_tablet_seat1,
+	     struct zwp_tablet_v2 *id)
+{
+	struct input *input = data;
+	struct tablet *tablet;
+
+	tablet = zalloc(sizeof *tablet);
+
+	zwp_tablet_v2_add_listener(id, &tablet_listener, tablet);
+	wl_list_insert(&input->tablet_list, &tablet->link);
+	zwp_tablet_v2_set_user_data(id, tablet);
+}
+
+uint32_t
+tablet_tool_get_type(struct tablet_tool *tool)
+{
+	return tool->type;
+}
+
+uint64_t
+tablet_tool_get_serial(struct tablet_tool *tool)
+{
+	return tool->serial;
+}
+
+uint64_t
+tablet_tool_get_hwid(struct tablet_tool *tool)
+{
+	return tool->hwid;
+}
+
+static void
+tablet_tool_handle_type(void *data, struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2,
+			uint32_t tool_type)
+{
+	struct tablet_tool *tool = data;
+
+	tool->type = tool_type;
+}
+
+static void
+tablet_tool_handle_serialid(void *data, struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2,
+			    uint32_t serial_msb, uint32_t serial_lsb)
+{
+	struct tablet_tool *tool = data;
+
+	tool->serial = ((uint64_t)serial_msb << 32) | serial_lsb;
+}
+
+static void
+tablet_tool_handle_hardware_id_wacom(void *data,
+				     struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2,
+				     uint32_t hwid_msb, uint32_t hwid_lsb)
+{
+	struct tablet_tool *tool = data;
+
+	tool->serial = ((uint64_t)hwid_msb << 32) | hwid_lsb;
+}
+
+static void
+tablet_tool_handle_capability(void *data, struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2,
+			      uint32_t capability)
+{
+}
+
+static void
+tablet_tool_handle_done(void *data, struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2)
+{
+}
+
+static void
+tablet_tool_handle_removed(void *data, struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2)
+{
+	struct tablet_tool *tool = data;
+
+	zwp_tablet_tool_v2_destroy(zwp_tablet_tool_v2);
+	wl_list_remove(&tool->link);
+	free(tool);
+}
+
+static const struct wl_callback_listener tablet_tool_cursor_surface_listener;
+
+static void
+tablet_tool_set_cursor_image_index(struct tablet_tool *tool, int index)
+{
+	struct wl_buffer *buffer;
+	struct wl_cursor *cursor;
+	struct wl_cursor_image *image;
+
+	cursor = tool->input->display->cursors[tool->current_cursor];
+	if (index >= (int)cursor->image_count) {
+		fprintf(stderr, "cursor index out of range\n");
+		return;
+	}
+
+	image = cursor->images[index];
+	buffer = wl_cursor_image_get_buffer(image);
+	if (!buffer)
+		return;
+
+	wl_surface_attach(tool->cursor_surface, buffer, 0, 0);
+	wl_surface_damage(tool->cursor_surface, 0, 0,
+			  image->width, image->height);
+	wl_surface_commit(tool->cursor_surface);
+	zwp_tablet_tool_v2_set_cursor(tool->tool, tool->enter_serial,
+				      tool->cursor_surface,
+				      image->hotspot_x, image->hotspot_y);
+}
+
+static void
+tablet_tool_surface_frame_callback(void *data, struct wl_callback *callback,
+				   uint32_t time)
+{
+	struct tablet_tool *tool = data;
+	struct wl_cursor *cursor;
+	int i;
+
+	if (callback) {
+		assert(callback == tool->cursor_frame_cb);
+		wl_callback_destroy(callback);
+		tool->cursor_frame_cb = NULL;
+	}
+
+	if (tool->current_cursor == CURSOR_BLANK) {
+		zwp_tablet_tool_v2_set_cursor(tool->tool, tool->enter_serial,
+					      NULL, 0, 0);
+		return;
+	}
+
+	if (tool->current_cursor == CURSOR_UNSET)
+		return;
+
+	cursor = tool->input->display->cursors[tool->current_cursor];
+	if (!cursor)
+		return;
+
+	/* FIXME We don't have the current time on the first call so we set
+	 * the animation start to the time of the first frame callback. */
+	if (time == 0)
+		tool->cursor_anim_start = 0;
+	else if (tool->cursor_anim_start == 0)
+		tool->cursor_anim_start = time;
+
+	if (time == 0 || tool->cursor_anim_start == 0)
+		i = 0;
+	else
+		i = wl_cursor_frame(cursor, time - tool->cursor_anim_start);
+
+	if (cursor->image_count > 1) {
+		tool->cursor_frame_cb =
+			wl_surface_frame(tool->cursor_surface);
+		wl_callback_add_listener(tool->cursor_frame_cb,
+					 &tablet_tool_cursor_surface_listener,
+					 tool);
+	}
+
+	tablet_tool_set_cursor_image_index(tool, i);
+}
+
+static const struct wl_callback_listener tablet_tool_cursor_surface_listener =  {
+	tablet_tool_surface_frame_callback,
+};
+
+void
+tablet_tool_set_cursor_image(struct tablet_tool *tool, int cursor)
+{
+	bool force = false;
+
+	if (tool->enter_serial > tool->cursor_serial)
+		force = true;
+
+	if (!force && cursor == tool->current_cursor)
+		return;
+
+	tool->current_cursor = cursor;
+	tool->cursor_serial = tool->enter_serial;
+
+	if (!tool->cursor_frame_cb) {
+		tablet_tool_surface_frame_callback(tool, NULL, 0);
+	} else if (force) {
+		/* The current frame callback may be stuck if, for instance,
+		 * the set cursor request was processed by the server after
+		 * this client lost the focus. In this case the cursor surface
+		 * might not be mapped and the frame callback wouldn't ever
+		 * complete. Send a set_cursor and attach to try to map the
+		 * cursor surface again so that the callback will finish
+		 */
+		tablet_tool_set_cursor_image_index(tool, 0);
+	}
+}
+
+static void
+tablet_tool_set_focus_widget(struct tablet_tool *tool, struct window *window,
+			     wl_fixed_t sx, wl_fixed_t sy)
+{
+	struct widget *widget, *old;
+
+	if (tool->input->grab)
+		widget = tool->input->grab;
+	else
+		widget = window_find_widget(window, sx, sy);
+
+	if (tool->focus_widget == widget)
+		return;
+
+	old = tool->focus_widget;
+	if (old && old->tablet_tool_prox_out_handler)
+		old->tablet_tool_prox_out_handler(old, tool,
+						  widget_get_user_data(old));
+
+	if (widget && widget->tablet_tool_prox_in_handler)
+		widget->tablet_tool_prox_in_handler(widget, tool,
+						    tool->current_tablet,
+						    widget_get_user_data(widget));
+
+	tool->focus_widget = widget;
+}
+
+static void
+tablet_tool_handle_proximity_in(void *data,
+				struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2,
+				uint32_t serial,
+				struct zwp_tablet_v2 *zwp_tablet_v2,
+				struct wl_surface *surface)
+{
+	struct tablet_tool *tool = data;
+	struct tablet *tablet = zwp_tablet_v2_get_user_data(zwp_tablet_v2);
+	struct window *window;
+
+	window = wl_surface_get_user_data(surface);
+	if (surface != window->main_surface->surface)
+		return;
+
+	tool->focus = window;
+	tool->current_tablet = tablet;
+	tool->enter_serial = serial;
+
+	tablet_tool_set_cursor_image(tool, window->main_surface->widget->default_tablet_cursor);
+}
+
+static void
+tablet_tool_handle_proximity_out(void *data,
+				 struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2)
+{
+	struct tablet_tool *tool = data;
+
+	tool->focus = NULL;
+	tool->current_tablet = NULL;
+}
+
+static void
+tablet_tool_handle_down(void *data, struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2,
+			uint32_t serial)
+{
+	struct tablet_tool *tool = data;
+	struct widget *focus = tool->focus_widget;
+
+	tool->input->display->serial = serial;
+
+	if (focus && focus->tablet_tool_down_handler)
+		focus->tablet_tool_down_handler(focus, tool, focus->user_data);
+}
+
+static void
+tablet_tool_handle_up(void *data, struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2)
+{
+	struct tablet_tool *tool = data;
+	struct widget *focus = tool->focus_widget;
+
+	if (focus && focus->tablet_tool_up_handler)
+		focus->tablet_tool_up_handler(focus, tool, focus->user_data);
+}
+
+static void
+tablet_tool_handle_motion(void *data, struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2,
+			  wl_fixed_t x, wl_fixed_t y)
+{
+	struct tablet_tool *tool = data;
+	double sx = wl_fixed_to_double(x);
+	double sy = wl_fixed_to_double(y);
+	struct window *window = tool->focus;
+	struct widget *widget;
+	int cursor;
+
+	if (!window)
+		return;
+
+	tool->sx = sx;
+	tool->sy = sy;
+
+	if (sx > window->main_surface->allocation.width ||
+	    sy > window->main_surface->allocation.height)
+		return;
+
+	tablet_tool_set_focus_widget(tool, window, sx, sy);
+	widget = tool->focus_widget;
+	if (widget && widget->tablet_tool_motion_handler) {
+		cursor = widget->tablet_tool_motion_handler(widget, tool,
+							    sx, sy,
+							    widget->user_data);
+	} else {
+		cursor = widget->default_tablet_cursor;
+	}
+
+	tablet_tool_set_cursor_image(tool, cursor);
+}
+
+static void
+tablet_tool_handle_pressure(void *data, struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2,
+			    uint32_t pressure)
+{
+	struct tablet_tool *tool = data;
+	struct widget *widget = tool->focus_widget;
+
+	if (widget && widget->tablet_tool_pressure_handler)
+		widget->tablet_tool_pressure_handler(widget, tool, pressure,
+						     widget->user_data);
+}
+
+static void
+tablet_tool_handle_distance(void *data, struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2,
+			    uint32_t distance)
+{
+	struct tablet_tool *tool = data;
+	struct widget *widget = tool->focus_widget;
+
+	if (widget && widget->tablet_tool_distance_handler)
+		widget->tablet_tool_distance_handler(widget, tool,
+						     distance,
+						     widget->user_data);
+}
+
+static void
+tablet_tool_handle_tilt(void *data, struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2,
+			int32_t tilt_x, int32_t tilt_y)
+{
+	struct tablet_tool *tool = data;
+	struct widget *widget = tool->focus_widget;
+
+	if (widget && widget->tablet_tool_tilt_handler)
+		widget->tablet_tool_tilt_handler(widget, tool,
+						 tilt_x, tilt_y,
+						 widget->user_data);
+}
+
+static void
+tablet_tool_handle_rotation(void *data, struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2,
+			    int32_t rotation)
+{
+	struct tablet_tool *tool = data;
+	struct widget *widget = tool->focus_widget;
+
+	if (widget && widget->tablet_tool_rotation_handler)
+		widget->tablet_tool_rotation_handler(widget, tool,
+						 rotation,
+						 widget->user_data);
+}
+
+static void
+tablet_tool_handle_slider(void *data, struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2,
+			  int32_t slider)
+{
+	struct tablet_tool *tool = data;
+	struct widget *widget = tool->focus_widget;
+
+	if (widget && widget->tablet_tool_slider_handler)
+		widget->tablet_tool_slider_handler(widget, tool,
+						   slider,
+						   widget->user_data);
+}
+
+static void
+tablet_tool_handle_wheel(void *data, struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2,
+			 wl_fixed_t degrees, int32_t clicks)
+{
+	struct tablet_tool *tool = data;
+	struct widget *widget = tool->focus_widget;
+
+	if (widget && widget->tablet_tool_wheel_handler)
+		widget->tablet_tool_wheel_handler(widget, tool,
+						  degrees, clicks,
+						  widget->user_data);
+}
+
+static void
+tablet_tool_handle_button(void *data, struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2,
+			  uint32_t serial, uint32_t button, uint32_t state)
+{
+	struct tablet_tool *tool = data;
+	struct widget *focus = tool->focus_widget;
+
+	tool->input->display->serial = serial;
+
+	if (focus && focus->tablet_tool_button_handler)
+		focus->tablet_tool_button_handler(focus, tool, button, state,
+						  focus->user_data);
+}
+
+static void
+tablet_tool_handle_frame(void *data, struct zwp_tablet_tool_v2 *zwp_tablet_tool_v2,
+			 uint32_t time)
+{
+	struct tablet_tool *tool = data;
+	struct widget *widget = tool->focus_widget;
+
+	if (widget && widget->tablet_tool_frame_handler)
+		widget->tablet_tool_frame_handler(widget, tool, time,
+						  widget->user_data);
+}
+
+static const struct zwp_tablet_tool_v2_listener tablet_tool_listener = {
+	tablet_tool_handle_type,
+	tablet_tool_handle_serialid,
+	tablet_tool_handle_hardware_id_wacom,
+	tablet_tool_handle_capability,
+	tablet_tool_handle_done,
+	tablet_tool_handle_removed,
+	tablet_tool_handle_proximity_in,
+	tablet_tool_handle_proximity_out,
+	tablet_tool_handle_down,
+	tablet_tool_handle_up,
+	tablet_tool_handle_motion,
+	tablet_tool_handle_pressure,
+	tablet_tool_handle_distance,
+	tablet_tool_handle_tilt,
+	tablet_tool_handle_rotation,
+	tablet_tool_handle_slider,
+	tablet_tool_handle_wheel,
+	tablet_tool_handle_button,
+	tablet_tool_handle_frame,
+};
+
+static void
+tablet_tool_added(void *data, struct zwp_tablet_seat_v2 *zwp_tablet_seat1,
+		  struct zwp_tablet_tool_v2 *id)
+{
+	struct input *input = data;
+	struct tablet_tool *tool;
+
+	tool = zalloc(sizeof *tool);
+	zwp_tablet_tool_v2_add_listener(id, &tablet_tool_listener, tool);
+	wl_list_insert(&input->tablet_tool_list, &tool->link);
+
+	tool->tool = id;
+	tool->input = input;
+	tool->cursor_surface =
+		wl_compositor_create_surface(input->display->compositor);
+}
+
+static const struct zwp_tablet_seat_v2_listener tablet_seat_listener = {
+	tablet_added,
+	tablet_tool_added,
+};
+
+static void
+display_bind_tablets(struct display *d, uint32_t id)
+{
+	struct input *input;
+
+	d->tablet_manager = wl_registry_bind(d->registry, id,
+					     &zwp_tablet_manager_v2_interface, 1);
+
+	wl_list_for_each(input, &d->input_list, link) {
+		input->tablet_seat =
+			zwp_tablet_manager_v2_get_tablet_seat(d->tablet_manager,
+							  input->seat);
+		zwp_tablet_seat_v2_add_listener(input->tablet_seat,
+						&tablet_seat_listener,
+						input);
+	}
+}
+
+static void
 global_destroy(struct display *disp, struct global *g)
 {
 	if (disp->global_handler_remove) {
@@ -5910,6 +6554,8 @@ registry_handle_global(void *data, struct wl_registry *registry, uint32_t id,
 		d->viewporter =
 			wl_registry_bind(registry, id,
 					&wp_viewporter_interface, 1);
+	} else if (strcmp(interface, "zwp_tablet_manager_v2") == 0) {
+		display_bind_tablets(d, id);
 	}
 
 	if (d->global_handler)

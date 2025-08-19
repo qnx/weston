@@ -38,6 +38,7 @@
 #include <libweston/backend-drm.h>
 #include <libweston/pixel-formats.h>
 #include <libweston/linux-dmabuf.h>
+#include "shared/hash.h"
 #include "shared/helpers.h"
 #include "shared/weston-drm-fourcc.h"
 #include "drm-internal.h"
@@ -68,12 +69,148 @@ drm_fb_destroy_dumb(struct drm_fb *fb)
 	drm_fb_destroy(fb);
 }
 
+#ifdef BUILD_DRM_GBM
+static int gem_handle_get(struct drm_device *device, int handle)
+{
+	unsigned int *ref_count;
+
+	ref_count = hash_table_lookup(device->gem_handle_refcnt, handle);
+	if (!ref_count) {
+		ref_count = zalloc(sizeof(*ref_count));
+		hash_table_insert(device->gem_handle_refcnt, handle, ref_count);
+	}
+	(*ref_count)++;
+
+	return handle;
+}
+
+static void gem_handle_put(struct drm_device *device, int handle)
+{
+	unsigned int *ref_count;
+
+	if (handle == 0)
+		return;
+
+	ref_count = hash_table_lookup(device->gem_handle_refcnt, handle);
+	if (!ref_count) {
+		weston_log("failed to find GEM handle %d for device %s\n",
+			   handle, device->drm.filename);
+		return;
+	}
+	(*ref_count)--;
+
+	if (*ref_count == 0) {
+		hash_table_remove(device->gem_handle_refcnt, handle);
+		free(ref_count);
+		drmCloseBufferHandle(device->drm.fd, handle);
+	}
+}
+
+static int
+drm_fb_import_plane(struct drm_device *device, struct drm_fb *fb, int plane)
+{
+	int bo_fd;
+	uint32_t handle;
+	int ret;
+
+	bo_fd = gbm_bo_get_fd_for_plane(fb->bo, plane);
+	if (bo_fd < 0)
+		return bo_fd;
+
+	/*
+	 * drmPrimeFDToHandle is dangerous, because the GEM handles are
+	 * not reference counted by the kernel and user space needs a
+	 * single reference counting implementation to avoid double
+	 * closing of GEM handles.
+	 *
+	 * It is not desirable to use a GBM device here, because this
+	 * requires a GBM device implementation, which might not be
+	 * available for simple or custom DRM devices that only support
+	 * scanout and no rendering.
+	 *
+	 * We are only importing the buffers from the render device to
+	 * the scanout device if the devices are distinct, since
+	 * otherwise no import is necessary. Therefore, we are the only
+	 * instance using the handles and we can implement reference
+	 * counting for the handles per device. See gem_handle_get and
+	 * gem_handle_put for the implementation.
+	 */
+	ret = drmPrimeFDToHandle(fb->fd, bo_fd, &handle);
+	if (ret)
+		goto out;
+
+	fb->handles[plane] = gem_handle_get(device, handle);
+
+out:
+	close(bo_fd);
+	return ret;
+}
+#endif
+
+/*
+ * If the fb is using a GBM surface, there is a possibility that the GBM
+ * surface has been created on a different device than the device which
+ * should be used for the fb. We have to import the fd of the GBM bo
+ * into the scanout device.
+ */
+static int
+drm_fb_maybe_import(struct drm_device *device, struct drm_fb *fb)
+{
+#ifndef BUILD_DRM_GBM
+	/*
+	 * Without GBM support, the fb is always allocated on the scanout device
+	 * and import is never necessary.
+	 */
+	return 0;
+#else
+	struct gbm_device *gbm_device;
+	int ret = 0;
+	int plane;
+
+	/* No import possible, if there is no gbm bo */
+	if (!fb->bo)
+		return 0;
+
+	/* No import necessary, if the gbm bo and the fb use the same device */
+	gbm_device = gbm_bo_get_device(fb->bo);
+	if (gbm_device_get_fd(gbm_device) == fb->fd)
+		return 0;
+
+	if (fb->fd != device->drm.fd) {
+		weston_log("fb was not allocated for scanout device %s\n",
+			   device->drm.filename);
+		return -1;
+	}
+
+	for (plane = 0; plane < gbm_bo_get_plane_count(fb->bo); plane++) {
+		ret = drm_fb_import_plane(device, fb, plane);
+		if (ret)
+			goto err;
+	}
+
+	fb->scanout_device = device;
+
+	return 0;
+err:
+	for (; plane >= 0; plane--) {
+		gem_handle_put(device, fb->handles[plane]);
+		fb->handles[plane] = 0;
+	}
+
+	return ret;
+#endif
+}
+
 static int
 drm_fb_addfb(struct drm_device *device, struct drm_fb *fb)
 {
 	int ret = -EINVAL;
 	uint64_t mods[4] = { };
 	size_t i;
+
+	ret = drm_fb_maybe_import(device, fb);
+	if (ret)
+		return ret;
 
 	/* If we have a modifier set, we must only use the WithModifiers
 	 * entrypoint; we cannot import it through legacy ioctls. */
@@ -209,10 +346,21 @@ drm_fb_destroy_gbm(struct gbm_bo *bo, void *data)
 static void
 drm_fb_destroy_dmabuf(struct drm_fb *fb)
 {
+	int i;
+
 	/* We deliberately do not close the GEM handles here; GBM manages
 	 * their lifetime through the BO. */
 	if (fb->bo)
 		gbm_bo_destroy(fb->bo);
+
+	/*
+	 * If we imported the dmabuf into a scanout device, we are responsible
+	 * for closing the GEM handle.
+	 */
+	for (i = 0; i < 4; i++)
+		if (fb->scanout_device && fb->handles[i] != 0)
+			gem_handle_put(fb->scanout_device, fb->handles[i]);
+
 	drm_fb_destroy(fb);
 }
 
@@ -452,11 +600,11 @@ drm_fb_unref(struct drm_fb *fb)
 
 #ifdef BUILD_DRM_GBM
 bool
-drm_can_scanout_dmabuf(struct weston_compositor *ec,
+drm_can_scanout_dmabuf(struct weston_backend *backend,
 		       struct linux_dmabuf_buffer *dmabuf)
 {
+	struct drm_backend *b = container_of(backend, struct drm_backend, base);
 	struct drm_fb *fb;
-	struct drm_backend *b = to_drm_backend(ec);
 	struct drm_device *device = b->drm;
 	bool ret = false;
 	uint32_t try_reason = 0x0;
@@ -512,71 +660,77 @@ drm_fb_compatible_with_plane(struct drm_fb *fb, struct drm_plane *plane)
 static void
 drm_fb_handle_buffer_destroy(struct wl_listener *listener, void *data)
 {
-	struct drm_buffer_fb *buf_fb =
-		container_of(listener, struct drm_buffer_fb, buffer_destroy_listener);
+	struct drm_fb_private *private =
+		container_of(listener, struct drm_fb_private, buffer_destroy_listener);
+	struct drm_buffer_fb *buf_fb;
+	struct drm_buffer_fb *tmp;
 
-	wl_list_remove(&buf_fb->buffer_destroy_listener.link);
+	wl_list_remove(&private->buffer_destroy_listener.link);
 
-	if (buf_fb->fb) {
-		assert(buf_fb->fb->type == BUFFER_CLIENT ||
-		       buf_fb->fb->type == BUFFER_DMABUF);
-		drm_fb_unref(buf_fb->fb);
+	wl_list_for_each_safe(buf_fb, tmp, &private->buffer_fb_list, link) {
+		if (buf_fb->fb) {
+			assert(buf_fb->fb->type == BUFFER_CLIENT ||
+			       buf_fb->fb->type == BUFFER_DMABUF);
+			drm_fb_unref(buf_fb->fb);
+		}
+		wl_list_remove(&buf_fb->link);
+		free(buf_fb);
 	}
 
-	free(buf_fb);
+	free(private);
 }
 
 struct drm_fb *
-drm_fb_get_from_view(struct drm_output_state *state, struct weston_view *ev,
-		     uint32_t *try_view_on_plane_failure_reasons)
+drm_fb_get_from_paint_node(struct drm_output_state *state,
+			   struct weston_paint_node *pnode)
 {
 	struct drm_output *output = state->output;
-	struct drm_backend *b = to_drm_backend(output->base.compositor);
+	struct drm_backend *b = output->backend;
 	struct drm_device *device = output->device;
+	struct weston_view *ev = pnode->view;
 	struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
+	struct drm_fb_private *private;
 	struct drm_buffer_fb *buf_fb;
 	bool is_opaque = weston_view_is_opaque(ev, &ev->transform.boundingbox);
 	struct drm_fb *fb;
 	struct drm_plane *plane;
 
-	if (ev->alpha != 1.0f) {
-		*try_view_on_plane_failure_reasons |=
-			FAILURE_REASONS_GLOBAL_ALPHA;
-		return NULL;
-	}
-
-	if (!drm_view_transform_supported(ev, &output->base)) {
-		*try_view_on_plane_failure_reasons |=
-			FAILURE_REASONS_INCOMPATIBLE_TRANSFORM;
-		return NULL;
-	}
-
 	if (ev->surface->protection_mode == WESTON_SURFACE_PROTECTION_MODE_ENFORCED &&
 	    ev->surface->desired_protection > output->base.current_protection) {
-		*try_view_on_plane_failure_reasons |=
+		pnode->try_view_on_plane_failure_reasons |=
 			FAILURE_REASONS_INADEQUATE_CONTENT_PROTECTION;
 		return NULL;
 	}
 
 	if (!buffer) {
-		*try_view_on_plane_failure_reasons |= FAILURE_REASONS_NO_BUFFER;
+		pnode->try_view_on_plane_failure_reasons |= FAILURE_REASONS_NO_BUFFER;
 		return NULL;
 	}
 
-	if (buffer->backend_private) {
-		buf_fb = buffer->backend_private;
-		*try_view_on_plane_failure_reasons |= buf_fb->failure_reasons;
-		return buf_fb->fb ? drm_fb_ref(buf_fb->fb) : NULL;
+	if (!buffer->backend_private) {
+		private = zalloc(sizeof(*private));
+		buffer->backend_private = private;
+		wl_list_init(&private->buffer_fb_list);
+		private->buffer_destroy_listener.notify = drm_fb_handle_buffer_destroy;
+		wl_signal_add(&buffer->destroy_signal, &private->buffer_destroy_listener);
+	} else {
+		private = buffer->backend_private;
+	}
+
+	wl_list_for_each(buf_fb, &private->buffer_fb_list, link) {
+		if (buf_fb->device == device) {
+			pnode->try_view_on_plane_failure_reasons |= buf_fb->failure_reasons;
+			return buf_fb->fb ? drm_fb_ref(buf_fb->fb) : NULL;
+		}
 	}
 
 	buf_fb = zalloc(sizeof(*buf_fb));
-	buffer->backend_private = buf_fb;
-	buf_fb->buffer_destroy_listener.notify = drm_fb_handle_buffer_destroy;
-	wl_signal_add(&buffer->destroy_signal, &buf_fb->buffer_destroy_listener);
+	buf_fb->device = device;
+	wl_list_insert(&private->buffer_fb_list, &buf_fb->link);
 
 	/* GBM is used for dmabuf import as well as from client wl_buffer. */
 	if (!b->gbm) {
-		*try_view_on_plane_failure_reasons |= FAILURE_REASONS_NO_GBM;
+		pnode->try_view_on_plane_failure_reasons |= FAILURE_REASONS_NO_GBM;
 		goto unsuitable;
 	}
 
@@ -595,13 +749,13 @@ drm_fb_get_from_view(struct drm_output_state *state, struct weston_view *ev,
 
 		fb = drm_fb_get_from_bo(bo, device, is_opaque, BUFFER_CLIENT);
 		if (!fb) {
-			*try_view_on_plane_failure_reasons |=
+			pnode->try_view_on_plane_failure_reasons |=
 				(1 << FAILURE_REASONS_ADD_FB_FAILED);
 			gbm_bo_destroy(bo);
 			goto unsuitable;
 		}
 	} else {
-		*try_view_on_plane_failure_reasons |= FAILURE_REASONS_BUFFER_TYPE;
+		pnode->try_view_on_plane_failure_reasons |= FAILURE_REASONS_BUFFER_TYPE;
 		goto unsuitable;
 	}
 
@@ -611,8 +765,9 @@ drm_fb_get_from_view(struct drm_output_state *state, struct weston_view *ev,
 		/* only SHM buffers can go into cursor planes */
 		if (plane->type == WDRM_PLANE_TYPE_CURSOR)
 			continue;
+
 		if (drm_fb_compatible_with_plane(fb, plane))
-			fb->plane_mask |= (1 << plane->plane_idx);
+			fb->plane_mask |= 1 << (plane->plane_idx);
 	}
 	if (fb->plane_mask == 0) {
 		drm_fb_unref(fb);
@@ -629,7 +784,7 @@ drm_fb_get_from_view(struct drm_output_state *state, struct weston_view *ev,
 	return fb;
 
 unsuitable:
-	*try_view_on_plane_failure_reasons |= buf_fb->failure_reasons;
+	pnode->try_view_on_plane_failure_reasons |= buf_fb->failure_reasons;
 	return NULL;
 }
 #endif

@@ -68,7 +68,10 @@ static const char *vert_shader_text =
 	"attribute vec4 color;\n"
 	"varying vec4 v_color;\n"
 	"void main() {\n"
-	"	gl_Position = pos;\n"
+	"	// We need to render upside-down, because rendering through an\n"
+	"	// FBO causes the bottom of the image to be written to the top\n"
+	"	// pixel row of the buffer, y-flipping the image.\n"
+	"	gl_Position = vec4(1.0, -1.0, 1.0, 1.0) * pos;\n"
 	"	v_color = color;\n"
 	"}\n";
 
@@ -116,6 +119,9 @@ struct output {
 	int width, height;
 	int scale;
 	bool initialized;
+	struct {
+		int width, height;
+	} configure;
 };
 
 struct egl {
@@ -147,6 +153,8 @@ struct display {
 };
 
 struct buffer {
+	bool created;
+	bool valid;
 	struct window *window;
 	struct wl_buffer *buffer;
 	enum {
@@ -154,7 +162,6 @@ struct buffer {
 		IN_USE,
 		AVAILABLE
 	} status;
-	bool recreate;
 	int dmabuf_fds[4];
 	struct gbm_bo *bo;
 	EGLImageKHR egl_image;
@@ -457,6 +464,8 @@ buffer_free(struct buffer *buf)
 
 	for (i = 0; i < buf->num_planes; i++)
 		close(buf->dmabuf_fds[i]);
+
+	buf->created = false;
 }
 
 static void
@@ -465,18 +474,20 @@ create_dmabuf_buffer(struct window *window, struct buffer *buf, uint32_t width,
 		     uint64_t *modifiers, uint32_t bo_flags);
 
 static void
-buffer_recreate(struct buffer *buf)
+buffer_recreate(struct buffer *buf, struct window *window)
 {
-	struct window *window = buf->window;
-	uint32_t width = buf->width;
-	uint32_t height = buf->height;
+	uint32_t width = window->display->output.width;
+	uint32_t height = window->display->output.height;
 
-	buffer_free(buf);
+	if (buf->created)
+		buffer_free(buf);
+
 	create_dmabuf_buffer(window, buf, width, height,
 			     window->format.format,
 			     window->format.modifiers.size / sizeof(uint64_t),
 			     window->format.modifiers.data, window->bo_flags);
-	buf->recreate = false;
+	buf->created = true;
+	buf->valid = true;
 }
 
 static void
@@ -485,9 +496,6 @@ buffer_release(void *data, struct wl_buffer *buffer)
 	struct buffer *buf = data;
 
 	buf->status = AVAILABLE;
-
-	if (buf->recreate)
-		buffer_recreate(buf);
 }
 
 static const struct wl_buffer_listener buffer_listener = {
@@ -597,22 +605,29 @@ window_next_buffer(struct window *window)
 {
 	unsigned int i;
 
-	for (i = 0; i < NUM_BUFFERS; i++)
-		if (window->buffers[i].status == AVAILABLE)
-			return &window->buffers[i];
-
-	/* In this client, we sometimes have to recreate the buffers. As we are
-	* not using the create_immed request from zwp_linux_dmabuf_v1, we need
-	* to wait an event from the server (what leads to create_succeeded()
-	* being called in this client). So if all buffers are busy, it may be
-	* the case in which all the buffers were recreated but the server still
-	* didn't send the events. This is very unlikely to happen, but a
-	* roundtrip() guarantees that we receive and process the events. */
-	wl_display_roundtrip(window->display->display);
+	for (i = 0; i < NUM_BUFFERS; i++) {
+		if (!window->buffers[i].created ||
+		    (!window->buffers[i].valid &&
+		     window->buffers[i].status == AVAILABLE))
+			buffer_recreate(&window->buffers[i], window);
+	}
 
 	for (i = 0; i < NUM_BUFFERS; i++)
 		if (window->buffers[i].status == AVAILABLE)
 			return &window->buffers[i];
+
+	while (true) {
+		/* In this client, we create buffers lazily and also sometimes
+		* have to recreate the buffers. As we are not using the
+		* create_immed request from zwp_linux_dmabuf_v1, we need to wait
+		* for an event from the server (what leads to create_succeeded()
+		* being called in this client). */
+		wl_display_roundtrip(window->display->display);
+
+		for (i = 0; i < NUM_BUFFERS; i++)
+			if (window->buffers[i].status == AVAILABLE)
+				return &window->buffers[i];
+	}
 
 	return NULL;
 }
@@ -679,8 +694,10 @@ redraw(void *data, struct wl_callback *callback, uint32_t time)
 	window->callback = wl_surface_frame(window->surface);
 	wl_callback_add_listener(window->callback, &frame_listener, window);
 
-	if (window->presentation_feedback)
+	if (window->presentation_feedback) {
 		wp_presentation_feedback_destroy(window->presentation_feedback);
+		window->presentation_feedback = NULL;
+	}
 	if (window->display->presentation) {
 		window->presentation_feedback =
 			wp_presentation_feedback(window->display->presentation,
@@ -732,12 +749,15 @@ static void presentation_feedback_handle_presented(void *data,
 
 	window->presented_zero_copy = zero_copy;
 	wp_presentation_feedback_destroy(feedback);
+	window->presentation_feedback = NULL;
 }
 
 static void presentation_feedback_handle_discarded(void *data,
 						   struct wp_presentation_feedback *feedback)
 {
+	struct window *window = data;
 	wp_presentation_feedback_destroy(feedback);
+	window->presentation_feedback = NULL;
 }
 
 static const struct wp_presentation_feedback_listener presentation_feedback_listener = {
@@ -746,11 +766,30 @@ static const struct wp_presentation_feedback_listener presentation_feedback_list
 	.discarded = presentation_feedback_handle_discarded,
 };
 
+
+static void
+window_buffers_invalidate(struct window *window)
+{
+	unsigned int i;
+
+	for (i = 0; i < NUM_BUFFERS; i++)
+		window->buffers[i].valid = false;
+}
+
 static void
 xdg_surface_handle_configure(void *data, struct xdg_surface *surface,
 			     uint32_t serial)
 {
 	struct window *window = data;
+	struct output *output = &window->display->output;
+
+	if (output->configure.width != output->width ||
+	    output->configure.height != output->height) {
+		output->width = output->configure.width;
+		output->height = output->configure.height;
+
+		window_buffers_invalidate (window);
+	}
 
 	xdg_surface_ack_configure(surface, serial);
 	window->wait_for_configure = false;
@@ -765,6 +804,11 @@ xdg_toplevel_handle_configure(void *data, struct xdg_toplevel *toplevel,
 			      int32_t width, int32_t height,
 			      struct wl_array *states)
 {
+	struct window *window = data;
+	struct output *output = &window->display->output;
+
+	output->configure.width = width;
+	output->configure.height = height;
 }
 
 static void
@@ -912,9 +956,6 @@ static struct window *
 create_window(struct display *display)
 {
 	struct window *window;
-	uint32_t width = display->output.width;
-	uint32_t height	= display->output.height;
-	unsigned int i;
 
 	window = zalloc(sizeof *window);
 	assert(window && "error: failed to allocate memory for window");
@@ -943,12 +984,6 @@ create_window(struct display *display)
 	egl_setup(window);
 	gl_setup(window);
 
-	for (i = 0; i < NUM_BUFFERS; i++)
-		create_dmabuf_buffer(window, &window->buffers[i], width, height,
-				     window->format.format,
-				     window->format.modifiers.size / sizeof(uint64_t),
-				     window->format.modifiers.data, window->bo_flags);
-
 
 	window->xdg_surface = xdg_wm_base_get_xdg_surface(display->wm_base,
 							  window->surface);
@@ -964,13 +999,12 @@ create_window(struct display *display)
 	xdg_toplevel_set_title(window->xdg_toplevel, "simple-dmabuf-feedback");
 	xdg_toplevel_set_app_id(window->xdg_toplevel,
 			"org.freedesktop.weston.simple-dmabuf-feedback");
+	xdg_toplevel_set_fullscreen(window->xdg_toplevel, NULL);
 
 	window->wait_for_configure = true;
 	wl_surface_commit(window->surface);
 
 	wl_display_roundtrip(display->display);
-
-	xdg_toplevel_set_fullscreen(window->xdg_toplevel, NULL);
 
 	assert(!window->wait_for_configure &&
 	       "error: could not configure XDG surface");
@@ -1291,7 +1325,6 @@ dmabuf_feedback_done(void *data, struct zwp_linux_dmabuf_feedback_v1 *dmabuf_fee
 	struct window *window = data;
 	struct dmabuf_feedback_tranche *tranche;
 	bool got_scanout_tranche = false;
-	unsigned int i;
 
 	fprintf(stderr, L_LAST " end of dma-buf feedback\n\n");
 
@@ -1306,8 +1339,7 @@ dmabuf_feedback_done(void *data, struct zwp_linux_dmabuf_feedback_v1 *dmabuf_fee
 		if (tranche->is_scanout_tranche) {
 			got_scanout_tranche = true;
 			if (pick_format_from_scanout_tranche(window, tranche)) {
-				for (i = 0; i < NUM_BUFFERS; i++)
-					window->buffers[i].recreate = true;
+				window_buffers_invalidate(window);
 				break;
 			}
 		}
@@ -1353,12 +1385,6 @@ static void
 output_handle_mode(void *data, struct wl_output *wl_output, uint32_t flags,
 		   int width, int height, int refresh)
 {
-	struct output *output = data;
-
-	if (flags & WL_OUTPUT_MODE_CURRENT) {
-		output->width = width;
-		output->height = height;
-	}
 }
 
 static void
@@ -1491,43 +1517,31 @@ create_display()
 }
 
 /* Simple client to test the dma-buf feedback implementation. This does not
- * replace the need to implement a dma-buf feedback test that can be run in
- * the CI. But as we still don't know exactly how to do this, this client
- * can be helpful to run tests manually.
+ * replace the need to implement a dma-buf feedback test that can be run in the
+ * CI. But as we still don't know exactly how to do this, this client can be
+ * helpful to run tests manually. It can also be helpful to test other
+ * compositors.
  *
- * In order to use this, we have to hack the DRM-backend to pretend that
- * INITIAL_BUFFER_FORMAT is not supported by the planes of the underlying
- * hardware. In Weston, we have to do this in
- * drm_output_prepare_plane_view(), more specifically in the part where
- * we call drm_output_plane_view_has_valid_format(). So we'd have something
- * like this:
+ * In order to use this client, we have to hack the DRM-backend of the
+ * compositor to pretend that INITIAL_BUFFER_FORMAT is not supported by the
+ * planes of the underlying hardware.
  *
- *     // in this example, INITIAL_BUFFER_FORMAT == DRM_FORMAT_XRGB8888
+ * How this client works:
  *
- *     bool fake_unsupported_format = false;
- *     if (fb && fb->format->format == DRM_FORMAT_XRGB8888)
- *             fake_unsupported_format = true;
+ * This client creates a surface and buffers for it with the same resolution of
+ * the output mode in use. Also, it sets the surface to fullscreen. So we have
+ * everything set to allow the surface to be placed in an overlay plane. But as
+ * these buffers are created with INITIAL_BUFFER_FORMAT, they are not eligible
+ * for direct scanout.
  *
- *     if (!drm_output_plane_view_has_valid_format(plane, state, ev, fb) ||
- *         fake_unsupported_format)
- *         ...
- *
- * It creates a surface and buffers for it with the same resolution of the
- * output mode in use. Also, it sets the surface to fullscreen. So we have
- * everything set to allow the surface to be placed in a plane. But as
- * these buffers are created with INITIAL_BUFFER_FORMAT, they are placed in
- * the renderer.
- *
- * When the compositor creates the client surface, it adds only the
- * renderer tranche to its dma-buf feedback object and send the feedback to
- * the client. But as the repaint cycles start and Weston detects that the
- * only reason why the surface has not been placed in a plane was the
- * incompatibility between the framebuffer format and the ones supported by
- * the planes of the underlying hardware, Weston adds a scanout tranche to
- * the surface dma-buf feedback and resend them. In this tranche the client
- * can find pairs of formats and modifiers supported by the planes, and so
- * it can recreate its buffers using one of these pairs in order to
- * increase the chances of its surface end up in a plane. */
+ * When Weston creates a client's surface, it adds only the renderer tranche to
+ * its dma-buf feedback object and send the feedback to the client. But as the
+ * repaint cycles start and Weston detects that the view of the client is not
+ * eligible for direct scanout because of the incompatibility of the
+ * framebuffer's format/modifier pair and the KMS device, it adds a scanout
+ * tranche to the feedback and resend it. In this scanout tranche the client can
+ * find parameters to re-allocate its buffers and increase its chances of
+ * hitting direct scanout. */
 int
 main(int argc, char **argv)
 {

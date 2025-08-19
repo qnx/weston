@@ -123,9 +123,7 @@ device_added(struct udev_input *input, struct libinput_device *libinput_device)
 
 	pointer = weston_seat_get_pointer(seat);
 	if (seat->output && pointer)
-		weston_pointer_clamp(pointer,
-				     &pointer->x,
-				     &pointer->y);
+		pointer->pos = weston_pointer_clamp(pointer, pointer->pos);
 
 	output_name = libinput_device_get_output_name(libinput_device);
 	if (output_name) {

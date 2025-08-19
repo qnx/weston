@@ -2,13 +2,12 @@ srcs_weston = [
 	git_version_h,
 	'main.c',
 	'text-backend.c',
+	'config-helpers.c',
 	'weston-screenshooter.c',
 	text_input_unstable_v1_server_protocol_h,
 	text_input_unstable_v1_protocol_c,
 	input_method_unstable_v1_server_protocol_h,
 	input_method_unstable_v1_protocol_c,
-	weston_screenshooter_server_protocol_h,
-	weston_screenshooter_protocol_c,
 ]
 deps_weston = [
 	dep_libshared,
@@ -58,7 +57,6 @@ pkgconfig.generate(
 	description: 'Header files for Weston plugin development',
 	requires_private: [ lib_weston ],
 	variables: [
-		'libexecdir=' + join_paths('${prefix}', get_option('libexecdir')),
 		'pkglibexecdir=${libexecdir}/weston'
 	],
 	subdirs: 'weston'
@@ -78,7 +76,6 @@ if get_option('screenshare')
 	deps_screenshare = [
 		dep_libexec_weston,
 		dep_libshared,
-		dep_shell_utils,
 		dep_libweston_public,
 		dep_libweston_private_h, # XXX: https://gitlab.freedesktop.org/wayland/weston/issues/292
 		dep_wayland_client,

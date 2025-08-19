@@ -39,7 +39,7 @@ fixture_setup(struct weston_test_harness *harness)
 	struct compositor_setup setup;
 
 	compositor_setup_defaults(&setup);
-	setup.renderer = RENDERER_PIXMAN;
+	setup.renderer = WESTON_RENDERER_PIXMAN;
 	setup.width = 320;
 	setup.height = 240;
 	setup.shell = SHELL_DESKTOP;
@@ -118,7 +118,7 @@ TEST(internal_screenshot)
 
 	/* Take a snapshot.  Result will be in screenshot->wl_buffer. */
 	testlog("Taking a screenshot\n");
-	screenshot = capture_screenshot_of_output(client);
+	screenshot = capture_screenshot_of_output(client, NULL);
 	assert(screenshot);
 
 	/* Load good reference image */

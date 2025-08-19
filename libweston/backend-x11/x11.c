@@ -59,10 +59,12 @@
 #include "renderer-gl/gl-renderer.h"
 #include "shared/weston-drm-fourcc.h"
 #include "shared/weston-egl-ext.h"
+#include "shared/xalloc.h"
 #include "pixman-renderer.h"
 #include "presentation-time-server-protocol.h"
 #include "linux-dmabuf.h"
 #include "linux-explicit-synchronization.h"
+#include <libweston/pixel-formats.h>
 #include <libweston/windowed-output-api.h>
 
 #define DEFAULT_AXIS_STEP_DISTANCE 10
@@ -92,15 +94,13 @@ struct x11_backend {
 	uint8_t			 xkb_event_base;
 	int			 fullscreen;
 	int			 no_input;
-	int			 use_pixman;
 
 	int			 has_net_wm_state_fullscreen;
 
 	/* We could map multi-pointer X to multiple wayland seats, but
 	 * for now we only support core X input. */
 	struct weston_seat		 core_seat;
-	double				 prev_x;
-	double				 prev_y;
+	struct weston_coord_global	 prev_pos;
 
 	struct {
 		xcb_atom_t		 wm_protocols;
@@ -120,6 +120,9 @@ struct x11_backend {
 		xcb_atom_t		 xkb_names;
 	} atom;
 	xcb_generic_event_t *prev_event;
+
+	const struct pixel_format_info **formats;
+	unsigned int formats_count;
 };
 
 struct x11_head {
@@ -128,6 +131,7 @@ struct x11_head {
 
 struct x11_output {
 	struct weston_output	base;
+	struct x11_backend	*backend;
 
 	xcb_window_t		window;
 	struct weston_mode	mode;
@@ -136,7 +140,7 @@ struct x11_output {
 
 	xcb_gc_t		gc;
 	xcb_shm_seg_t		segment;
-	pixman_image_t	       *hw_surface;
+	struct weston_renderbuffer *renderbuffer;
 	int			shm_id;
 	void		       *buf;
 	uint8_t			depth;
@@ -150,15 +154,13 @@ struct window_delete_data {
 	xcb_window_t		window;
 };
 
-struct gl_renderer_interface *gl_renderer;
-
 static void
-x11_head_destroy(struct weston_head *base);
+x11_destroy(struct weston_backend *backend);
 
 static inline struct x11_head *
 to_x11_head(struct weston_head *base)
 {
-	if (base->backend_id != x11_head_destroy)
+	if (base->backend->destroy != x11_destroy)
 		return NULL;
 	return container_of(base, struct x11_head, base);
 }
@@ -175,9 +177,9 @@ to_x11_output(struct weston_output *base)
 }
 
 static inline struct x11_backend *
-to_x11_backend(struct weston_compositor *base)
+to_x11_backend(struct weston_backend *backend)
 {
-	return container_of(base->backend, struct x11_backend, base);
+	return container_of(backend, struct x11_backend, base);
 }
 
 static xcb_screen_t *
@@ -437,7 +439,7 @@ x11_output_repaint_gl(struct weston_output *output_base,
 
 	ec = output->base.compositor;
 
-	ec->renderer->repaint_output(output_base, damage);
+	ec->renderer->repaint_output(output_base, damage, NULL);
 
 	pixman_region32_subtract(&ec->primary_plane.damage,
 				 &ec->primary_plane.damage, damage);
@@ -450,7 +452,6 @@ static void
 set_clip_for_output(struct weston_output *output_base, pixman_region32_t *region)
 {
 	struct x11_output *output = to_x11_output(output_base);
-	struct weston_compositor *ec;
 	struct x11_backend *b;
 	pixman_region32_t transformed_region;
 	pixman_box32_t *rects;
@@ -462,17 +463,12 @@ set_clip_for_output(struct weston_output *output_base, pixman_region32_t *region
 	if (!output)
 		return;
 
-	ec = output->base.compositor;
-	b = to_x11_backend(ec);
+	b = output->backend;
 
 	pixman_region32_init(&transformed_region);
-	pixman_region32_copy(&transformed_region, region);
-	pixman_region32_translate(&transformed_region,
-				  -output_base->x, -output_base->y);
-	weston_transformed_region(output_base->width, output_base->height,
-				  output_base->transform,
-				  output_base->current_scale,
-				  &transformed_region, &transformed_region);
+	weston_region_global_to_output(&transformed_region,
+				       output_base,
+				       region);
 
 	rects = pixman_region32_rectangles(&transformed_region, &nrects);
 	output_rects = calloc(nrects, sizeof(xcb_rectangle_t));
@@ -509,6 +505,8 @@ x11_output_repaint_shm(struct weston_output *output_base,
 		       pixman_region32_t *damage)
 {
 	struct x11_output *output = to_x11_output(output_base);
+	const struct weston_renderer *renderer;
+	pixman_image_t *image;
 	struct weston_compositor *ec;
 	struct x11_backend *b;
 	xcb_void_cookie_t cookie;
@@ -517,20 +515,22 @@ x11_output_repaint_shm(struct weston_output *output_base,
 	assert(output);
 
 	ec = output->base.compositor;
-	b = to_x11_backend(ec);
+	renderer = ec->renderer;
+	b = output->backend;
 
-	pixman_renderer_output_set_buffer(output_base, output->hw_surface);
-	ec->renderer->repaint_output(output_base, damage);
+	image = renderer->pixman->renderbuffer_get_image(output->renderbuffer);
+
+	ec->renderer->repaint_output(output_base, damage, output->renderbuffer);
 
 	pixman_region32_subtract(&ec->primary_plane.damage,
 				 &ec->primary_plane.damage, damage);
 	set_clip_for_output(output_base, damage);
 	cookie = xcb_shm_put_image_checked(b->conn, output->window, output->gc,
-					pixman_image_get_width(output->hw_surface),
-					pixman_image_get_height(output->hw_surface),
+					pixman_image_get_width(image),
+					pixman_image_get_height(image),
 					0, 0,
-					pixman_image_get_width(output->hw_surface),
-					pixman_image_get_height(output->hw_surface),
+					pixman_image_get_width(image),
+					pixman_image_get_height(image),
 					0, 0, output->depth, XCB_IMAGE_FORMAT_Z_PIXMAP,
 					0, output->segment, 0);
 	err = xcb_request_check(b->conn, cookie);
@@ -562,8 +562,8 @@ x11_output_deinit_shm(struct x11_backend *b, struct x11_output *output)
 	xcb_generic_error_t *err;
 	xcb_free_gc(b->conn, output->gc);
 
-	pixman_image_unref(output->hw_surface);
-	output->hw_surface = NULL;
+	weston_renderbuffer_unref(output->renderbuffer);
+	output->renderbuffer = NULL;
 	cookie = xcb_shm_detach_checked(b->conn, output->segment);
 	err = xcb_request_check(b->conn, cookie);
 	if (err) {
@@ -723,18 +723,15 @@ get_depth_of_visual(xcb_screen_t *screen,
 	return 0;
 }
 
-static int
-x11_output_init_shm(struct x11_backend *b, struct x11_output *output,
-	int width, int height)
+static const struct pixel_format_info *
+x11_output_get_shm_pixel_format(struct x11_output *output)
 {
+	struct x11_backend *b = output->backend;
 	xcb_visualtype_t *visual_type;
 	xcb_screen_t *screen;
 	xcb_format_iterator_t fmt;
-	xcb_void_cookie_t cookie;
-	xcb_generic_error_t *err;
 	const xcb_query_extension_reply_t *ext;
 	int bitsperpixel = 0;
-	pixman_format_code_t pixman_format;
 
 	/* Check if SHM is available */
 	ext = xcb_get_extension_data(b->conn, &xcb_shm_id);
@@ -742,7 +739,7 @@ x11_output_init_shm(struct x11_backend *b, struct x11_output *output,
 		/* SHM is missing */
 		weston_log("SHM extension is not available\n");
 		errno = ENOENT;
-		return -1;
+		return NULL;
 	}
 
 	screen = x11_compositor_get_default_screen(b);
@@ -750,7 +747,7 @@ x11_output_init_shm(struct x11_backend *b, struct x11_output *output,
 	if (!visual_type) {
 		weston_log("Failed to lookup visual for root window\n");
 		errno = ENOENT;
-		return -1;
+		return NULL;
 	}
 	weston_log("Found visual, bits per value: %d, red_mask: %.8x, green_mask: %.8x, blue_mask: %.8x\n",
 		visual_type->bits_per_rgb_value,
@@ -776,19 +773,28 @@ x11_output_init_shm(struct x11_backend *b, struct x11_output *output,
 	     visual_type->green_mask == 0x00ff00 &&
 	     visual_type->blue_mask == 0x0000ff) {
 		weston_log("Will use x8r8g8b8 format for SHM surfaces\n");
-		pixman_format = PIXMAN_x8r8g8b8;
+		return pixel_format_get_info_by_pixman(PIXMAN_x8r8g8b8);
 	} else if (bitsperpixel == 16 &&
 	           visual_type->red_mask == 0x00f800 &&
 	           visual_type->green_mask == 0x0007e0 &&
 	           visual_type->blue_mask == 0x00001f) {
 		weston_log("Will use r5g6b5 format for SHM surfaces\n");
-		pixman_format = PIXMAN_r5g6b5;
+		return pixel_format_get_info_by_pixman(PIXMAN_r5g6b5);
 	} else {
 		weston_log("Can't find appropriate format for SHM pixmap\n");
 		errno = ENOTSUP;
-		return -1;
+		return NULL;
 	}
+}
 
+static int
+x11_output_init_shm(struct x11_backend *b, struct x11_output *output,
+		    const struct pixel_format_info *pfmt, int width, int height)
+{
+	struct weston_renderer *renderer = output->base.compositor->renderer;
+	int bitsperpixel = pfmt->bpp;
+	xcb_void_cookie_t cookie;
+	xcb_generic_error_t *err;
 
 	/* Create SHM segment and attach it */
 	output->shm_id = shmget(IPC_PRIVATE, width * height * (bitsperpixel / 8), IPC_CREAT | S_IRWXU);
@@ -814,8 +820,11 @@ x11_output_init_shm(struct x11_backend *b, struct x11_output *output,
 	shmctl(output->shm_id, IPC_RMID, NULL);
 
 	/* Now create pixman image */
-	output->hw_surface = pixman_image_create_bits(pixman_format, width, height, output->buf,
-		width * (bitsperpixel / 8));
+	output->renderbuffer =
+		renderer->pixman->create_image_from_ptr(&output->base,
+							pfmt, width, height,
+							output->buf,
+							width * (bitsperpixel / 8));
 
 	output->gc = xcb_generate_id(b->conn);
 	xcb_create_gc(b->conn, output->gc, output->window, 0, NULL);
@@ -828,12 +837,12 @@ x11_output_switch_mode(struct weston_output *base, struct weston_mode *mode)
 {
 	struct x11_backend *b;
 	struct x11_output *output = to_x11_output(base);
+	struct weston_size fb_size;
 	static uint32_t values[2];
-	int ret;
 
 	assert(output);
 
-	b = to_x11_backend(base->compositor);
+	b = output->backend;
 
 	if (mode->width == output->mode.width &&
 	    mode->height == output->mode.height)
@@ -857,42 +866,22 @@ x11_output_switch_mode(struct weston_output *base, struct weston_mode *mode)
 				     XCB_CONFIG_WINDOW_HEIGHT, values);
 	}
 
-	output->mode.width = mode->width;
-	output->mode.height = mode->height;
+	fb_size.width = output->mode.width = mode->width;
+	fb_size.height = output->mode.height = mode->height;
 
-	if (b->use_pixman) {
-		const struct pixman_renderer_output_options options = {
-			.use_shadow = true,
-		};
-		pixman_renderer_output_destroy(&output->base);
+	weston_renderer_resize_output(&output->base, &fb_size, NULL);
+
+	if (base->compositor->renderer->type == WESTON_RENDERER_PIXMAN) {
+		const struct pixel_format_info *pfmt;
 		x11_output_deinit_shm(b, output);
-
-		if (x11_output_init_shm(b, output,
-		                        output->base.current_mode->width,
-		                        output->base.current_mode->height) < 0) {
+		pfmt = x11_output_get_shm_pixel_format(output);
+		if (!pfmt)
+			return -1;
+		if (x11_output_init_shm(b, output, pfmt,
+					fb_size.width, fb_size.height) < 0) {
 			weston_log("Failed to initialize SHM for the X11 output\n");
 			return -1;
 		}
-
-		if (pixman_renderer_output_create(&output->base, &options) < 0) {
-			weston_log("Failed to create pixman renderer for output\n");
-			x11_output_deinit_shm(b, output);
-			return -1;
-		}
-	} else {
-		Window xid = (Window) output->window;
-		const struct gl_renderer_output_options options = {
-			.window_for_legacy = (EGLNativeWindowType) (uintptr_t) output->window,
-			.window_for_platform = &xid,
-			.drm_formats = x11_formats,
-			.drm_formats_count = ARRAY_LENGTH(x11_formats),
-		};
-
-		gl_renderer->output_destroy(&output->base);
-
-		ret = gl_renderer->output_window_create(&output->base, &options);
-		if (ret < 0)
-			return -1;
 	}
 
 	output->resize_pending = false;
@@ -904,23 +893,24 @@ x11_output_switch_mode(struct weston_output *base, struct weston_mode *mode)
 static int
 x11_output_disable(struct weston_output *base)
 {
+	const struct weston_renderer *renderer = base->compositor->renderer;
 	struct x11_output *output = to_x11_output(base);
 	struct x11_backend *backend;
 
 	assert(output);
 
-	backend = to_x11_backend(base->compositor);
+	backend = output->backend;
 
 	if (!output->base.enabled)
 		return 0;
 
 	wl_event_source_remove(output->finish_frame_timer);
 
-	if (backend->use_pixman) {
-		pixman_renderer_output_destroy(&output->base);
+	if (renderer->type == WESTON_RENDERER_PIXMAN) {
 		x11_output_deinit_shm(backend, output);
+		renderer->pixman->output_destroy(&output->base);
 	} else {
-		gl_renderer->output_destroy(&output->base);
+		renderer->gl->output_destroy(&output->base);
 	}
 
 	xcb_destroy_window(backend->conn, output->window);
@@ -945,13 +935,14 @@ x11_output_destroy(struct weston_output *base)
 static int
 x11_output_enable(struct weston_output *base)
 {
+	const struct weston_renderer *renderer = base->compositor->renderer;
 	struct x11_output *output = to_x11_output(base);
 	const struct weston_mode *mode = output->base.current_mode;
 	struct x11_backend *b;
 
 	assert(output);
 
-	b = to_x11_backend(base->compositor);
+	b = output->backend;
 
 	static const char name[] = "Weston Compositor";
 	static const char class[] = "weston-1\0Weston Compositor";
@@ -1050,18 +1041,25 @@ x11_output_enable(struct weston_output *base)
 	if (b->fullscreen)
 		x11_output_wait_for_map(b, output);
 
-	if (b->use_pixman) {
+	if (renderer->type == WESTON_RENDERER_PIXMAN) {
 		const struct pixman_renderer_output_options options = {
 			.use_shadow = true,
+			.fb_size = {
+				.width = mode->width,
+				.height = mode->height
+			},
+			.format = x11_output_get_shm_pixel_format(output)
 		};
-		if (x11_output_init_shm(b, output,
-					mode->width, mode->height) < 0) {
-			weston_log("Failed to initialize SHM for the X11 output\n");
+		if (!options.format)
+			goto err;
+		if (renderer->pixman->output_create(&output->base, &options) < 0) {
+			weston_log("Failed to create pixman renderer for output\n");
 			goto err;
 		}
-		if (pixman_renderer_output_create(&output->base, &options) < 0) {
-			weston_log("Failed to create pixman renderer for output\n");
-			x11_output_deinit_shm(b, output);
+		if (x11_output_init_shm(b, output, options.format,
+					mode->width, mode->height) < 0) {
+			weston_log("Failed to initialize SHM for the X11 output\n");
+			renderer->pixman->output_destroy(&output->base);
 			goto err;
 		}
 
@@ -1073,12 +1071,17 @@ x11_output_enable(struct weston_output *base)
 		const struct gl_renderer_output_options options = {
 			.window_for_legacy = (EGLNativeWindowType) (uintptr_t) output->window,
 			.window_for_platform = &xid,
-			.drm_formats = x11_formats,
-			.drm_formats_count = ARRAY_LENGTH(x11_formats),
+			.formats = b->formats,
+			.formats_count = b->formats_count,
+			.area.x = 0,
+			.area.y = 0,
+			.area.width = mode->width,
+			.area.height = mode->height,
+			.fb_size.width = mode->width,
+			.fb_size.height = mode->height,
 		};
 
-		ret = gl_renderer->output_window_create(&output->base,
-							&options);
+		ret = renderer->gl->output_window_create(base, &options);
 		if (ret < 0)
 			goto err;
 
@@ -1119,7 +1122,7 @@ x11_output_set_size(struct weston_output *base, int width, int height)
 	if (!output)
 		return -1;
 
-	b = to_x11_backend(base->compositor);
+	b = output->backend;
 	scrn = b->screen;
 
 	/* We can only be called once. */
@@ -1168,8 +1171,10 @@ x11_output_set_size(struct weston_output *base, int width, int height)
 }
 
 static struct weston_output *
-x11_output_create(struct weston_compositor *compositor, const char *name)
+x11_output_create(struct weston_backend *backend, const char *name)
 {
+	struct x11_backend *b = container_of(backend, struct x11_backend, base);
+	struct weston_compositor *compositor = b->compositor;
 	struct x11_output *output;
 
 	/* name can't be NULL. */
@@ -1186,14 +1191,17 @@ x11_output_create(struct weston_compositor *compositor, const char *name)
 	output->base.enable = x11_output_enable;
 	output->base.attach_head = NULL;
 
+	output->backend = b;
+
 	weston_compositor_add_pending_output(&output->base, compositor);
 
 	return &output->base;
 }
 
 static int
-x11_head_create(struct weston_compositor *compositor, const char *name)
+x11_head_create(struct weston_backend *base, const char *name)
 {
+	struct x11_backend *backend = to_x11_backend(base);
 	struct x11_head *head;
 
 	assert(name);
@@ -1204,10 +1212,10 @@ x11_head_create(struct weston_compositor *compositor, const char *name)
 
 	weston_head_init(&head->base, name);
 
-	head->base.backend_id = x11_head_destroy;
+	head->base.backend = &backend->base;
 
 	weston_head_set_connection_status(&head->base, true);
-	weston_compositor_add_head(compositor, &head->base);
+	weston_compositor_add_head(backend->compositor, &head->base);
 
 	return 0;
 }
@@ -1420,7 +1428,7 @@ x11_backend_deliver_motion_event(struct x11_backend *b,
 				 xcb_generic_event_t *event)
 {
 	struct x11_output *output;
-	double x, y;
+	struct weston_coord_global pos;
 	struct weston_pointer_motion_event motion_event = { 0 };
 	xcb_motion_notify_event_t *motion_notify =
 			(xcb_motion_notify_event_t *) event;
@@ -1432,23 +1440,19 @@ x11_backend_deliver_motion_event(struct x11_backend *b,
 	if (!output)
 		return;
 
-	weston_output_transform_coordinate(&output->base,
-					   motion_notify->event_x,
-					   motion_notify->event_y,
-					   &x, &y);
+	pos = weston_coord_global_from_output_point(motion_notify->event_x,
+						    motion_notify->event_y,
+						    &output->base);
 
 	motion_event = (struct weston_pointer_motion_event) {
 		.mask = WESTON_POINTER_MOTION_REL,
-		.dx = x - b->prev_x,
-		.dy = y - b->prev_y
+		.rel = weston_coord_sub(pos.c, b->prev_pos.c),
 	};
-
 	weston_compositor_get_time(&time);
 	notify_motion(&b->core_seat, &time, &motion_event);
 	notify_pointer_frame(&b->core_seat);
 
-	b->prev_x = x;
-	b->prev_y = y;
+	b->prev_pos = pos;
 }
 
 static void
@@ -1456,7 +1460,7 @@ x11_backend_deliver_enter_event(struct x11_backend *b,
 				xcb_generic_event_t *event)
 {
 	struct x11_output *output;
-	double x, y;
+	struct weston_coord_global pos;
 
 	xcb_enter_notify_event_t *enter_notify =
 			(xcb_enter_notify_event_t *) event;
@@ -1468,14 +1472,13 @@ x11_backend_deliver_enter_event(struct x11_backend *b,
 	if (!output)
 		return;
 
-	weston_output_transform_coordinate(&output->base,
-					   enter_notify->event_x,
-					   enter_notify->event_y, &x, &y);
+	pos = weston_coord_global_from_output_point(enter_notify->event_x,
+						    enter_notify->event_y,
+						    &output->base);
 
-	notify_pointer_focus(&b->core_seat, &output->base, x, y);
+	notify_pointer_focus(&b->core_seat, &output->base, pos);
 
-	b->prev_x = x;
-	b->prev_y = y;
+	b->prev_pos = pos;
 }
 
 static int
@@ -1631,7 +1634,7 @@ x11_backend_handle_event(int fd, uint32_t mask, void *data)
 				break;
 			if (!b->has_xkb)
 				update_xkb_state_from_core(b, enter_notify->state);
-			notify_pointer_focus(&b->core_seat, NULL, 0, 0);
+			clear_pointer_focus(&b->core_seat);
 			break;
 
 		case XCB_CLIENT_MESSAGE:
@@ -1826,42 +1829,25 @@ x11_backend_get_wm_info(struct x11_backend *c)
 }
 
 static void
-x11_destroy(struct weston_compositor *ec)
+x11_destroy(struct weston_backend *base)
 {
-	struct x11_backend *backend = to_x11_backend(ec);
-	struct weston_head *base, *next;
+	struct x11_backend *backend = container_of(base, struct x11_backend, base);
+	struct weston_compositor *ec = backend->compositor;
+	struct weston_head *head, *next;
 
 	wl_event_source_remove(backend->xcb_source);
 	x11_input_destroy(backend);
 
 	weston_compositor_shutdown(ec); /* destroys outputs, too */
 
-	wl_list_for_each_safe(base, next, &ec->head_list, compositor_link) {
-		if (to_x11_head(base))
-			x11_head_destroy(base);
+	wl_list_for_each_safe(head, next, &ec->head_list, compositor_link) {
+		if (to_x11_head(head))
+			x11_head_destroy(head);
 	}
 
 	XCloseDisplay(backend->dpy);
+	free(backend->formats);
 	free(backend);
-}
-
-static int
-init_gl_renderer(struct x11_backend *b)
-{
-	const struct gl_renderer_display_options options = {
-		.egl_platform = EGL_PLATFORM_X11_KHR,
-		.egl_native_display = b->dpy,
-		.egl_surface_type = EGL_WINDOW_BIT,
-		.drm_formats = x11_formats,
-		.drm_formats_count = ARRAY_LENGTH(x11_formats),
-	};
-
-	gl_renderer = weston_load_module("gl-renderer.so",
-					 "gl_renderer_interface");
-	if (!gl_renderer)
-		return -1;
-
-	return gl_renderer->display_create(b->compositor, &options);
 }
 
 static const struct weston_windowed_output_api api = {
@@ -1912,17 +1898,30 @@ x11_backend_create(struct weston_compositor *compositor,
 		config->fullscreen = 0;
 	}
 
-	b->use_pixman = config->use_pixman;
-	if (b->use_pixman) {
-		if (pixman_renderer_init(compositor) < 0) {
+	b->formats_count = ARRAY_LENGTH(x11_formats);
+	b->formats = pixel_format_get_array(x11_formats, b->formats_count);
+
+	if (config->renderer == WESTON_RENDERER_PIXMAN) {
+		if (weston_compositor_init_renderer(compositor,
+						    WESTON_RENDERER_PIXMAN,
+						    NULL) < 0) {
 			weston_log("Failed to initialize pixman renderer for X11 backend\n");
 			goto err_xdisplay;
 		}
 	}
-	else if (init_gl_renderer(b) < 0) {
-		goto err_xdisplay;
+	else {
+		const struct gl_renderer_display_options options = {
+			.egl_platform = EGL_PLATFORM_X11_KHR,
+			.egl_native_display = b->dpy,
+			.egl_surface_type = EGL_WINDOW_BIT,
+			.formats = b->formats,
+			.formats_count = b->formats_count,
+		};
+		if (weston_compositor_init_renderer(compositor,
+						    WESTON_RENDERER_GL,
+						    &options.base) < 0)
+			goto err_xdisplay;
 	}
-	weston_log("Using %s renderer\n", config->use_pixman ? "pixman" : "gl");
 
 	b->base.destroy = x11_destroy;
 	b->base.create_output = x11_output_create;
@@ -1969,6 +1968,7 @@ err_renderer:
 err_xdisplay:
 	XCloseDisplay(b->dpy);
 err_free:
+	free(b->formats);
 	free(b);
 	return NULL;
 }

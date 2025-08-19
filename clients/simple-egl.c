@@ -45,7 +45,11 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
+#include "fractional-scale-v1-client-protocol.h"
+#include "viewporter-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
+#include "tearing-control-v1-client-protocol.h"
+
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -71,6 +75,9 @@ struct display {
 	struct wl_cursor_theme *cursor_theme;
 	struct wl_cursor *default_cursor;
 	struct wl_surface *cursor_surface;
+	struct wp_tearing_control_manager_v1 *tearing_manager;
+	struct wp_viewporter *viewporter;
+	struct wp_fractional_scale_manager_v1 *fractional_scale_manager;
 	struct {
 		EGLDisplay dpy;
 		EGLContext ctx;
@@ -93,6 +100,7 @@ struct window {
 	struct geometry logical_size;
 	struct geometry buffer_size;
 	int32_t buffer_scale;
+	double fractional_buffer_scale;
 	enum wl_output_transform buffer_transform;
 	bool needs_buffer_geometry_update;
 
@@ -111,6 +119,12 @@ struct window {
 	struct xdg_toplevel *xdg_toplevel;
 	EGLSurface egl_surface;
 	int fullscreen, maximized, opaque, buffer_bpp, frame_sync, delay;
+	struct wp_tearing_control_v1 *tear_control;
+	struct wp_viewport *viewport;
+	struct wp_fractional_scale_v1 *fractional_scale_obj;
+	bool tearing, toggled_tearing, tear_enabled;
+	bool vertical_bar;
+	bool fullscreen_ratio;
 	bool wait_for_configure;
 
 	struct wl_list window_output_list; /* struct window_output::link */
@@ -322,21 +336,14 @@ static void
 update_buffer_geometry(struct window *window)
 {
 	enum wl_output_transform new_buffer_transform;
-	int32_t new_buffer_scale;
 	struct geometry new_buffer_size;
+	struct geometry new_viewport_dest_size;
 
 	new_buffer_transform = compute_buffer_transform(window);
 	if (window->buffer_transform != new_buffer_transform) {
 		window->buffer_transform = new_buffer_transform;
 		wl_surface_set_buffer_transform(window->surface,
 						window->buffer_transform);
-	}
-
-	new_buffer_scale = compute_buffer_scale(window);
-	if (window->buffer_scale != new_buffer_scale) {
-		window->buffer_scale = new_buffer_scale;
-		wl_surface_set_buffer_scale(window->surface,
-					    window->buffer_scale);
 	}
 
 	switch (window->buffer_transform) {
@@ -356,8 +363,48 @@ update_buffer_geometry(struct window *window)
 		break;
 	}
 
-	new_buffer_size.width *= window->buffer_scale;
-	new_buffer_size.height *= window->buffer_scale;
+	if (window->fractional_buffer_scale > 0.0) {
+		if (window->buffer_scale > 1) {
+			window->buffer_scale = 1;
+			wl_surface_set_buffer_scale(window->surface,
+						    window->buffer_scale);
+		}
+
+		new_buffer_size.width = ceil(new_buffer_size.width *
+					     window->fractional_buffer_scale);
+		new_buffer_size.height = ceil(new_buffer_size.height *
+					      window->fractional_buffer_scale);
+	} else {
+		int32_t new_buffer_scale;
+
+		new_buffer_scale = compute_buffer_scale(window);
+		if (window->buffer_scale != new_buffer_scale) {
+			window->buffer_scale = new_buffer_scale;
+			wl_surface_set_buffer_scale(window->surface,
+						    window->buffer_scale);
+		}
+
+		new_buffer_size.width *= window->buffer_scale;
+		new_buffer_size.height *= window->buffer_scale;
+	}
+
+	if (window->fullscreen && window->fullscreen_ratio) {
+		int new_buffer_size_min;
+		int new_viewport_dest_size_min;
+
+		new_buffer_size_min = MIN(new_buffer_size.width,
+					  new_buffer_size.height);
+		new_buffer_size.width = new_buffer_size_min;
+		new_buffer_size.height = new_buffer_size_min;
+
+		new_viewport_dest_size_min = MIN(window->logical_size.width,
+						 window->logical_size.height);
+		new_viewport_dest_size.width = new_viewport_dest_size_min;
+		new_viewport_dest_size.height = new_viewport_dest_size_min;
+	} else {
+		new_viewport_dest_size.width = window->logical_size.width;
+		new_viewport_dest_size.height = window->logical_size.height;
+	}
 
 	if (window->buffer_size.width != new_buffer_size.width ||
 	    window->buffer_size.height != new_buffer_size.height) {
@@ -368,9 +415,13 @@ update_buffer_geometry(struct window *window)
 					     window->buffer_size.height, 0, 0);
 	}
 
+	if (window->fractional_buffer_scale > 0.0)
+		wp_viewport_set_destination(window->viewport,
+					    new_viewport_dest_size.width,
+					    new_viewport_dest_size.height);
+
 	window->needs_buffer_geometry_update = false;
 }
-
 
 static void
 init_gl(struct window *window)
@@ -535,6 +586,124 @@ destroy_window_output(struct window *window, struct wl_output *wl_output)
 }
 
 static void
+draw_triangle(struct window *window, EGLint buffer_age)
+{
+	struct display *display = window->display;
+	static const GLfloat verts[3][2] = {
+		{ -0.5, -0.5 },
+		{  0.5, -0.5 },
+		{  0,    0.5 }
+	};
+	static const GLfloat colors[3][3] = {
+		{ 1, 0, 0 },
+		{ 0, 1, 0 },
+		{ 0, 0, 1 }
+	};
+	struct wl_region *region;
+	EGLint rect[4];
+
+	glVertexAttribPointer(window->gl.pos, 2, GL_FLOAT, GL_FALSE, 0, verts);
+	glVertexAttribPointer(window->gl.col, 3, GL_FLOAT, GL_FALSE, 0, colors);
+	glEnableVertexAttribArray(window->gl.pos);
+	glEnableVertexAttribArray(window->gl.col);
+
+	glDrawArrays(GL_TRIANGLES, 0, 3);
+
+	glDisableVertexAttribArray(window->gl.pos);
+	glDisableVertexAttribArray(window->gl.col);
+
+	usleep(window->delay);
+
+	if (window->opaque || window->fullscreen) {
+		region = wl_compositor_create_region(window->display->compositor);
+		wl_region_add(region, 0, 0, INT32_MAX, INT32_MAX);
+		wl_surface_set_opaque_region(window->surface, region);
+		wl_region_destroy(region);
+	} else {
+		wl_surface_set_opaque_region(window->surface, NULL);
+	}
+
+	if (display->swap_buffers_with_damage && buffer_age > 0) {
+		rect[0] = window->buffer_size.width / 4 - 1;
+		rect[1] = window->buffer_size.height / 4 - 1;
+		rect[2] = window->buffer_size.width / 2 + 2;
+		rect[3] = window->buffer_size.height / 2 + 2;
+		display->swap_buffers_with_damage(display->egl.dpy,
+						  window->egl_surface,
+						  rect, 1);
+	} else {
+		eglSwapBuffers(display->egl.dpy, window->egl_surface);
+	}
+}
+
+static void
+draw_bar(struct window *window, EGLint buffer_age, struct weston_matrix *rotation)
+{
+	struct display *display = window->display;
+	GLfloat verts[4][2] = {
+		{ -1, 1 },
+		{  -0.9, 1 },
+		{  -1, -1 },
+		{  -0.9, -1   }
+	};
+	static const GLfloat colors[4][3] = {
+		{ 1, 1, 1 },
+		{ 1, 1, 1 },
+		{ 1, 1, 1 },
+		{ 1, 1, 1 }
+	};
+	struct wl_region *region;
+	int i;
+	const float delta = 0.01;
+	static float offset = 0;
+
+	offset += delta;
+	if (offset > 2)
+		offset = 0;
+
+	for (i = 0 ; i < 4; i++) {
+		verts[i][0] += offset;
+	}
+	glVertexAttribPointer(window->gl.pos, 2, GL_FLOAT, GL_FALSE, 0, verts);
+	glVertexAttribPointer(window->gl.col, 3, GL_FLOAT, GL_FALSE, 0, colors);
+	glEnableVertexAttribArray(window->gl.pos);
+	glEnableVertexAttribArray(window->gl.col);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+	glDisableVertexAttribArray(window->gl.pos);
+	glDisableVertexAttribArray(window->gl.col);
+
+	usleep(window->delay);
+
+	if (window->opaque || window->fullscreen) {
+		region = wl_compositor_create_region(window->display->compositor);
+		wl_region_add(region, 0, 0, INT32_MAX, INT32_MAX);
+		wl_surface_set_opaque_region(window->surface, region);
+		wl_region_destroy(region);
+	} else {
+		wl_surface_set_opaque_region(window->surface, NULL);
+	}
+
+	eglSwapBuffers(display->egl.dpy, window->egl_surface);
+}
+
+static void
+set_tearing(struct window *window, bool enable)
+{
+	if (!window->tear_control)
+		return;
+
+	if (enable) {
+		wp_tearing_control_v1_set_presentation_hint(window->tear_control,
+							    WP_TEARING_CONTROL_V1_PRESENTATION_HINT_ASYNC);
+	} else {
+		wp_tearing_control_v1_set_presentation_hint(window->tear_control,
+							    WP_TEARING_CONTROL_V1_PRESENTATION_HINT_VSYNC);
+	}
+	window->tear_enabled = enable;
+}
+
+static void
 surface_enter(void *data,
 	      struct wl_surface *wl_surface, struct wl_output *wl_output)
 {
@@ -557,6 +726,19 @@ static const struct wl_surface_listener surface_listener = {
 	surface_leave
 };
 
+static void fractional_scale_handle_preferred_scale(void *data,
+						    struct wp_fractional_scale_v1 *info,
+						    uint32_t wire_scale) {
+	struct window *window = data;
+
+	window->fractional_buffer_scale = wire_scale / 120.0;
+	window->needs_buffer_geometry_update = true;
+}
+
+static const struct wp_fractional_scale_v1_listener fractional_scale_listener = {
+	.preferred_scale = fractional_scale_handle_preferred_scale,
+};
+
 static void
 create_surface(struct window *window)
 {
@@ -564,6 +746,13 @@ create_surface(struct window *window)
 
 	window->surface = wl_compositor_create_surface(display->compositor);
 	wl_surface_add_listener(window->surface, &surface_listener, window);
+
+	if (display->tearing_manager && window->tearing) {
+		window->tear_control = wp_tearing_control_manager_v1_get_tearing_control(
+			display->tearing_manager,
+			window->surface);
+		set_tearing(window, true);
+	}
 
 	window->xdg_surface = xdg_wm_base_get_xdg_surface(display->wm_base,
 							  window->surface);
@@ -583,6 +772,17 @@ create_surface(struct window *window)
 		xdg_toplevel_set_fullscreen(window->xdg_toplevel, NULL);
 	else if (window->maximized)
 		xdg_toplevel_set_maximized(window->xdg_toplevel);
+
+	if (display->viewporter && display->fractional_scale_manager) {
+		window->viewport = wp_viewporter_get_viewport(display->viewporter,
+							      window->surface);
+		window->fractional_scale_obj =
+			wp_fractional_scale_manager_v1_get_fractional_scale(display->fractional_scale_manager,
+									    window->surface);
+		wp_fractional_scale_v1_add_listener(window->fractional_scale_obj,
+						    &fractional_scale_listener,
+						    window);
+	}
 
 	window->wait_for_configure = true;
 	wl_surface_commit(window->surface);
@@ -604,6 +804,10 @@ destroy_surface(struct window *window)
 		xdg_toplevel_destroy(window->xdg_toplevel);
 	if (window->xdg_surface)
 		xdg_surface_destroy(window->xdg_surface);
+	if (window->viewport)
+		wp_viewport_destroy(window->viewport);
+	if (window->fractional_scale_obj)
+		wp_fractional_scale_v1_destroy(window->fractional_scale_obj);
 	wl_surface_destroy(window->surface);
 }
 
@@ -612,21 +816,9 @@ static void
 redraw(struct window *window)
 {
 	struct display *display = window->display;
-	static const GLfloat verts[3][2] = {
-		{ -0.5, -0.5 },
-		{  0.5, -0.5 },
-		{  0,    0.5 }
-	};
-	static const GLfloat colors[3][3] = {
-		{ 1, 0, 0 },
-		{ 0, 1, 0 },
-		{ 0, 0, 1 }
-	};
 	GLfloat angle;
 	struct weston_matrix rotation;
 	static const uint32_t speed_div = 5, benchmark_interval = 5;
-	struct wl_region *region;
-	EGLint rect[4];
 	EGLint buffer_age = 0;
 	struct timeval tv;
 
@@ -646,10 +838,17 @@ redraw(struct window *window)
 		       (float) window->frames / benchmark_interval);
 		window->benchmark_time = time;
 		window->frames = 0;
+		if (window->toggled_tearing)
+			set_tearing(window, window->tear_enabled ^ true);
 	}
 
 	weston_matrix_init(&rotation);
-	angle = ((time - window->initial_frame_time) / speed_div) % 360 * M_PI / 180.0;
+	if (window->vertical_bar) {
+		angle = 0;
+	} else {
+		angle = ((time - window->initial_frame_time) / speed_div)
+			% 360 * M_PI / 180.0;
+	}
 	rotation.d[0] =   cos(angle);
 	rotation.d[2] =   sin(angle);
 	rotation.d[8] =  -sin(angle);
@@ -700,38 +899,11 @@ redraw(struct window *window)
 		glClearColor(0.0, 0.0, 0.0, 0.5);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	glVertexAttribPointer(window->gl.pos, 2, GL_FLOAT, GL_FALSE, 0, verts);
-	glVertexAttribPointer(window->gl.col, 3, GL_FLOAT, GL_FALSE, 0, colors);
-	glEnableVertexAttribArray(window->gl.pos);
-	glEnableVertexAttribArray(window->gl.col);
+	if (window->vertical_bar)
+		draw_bar(window, buffer_age, &rotation);
+	else
+		draw_triangle(window, buffer_age);
 
-	glDrawArrays(GL_TRIANGLES, 0, 3);
-
-	glDisableVertexAttribArray(window->gl.pos);
-	glDisableVertexAttribArray(window->gl.col);
-
-	usleep(window->delay);
-
-	if (window->opaque || window->fullscreen) {
-		region = wl_compositor_create_region(window->display->compositor);
-		wl_region_add(region, 0, 0, INT32_MAX, INT32_MAX);
-		wl_surface_set_opaque_region(window->surface, region);
-		wl_region_destroy(region);
-	} else {
-		wl_surface_set_opaque_region(window->surface, NULL);
-	}
-
-	if (display->swap_buffers_with_damage && buffer_age > 0) {
-		rect[0] = window->buffer_size.width / 4 - 1;
-		rect[1] = window->buffer_size.height / 4 - 1;
-		rect[2] = window->buffer_size.width / 2 + 2;
-		rect[3] = window->buffer_size.height / 2 + 2;
-		display->swap_buffers_with_damage(display->egl.dpy,
-						  window->egl_surface,
-						  rect, 1);
-	} else {
-		eglSwapBuffers(display->egl.dpy, window->egl_surface);
-	}
 	window->frames++;
 }
 
@@ -1070,6 +1242,19 @@ registry_handle_global(void *data, struct wl_registry *registry,
 		}
 	} else if (strcmp(interface, "wl_output") == 0 && version >= 2) {
 		display_add_output(d, name);
+	} else if (strcmp(interface, "wp_tearing_control_manager_v1") == 0) {
+		d->tearing_manager = wl_registry_bind(registry, name,
+						      &wp_tearing_control_manager_v1_interface,
+						      1);
+	} else if (strcmp(interface, wp_viewporter_interface.name) == 0) {
+		d->viewporter = wl_registry_bind(registry, name,
+						 &wp_viewporter_interface,
+						 1);
+	} else if (strcmp(interface, wp_fractional_scale_manager_v1_interface.name) == 0) {
+		d->fractional_scale_manager =
+			wl_registry_bind(registry, name,
+					 &wp_fractional_scale_manager_v1_interface,
+					 1);
 	}
 }
 
@@ -1105,10 +1290,14 @@ usage(int error_code)
 	fprintf(stderr, "Usage: simple-egl [OPTIONS]\n\n"
 		"  -d <us>\tBuffer swap delay in microseconds\n"
 		"  -f\tRun in fullscreen mode\n"
+		"  -r\tUse fixed width/height ratio when run in fullscreen mode\n"
 		"  -m\tRun in maximized mode\n"
 		"  -o\tCreate an opaque surface\n"
 		"  -s\tUse a 16 bpp EGL config\n"
 		"  -b\tDon't sync to compositor redraw (eglSwapInterval 0)\n"
+		"  -t\tEnable tearing via the tearing_control protocol\n"
+		"  -T\tEnable and disable tearing every 5 seconds\n"
+		"  -v\tDraw a moving vertical bar instead of a triangle\n"
 		"  -h\tThis help text\n\n");
 
 	exit(error_code);
@@ -1133,6 +1322,7 @@ main(int argc, char **argv)
 	window.buffer_bpp = 0;
 	window.frame_sync = 1;
 	window.delay = 0;
+	window.fullscreen_ratio = false;
 
 	wl_list_init(&display.output_list);
 	wl_list_init(&window.window_output_list);
@@ -1142,6 +1332,8 @@ main(int argc, char **argv)
 			window.delay = atoi(argv[++i]);
 		else if (strcmp("-f", argv[i]) == 0)
 			window.fullscreen = 1;
+		else if (strcmp("-r", argv[i]) == 0)
+			window.fullscreen_ratio = true;
 		else if (strcmp("-m", argv[i]) == 0)
 			window.maximized = 1;
 		else if (strcmp("-o", argv[i]) == 0)
@@ -1150,6 +1342,13 @@ main(int argc, char **argv)
 			window.buffer_bpp = 16;
 		else if (strcmp("-b", argv[i]) == 0)
 			window.frame_sync = 0;
+		else if (strcmp("-t", argv[i]) == 0) {
+			window.tearing = true;
+		} else if (strcmp("-T", argv[i]) == 0) {
+			window.tearing = true;
+			window.toggled_tearing = true;
+		} else if (strcmp("-v", argv[i]) == 0)
+			window.vertical_bar = true;
 		else if (strcmp("-h", argv[i]) == 0)
 			usage(EXIT_SUCCESS);
 		else
@@ -1229,6 +1428,12 @@ out_no_xdg_shell:
 
 	if (display.compositor)
 		wl_compositor_destroy(display.compositor);
+
+	if (display.viewporter)
+		wp_viewporter_destroy(display.viewporter);
+
+	if (display.fractional_scale_manager)
+		wp_fractional_scale_manager_v1_destroy(display.fractional_scale_manager);
 
 	wl_registry_destroy(display.registry);
 	wl_display_flush(display.display);

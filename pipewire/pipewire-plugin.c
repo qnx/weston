@@ -149,6 +149,16 @@ lookup_pipewire_output(struct weston_output *base_output)
 	struct weston_pipewire *pipewire = weston_pipewire_get(c);
 	struct pipewire_output *output;
 
+	/* XXX: This could happen on the compositor shutdown path with our
+	 * destroy listener being removed, and pipewire_output_destroy() being
+	 * called as a virtual destructor.
+	 *
+	 * See https://gitlab.freedesktop.org/wayland/weston/-/issues/591 for
+	 * an alternative to the shutdown sequence.
+	 */
+	if (!pipewire)
+		return NULL;
+
 	wl_list_for_each(output, &pipewire->output_list, link) {
 		if (output->output == base_output)
 			return output;
@@ -182,7 +192,10 @@ pipewire_output_handle_frame(struct pipewire_output *output, int fd,
 
 	if ((h = spa_buffer_find_meta_data(spa_buffer, SPA_META_Header,
 				     sizeof(struct spa_meta_header)))) {
-		h->pts = -1;
+		struct timespec ts;
+
+		clock_gettime(CLOCK_MONOTONIC, &ts);
+		h->pts = SPA_TIMESPEC_TO_NSEC(&ts);
 		h->flags = 0;
 		h->seq = output->seq++;
 		h->dts_offset = 0;
@@ -310,6 +323,11 @@ pipewire_output_destroy(struct weston_output *base_output)
 	struct pipewire_output *output = lookup_pipewire_output(base_output);
 	struct weston_mode *mode, *next;
 
+	if (!output)
+		return;
+
+	weston_head_release(output->head);
+
 	wl_list_for_each_safe(mode, next, &base_output->mode_list, link) {
 		wl_list_remove(&mode->link);
 		free(mode);
@@ -318,7 +336,6 @@ pipewire_output_destroy(struct weston_output *base_output)
 	pw_stream_destroy(output->stream);
 
 	wl_list_remove(&output->link);
-	weston_head_release(output->head);
 	free(output->head);
 	free(output);
 }
@@ -630,13 +647,19 @@ weston_pipewire_destroy(struct wl_listener *l, void *data)
 {
 	struct weston_pipewire *pipewire =
 		wl_container_of(l, pipewire, destroy_listener);
+	struct pipewire_output *p_output, *p_output_next;
 
 	weston_log_scope_destroy(pipewire->debug);
 	pipewire->debug = NULL;
 
+	wl_list_for_each_safe(p_output, p_output_next, &pipewire->output_list, link)
+		pipewire_output_destroy(p_output->output);
+
 	wl_event_source_remove(pipewire->loop_source);
 	pw_loop_leave(pipewire->loop);
 	pw_loop_destroy(pipewire->loop);
+
+	free(pipewire);
 }
 
 static struct weston_pipewire *

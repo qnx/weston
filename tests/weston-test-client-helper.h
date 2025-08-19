@@ -37,8 +37,8 @@
 #include <wayland-client-protocol.h>
 #include "weston-test-runner.h"
 #include "weston-test-client-protocol.h"
-#include "weston-screenshooter-client-protocol.h"
 #include "viewporter-client-protocol.h"
+#include "weston-output-capture-client-protocol.h"
 
 struct client {
 	struct wl_display *wl_display;
@@ -66,8 +66,6 @@ struct client {
 	int has_argb;
 	struct wl_list global_list;
 	struct wl_list output_list; /* struct output::link */
-	struct weston_screenshooter *screenshooter;
-	bool buffer_copy_done;
 };
 
 struct global {
@@ -163,6 +161,8 @@ struct output {
 	int height;
 	int scale;
 	int initialized;
+	char *name;
+	char *desc;
 };
 
 struct buffer {
@@ -212,6 +212,10 @@ surface_set_opaque_rect(struct surface *surface, const struct rectangle *rect);
 
 struct client *
 create_client_and_test_surface(int x, int y, int width, int height);
+
+struct buffer *
+create_shm_buffer(struct client *client, int width, int height,
+		  uint32_t drm_format);
 
 struct buffer *
 create_shm_buffer_a8r8g8b8(struct client *client, int width, int height);
@@ -270,10 +274,18 @@ pixman_image_t *
 load_image_from_png(const char *fname);
 
 struct buffer *
-capture_screenshot_of_output(struct client *client);
+capture_screenshot_of_output(struct client *client, const char *output_name);
+
+struct buffer *
+client_capture_output(struct client *client,
+		      struct output *output,
+		      enum weston_capture_v1_source src);
+
+pixman_image_t *
+image_convert_to_a8r8g8b8(pixman_image_t *image);
 
 bool
-verify_image(struct buffer *shot,
+verify_image(pixman_image_t *shot,
 	     const char *ref_image,
 	     int ref_seq_no,
 	     const struct rectangle *clip,
@@ -284,7 +296,7 @@ verify_screen_content(struct client *client,
 		      const char *ref_image,
 		      int ref_seq_no,
 		      const struct rectangle *clip,
-		      int seq_no);
+		      int seq_no, const char *output_name);
 
 struct buffer *
 client_buffer_from_image_file(struct client *client,

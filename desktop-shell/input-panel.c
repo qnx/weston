@@ -67,8 +67,10 @@ calc_input_panel_position(struct input_panel_surface *ip_surface, float *x, floa
 		struct weston_view *view = get_default_view(shell->text_input.surface);
 		if (view == NULL)
 			return -1;
-		*x = view->geometry.x + shell->text_input.cursor_rectangle.x2;
-		*y = view->geometry.y + shell->text_input.cursor_rectangle.y2;
+		*x = view->geometry.pos_offset.x +
+		     shell->text_input.cursor_rectangle.x2;
+		*y = view->geometry.pos_offset.y +
+		     shell->text_input.cursor_rectangle.y2;
 	} else {
 		*x = ip_surface->output->x + (ip_surface->output->width - ip_surface->surface->width) / 2;
 		*y = ip_surface->output->y + ip_surface->output->height - ip_surface->surface->height;
@@ -183,7 +185,8 @@ input_panel_get_label(struct weston_surface *surface, char *buf, size_t len)
 }
 
 static void
-input_panel_committed(struct weston_surface *surface, int32_t sx, int32_t sy)
+input_panel_committed(struct weston_surface *surface,
+		      struct weston_coord_surface new_origin)
 {
 	struct input_panel_surface *ip_surface = surface->committed_private;
 	struct desktop_shell *shell = ip_surface->shell;

@@ -36,6 +36,7 @@
 #include <string.h>
 
 #include "drm-internal.h"
+#include "pixel-formats.h"
 #include "renderer-gl/gl-renderer.h"
 
 #define POISON_PTR ((void *)8)
@@ -81,6 +82,20 @@ drm_virtual_crtc_destroy(struct drm_crtc *crtc)
 	free(crtc);
 }
 
+static uint32_t
+get_drm_plane_index_maximum(struct drm_device *device)
+{
+	uint32_t max = 0;
+	struct drm_plane *p;
+
+	wl_list_for_each(p, &device->plane_list, link) {
+		if (p->plane_idx > max)
+			max = p->plane_idx;
+	}
+
+	return max;
+}
+
 /**
  * Create a drm_plane for virtual output
  *
@@ -109,7 +124,8 @@ drm_virtual_plane_create(struct drm_device *device, struct drm_output *output)
 	plane->state_cur->complete = true;
 
 	weston_drm_format_array_init(&plane->formats);
-	fmt = weston_drm_format_array_add_format(&plane->formats, output->gbm_format);
+	fmt = weston_drm_format_array_add_format(&plane->formats,
+						 output->format->format);
 	if (!fmt)
 		goto err;
 
@@ -124,7 +140,9 @@ drm_virtual_plane_create(struct drm_device *device, struct drm_output *output)
 	if (weston_drm_format_add_modifier(fmt, mod) < 0)
 		goto err;
 
-	weston_plane_init(&plane->base, b->compositor, 0, 0);
+	weston_plane_init(&plane->base, b->compositor);
+
+	plane->plane_idx = get_drm_plane_index_maximum(device) + 1;
 	wl_list_insert(&device->plane_list, &plane->link);
 
 	return plane;
@@ -274,7 +292,7 @@ drm_virtual_output_enable(struct weston_output *output_base)
 
 	assert(output->virtual);
 
-	if (b->use_pixman) {
+	if (output_base->compositor->renderer->type == WESTON_RENDERER_PIXMAN) {
 		weston_log("Not support pixman renderer on Virtual output\n");
 		goto err;
 	}
@@ -357,6 +375,7 @@ drm_virtual_output_create(struct weston_compositor *c, char *name,
 	output->base.disable = drm_virtual_output_disable;
 	output->base.attach_head = NULL;
 
+	output->backend = b;
 	output->state_cur = drm_output_state_alloc(output, NULL);
 
 	weston_compositor_add_pending_output(&output->base, c);
@@ -372,10 +391,10 @@ drm_virtual_output_set_gbm_format(struct weston_output *base,
 	struct drm_device *device = output->device;
 	struct drm_backend *b = device->backend;
 
-	if (parse_gbm_format(gbm_format, b->gbm_format, &output->gbm_format) == -1)
-		output->gbm_format = b->gbm_format;
+	if (parse_gbm_format(gbm_format, b->format, &output->format) == -1)
+		output->format = b->format;
 
-	return output->gbm_format;
+	return output->format->format;
 }
 
 static void
@@ -390,7 +409,10 @@ drm_virtual_output_set_submit_frame_cb(struct weston_output *output_base,
 static int
 drm_virtual_output_get_fence_fd(struct weston_output *output_base)
 {
-	return gl_renderer->create_fence_fd(output_base);
+	struct weston_compositor *compositor = output_base->compositor;
+	const struct weston_renderer *renderer = compositor->renderer;
+
+	return renderer->gl->create_fence_fd(output_base);
 }
 
 static void

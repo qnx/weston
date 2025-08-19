@@ -37,6 +37,7 @@
 
 #include "shared/helpers.h"
 #include "image-loader.h"
+#include "shared/xalloc.h"
 #include <libweston/config-parser.h>
 
 #ifdef HAVE_PANGO
@@ -419,9 +420,7 @@ theme_create(void)
 	struct theme *t;
 	cairo_t *cr;
 
-	t = malloc(sizeof *t);
-	if (t == NULL)
-		return NULL;
+	t = xzalloc(sizeof *t);
 
 	t->margin = 32;
 	t->width = 6;
@@ -481,6 +480,10 @@ theme_create(void)
 void
 theme_destroy(struct theme *t)
 {
+#ifdef HAVE_PANGO
+	if (t->pango_context)
+		g_object_unref(t->pango_context);
+#endif
 	cairo_surface_destroy(t->active_frame);
 	cairo_surface_destroy(t->inactive_frame);
 	cairo_surface_destroy(t->shadow);
@@ -489,21 +492,21 @@ theme_destroy(struct theme *t)
 
 #ifdef HAVE_PANGO
 static PangoLayout *
-create_layout(cairo_t *cr, const char *title)
+create_layout(struct theme *t, cairo_t *cr, const char *title)
 {
-	PangoFontMap *fontmap;
-	PangoContext *context;
 	PangoLayout *layout;
 	PangoFontDescription *desc;
 
-	fontmap = pango_cairo_font_map_new();
-	context = pango_font_map_create_context(fontmap);
-	g_object_unref(fontmap);
-	pango_cairo_font_map_set_default(NULL);
-	pango_cairo_update_context(cr, context);
-	layout = pango_layout_new(context);
-	g_object_unref(context);
+	if (!t->pango_context) {
+		PangoFontMap *fontmap;
 
+		fontmap = pango_cairo_font_map_new();
+		t->pango_context = pango_font_map_create_context(fontmap);
+		g_object_unref(fontmap);
+	}
+
+	pango_cairo_update_context(cr, t->pango_context);
+	layout = pango_layout_new(t->pango_context);
 	if (title) {
 		pango_layout_set_text(layout, title, -1);
 		desc = pango_font_description_from_string("sans-serif Bold 10");
@@ -578,9 +581,7 @@ theme_render_frame(struct theme *t,
 		PangoLayout *title_layout;
 		PangoRectangle logical;
 
-		cairo_save(cr);
-
-		title_layout = create_layout(cr, title);
+		title_layout = create_layout(t, cr, title);
 
 		pango_layout_get_pixel_extents (title_layout, NULL, &logical);
 		text_width = MIN(title_rect->width, logical.width);
@@ -623,7 +624,6 @@ theme_render_frame(struct theme *t,
 		}
 
 #ifdef HAVE_PANGO
-		cairo_restore(cr);
 		g_object_unref(title_layout);
 #endif
 	}
@@ -691,6 +691,12 @@ theme_get_location(struct theme *t, int x, int y,
 void
 cleanup_after_cairo(void)
 {
+	/* some clients, particular weston-editor, still creates indirectly a
+	 * new font map; this makes sure we untie that up and avoid an assert
+	 * from cairo */
+#ifdef HAVE_PANGO
+	pango_cairo_font_map_set_default(NULL);
+#endif
 	cairo_debug_reset_static_data();
 #ifdef HAVE_PANGO
 	FcFini();

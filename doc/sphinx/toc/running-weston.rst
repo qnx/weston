@@ -14,7 +14,7 @@ Weston on a machine that already has another graphical environment running,
 being either another wayland compositor (e.g.  Weston) or on a X11 server.
 You should only specify the backend manually if you know that what Weston picks
 is not the best, or the one you intended to use is different than the one
-loaded.  In that case, the backend can be selected by using ``-B [backend.so]``
+loaded.  In that case, the backend can be selected by using ``-B [backend]``
 command line option.  As each back-end uses a different way to get input and
 produce output, it means that the most suitable back-end depends on the
 environment being used.
@@ -28,21 +28,19 @@ Available back-ends:
 * **x11** -- run as a x11 application, nested in a X11 display server instance
 * **rdp** -- run as an RDP server without local input or output
 * **headless** -- run without input or output, useful for test suite
+* **pipewire** -- run without input, output into a PipeWire node
 
 The job of gathering all the surfaces (windows) being displayed on an output and
 stitching them together is performed by a *renderer*. By doing so, it is
 compositing all surfaces into a single image, which is being handed out to a
 back-end, and finally, displayed on the screen.
 
-libweston has a CPU-based type of renderer by making use of the
-`Pixman <http://www.pixman.org/>`_ library, but also one that can make
-use of the GPU to do that, which uses `OpenGL ES <https://www.khronos.org/opengles/>`_
-and it is simply called the GL-renderer.
-
-Most of the back-ends provide a command line option to disable the GL-renderer,
-and use the CPU for doing that. That happens by appending to the command line
-``--use-pixman`` when running Weston. One might use the CPU-based renderer
-to exclude any other potential issues with the GL-renderer.
+libweston provides two useful renderers. One uses
+`OpenGL ES <https://www.khronos.org/opengles/>`_, which will often be accelerated
+by your GPU when suitable drivers are installed. The other uses the
+`Pixman <http://www.pixman.org>`_ library which is entirely CPU (software)
+rendered. You can select between these with the ``--renderer=gl`` and
+``--renderer=pixman`` arguments when starting Weston.
 
 Additional set-up steps
 -----------------------
@@ -173,7 +171,7 @@ Then, weston can be run by selecting the DRM-backend and the seat ``seat-insecur
 
 ::
 
-        SEATD_VTBOUND=0 ./weston -Bdrm-backend.so --seat=seat-insecure
+        SEATD_VTBOUND=0 ./weston -Bdrm --seat=seat-insecure
 
 This assumes you are using the libseat launcher of Weston with the "builtin"
 backend of libseat. Libseat automatically falls back to the builtin backend if

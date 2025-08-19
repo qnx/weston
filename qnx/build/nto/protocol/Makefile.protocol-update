@@ -20,28 +20,31 @@ PROTOCOL_ROOT = .
 
 PROTOCOL_HEADER_LIST=client server
 
-EXTRA_PROTOCOLVPATH += ../../../dist/protocol
+EXTRA_PROTOCOLVPATH += ../../../../protocol
 
 PROTOCOLS += \
 	fullscreen-shell-unstable-v1 \
+	fractional-scale-v1 \
 	input-method-unstable-v1 \
-        input-timestamps-unstable-v1 \
+	input-timestamps-unstable-v1 \
 	ivi-application \
 	ivi-hmi-controller \
 	linux-dmabuf-unstable-v1 \
-        linux-explicit-synchronization-unstable-v1 \
-        pointer-constraints-unstable-v1 \
+	linux-explicit-synchronization-unstable-v1 \
+	pointer-constraints-unstable-v1 \
 	presentation-time \
-        relative-pointer-unstable-v1 \
+	relative-pointer-unstable-v1 \
 	tablet-unstable-v2 \
-        text-cursor-position \
+	tearing-control-v1 \
+	text-cursor-position \
 	text-input-unstable-v1 \
-        viewporter \
+	viewporter \
 	weston-content-protection \
-        weston-debug \
+	weston-test \
+	weston-debug \
 	weston-desktop-shell \
-        weston-touch-calibration \
-	weston-screenshooter \
+	weston-output-capture \
+	weston-touch-calibration \
 	xdg-output-unstable-v1 \
 	xdg-shell \
 	xdg-shell-unstable-v6 \

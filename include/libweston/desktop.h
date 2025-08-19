@@ -201,6 +201,14 @@ weston_desktop_surface_get_maximized(struct weston_desktop_surface *surface);
 bool
 weston_desktop_surface_get_fullscreen(struct weston_desktop_surface *surface);
 bool
+weston_desktop_surface_get_pending_resizing(struct weston_desktop_surface *surface);
+bool
+weston_desktop_surface_get_pending_activated(struct weston_desktop_surface *surface);
+bool
+weston_desktop_surface_get_pending_maximized(struct weston_desktop_surface *surface);
+bool
+weston_desktop_surface_get_pending_fullscreen(struct weston_desktop_surface *surface);
+bool
 weston_desktop_surface_get_resizing(struct weston_desktop_surface *surface);
 struct weston_geometry
 weston_desktop_surface_get_geometry(struct weston_desktop_surface *surface);
@@ -208,6 +216,14 @@ struct weston_size
 weston_desktop_surface_get_max_size(struct weston_desktop_surface *surface);
 struct weston_size
 weston_desktop_surface_get_min_size(struct weston_desktop_surface *surface);
+struct weston_desktop_surface *
+weston_desktop_surface_get_parent(struct weston_desktop_surface *surface);
+void
+weston_desktop_surface_foreach_child(struct weston_desktop_surface *surface,
+				     void (* callback)(struct weston_desktop_surface *child,
+						       void *user_data),
+				     void *user_data);
+
 
 bool
 weston_desktop_window_menu_supported(struct weston_desktop *desktop);

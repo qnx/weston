@@ -19,6 +19,7 @@ EXTRA_INCVPATH += $(addsuffix /cairo,$(USE_ROOT_INCLUDE))
 EXTRA_INCVPATH += $(addsuffix /libdrm,$(USE_ROOT_INCLUDE))
 
 EXTRA_SRCVPATH += $(DIST_ROOT)/libweston/backend-wayland
+EXTRA_SRCVPATH += $(DIST_ROOT)/libweston
 EXTRA_SRCVPATH += $(PROJECT_ROOT)/../../$(OS)
 EXTRA_SRCVPATH += $(PROJECT_ROOT)/../../$(OS)/protocol
 
@@ -36,9 +37,11 @@ SRCS += \
 	wayland.c \
 	$(if $(filter so dll,$(VARIANT_LIST)),epoll-create-stub.c) \
 	$(if $(filter so dll,$(VARIANT_LIST)),socketpair-stub.c) \
+	gl-borders.c \
 	xdg-shell-protocol.c \
 	fullscreen-shell-unstable-v1-protocol.c \
 	xdg-shell-unstable-v6-protocol.c
+
 LIBS += shared-cairoS wayland-egl wayland-cursor wayland-client xkbcommon cairo jpeg png m
 
 define PINFO

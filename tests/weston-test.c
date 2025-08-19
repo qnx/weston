@@ -146,11 +146,14 @@ notify_pointer_position(struct weston_test *test, struct wl_resource *resource)
 	struct weston_seat *seat = get_seat(test);
 	struct weston_pointer *pointer = weston_seat_get_pointer(seat);
 
-	weston_test_send_pointer_position(resource, pointer->x, pointer->y);
+	weston_test_send_pointer_position(resource,
+					  wl_fixed_from_double(pointer->pos.c.x),
+					  wl_fixed_from_double(pointer->pos.c.y));
 }
 
 static void
-test_surface_committed(struct weston_surface *surface, int32_t sx, int32_t sy)
+test_surface_committed(struct weston_surface *surface,
+		       struct weston_coord_surface new_origin)
 {
 	struct weston_test_surface *test_surface = surface->committed_private;
 	struct weston_test *test = test_surface->test;
@@ -285,12 +288,13 @@ move_pointer(struct wl_client *client, struct wl_resource *resource,
 	struct weston_seat *seat = get_seat(test);
 	struct weston_pointer *pointer = weston_seat_get_pointer(seat);
 	struct weston_pointer_motion_event event = { 0 };
+	struct weston_coord_global pos;
 	struct timespec time;
 
+	pos.c = weston_coord(x, y);
 	event = (struct weston_pointer_motion_event) {
 		.mask = WESTON_POINTER_MOTION_REL,
-		.dx = wl_fixed_to_double(wl_fixed_from_int(x) - pointer->x),
-		.dy = wl_fixed_to_double(wl_fixed_from_int(y) - pointer->y),
+		.rel = weston_coord_sub(pos.c, pointer->pos.c),
 	};
 
 	timespec_from_proto(&time, tv_sec_hi, tv_sec_lo, tv_nsec);
@@ -421,13 +425,27 @@ send_touch(struct wl_client *client, struct wl_resource *resource,
 	struct weston_test *test = wl_resource_get_user_data(resource);
 	struct weston_touch_device *device = test->touch_device[0];
 	struct timespec time;
+	struct weston_coord_global pos;
 
 	assert(device);
 
 	timespec_from_proto(&time, tv_sec_hi, tv_sec_lo, tv_nsec);
 
-	notify_touch(device, &time, touch_id, wl_fixed_to_double(x),
-		     wl_fixed_to_double(y), touch_type);
+	if (touch_type == WL_TOUCH_UP) {
+		if (x != 0 || y != 0) {
+			wl_resource_post_error(resource,
+					       WESTON_TEST_ERROR_TOUCH_UP_WITH_COORDINATE,
+					       "Test protocol sent valid "
+					       "coordinates with WL_TOUCH_UP");
+
+			return;
+		}
+
+		notify_touch(device, &time, touch_id, NULL, touch_type);
+	} else {
+		pos.c = weston_coord_from_fixed(x, y);
+		notify_touch(device, &time, touch_id, &pos, touch_type);
+	}
 }
 
 static const struct weston_test_interface test_implementation = {

@@ -37,15 +37,13 @@
 #include "compositor/weston.h"
 #include "fullscreen-shell-unstable-v1-server-protocol.h"
 #include "shared/helpers.h"
-#include "shell-utils.h"
+#include <libweston/shell-utils.h>
 
 struct fullscreen_shell {
 	struct wl_client *client;
 	struct wl_listener client_destroyed;
+	struct wl_listener destroy_listener;
 	struct weston_compositor *compositor;
-	/* XXX: missing compositor destroy listener
-	 * https://gitlab.freedesktop.org/wayland/weston/issues/299
-	 */
 
 	struct weston_layer layer;
 	struct wl_list output_list;
@@ -223,7 +221,8 @@ seat_created(struct wl_listener *l, void *data)
 }
 
 static void
-black_surface_committed(struct weston_surface *es, int32_t sx, int32_t sy)
+black_surface_committed(struct weston_surface *es,
+			struct weston_coord_surface new_origin)
 {
 }
 
@@ -241,7 +240,7 @@ create_curtain(struct weston_compositor *ec, struct fs_output *fsout,
 	};
 	struct weston_curtain *curtain;
 
-	curtain = weston_curtain_create(ec, &curtain_params);
+	curtain = weston_shell_utils_curtain_create(ec, &curtain_params);
 	if (!curtain) {
 		weston_log("no memory\n");
 		return NULL;
@@ -265,6 +264,7 @@ fs_output_destroy(struct fs_output *fsout)
 	fs_output_set_surface(fsout, NULL, 0, 0, 0);
 	fs_output_clear_pending(fsout);
 
+	weston_shell_utils_curtain_destroy(fsout->curtain);
 	wl_list_remove(&fsout->link);
 
 	if (fsout->output)
@@ -302,8 +302,7 @@ pending_surface_destroyed(struct wl_listener *listener, void *data)
 }
 
 static void
-configure_presented_surface(struct weston_surface *surface, int32_t sx,
-			    int32_t sy);
+configure_presented_surface_internal(struct weston_surface *surface);
 
 static struct fs_output *
 fs_output_create(struct fullscreen_shell *shell, struct weston_output *output)
@@ -337,7 +336,7 @@ fs_output_create(struct fullscreen_shell *shell, struct weston_output *output)
 				    struct fs_client_surface, link);
 
 		fs_output_set_surface(fsout, surf->surface, surf->method, 0, 0);
-		configure_presented_surface(surf->surface, 0, 0);
+		configure_presented_surface_internal(surf->surface);
 	}
 
 	return fsout;
@@ -364,22 +363,6 @@ restore_output_mode(struct weston_output *output)
 }
 
 static void
-fs_output_center_view(struct fs_output *fsout)
-{
-	int32_t surf_x, surf_y, surf_width, surf_height;
-	float x, y;
-	struct weston_output *output = fsout->output;
-
-	surface_subsurfaces_boundingbox(fsout->view->surface, &surf_x, &surf_y,
-					&surf_width, &surf_height);
-
-	x = output->x + (output->width - surf_width) / 2 - surf_x / 2;
-	y = output->y + (output->height - surf_height) / 2 - surf_y / 2;
-
-	weston_view_set_position(fsout->view, x, y);
-}
-
-static void
 fs_output_scale_view(struct fs_output *fsout, float width, float height)
 {
 	float x, y;
@@ -388,8 +371,8 @@ fs_output_scale_view(struct fs_output *fsout, float width, float height)
 	struct weston_view *view = fsout->view;
 	struct weston_output *output = fsout->output;
 
-	surface_subsurfaces_boundingbox(view->surface, &surf_x, &surf_y,
-					&surf_width, &surf_height);
+	weston_shell_utils_subsurfaces_boundingbox(view->surface, &surf_x, &surf_y,
+						   &surf_width, &surf_height);
 
 	if (output->width == surf_width && output->height == surf_height) {
 		weston_view_set_position(view,
@@ -433,9 +416,9 @@ fs_output_configure_simple(struct fs_output *fsout,
 	wl_list_remove(&fsout->transform.link);
 	wl_list_init(&fsout->transform.link);
 
-	surface_subsurfaces_boundingbox(fsout->view->surface,
-					&surf_x, &surf_y,
-					&surf_width, &surf_height);
+	weston_shell_utils_subsurfaces_boundingbox(fsout->view->surface,
+						   &surf_x, &surf_y,
+						   &surf_width, &surf_height);
 
 	output_aspect = (float) output->width / (float) output->height;
 	surface_aspect = (float) surf_width / (float) surf_height;
@@ -443,7 +426,7 @@ fs_output_configure_simple(struct fs_output *fsout,
 	switch (fsout->method) {
 	case ZWP_FULLSCREEN_SHELL_V1_PRESENT_METHOD_DEFAULT:
 	case ZWP_FULLSCREEN_SHELL_V1_PRESENT_METHOD_CENTER:
-		fs_output_center_view(fsout);
+		weston_shell_utils_center_on_output(fsout->view, fsout->output);
 		break;
 
 	case ZWP_FULLSCREEN_SHELL_V1_PRESENT_METHOD_ZOOM:
@@ -494,14 +477,14 @@ fs_output_configure_for_mode(struct fs_output *fsout,
 	if (fsout->pending.surface != configured_surface) {
 		/* Nothing to really reconfigure.  We'll just recenter the
 		 * view in case they played with subsurfaces */
-		fs_output_center_view(fsout);
+		weston_shell_utils_center_on_output(fsout->view, fsout->output);
 		return;
 	}
 
 	/* We have a pending surface */
-	surface_subsurfaces_boundingbox(fsout->pending.surface,
-					&surf_x, &surf_y,
-					&surf_width, &surf_height);
+	weston_shell_utils_subsurfaces_boundingbox(fsout->pending.surface,
+						   &surf_x, &surf_y,
+						   &surf_width, &surf_height);
 
 	/* The actual output mode is in physical units.  We need to
 	 * transform the surface size to physical unit size by flipping and
@@ -578,8 +561,14 @@ fs_output_configure(struct fs_output *fsout,
 }
 
 static void
-configure_presented_surface(struct weston_surface *surface, int32_t sx,
-			    int32_t sy)
+configure_presented_surface(struct weston_surface *surface,
+			    struct weston_coord_surface new_origin)
+{
+	configure_presented_surface_internal(surface);
+}
+
+static void
+configure_presented_surface_internal(struct weston_surface *surface)
 {
 	struct fullscreen_shell *shell = surface->committed_private;
 	struct fs_output *fsout;
@@ -631,6 +620,8 @@ fs_output_apply_pending(struct fs_output *fsout)
 			      &fsout->surface_destroyed);
 		weston_layer_entry_insert(&fsout->shell->layer.view_list,
 			       &fsout->view->layer_link);
+
+		weston_view_geometry_dirty(fsout->view);
 	}
 
 	fs_output_clear_pending(fsout);
@@ -855,6 +846,28 @@ bind_fullscreen_shell(struct wl_client *client, void *data, uint32_t version,
 			ZWP_FULLSCREEN_SHELL_V1_CAPABILITY_ARBITRARY_MODES);
 }
 
+static void
+fullscreen_shell_destroy(struct wl_listener *listener, void *data)
+{
+	struct fs_output *fs_output, *fs_output_next;
+	struct fs_client_surface *surf;
+	struct fullscreen_shell *shell =
+		container_of(listener, struct fullscreen_shell, destroy_listener);
+
+	/* remove the curtain(s) */
+	wl_list_for_each_safe(fs_output, fs_output_next, &shell->output_list, link)
+		fs_output_destroy(fs_output);
+
+	if (!wl_list_empty(&shell->default_surface_list)) {
+		surf = container_of(shell->default_surface_list.prev,
+				struct fs_client_surface, link);
+		remove_default_surface(surf);
+	}
+
+	weston_layer_fini(&shell->layer);
+	free(shell);
+}
+
 WL_EXPORT int
 wet_shell_init(struct weston_compositor *compositor,
 	       int *argc, char *argv[])
@@ -867,7 +880,16 @@ wet_shell_init(struct weston_compositor *compositor,
 	if (shell == NULL)
 		return -1;
 
+
 	shell->compositor = compositor;
+
+	if (!weston_compositor_add_destroy_listener_once(compositor,
+							 &shell->destroy_listener,
+							 fullscreen_shell_destroy)) {
+		free(shell);
+		return 0;
+	}
+
 	wl_list_init(&shell->default_surface_list);
 
 	shell->client_destroyed.notify = client_destroyed;

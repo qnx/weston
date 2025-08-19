@@ -34,7 +34,7 @@
 
 #define RENDERERS(s, t)							\
 	{								\
-		.renderer = RENDERER_PIXMAN,				\
+		.renderer = WESTON_RENDERER_PIXMAN,			\
 		.scale = s,						\
 		.transform = WL_OUTPUT_TRANSFORM_ ## t,			\
 		.transform_name = #t,					\
@@ -42,7 +42,7 @@
 		.meta.name = "pixman " #s " " #t,			\
 	},								\
 	{								\
-		.renderer = RENDERER_GL,				\
+		.renderer = WESTON_RENDERER_GL,				\
 		.scale = s,						\
 		.transform = WL_OUTPUT_TRANSFORM_ ## t,			\
 		.transform_name = #t,					\
@@ -50,7 +50,7 @@
 		.meta.name = "GL no-shadow " #s " " #t,			\
 	},								\
 	{								\
-		.renderer = RENDERER_GL,				\
+		.renderer = WESTON_RENDERER_GL,				\
 		.scale = s,						\
 		.transform = WL_OUTPUT_TRANSFORM_ ## t,			\
 		.transform_name = #t,					\
@@ -60,7 +60,7 @@
 
 struct setup_args {
 	struct fixture_metadata meta;
-	enum renderer_type renderer;
+	enum weston_renderer_type renderer;
 	int scale;
 	enum wl_output_transform transform;
 	const char *transform_name;
@@ -221,7 +221,7 @@ TEST(output_damage)
 	 */
 	for (i = 1; i < COUNT_BUFS; i++) {
 		commit_buffer_with_damage(client->surface, buf[i], damages[i]);
-		if (!verify_screen_content(client, refname, i, NULL, i))
+		if (!verify_screen_content(client, refname, i, NULL, i, NULL))
 			match = false;
 	}
 

@@ -61,6 +61,7 @@ enum gl_shader_color_curve {
 enum gl_shader_color_mapping {
 	SHADER_COLOR_MAPPING_IDENTITY = 0,
 	SHADER_COLOR_MAPPING_3DLUT,
+	SHADER_COLOR_MAPPING_MATRIX,
 };
 
 /** GL shader requirements key
@@ -79,12 +80,13 @@ struct gl_shader_requirements
 	bool green_tint:1;
 
 	unsigned color_pre_curve:1; /* enum gl_shader_color_curve */
-	unsigned color_mapping:1; /* enum gl_shader_color_mapping */
+	unsigned color_mapping:2; /* enum gl_shader_color_mapping */
+	unsigned color_post_curve:1; /* enum gl_shader_color_curve */
 	/*
 	 * The total size of all bitfields plus pad_bits_ must fill up exactly
 	 * how many bytes the compiler allocates for them together.
 	 */
-	unsigned pad_bits_:24;
+	unsigned pad_bits_:22;
 };
 static_assert(sizeof(struct gl_shader_requirements) ==
 	      4 /* total bitfield size in bytes */,
@@ -109,7 +111,10 @@ struct gl_shader_config {
 			GLuint  tex;
 			GLfloat scale_offset[2];
 		} lut3d;
+		GLfloat matrix[9];
 	} color_mapping;
+	GLuint color_post_curve_lut_tex;
+	GLfloat color_post_curve_lut_scale_offset[2];
 };
 
 struct gl_renderer {
@@ -172,6 +177,7 @@ struct gl_renderer {
 	bool has_texture_type_2_10_10_10_rev;
 	bool has_gl_texture_rg;
 	bool has_texture_norm16;
+	bool has_pack_reverse;
 
 	struct gl_shader *current_shader;
 	struct gl_shader *fallback_shader;
@@ -193,6 +199,16 @@ struct gl_renderer {
 
 	bool has_wait_sync;
 	PFNEGLWAITSYNCKHRPROC wait_sync;
+
+	bool has_disjoint_timer_query;
+	PFNGLGENQUERIESEXTPROC gen_queries;
+	PFNGLDELETEQUERIESEXTPROC delete_queries;
+	PFNGLBEGINQUERYEXTPROC begin_query;
+	PFNGLENDQUERYEXTPROC end_query;
+#if !defined(NDEBUG)
+	PFNGLGETQUERYOBJECTIVEXTPROC get_query_object_iv;
+#endif
+	PFNGLGETQUERYOBJECTUI64VEXTPROC get_query_object_ui64v;
 
 	bool gl_supports_color_transforms;
 
@@ -223,8 +239,8 @@ log_egl_config_info(EGLDisplay egldpy, EGLConfig eglconfig);
 EGLConfig
 gl_renderer_get_egl_config(struct gl_renderer *gr,
 			   EGLint egl_surface_type,
-			   const uint32_t *drm_formats,
-			   unsigned drm_formats_count);
+			   const struct pixel_format_info *const *formats,
+			   unsigned formats_count);
 
 int
 gl_renderer_setup_egl_display(struct gl_renderer *gr, void *native_display);

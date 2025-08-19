@@ -33,7 +33,7 @@
 #include "kiosk-shell-grab.h"
 #include "compositor/weston.h"
 #include "shared/helpers.h"
-#include "shell-utils.h"
+#include <libweston/shell-utils.h>
 
 #include <libweston/xwayland-api.h>
 
@@ -90,7 +90,6 @@ transform_handler(struct wl_listener *listener, void *data)
 	struct weston_surface *surface = data;
 	struct kiosk_shell_surface *shsurf = get_kiosk_shell_surface(surface);
 	const struct weston_xwayland_surface_api *api;
-	int x, y;
 
 	if (!shsurf)
 		return;
@@ -107,10 +106,9 @@ transform_handler(struct wl_listener *listener, void *data)
 	if (!weston_view_is_mapped(shsurf->view))
 		return;
 
-	x = shsurf->view->geometry.x;
-	y = shsurf->view->geometry.y;
-
-	api->send_position(surface, x, y);
+	api->send_position(surface,
+			   shsurf->view->geometry.pos_offset.x,
+			   shsurf->view->geometry.pos_offset.y);
 }
 
 /*
@@ -185,11 +183,11 @@ kiosk_shell_surface_find_best_output(struct kiosk_shell_surface *shsurf)
 	if (root->output)
 		return root->output;
 
-	output = get_focused_output(shsurf->shell->compositor);
+	output = weston_shell_utils_get_focused_output(shsurf->shell->compositor);
 	if (output)
 		return output;
 
-	output = get_default_output(shsurf->shell->compositor);
+	output = weston_shell_utils_get_default_output(shsurf->shell->compositor);
 	if (output)
 		return output;
 
@@ -299,7 +297,7 @@ kiosk_shell_surface_reconfigure_for_output(struct kiosk_shell_surface *shsurf)
 						shsurf->output->height);
 	}
 
-	center_on_output(shsurf->view, shsurf->output);
+	weston_shell_utils_center_on_output(shsurf->view, shsurf->output);
 	weston_view_update_transform(shsurf->view);
 }
 
@@ -413,6 +411,7 @@ kiosk_shell_surface_activate(struct kiosk_shell_surface *shsurf,
 	weston_layer_entry_insert(&shsurf->shell->normal_layer.view_list,
 				  &shsurf->view->layer_link);
 	weston_view_geometry_dirty(shsurf->view);
+	weston_view_update_transform(shsurf->view);
 	weston_surface_damage(shsurf->view->surface);
 }
 
@@ -487,7 +486,7 @@ kiosk_shell_output_recreate_background(struct kiosk_shell_output *shoutput)
 	struct weston_curtain_params curtain_params = {};
 
 	if (shoutput->curtain)
-		weston_curtain_destroy(shoutput->curtain);
+		weston_shell_utils_curtain_destroy(shoutput->curtain);
 
 	if (!output)
 		return;
@@ -514,7 +513,7 @@ kiosk_shell_output_recreate_background(struct kiosk_shell_output *shoutput)
 	curtain_params.surface_committed = NULL;
 	curtain_params.surface_private = NULL;
 
-	shoutput->curtain = weston_curtain_create(ec, &curtain_params);
+	shoutput->curtain = weston_shell_utils_curtain_create(ec, &curtain_params);
 
 	weston_surface_set_role(shoutput->curtain->view->surface,
 				"kiosk-shell-background", NULL, 0);
@@ -534,7 +533,7 @@ kiosk_shell_output_destroy(struct kiosk_shell_output *shoutput)
 	shoutput->output_destroy_listener.notify = NULL;
 
 	if (shoutput->curtain)
-		weston_curtain_destroy(shoutput->curtain);
+		weston_shell_utils_curtain_destroy(shoutput->curtain);
 
 	wl_list_remove(&shoutput->output_destroy_listener.link);
 	wl_list_remove(&shoutput->link);
@@ -635,7 +634,7 @@ desktop_surface_added(struct weston_desktop_surface *desktop_surface,
 	if (!shsurf)
 		return;
 
-	weston_surface_set_label_func(surface, surface_get_label);
+	weston_surface_set_label_func(surface, weston_shell_utils_surface_get_label);
 	kiosk_shell_surface_set_fullscreen(shsurf, NULL);
 }
 
@@ -779,7 +778,8 @@ desktop_surface_committed(struct weston_desktop_surface *desktop_surface,
 
 	if (!weston_surface_is_mapped(surface) || (is_resized && is_fullscreen)) {
 		if (is_fullscreen || !shsurf->xwayland.is_set) {
-			center_on_output(shsurf->view, shsurf->output);
+			weston_shell_utils_center_on_output(shsurf->view,
+							    shsurf->output);
 		} else {
 			struct weston_geometry geometry =
 				weston_desktop_surface_get_geometry(desktop_surface);
@@ -807,16 +807,22 @@ desktop_surface_committed(struct weston_desktop_surface *desktop_surface,
 	}
 
 	if (!is_fullscreen && (sx != 0 || sy != 0)) {
-		float from_x, from_y;
-		float to_x, to_y;
-		float x, y;
+		struct weston_coord_surface from_s, to_s;
+		struct weston_coord_global from_g, to_g;
+		struct weston_coord_global offset, pos;
 
-		weston_view_to_global_float(shsurf->view, 0, 0, &from_x, &from_y);
-		weston_view_to_global_float(shsurf->view, sx, sy, &to_x, &to_y);
-		x = shsurf->view->geometry.x + to_x - from_x;
-		y = shsurf->view->geometry.y + to_y - from_y;
+		from_s = weston_coord_surface(0, 0,
+					      shsurf->view->surface);
+		to_s = weston_coord_surface(sx, sy,
+					    shsurf->view->surface);
 
-		weston_view_set_position(shsurf->view, x, y);
+		from_g = weston_coord_surface_to_global(shsurf->view, from_s);
+		to_g = weston_coord_surface_to_global(shsurf->view, to_s);
+		offset.c = weston_coord_sub(to_g.c, from_g.c);
+		pos.c = weston_coord_add(shsurf->view->geometry.pos_offset,
+					 offset.c);
+
+		weston_view_set_position(shsurf->view, pos.c.x, pos.c.y);
 		weston_view_update_transform(shsurf->view);
 	}
 
@@ -958,8 +964,8 @@ desktop_surface_get_position(struct weston_desktop_surface *desktop_surface,
 	struct kiosk_shell_surface *shsurf =
 		weston_desktop_surface_get_user_data(desktop_surface);
 
-	*x = shsurf->view->geometry.x;
-	*y = shsurf->view->geometry.y;
+	*x = shsurf->view->geometry.pos_offset.x;
+	*y = shsurf->view->geometry.pos_offset.y;
 }
 
 static const struct weston_desktop_api kiosk_shell_desktop_api = {
@@ -1066,15 +1072,15 @@ kiosk_shell_add_bindings(struct kiosk_shell *shell)
 {
 	uint32_t mod = 0;
 
-	mod = weston_shell_get_binding_modifier(shell->config, MODIFIER_SUPER);
+	mod = weston_config_get_binding_modifier(shell->config, MODIFIER_SUPER);
 
-	weston_compositor_add_button_binding(shell->compositor, BTN_LEFT, mod,
+	weston_compositor_add_button_binding(shell->compositor, BTN_LEFT, 0,
 					     kiosk_shell_click_to_activate_binding,
 					     shell);
-	weston_compositor_add_button_binding(shell->compositor, BTN_RIGHT, mod,
+	weston_compositor_add_button_binding(shell->compositor, BTN_RIGHT, 0,
 					     kiosk_shell_click_to_activate_binding,
 					     shell);
-	weston_compositor_add_touch_binding(shell->compositor, mod,
+	weston_compositor_add_touch_binding(shell->compositor, 0,
 					    kiosk_shell_touch_to_activate_binding,
 					    shell);
 
@@ -1128,8 +1134,8 @@ kiosk_shell_handle_output_moved(struct wl_listener *listener, void *data)
 		if (view->output != output)
 			continue;
 		weston_view_set_position(view,
-					 view->geometry.x + output->move_x,
-					 view->geometry.y + output->move_y);
+					 view->geometry.pos_offset.x + output->move_x,
+					 view->geometry.pos_offset.y + output->move_y);
 	}
 
 	wl_list_for_each(view, &shell->normal_layer.view_list.link,
@@ -1137,8 +1143,8 @@ kiosk_shell_handle_output_moved(struct wl_listener *listener, void *data)
 		if (view->output != output)
 			continue;
 		weston_view_set_position(view,
-					 view->geometry.x + output->move_x,
-					 view->geometry.y + output->move_y);
+					 view->geometry.pos_offset.x + output->move_x,
+					 view->geometry.pos_offset.y + output->move_y);
 	}
 }
 

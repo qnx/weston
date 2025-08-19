@@ -14,7 +14,7 @@ EXTRA_INCVPATH += $(PROJECT_ROOT)/../../$(OS)/protocol
 EXTRA_INCVPATH += $(addsuffix /pixman-1,$(USE_ROOT_INCLUDE))
 
 EXTRA_SRCVPATH += $(DIST_ROOT)/compositor
-EXTRA_SRCVPATH += $(DIST_ROOT)/shell-utils
+EXTRA_SRCVPATH += $(DIST_ROOT)/libweston/shell-utils
 EXTRA_SRCVPATH += $(PROJECT_ROOT)/../../$(OS)/protocol
 
 EXTRA_SRCVPATH += $(DIST_ROOT)/shared
@@ -36,7 +36,7 @@ SRCS += \
 	weston-screenshooter.c \
 	text-backend.c \
 	shell-utils.c \
-	weston-screenshooter-protocol.c \
+	config-helpers.c \
 	text-input-unstable-v1-protocol.c \
 	input-method-unstable-v1-protocol.c
 

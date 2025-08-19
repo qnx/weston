@@ -44,7 +44,7 @@ fixture_setup(struct weston_test_harness *harness)
 	struct compositor_setup setup;
 
 	compositor_setup_defaults(&setup);
-	setup.renderer = RENDERER_GL;
+	setup.renderer = WESTON_RENDERER_GL;
 	setup.width = 324;
 	setup.height = 264;
 	setup.shell = SHELL_TEST_DESKTOP;
@@ -464,7 +464,7 @@ TEST_P(yuv_buffer_shm, yuv_cases)
 	buf = my_case->create_buffer(client, my_case->drm_format, img);
 	show_window_with_yuv(client, buf);
 
-	match = verify_screen_content(client, "yuv-buffer", 0, NULL, 0);
+	match = verify_screen_content(client, "yuv-buffer", 0, NULL, 0, NULL);
 	assert(match);
 
 	yuv_buffer_destroy(buf);

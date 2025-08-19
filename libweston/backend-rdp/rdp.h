@@ -50,6 +50,7 @@
 #include "shared/string-helpers.h"
 
 #define MAX_FREERDP_FDS 32
+#define RDP_MAX_MONITOR 16
 #define DEFAULT_AXIS_STEP_DISTANCE 10
 #define DEFAULT_PIXEL_FORMAT PIXEL_FORMAT_BGRA32
 
@@ -67,15 +68,12 @@
 #define ATKBD_RET_HANJA 0xf1
 #define ATKBD_RET_HANGEUL 0xf2
 
-struct rdp_output;
-
 struct rdp_backend {
 	struct weston_backend base;
 	struct weston_compositor *compositor;
 
 	freerdp_listener *listener;
 	struct wl_event_source *listener_events[MAX_FREERDP_FDS];
-	struct rdp_output *output;
 	struct weston_log_scope *debug;
 	struct weston_log_scope *verbose;
 
@@ -99,6 +97,8 @@ struct rdp_backend {
         rdp_audio_in_teardown audio_in_teardown;
         rdp_audio_out_setup audio_out_setup;
         rdp_audio_out_teardown audio_out_teardown;
+
+	uint32_t head_index;
 };
 
 enum peer_item_flags {
@@ -116,12 +116,16 @@ struct rdp_peers_item {
 
 struct rdp_head {
 	struct weston_head base;
+	uint32_t index;
+	bool matched;
+	rdpMonitor config;
 };
 
 struct rdp_output {
 	struct weston_output base;
+	struct rdp_backend *backend;
 	struct wl_event_source *finish_frame_timer;
-	pixman_image_t *shadow_surface;
+	struct weston_renderbuffer *renderbuffer;
 };
 
 struct rdp_peer_context {
@@ -161,6 +165,10 @@ struct rdp_peer_context {
 	struct rdp_clipboard_data_source *clipboard_inflight_client_data_source;
 
 	struct wl_listener clipboard_selection_listener;
+
+	/* Multiple monitor support (monitor topology) */
+	int32_t desktop_top, desktop_left;
+	int32_t desktop_width, desktop_height;
 };
 
 typedef struct rdp_peer_context RdpPeerContext;
@@ -190,6 +198,15 @@ struct rdp_loop_task {
 	rdp_debug_print(b->clipboard_debug, false, __VA_ARGS__)
 #define rdp_debug_clipboard_continue(b, ...) \
 	rdp_debug_print(b->clipboard_debug, true,  __VA_ARGS__)
+
+/* rdpdisp.c */
+bool
+handle_adjust_monitor_layout(freerdp_peer *client,
+			     int monitor_count, rdpMonitor *monitors);
+
+struct weston_output *
+to_weston_coordinate(RdpPeerContext *peerContext,
+		     int32_t *x, int32_t *y);
 
 /* rdputil.c */
 void
@@ -232,13 +249,20 @@ rdp_clipboard_init(freerdp_peer *client);
 void
 rdp_clipboard_destroy(RdpPeerContext *peerCtx);
 
+/* rdp.c */
+void
+rdp_head_create(struct rdp_backend *backend, rdpMonitor *config);
+
+void
+rdp_destroy(struct weston_backend *backend);
+
 void
 rdp_head_destroy(struct weston_head *base);
 
 static inline struct rdp_head *
 to_rdp_head(struct weston_head *base)
 {
-	if (base->backend_id != rdp_head_destroy)
+	if (base->backend->destroy != rdp_destroy)
 		return NULL;
 	return container_of(base, struct rdp_head, base);
 }
@@ -252,12 +276,6 @@ to_rdp_output(struct weston_output *base)
 	if (base->destroy != rdp_output_destroy)
 		return NULL;
 	return container_of(base, struct rdp_output, base);
-}
-
-static inline struct rdp_backend *
-to_rdp_backend(struct weston_compositor *base)
-{
-	return container_of(base->backend, struct rdp_backend, base);
 }
 
 #endif

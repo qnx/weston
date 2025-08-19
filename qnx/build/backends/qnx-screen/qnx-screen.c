@@ -59,6 +59,7 @@
 #include "pixman-renderer.h"
 #include "presentation-time-server-protocol.h"
 #include "linux-dmabuf.h"
+#include <libweston/pixel-formats.h>
 #include "linux-explicit-synchronization.h"
 #include <libweston/windowed-output-api.h>
 
@@ -86,7 +87,6 @@ struct qnx_screen_backend {
 	struct wl_event_source		*screen_source;
 	int				 fullscreen;
 	int				 no_input;
-	int				 use_pixman;
 	EGLNativeDisplayType		 egl_display;
 
 	/* We could map multi-pointer X to multiple wayland seats, but
@@ -96,10 +96,14 @@ struct qnx_screen_backend {
 	screen_window_t			 prev_window;
 	double				 prev_x;
 	double				 prev_y;
+	struct weston_coord_global prev_pos;
 	int				 prev_buttons;
 	int				 prev_modifiers;
 	int				 left_gui_state;
 	int				 right_gui_state;
+
+	const struct pixel_format_info **formats;
+	unsigned int formats_count;
 };
 
 struct qnx_screen_head {
@@ -108,6 +112,7 @@ struct qnx_screen_head {
 
 struct qnx_screen_output {
 	struct weston_output	base;
+	struct qnx_screen_backend *backend;
 
 	screen_window_t		window;
 	screen_session_t        session;
@@ -129,15 +134,13 @@ struct qnx_screen_output {
 	screen_display_t        display;
 };
 
-struct gl_renderer_interface *gl_renderer;
-
 static void
-qnx_screen_head_destroy(struct weston_head *base);
+qnx_screen_destroy(struct weston_backend *backend);
 
 static inline struct qnx_screen_head *
 to_qnx_screen_head(struct weston_head *base)
 {
-	if (base->backend_id != qnx_screen_head_destroy)
+	if (base->backend->destroy != qnx_screen_destroy)
 		return NULL;
 	return container_of(base, struct qnx_screen_head, base);
 }
@@ -154,9 +157,9 @@ to_qnx_screen_output(struct weston_output *base)
 }
 
 static inline struct qnx_screen_backend *
-to_qnx_screen_backend(struct weston_compositor *base)
+to_qnx_screen_backend(struct weston_backend *base)
 {
-	return container_of(base->backend, struct qnx_screen_backend, base);
+	return container_of(base, struct qnx_screen_backend, base);
 }
 
 static screen_display_t
@@ -298,7 +301,7 @@ qnx_screen_output_repaint_gl(struct weston_output *output_base,
 	struct wl_event_loop *loop = wl_display_get_event_loop(ec->wl_display);;
 	output->finish_frame_task = wl_event_loop_add_idle(loop, finish_frame_handler, output);
 
-	ec->renderer->repaint_output(output_base, damage);
+	ec->renderer->repaint_output(output_base, damage, NULL);
 
 	pixman_region32_subtract(&ec->primary_plane.damage,
 				 &ec->primary_plane.damage, damage);
@@ -534,8 +537,8 @@ qnx_screen_output_switch_mode(struct weston_output *base, struct weston_mode *mo
 		return -1;
 	}
 
-	b = to_qnx_screen_backend(base->compositor);
 	output = to_qnx_screen_output(base);
+	b = output->backend;
 
 	if (mode->width == output->mode.width &&
 	    mode->height == output->mode.height)
@@ -556,12 +559,13 @@ qnx_screen_output_switch_mode(struct weston_output *base, struct weston_mode *mo
 	output->mode.width = mode->width;
 	output->mode.height = mode->height;
 
-	if (b->use_pixman) {
+	struct weston_renderer *renderer = output->base.compositor->renderer;
+
+	if (renderer->type == WESTON_RENDERER_PIXMAN) {
 		const struct pixman_renderer_output_options options = {
 			.use_shadow = true,
 		};
-
-		pixman_renderer_output_destroy(&output->base);
+		renderer->pixman->output_destroy(&output->base);
 		qnx_screen_output_deinit_shm(b, output);
 
 		if (qnx_screen_output_init_shm(b, output,
@@ -570,8 +574,7 @@ qnx_screen_output_switch_mode(struct weston_output *base, struct weston_mode *mo
 			weston_log("Failed to initialize SHM for the X11 output\n");
 			return -1;
 		}
-
-		if (pixman_renderer_output_create(&output->base, &options) < 0) {
+		if (renderer->pixman->output_create(&output->base, &options) < 0) {
 			weston_log("Failed to create pixman renderer for output\n");
 			qnx_screen_output_deinit_shm(b, output);
 			return -1;
@@ -580,13 +583,11 @@ qnx_screen_output_switch_mode(struct weston_output *base, struct weston_mode *mo
 		const struct gl_renderer_output_options options = {
 			.window_for_legacy = output->window,
 			.window_for_platform = (void *)(intptr_t)(output->window),
-			.drm_formats = qnx_screen_formats,
-			.drm_formats_count = ARRAY_LENGTH(qnx_screen_formats),
+			.formats = b->formats,
+			.formats_count = b->formats_count,
 		};
-
-		gl_renderer->output_destroy(&output->base);
-
-		ret = gl_renderer->output_window_create(&output->base, &options);
+		renderer->gl->output_destroy(&output->base);
+		ret = renderer->gl->output_window_create(&output->base, &options);
 		if (ret < 0)
 			return -1;
 	}
@@ -597,8 +598,9 @@ qnx_screen_output_switch_mode(struct weston_output *base, struct weston_mode *mo
 static int
 qnx_screen_output_disable(struct weston_output *base)
 {
+	const struct weston_renderer *renderer = base->compositor->renderer;
 	struct qnx_screen_output *output = to_qnx_screen_output(base);
-	struct qnx_screen_backend *backend = to_qnx_screen_backend(base->compositor);
+	struct qnx_screen_backend *backend = output->backend;
 
 	if (!output->base.enabled)
 		return 0;
@@ -606,11 +608,11 @@ qnx_screen_output_disable(struct weston_output *base)
 	if (output->finish_frame_task)
 		wl_event_source_remove(output->finish_frame_task);
 
-	if (backend->use_pixman) {
-		pixman_renderer_output_destroy(&output->base);
+	if (renderer->type == WESTON_RENDERER_PIXMAN) {
+		renderer->pixman->output_destroy(&output->base);
 		qnx_screen_output_deinit_shm(backend, output);
 	} else {
-		gl_renderer->output_destroy(&output->base);
+		renderer->gl->output_destroy(&output->base);
 	}
 
 	screen_destroy_session(output->session);
@@ -636,14 +638,16 @@ static int
 qnx_screen_output_enable(struct weston_output *base)
 {
 	struct qnx_screen_output *output = to_qnx_screen_output(base);
-	struct qnx_screen_backend *b = to_qnx_screen_backend(base->compositor);
+	struct qnx_screen_backend *b = output->backend;
 	const struct weston_mode *mode = output->base.current_mode;
 	int ret;
+
+	bool use_pixman = b->compositor->renderer->type == WESTON_RENDERER_PIXMAN;
 
 	screen_create_window(&output->window, b->context);
 	screen_set_window_property_pv(output->window, SCREEN_PROPERTY_DISPLAY, (void**)(&output->display));
 	int screen_usage[] = { SCREEN_USAGE_OPENGL_ES2 };
-	if (b->use_pixman)
+	if (use_pixman)
 		screen_usage[0] = SCREEN_USAGE_NATIVE | SCREEN_USAGE_READ | SCREEN_USAGE_WRITE;
 	screen_set_window_property_iv(output->window, SCREEN_PROPERTY_USAGE, screen_usage);
 	int screen_format[] = { SCREEN_FORMAT_RGBX8888 };
@@ -669,7 +673,9 @@ qnx_screen_output_enable(struct weston_output *base)
 
 	screen_create_window_buffers(output->window, 2);
 
-	if (b->use_pixman) {
+	const struct weston_renderer *renderer = base->compositor->renderer;
+
+	if (renderer->type == WESTON_RENDERER_PIXMAN) {
 		const struct pixman_renderer_output_options options = {
 			.use_shadow = true,
 		};
@@ -680,7 +686,7 @@ qnx_screen_output_enable(struct weston_output *base)
 			weston_log("Failed to initialize SHM for the QNX screen output\n");
 			goto err;
 		}
-		if (pixman_renderer_output_create(&output->base, &options) < 0) {
+		if (renderer->pixman->output_create(&output->base, &options) < 0) {
 			weston_log("Failed to create pixman renderer for output\n");
 			qnx_screen_output_deinit_shm(b, output);
 			goto err;
@@ -691,11 +697,17 @@ qnx_screen_output_enable(struct weston_output *base)
 		const struct gl_renderer_output_options options = {
 			.window_for_legacy = output->window,
 			.window_for_platform = (void *)(intptr_t)(output->window),
-			.drm_formats = qnx_screen_formats,
-			.drm_formats_count = ARRAY_LENGTH(qnx_screen_formats),
+			.formats = b->formats,
+			.formats_count = b->formats_count,
+			.fb_size.width = mode->width,
+			.fb_size.height = mode->height,
+			.area.width = mode->width,
+			.area.height = mode->height,
+			.area.x = 0,
+			.area.y = 0,
 		};
 
-		ret = gl_renderer->output_window_create( &output->base, &options);
+		ret = renderer->gl->output_window_create(&output->base, &options);
 		if (ret < 0)
 			goto err;
 
@@ -730,7 +742,7 @@ static int
 qnx_screen_output_set_size(struct weston_output *base, int width, int height)
 {
 	struct qnx_screen_output *output = to_qnx_screen_output(base);
-	struct qnx_screen_backend *b = to_qnx_screen_backend(base->compositor);
+	struct qnx_screen_backend *b = output->backend;
 	struct weston_head *head;
 	int output_width, output_height;
 
@@ -796,7 +808,7 @@ static int
 qnx_screen_output_set_position(struct weston_output *base, int x, int y)
 {
 	struct qnx_screen_output *output = to_qnx_screen_output(base);
-	struct qnx_screen_backend *b = to_qnx_screen_backend(base->compositor);
+	struct qnx_screen_backend *b = output->backend;
 
 	if (b->fullscreen)
 		return 0;
@@ -814,7 +826,7 @@ qnx_screen_output_set_display(struct weston_output *base, int display_id)
 		return 0;
 
 	struct qnx_screen_output *output = to_qnx_screen_output(base);
-	struct qnx_screen_backend *b = to_qnx_screen_backend(base->compositor);
+	struct qnx_screen_backend *b = output->backend;
 
 	int screen_display_count = 0;
 	screen_get_context_property_iv(b->context, SCREEN_PROPERTY_DISPLAY_COUNT, &screen_display_count);
@@ -842,9 +854,10 @@ qnx_screen_output_set_display(struct weston_output *base, int display_id)
 }
 
 static struct weston_output *
-qnx_screen_output_create(struct weston_compositor *compositor, const char *name)
+qnx_screen_output_create(struct weston_backend *backend, const char *name)
 {
-	struct qnx_screen_backend *b = to_qnx_screen_backend(compositor);
+	struct qnx_screen_backend *b = container_of(backend, struct qnx_screen_backend, base);
+	struct weston_compositor *compositor = b->compositor;
 	struct qnx_screen_output *output;
 
 	/* name can't be NULL. */
@@ -864,13 +877,16 @@ qnx_screen_output_create(struct weston_compositor *compositor, const char *name)
 	weston_compositor_add_pending_output(&output->base, compositor);
 
 	output->display = b->display;
+	output->backend = b;
 
 	return &output->base;
 }
 
 static int
-qnx_screen_head_create(struct weston_compositor *compositor, const char *name)
+qnx_screen_head_create(struct weston_backend *base, const char *name)
 {
+	struct qnx_screen_backend *backend = to_qnx_screen_backend(base);
+	struct weston_compositor *compositor = backend->compositor;
 	struct qnx_screen_head *head;
 
 	assert(name);
@@ -881,7 +897,7 @@ qnx_screen_head_create(struct weston_compositor *compositor, const char *name)
 
 	weston_head_init(&head->base, name);
 
-	head->base.backend_id = qnx_screen_head_destroy;
+	head->base.backend = &backend->base;
 
 	weston_head_set_connection_status(&head->base, true);
 	weston_compositor_add_head(compositor, &head->base);
@@ -968,10 +984,9 @@ qnx_screen_backend_deliver_pointer_event(struct qnx_screen_backend *b,
 				         screen_event_t event)
 {
 	struct qnx_screen_output *output, *prev_output;
-	double x, y;
 	struct weston_pointer_motion_event motion_event = { 0 };
 	screen_window_t window;
-	int position[] = { b->prev_x, b->prev_y };
+	int position[] = { b->prev_pos.c.x, b->prev_pos.c.y };
 	int buttons = b->prev_buttons;
 	int screen_modifiers = b->prev_modifiers;
 	struct timespec time;
@@ -998,27 +1013,23 @@ qnx_screen_backend_deliver_pointer_event(struct qnx_screen_backend *b,
 
 	prev_output = qnx_screen_backend_find_output(b, b->prev_window);
 
+	struct weston_coord_global pos;
+	pos = weston_coord_global_from_output_point(position[0], position[1], &output->base);
+
 	if (output != prev_output) {
 		// Generate artifical LEAVE/ENTER.
-		notify_pointer_focus(&b->core_seat, NULL, 0, 0);
-		notify_pointer_focus(&b->core_seat, &output->base, x, y);
-		b->prev_x = x;
-		b->prev_y = y;
+		clear_pointer_focus(&b->core_seat);
+		notify_pointer_focus(&b->core_seat, &output->base, pos);
+		b->prev_pos = pos;
 	}
-
-	weston_output_transform_coordinate(&output->base,
-					   position[0],
-					   position[1],
-					   &x, &y);
 
 	motion_event = (struct weston_pointer_motion_event) {
 		.mask = WESTON_POINTER_MOTION_REL,
-		.dx = x - b->prev_x,
-		.dy = y - b->prev_y
+		.rel = weston_coord_sub(pos.c, b->prev_pos.c),
 	};
 
 	weston_compositor_get_time(&time);
-	if ((x != b->prev_x) || (y != b->prev_y)) {
+	if ((pos.c.x != b->prev_pos.c.x) || (pos.c.y != b->prev_pos.c.y)) {
 		notify_motion(&b->core_seat, &time, &motion_event);
 		notify_pointer_frame(&b->core_seat);
 	}
@@ -1030,8 +1041,7 @@ qnx_screen_backend_deliver_pointer_event(struct qnx_screen_backend *b,
 	}
 
 	b->prev_window = window;
-	b->prev_x = x;
-	b->prev_y = y;
+	b->prev_pos = pos;
 	b->prev_buttons = buttons;
 }
 
@@ -1072,7 +1082,6 @@ qnx_screen_backend_deliver_touch_event(struct qnx_screen_backend *b,
 				       int type)
 {
 	struct qnx_screen_output *output;
-	double x, y;
 	screen_window_t screen_window;
 	int screen_id = 0;
 	int screen_position[] = { 0, 0 };
@@ -1090,13 +1099,11 @@ qnx_screen_backend_deliver_touch_event(struct qnx_screen_backend *b,
 	if (!output)
 		return;
 
-	weston_output_transform_coordinate(&output->base,
-					   screen_position[0],
-					   screen_position[1],
-					   &x, &y);
+	struct weston_coord_global pos;
+	pos = weston_coord_global_from_output_point(screen_position[0], screen_position[1], &output->base);
 
 	weston_compositor_get_time(&time);
-	notify_touch(b->touch_device, &time, screen_id, x, y, type);
+	notify_touch(b->touch_device, &time, screen_id, &pos, type);
 	notify_touch_frame(b->touch_device);
 }
 
@@ -1225,9 +1232,10 @@ qnx_screen_backend_handle_event(int fd, uint32_t mask, void *data)
 }
 
 static void
-qnx_screen_destroy(struct weston_compositor *ec)
+qnx_screen_destroy(struct weston_backend *wb)
 {
-	struct qnx_screen_backend *backend = to_qnx_screen_backend(ec);
+	struct qnx_screen_backend *backend = container_of(wb, struct qnx_screen_backend, base);
+	struct weston_compositor *ec = backend->compositor;
 	struct weston_head *base, *next;
 
 	wl_event_source_remove(backend->screen_source);
@@ -1252,16 +1260,15 @@ init_gl_renderer(struct qnx_screen_backend *b)
 		.egl_platform = 0,
 		.egl_native_display = (void *)(intptr_t)(b->egl_display),
 		.egl_surface_type = EGL_WINDOW_BIT,
-		.drm_formats = qnx_screen_formats,
-		.drm_formats_count = ARRAY_LENGTH(qnx_screen_formats),
+		.formats = b->formats,
+		.formats_count = b->formats_count,
 	};
 
-	gl_renderer = weston_load_module("gl-renderer.so",
-					 "gl_renderer_interface");
-	if (!gl_renderer)
+	if (weston_compositor_init_renderer(b->compositor, WESTON_RENDERER_GL, &options.base) < 0) {
+		weston_log("Failed to initialize the GL renderer");
 		return -1;
-
-	return gl_renderer->display_create(b->compositor, &options);
+	}
+	return 0;
 }
 
 static const struct weston_windowed_output_api api = {
@@ -1291,6 +1298,9 @@ qnx_screen_backend_create(struct weston_compositor *compositor,
 	b->no_input = config->no_input;
 	b->egl_display = config->egl_display;
 
+	b->formats_count = ARRAY_LENGTH(qnx_screen_formats);
+	b->formats = pixel_format_get_array(qnx_screen_formats, b->formats_count);
+
 	compositor->backend = &b->base;
 
 	if (weston_compositor_set_presentation_clock_software(compositor) < 0)
@@ -1302,9 +1312,8 @@ qnx_screen_backend_create(struct weston_compositor *compositor,
 	b->display = qnx_screen_compositor_get_default_display(b);
 	wl_array_init(&b->keys);
 
-	b->use_pixman = config->use_pixman;
-	if (b->use_pixman) {
-		if (pixman_renderer_init(compositor) < 0) {
+	if (config->use_pixman) {
+		if (weston_compositor_init_renderer(compositor, WESTON_RENDERER_PIXMAN, NULL) < 0) {
 			weston_log("Failed to initialize pixman renderer for QNX screen backend\n");
 			goto err_context;
 		}
@@ -1374,6 +1383,7 @@ err_renderer:
 err_context:
 	screen_destroy_context(b->context);
 err_free:
+	free(b->formats);
 	free(b);
 	return NULL;
 }

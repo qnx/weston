@@ -44,17 +44,10 @@
 #include "linux-dmabuf.h"
 #include "linux-explicit-synchronization.h"
 
-struct gl_renderer_interface *gl_renderer;
-
 static struct gbm_device *
 create_gbm_device(int fd)
 {
 	struct gbm_device *gbm;
-
-	gl_renderer = weston_load_module("gl-renderer.so",
-					 "gl_renderer_interface");
-	if (!gl_renderer)
-		return NULL;
 
 	/* GBM will load a dri driver, but even though they need symbols from
 	 * libglapi, in some version of Mesa they are not linked to it. Since
@@ -71,48 +64,40 @@ create_gbm_device(int fd)
 /* When initializing EGL, if the preferred buffer format isn't available
  * we may be able to substitute an ARGB format for an XRGB one.
  *
- * This returns 0 if substitution isn't possible, but 0 might be a
- * legitimate format for other EGL platforms, so the caller is
- * responsible for checking for 0 before calling gl_renderer->create().
+ * This returns NULL if substitution isn't possible. The caller is responsible
+ * for checking for NULL before calling gl_renderer->create().
  *
  * This works around https://bugs.freedesktop.org/show_bug.cgi?id=89689
  * but it's entirely possible we'll see this again on other implementations.
  */
-static uint32_t
-fallback_format_for(uint32_t format)
+static const struct pixel_format_info *
+fallback_format_for(const struct pixel_format_info *format)
 {
-	const struct pixel_format_info *pf;
-
-	pf = pixel_format_get_info_by_opaque_substitute(format);
-	if (!pf)
-		return 0;
-
-	return pf->format;
+	return pixel_format_get_info_by_opaque_substitute(format->format);
 }
 
 static int
 drm_backend_create_gl_renderer(struct drm_backend *b)
 {
-	uint32_t format[3] = {
-		b->gbm_format,
-		fallback_format_for(b->gbm_format),
-		0,
+	const struct pixel_format_info *format[3] = {
+		b->format,
+		fallback_format_for(b->format),
+		NULL,
 	};
 	struct gl_renderer_display_options options = {
 		.egl_platform = EGL_PLATFORM_GBM_KHR,
 		.egl_native_display = b->gbm,
 		.egl_surface_type = EGL_WINDOW_BIT,
-		.drm_formats = format,
-		.drm_formats_count = 2,
+		.formats = format,
+		.formats_count = 2,
 	};
 
 	if (format[1])
-		options.drm_formats_count = 3;
+		options.formats_count = 3;
 
-	if (gl_renderer->display_create(b->compositor, &options) < 0)
-		return -1;
-
-	return 0;
+	return weston_compositor_init_renderer(b->compositor,
+					       WESTON_RENDERER_GL,
+					       &options.base);
 }
 
 int
@@ -138,6 +123,9 @@ static void drm_output_fini_cursor_egl(struct drm_output *output)
 	unsigned int i;
 
 	for (i = 0; i < ARRAY_LENGTH(output->gbm_cursor_fb); i++) {
+		/* This cursor does not have a GBM device */
+		if (output->gbm_cursor_fb[i] && !output->gbm_cursor_fb[i]->bo)
+			output->gbm_cursor_fb[i]->type = BUFFER_PIXMAN_DUMB;
 		drm_fb_unref(output->gbm_cursor_fb[i]);
 		output->gbm_cursor_fb[i] = NULL;
 	}
@@ -156,19 +144,31 @@ drm_output_init_cursor_egl(struct drm_output *output, struct drm_backend *b)
 	for (i = 0; i < ARRAY_LENGTH(output->gbm_cursor_fb); i++) {
 		struct gbm_bo *bo;
 
-		bo = gbm_bo_create(b->gbm, device->cursor_width, device->cursor_height,
-				   GBM_FORMAT_ARGB8888,
-				   GBM_BO_USE_CURSOR | GBM_BO_USE_WRITE);
-		if (!bo)
-			goto err;
+		if (gbm_device_get_fd(b->gbm) != output->device->drm.fd) {
+			output->gbm_cursor_fb[i] =
+				drm_fb_create_dumb(output->device,
+						   device->cursor_width,
+						   device->cursor_height,
+						   DRM_FORMAT_ARGB8888);
+			/* Override buffer type, since we know it is a cursor */
+			output->gbm_cursor_fb[i]->type = BUFFER_CURSOR;
+			output->gbm_cursor_handle[i] =
+				output->gbm_cursor_fb[i]->handles[0];
+		} else {
+			bo = gbm_bo_create(b->gbm, device->cursor_width, device->cursor_height,
+					   GBM_FORMAT_ARGB8888,
+					   GBM_BO_USE_CURSOR | GBM_BO_USE_WRITE);
+			if (!bo)
+				goto err;
 
-		output->gbm_cursor_fb[i] =
-			drm_fb_get_from_bo(bo, device, false, BUFFER_CURSOR);
-		if (!output->gbm_cursor_fb[i]) {
-			gbm_bo_destroy(bo);
-			goto err;
+			output->gbm_cursor_fb[i] =
+				drm_fb_get_from_bo(bo, device, false, BUFFER_CURSOR);
+			if (!output->gbm_cursor_fb[i]) {
+				gbm_bo_destroy(bo);
+				goto err;
+			}
+			output->gbm_cursor_handle[i] = gbm_bo_get_handle(bo).s32;
 		}
-		output->gbm_cursor_handle[i] = gbm_bo_get_handle(bo).s32;
 	}
 
 	return 0;
@@ -185,23 +185,16 @@ create_gbm_surface(struct gbm_device *gbm, struct drm_output *output)
 {
 	struct weston_mode *mode = output->base.current_mode;
 	struct drm_plane *plane = output->scanout_plane;
-	const struct pixel_format_info *pixel_format;
 	struct weston_drm_format *fmt;
 	const uint64_t *modifiers;
 	unsigned int num_modifiers;
 
 	fmt = weston_drm_format_array_find_format(&plane->formats,
-						  output->gbm_format);
+						  output->format->format);
 	if (!fmt) {
-		pixel_format = pixel_format_get_info(output->gbm_format);
-		if (pixel_format)
-			weston_log("format %s not supported by output %s\n",
-				   pixel_format->drm_format_name,
-				   output->base.name);
-		else
-			weston_log("format 0x%x not supported by output %s\n",
-				   output->gbm_format,
-				   output->base.name);
+		weston_log("format %s not supported by output %s\n",
+			   output->format->drm_format_name,
+			   output->base.name);
 		return;
 	}
 
@@ -211,10 +204,19 @@ create_gbm_surface(struct gbm_device *gbm, struct drm_output *output)
 		output->gbm_surface =
 			gbm_surface_create_with_modifiers(gbm,
 							  mode->width, mode->height,
-							  output->gbm_format,
+							  output->format->format,
 							  modifiers, num_modifiers);
 	}
 #endif
+
+	/*
+	 * If we cannot use modifiers to allocate the GBM surface and the GBM
+	 * device differs from the KMS display device (because we are rendering
+	 * on a different GPU), we have to use linear buffers to make sure that
+	 * the allocated GBM surface is correctly displayed on the KMS device.
+	 */
+	if (gbm_device_get_fd(gbm) != output->device->drm.fd)
+		output->gbm_bo_flags |= GBM_BO_USE_LINEAR;
 
 	/* We may allocate with no modifiers in the following situations:
 	 *
@@ -227,7 +229,7 @@ create_gbm_surface(struct gbm_device *gbm, struct drm_output *output)
 	if (!output->gbm_surface)
 		output->gbm_surface = gbm_surface_create(gbm,
 							 mode->width, mode->height,
-							 output->gbm_format,
+							 output->format->format,
 							 output->gbm_bo_flags);
 }
 
@@ -235,13 +237,21 @@ create_gbm_surface(struct gbm_device *gbm, struct drm_output *output)
 int
 drm_output_init_egl(struct drm_output *output, struct drm_backend *b)
 {
-	uint32_t format[2] = {
-		output->gbm_format,
-		fallback_format_for(output->gbm_format),
+	const struct weston_renderer *renderer = b->compositor->renderer;
+	const struct weston_mode *mode = output->base.current_mode;
+	const struct pixel_format_info *format[2] = {
+		output->format,
+		fallback_format_for(output->format),
 	};
 	struct gl_renderer_output_options options = {
-		.drm_formats = format,
-		.drm_formats_count = 1,
+		.formats = format,
+		.formats_count = 1,
+		.area.x = 0,
+		.area.y = 0,
+		.area.width = mode->width,
+		.area.height = mode->height,
+		.fb_size.width = mode->width,
+		.fb_size.height = mode->height,
 	};
 
 	assert(output->gbm_surface == NULL);
@@ -251,11 +261,11 @@ drm_output_init_egl(struct drm_output *output, struct drm_backend *b)
 		return -1;
 	}
 
-	if (options.drm_formats[1])
-		options.drm_formats_count = 2;
+	if (options.formats[1])
+		options.formats_count = 2;
 	options.window_for_legacy = (EGLNativeWindowType) output->gbm_surface;
 	options.window_for_platform = output->gbm_surface;
-	if (gl_renderer->output_window_create(&output->base, &options) < 0) {
+	if (renderer->gl->output_window_create(&output->base, &options) < 0) {
 		weston_log("failed to create gl renderer output state\n");
 		gbm_surface_destroy(output->gbm_surface);
 		output->gbm_surface = NULL;
@@ -270,7 +280,8 @@ drm_output_init_egl(struct drm_output *output, struct drm_backend *b)
 void
 drm_output_fini_egl(struct drm_output *output)
 {
-	struct drm_backend *b = to_drm_backend(output->base.compositor);
+	struct drm_backend *b = output->backend;
+	const struct weston_renderer *renderer = b->compositor->renderer;
 
 	/* Destroying the GBM surface will destroy all our GBM buffers,
 	 * regardless of refcount. Ensure we destroy them here. */
@@ -280,7 +291,7 @@ drm_output_fini_egl(struct drm_output *output)
 		drm_plane_reset_state(output->scanout_plane);
 	}
 
-	gl_renderer->output_destroy(&output->base);
+	renderer->gl->output_destroy(&output->base);
 	gbm_surface_destroy(output->gbm_surface);
 	output->gbm_surface = NULL;
 	drm_output_fini_cursor_egl(output);
@@ -295,7 +306,7 @@ drm_output_render_gl(struct drm_output_state *state, pixman_region32_t *damage)
 	struct drm_fb *ret;
 
 	output->base.compositor->renderer->repaint_output(&output->base,
-							  damage);
+							  damage, NULL);
 
 	bo = gbm_surface_lock_front_buffer(output->gbm_surface);
 	if (!bo) {

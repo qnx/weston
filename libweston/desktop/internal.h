@@ -123,6 +123,14 @@ struct weston_desktop_surface_implementation {
 			      void *user_data);
 	bool (*get_resizing)(struct weston_desktop_surface *surface,
 			     void *user_data);
+	bool (*get_pending_activated)(struct weston_desktop_surface *surface,
+			      void *user_data);
+	bool (*get_pending_fullscreen)(struct weston_desktop_surface *surface,
+			       void *user_data);
+	bool (*get_pending_maximized)(struct weston_desktop_surface *surface,
+			      void *user_data);
+	bool (*get_pending_resizing)(struct weston_desktop_surface *surface,
+			     void *user_data);
 	struct weston_size
 	(*get_max_size)(struct weston_desktop_surface *surface,
 			void *user_data);
@@ -187,8 +195,6 @@ const struct weston_desktop_surface_implementation *
 weston_desktop_surface_get_implementation(struct weston_desktop_surface *surface);
 void *
 weston_desktop_surface_get_implementation_data(struct weston_desktop_surface *surface);
-struct weston_desktop_surface *
-weston_desktop_surface_get_parent(struct weston_desktop_surface *surface);
 bool
 weston_desktop_surface_get_grab(struct weston_desktop_surface *surface);
 
@@ -212,6 +218,7 @@ void
 weston_desktop_surface_unset_relative_to(struct weston_desktop_surface *surface);
 void
 weston_desktop_surface_popup_grab(struct weston_desktop_surface *popup,
+				  struct weston_desktop_surface *parent,
 				  struct weston_desktop_seat *seat,
 				  uint32_t serial);
 void
@@ -224,6 +231,7 @@ struct weston_desktop_surface *
 weston_desktop_seat_popup_grab_get_topmost_surface(struct weston_desktop_seat *seat);
 bool
 weston_desktop_seat_popup_grab_start(struct weston_desktop_seat *seat,
+				     struct weston_desktop_surface *parent,
 				     struct wl_client *client, uint32_t serial);
 void
 weston_desktop_seat_popup_grab_add_surface(struct weston_desktop_seat *seat,

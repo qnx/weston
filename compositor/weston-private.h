@@ -28,6 +28,14 @@
 #include <libweston/libweston.h>
 #include <libweston/config-parser.h>
 
+bool
+get_backend_from_string(const char *name,
+			enum weston_compositor_backend *backend);
+
+bool
+get_renderer_from_string(const char *name,
+			 enum weston_renderer_type *renderer);
+
 int
 wet_output_set_color_characteristics(struct weston_output *output,
 				     struct weston_config *wc,

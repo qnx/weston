@@ -21,6 +21,12 @@ option(
 	description: 'Weston backend: headless (testing)'
 )
 option(
+	'backend-pipewire',
+	type: 'boolean',
+	value: true,
+	description: 'PipeWire backend: screencasting via PipeWire'
+)
+option(
 	'backend-rdp',
 	type: 'boolean',
 	value: true,
@@ -31,6 +37,12 @@ option(
 	type: 'boolean',
 	value: true,
 	description: 'Compositor: RDP screen-sharing support'
+)
+option(
+	'backend-vnc',
+	type: 'boolean',
+	value: true,
+	description: 'Weston backend: VNC remote screensharing'
 )
 option(
 	'backend-wayland',
@@ -145,10 +157,10 @@ option(
 )
 
 option(
-	'launcher-logind',
+	'deprecated-launcher-logind',
 	type: 'boolean',
-	value: true,
-	description: 'Compositor: support systemd-logind D-Bus protocol'
+	value: false,
+	description: 'DEPRECATED: Compositor: support systemd-logind D-Bus protocol (superseded by launcher-libseat)'
 )
 
 option(

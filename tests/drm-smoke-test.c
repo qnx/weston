@@ -36,7 +36,7 @@ fixture_setup(struct weston_test_harness *harness)
 	compositor_setup_defaults(&setup);
 	setup.shell = SHELL_TEST_DESKTOP;
 	setup.backend = WESTON_BACKEND_DRM;
-	setup.renderer = RENDERER_PIXMAN;
+	setup.renderer = WESTON_RENDERER_PIXMAN;
 
 	return weston_test_harness_execute_as_client(harness, &setup);
 }
@@ -90,7 +90,7 @@ TEST(drm_screenshot_no_damage) {
 	 */
 	for (i = 0; i < 5; i++) {
 		ret = verify_screen_content(client, "drm_screenshot_no_damage",
-					    0, NULL, i);
+					    0, NULL, i, "Virtual-1");
 		assert(ret);
 	}
 

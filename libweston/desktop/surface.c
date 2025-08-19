@@ -31,7 +31,7 @@
 #include <libweston/libweston.h>
 #include <libweston/zalloc.h>
 
-#include <libweston-desktop/libweston-desktop.h>
+#include <libweston/desktop.h>
 #include "internal.h"
 
 struct weston_desktop_view {
@@ -96,9 +96,13 @@ weston_desktop_surface_update_view_position(struct weston_desktop_surface *surfa
 
 		x += parent_geometry.x - geometry.x;
 		y += parent_geometry.y - geometry.y;
+
+		wl_list_for_each(view, &surface->view_list, link)
+			weston_view_set_rel_position(view->view, x, y);
+	} else {
+		wl_list_for_each(view, &surface->view_list, link)
+			weston_view_set_position(view->view, x, y);
 	}
-	wl_list_for_each(view, &surface->view_list, link)
-		weston_view_set_position(view->view, x, y);
 }
 
 
@@ -220,12 +224,12 @@ weston_desktop_surface_resource_destroy(struct wl_resource *resource)
 
 static void
 weston_desktop_surface_committed(struct weston_surface *wsurface,
-				 int32_t sx, int32_t sy)
+				 struct weston_coord_surface new_origin)
 {
 	struct weston_desktop_surface *surface = wsurface->committed_private;
 
-	surface->buffer_move.x = sx;
-	surface->buffer_move.y = sy;
+	surface->buffer_move.x = new_origin.c.x;
+	surface->buffer_move.y = new_origin.c.y;
 }
 
 static void
@@ -565,7 +569,7 @@ weston_desktop_surface_get_implementation_data(struct weston_desktop_surface *su
 	return surface->implementation_data;
 }
 
-struct weston_desktop_surface *
+WL_EXPORT struct weston_desktop_surface *
 weston_desktop_surface_get_parent(struct weston_desktop_surface *surface)
 {
 	return surface->parent;
@@ -662,6 +666,42 @@ weston_desktop_surface_get_fullscreen(struct weston_desktop_surface *surface)
 	if (surface->implementation->get_fullscreen == NULL)
 		return false;
 	return surface->implementation->get_fullscreen(surface,
+						       surface->implementation_data);
+}
+
+WL_EXPORT bool
+weston_desktop_surface_get_pending_activated(struct weston_desktop_surface *surface)
+{
+	if (surface->implementation->get_pending_activated == NULL)
+		return false;
+	return surface->implementation->get_pending_activated(surface,
+						surface->implementation_data);
+}
+
+WL_EXPORT bool
+weston_desktop_surface_get_pending_resizing(struct weston_desktop_surface *surface)
+{
+	if (surface->implementation->get_pending_resizing == NULL)
+		return false;
+	return surface->implementation->get_pending_resizing(surface,
+						 surface->implementation_data);
+}
+
+WL_EXPORT bool
+weston_desktop_surface_get_pending_maximized(struct weston_desktop_surface *surface)
+{
+	if (surface->implementation->get_pending_maximized == NULL)
+		return false;
+	return surface->implementation->get_pending_maximized(surface,
+						      surface->implementation_data);
+}
+
+WL_EXPORT bool
+weston_desktop_surface_get_pending_fullscreen(struct weston_desktop_surface *surface)
+{
+	if (surface->implementation->get_pending_fullscreen == NULL)
+		return false;
+	return surface->implementation->get_pending_fullscreen(surface,
 						       surface->implementation_data);
 }
 
@@ -809,12 +849,13 @@ weston_desktop_surface_unset_relative_to(struct weston_desktop_surface *surface)
 
 void
 weston_desktop_surface_popup_grab(struct weston_desktop_surface *surface,
+				  struct weston_desktop_surface *parent,
 				  struct weston_desktop_seat *seat,
 				  uint32_t serial)
 {
 	struct wl_client *wl_client =
 		weston_desktop_client_get_client(surface->client);
-	if (weston_desktop_seat_popup_grab_start(seat, wl_client, serial))
+	if (weston_desktop_seat_popup_grab_start(seat, parent, wl_client, serial))
 		weston_desktop_seat_popup_grab_add_surface(seat, &surface->grab_link);
 	else
 		weston_desktop_surface_popup_dismiss(surface);
@@ -837,4 +878,16 @@ weston_desktop_surface_popup_dismiss(struct weston_desktop_surface *surface)
 	wl_list_remove(&surface->grab_link);
 	wl_list_init(&surface->grab_link);
 	weston_desktop_surface_close(surface);
+}
+
+WL_EXPORT void
+weston_desktop_surface_foreach_child(struct weston_desktop_surface *surface,
+				     void (* callback)(struct weston_desktop_surface *child,
+						       void *user_data),
+				     void *user_data)
+{
+	struct weston_desktop_surface *child;
+
+	wl_list_for_each(child, &surface->children_list, children_link)
+		callback(child, user_data);
 }

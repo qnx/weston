@@ -39,16 +39,16 @@
 
 struct setup_args {
 	struct fixture_metadata meta;
-	enum renderer_type renderer;
+	enum weston_renderer_type renderer;
 };
 
 static const struct setup_args my_setup_args[] = {
 	{
-		.renderer = RENDERER_PIXMAN,
+		.renderer = WESTON_RENDERER_PIXMAN,
 		.meta.name = "pixman"
 	},
 	{
-		.renderer = RENDERER_GL,
+		.renderer = WESTON_RENDERER_GL,
 		.meta.name = "GL"
 	},
 };
@@ -102,10 +102,11 @@ TEST(solid_buffer_argb_u32)
 	wl_surface_commit(client->surface->wl_surface);
 	frame_callback_wait(client, &done);
 
-	match = verify_screen_content(client, "single-pixel-buffer", 0, NULL, 0);
+	match = verify_screen_content(client, "single-pixel-buffer", 0, NULL, 0, NULL);
 	assert(match);
 
 	wl_buffer_destroy(buffer);
 	wp_viewport_destroy(viewport);
+	wp_single_pixel_buffer_manager_v1_destroy(mgr);
 	client_destroy(client);
 }

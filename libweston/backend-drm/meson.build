@@ -2,6 +2,17 @@ if not get_option('backend-drm')
 	subdir_done()
 endif
 
+dep_libdisplay_info = dependency(
+	'libdisplay-info',
+	version: ['>= 0.1.1', '< 0.2.0'],
+	fallback: ['display-info', 'di_dep'],
+	default_options: [
+		'werror=false',
+	],
+	required: false,
+)
+config_h.set10('HAVE_LIBDISPLAY_INFO', dep_libdisplay_info.found())
+
 lib_backlight = static_library(
 	'backlight',
 	'libbacklight.c',
@@ -33,13 +44,16 @@ srcs_drm = [
 ]
 
 deps_drm = [
+	dep_egl, # optional
 	dep_libm,
 	dep_libdl,
+	dep_libshared,
 	dep_libweston_private,
 	dep_session_helper,
 	dep_libdrm,
 	dep_libinput_backend,
 	dependency('libudev', version: '>= 136'),
+	dep_libdisplay_info,
 	dep_backlight
 ]
 
@@ -55,10 +69,6 @@ if get_option('renderer-gl')
 		config_h.set('HAVE_GBM_FD_IMPORT', '1')
 	endif
 	deps_drm += dep_gbm
-	if not dep_egl.found()
-		error('drm-backend + gl-renderer requires egl which was not found. Or, you can use \'-Dbackend-drm=false\' or \'-Drenderer-gl=false\'.')
-	endif
-	deps_drm += dep_egl
 	srcs_drm += 'drm-gbm.c'
 	config_h.set('BUILD_DRM_GBM', '1')
 endif
