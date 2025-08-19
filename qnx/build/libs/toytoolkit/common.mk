@@ -27,4 +27,9 @@ SRCS +=	\
 	ivi-application-protocol.c \
 	viewporter-protocol.c
 
+
+define PINFO
+PINFO DESCRIPTION = libs/toytoolkit
+endef
+
 include $(MKFILES_ROOT)/qtargets.mk

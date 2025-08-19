@@ -2,6 +2,11 @@ TEST_NAME = vertex-clip
 SRCS += vertex-clip-test.c
 
 
+
+define PINFO
+PINFO DESCRIPTION = tests/vertex-clip-test
+endef
+
 include ../../../../dep_test_client.mk
 
 # gl-renderer is built as a dll, but this test is linked to it at compile time, so we need to

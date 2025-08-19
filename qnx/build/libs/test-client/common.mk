@@ -27,4 +27,9 @@ SRCS +=	\
 
 LIBS += sharedS wayland-client weston-exec pixman-1 cairo
 NDEBUG =
+
+define PINFO
+PINFO DESCRIPTION = libs/test-client
+endef
+
 include $(MKFILES_ROOT)/qtargets.mk

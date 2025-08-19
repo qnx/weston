@@ -21,4 +21,9 @@ SRCS +=	\
 	weston-test.c \
 	weston-test-protocol.c
 
+
+define PINFO
+PINFO DESCRIPTION = libs/test-plugin
+endef
+
 include $(MKFILES_ROOT)/qtargets.mk

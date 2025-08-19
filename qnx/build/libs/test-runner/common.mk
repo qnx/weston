@@ -18,4 +18,9 @@ SRCS +=	weston-test-runner.c
 
 LIBS += wayland-client wayland-server pixman-1 xkbcommon
 NDEBUG =
+
+define PINFO
+PINFO DESCRIPTION = libs/test-runner
+endef
+
 include $(MKFILES_ROOT)/qtargets.mk

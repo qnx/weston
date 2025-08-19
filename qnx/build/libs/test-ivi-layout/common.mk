@@ -20,4 +20,9 @@ SRCS += ivi-layout-test-plugin.c weston-test-protocol.c
 
 LIBS += weston-exec weston wayland-server pixman-1 xkbcommon
 
+
+define PINFO
+PINFO DESCRIPTION = libs/test-ivi-layout
+endef
+
 include $(MKFILES_ROOT)/qtargets.mk

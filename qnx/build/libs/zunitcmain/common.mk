@@ -17,4 +17,8 @@ SRCS +=	main.c
 
 LIBS += zunitcS sharedS
 
+define PINFO
+PINFO DESCRIPTION = libs/zunitcmain
+endef
+
 include $(MKFILES_ROOT)/qtargets.mk

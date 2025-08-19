@@ -37,6 +37,11 @@ RESOURCES = \
 	$(DIST_ROOT)/data/sign_maximize.png \
 	$(DIST_ROOT)/data/sign_minimize.png
 
+
+define PINFO
+PINFO DESCRIPTION = libs/shared-cairo
+endef
+
 include $(MKFILES_ROOT)/qtargets.mk
 
 POST_INSTALL += $(CP_HOST) $(RESOURCES) $(INSTALL_ROOT_$(OS))/usr/share/weston/;

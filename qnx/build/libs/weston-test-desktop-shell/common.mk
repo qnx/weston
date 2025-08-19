@@ -23,4 +23,9 @@ SRCS +=	\
 
 
 LIBS += sharedS weston weston-exec
+
+define PINFO
+PINFO DESCRIPTION = libs/weston-test-desktop-shell
+endef
+
 include $(MKFILES_ROOT)/qtargets.mk

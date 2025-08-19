@@ -3,4 +3,9 @@ EXTRA_SRCVPATH += $(DIST_ROOT)/shell-utils
 
 SRCS += safe-signal-output-removal-test.c shell-utils.c
 
+
+define PINFO
+PINFO DESCRIPTION = tests/safe-signal-output-removal-test
+endef
+
 include ../../../../dep_test_client.mk

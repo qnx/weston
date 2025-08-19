@@ -28,4 +28,9 @@ SRCS = \
 	signal.c \
 	process-util.c
 
+
+define PINFO
+PINFO DESCRIPTION = libs/shared
+endef
+
 include $(MKFILES_ROOT)/qtargets.mk
