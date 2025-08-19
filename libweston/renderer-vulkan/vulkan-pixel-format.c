@@ -217,3 +217,27 @@ vulkan_renderer_query_dmabuf_format(struct vulkan_renderer *vr, const struct pix
 
 	return true;
 }
+
+static const VkFormatFeatureFlags format_shm_tex_features =
+	VK_FORMAT_FEATURE_TRANSFER_SRC_BIT |
+	VK_FORMAT_FEATURE_TRANSFER_DST_BIT |
+	VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+
+bool
+vulkan_renderer_query_shm_format(struct vulkan_renderer *vr, const struct pixel_format_info *format)
+{
+	assert(vulkan_instance_has(vr, EXTENSION_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2));
+
+	VkFormatProperties2 format_props = {
+		.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2,
+	};
+
+	vkGetPhysicalDeviceFormatProperties2(vr->phys_dev, format->vulkan_format, &format_props);
+
+	if ((format_props.formatProperties.optimalTilingFeatures & format_shm_tex_features) != format_shm_tex_features)
+		return false;
+
+	return true;
+}
+

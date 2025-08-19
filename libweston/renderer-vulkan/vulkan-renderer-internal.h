@@ -245,4 +245,8 @@ bool
 vulkan_renderer_query_dmabuf_format(struct vulkan_renderer *vr,
 				    const struct pixel_format_info *format);
 
+bool
+vulkan_renderer_query_shm_format(struct vulkan_renderer *vr,
+				    const struct pixel_format_info *format);
+
 #endif /* VULKAN_RENDERER_INTERNAL_H */

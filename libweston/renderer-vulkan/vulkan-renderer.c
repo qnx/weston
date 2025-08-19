@@ -4162,6 +4162,34 @@ open_drm_device_node(struct vulkan_renderer *vr)
 	return drm_fd;
 }
 
+static int
+populate_supported_shm_formats(struct weston_compositor *ec)
+{
+	struct vulkan_renderer *vr = get_renderer(ec);
+
+	for (unsigned int i = 0; i < pixel_format_get_info_count(); i++) {
+		const struct pixel_format_info *info = pixel_format_get_info_by_index(i);
+
+		/* libwayland registers XRGB8888 and ARGB8888 by default. */
+		if (info->format == WL_SHM_FORMAT_XRGB8888 ||
+		    info->format == WL_SHM_FORMAT_ARGB8888)
+			continue;
+
+		if (info->hide_from_clients)
+			continue;
+
+		if (info->vulkan_format == VK_FORMAT_UNDEFINED)
+			continue;
+
+		if (!vulkan_renderer_query_shm_format(vr, info))
+			continue;
+
+		wl_display_add_shm_format(ec->wl_display, info->format);
+	}
+
+	return 0;
+}
+
 /*
  * Add extension flags to the bitfield that 'flags_out' points to.
  * 'table' stores extension names and flags to check for and 'avail'
@@ -4404,11 +4432,6 @@ vulkan_renderer_display_create(struct weston_compositor *ec,
 	wl_list_init(&vr->dmabuf_formats);
 	wl_signal_init(&vr->destroy_signal);
 
-	// TODO: probe and register remaining shm formats
-	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XRGB8888);
-	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ARGB8888);
-	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR2101010);
-
 	vulkan_renderer_create_instance(vr);
 
 	vulkan_renderer_choose_physical_device(vr);
@@ -4432,6 +4455,8 @@ vulkan_renderer_display_create(struct weston_compositor *ec,
 		weston_log_continue(STAMP_SPACE "%s: %s\n", ext->name,
 				    yesno(vulkan_device_has(vr, ext->flag)));
 	}
+
+	populate_supported_shm_formats(ec);
 
 	vr->drm_fd = -1;
 	if (vulkan_device_has(vr, EXTENSION_EXT_PHYSICAL_DEVICE_DRM))
