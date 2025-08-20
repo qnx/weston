@@ -52,10 +52,12 @@
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #include <GLES3/gl3.h>
+#define GL_INTERNALFORMAT(fmt) .gl_internalformat = (fmt)
 #define GL_FORMAT(fmt) .gl_format = (fmt)
 #define GL_TYPE(type) .gl_type = (type)
 #define SAMPLER_TYPE(type) .sampler_type = (type)
 #else
+#define GL_INTERNALFORMAT(fmt) .gl_internalformat = 0
 #define GL_FORMAT(fmt) .gl_format = 0
 #define GL_TYPE(type) .gl_type = 0
 #define SAMPLER_TYPE(type) .sampler_type = 0
@@ -239,6 +241,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		BITS_RGBA_FIXED(8, 8, 8, 0),
 		.addfb_legacy_depth = 24,
 		.bpp = 32,
+		GL_INTERNALFORMAT(GL_RGB8),
 		GL_FORMAT(GL_BGRA_EXT),
 		GL_TYPE(GL_UNSIGNED_BYTE),
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -253,6 +256,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		.opaque_substitute = DRM_FORMAT_XRGB8888,
 		.addfb_legacy_depth = 32,
 		.bpp = 32,
+		GL_INTERNALFORMAT(GL_RGBA8),
 		GL_FORMAT(GL_BGRA_EXT),
 		GL_TYPE(GL_UNSIGNED_BYTE),
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -333,6 +337,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		BITS_RGBA_FIXED(10, 10, 10, 0),
 		.addfb_legacy_depth = 30,
 		.bpp = 32,
+		GL_INTERNALFORMAT(GL_RGB10_A2),
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 		PIXMAN_FMT(x2r10g10b10),
 #endif
@@ -342,6 +347,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		BITS_RGBA_FIXED(10, 10, 10, 2),
 		.bpp = 32,
 		.opaque_substitute = DRM_FORMAT_XRGB2101010,
+		GL_INTERNALFORMAT(GL_RGB10_A2),
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 		PIXMAN_FMT(a2r10g10b10),
 #endif
@@ -506,6 +512,27 @@ static const struct pixel_format_info pixel_format_table[] = {
 		SAMPLER_TYPE(EGL_TEXTURE_Y_UV_WL),
 		.num_planes = 2,
 		.chroma_order = ORDER_VU,
+	},
+	{
+		DRM_FORMAT(P010),
+		SAMPLER_TYPE(EGL_TEXTURE_Y_UV_WL),
+		.num_planes = 2,
+		.hsub = 2,
+		.vsub = 2,
+	},
+	{
+		DRM_FORMAT(P012),
+		SAMPLER_TYPE(EGL_TEXTURE_Y_UV_WL),
+		.num_planes = 2,
+		.hsub = 2,
+		.vsub = 2,
+	},
+	{
+		DRM_FORMAT(P016),
+		SAMPLER_TYPE(EGL_TEXTURE_Y_UV_WL),
+		.num_planes = 2,
+		.hsub = 2,
+		.vsub = 2,
 	},
 	{
 		DRM_FORMAT(YUV410),

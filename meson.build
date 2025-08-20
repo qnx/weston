@@ -1,6 +1,6 @@
 project('weston',
 	'c',
-	version: '12.0.0',
+	version: '13.0.0',
 	default_options: [
 		'warning_level=3',
 		'c_std=gnu99',
@@ -10,7 +10,7 @@ project('weston',
 	license: 'MIT/Expat',
 )
 
-libweston_major = 12
+libweston_major = 13
 
 # libweston_revision is manufactured to follow the autotools build's
 # library file naming, thanks to libtool
@@ -27,24 +27,21 @@ else
 	error('Bad versions in meson.build: libweston_major is too low')
 endif
 
-if not (get_option('deprecated-launcher-logind') or get_option('launcher-libseat'))
-       error('At least one launcher must be enabled')
-endif
-
 dir_prefix = get_option('prefix')
-dir_bin = join_paths(dir_prefix, get_option('bindir'))
-dir_data = join_paths(dir_prefix, get_option('datadir'))
+dir_bin = dir_prefix / get_option('bindir')
+dir_data = dir_prefix / get_option('datadir')
 dir_include_libweston = 'libweston-@0@'.format(libweston_major)
-dir_include_libweston_install = join_paths(dir_include_libweston, 'libweston')
-dir_lib = join_paths(dir_prefix, get_option('libdir'))
-dir_libexec = join_paths(dir_prefix, get_option('libexecdir'))
-dir_module_weston = join_paths(dir_lib, 'weston')
-dir_module_libweston = join_paths(dir_lib, 'libweston-@0@'.format(libweston_major))
-dir_data_pc = join_paths(dir_data, 'pkgconfig')
-dir_lib_pc = join_paths(dir_lib, 'pkgconfig')
-dir_man = join_paths(dir_prefix, get_option('mandir'))
-dir_protocol_libweston = join_paths('libweston-@0@'.format(libweston_major), 'protocols')
-dir_sysconf = join_paths(dir_prefix, get_option('sysconfdir'))
+dir_include_libweston_install = dir_include_libweston / 'libweston'
+dir_lib = dir_prefix /get_option('libdir')
+dir_libexec = dir_prefix / get_option('libexecdir')
+dir_module_weston = dir_lib / 'weston'
+dir_module_libweston = dir_lib / 'libweston-@0@'.format(libweston_major)
+dir_data_pc = dir_data / 'pkgconfig'
+dir_lib_pc = dir_lib / 'pkgconfig'
+dir_man = dir_prefix / get_option('mandir')
+dir_protocol_libweston = 'libweston-@0@'.format(libweston_major) / 'protocols'
+dir_sysconf = dir_prefix / get_option('sysconfdir')
+dir_gitlab_ci = meson.project_source_root() / '.gitlab-ci'
 
 public_inc = include_directories('include')
 common_inc = [ include_directories('.'), public_inc ]
@@ -136,8 +133,8 @@ if dep_xkbcommon.version().version_compare('>= 0.5.0')
 	config_h.set('HAVE_XKBCOMMON_COMPOSE', '1')
 endif
 
-dep_wayland_server = dependency('wayland-server', version: '>= 1.20.0')
-dep_wayland_client = dependency('wayland-client', version: '>= 1.20.0')
+dep_wayland_server = dependency('wayland-server', version: '>= 1.22.0')
+dep_wayland_client = dependency('wayland-client', version: '>= 1.22.0')
 dep_pixman = dependency('pixman-1', version: '>= 0.25.2')
 dep_libinput = dependency('libinput', version: '>= 1.2.0')
 dep_libevdev = dependency('libevdev')
@@ -152,6 +149,13 @@ dep_lcms2 = dependency('lcms2', version: '>= 2.9', required: false)
 prog_python = import('python').find_installation('python3')
 files_xxd_py = files('tools/xxd.py')
 cmd_xxd = [ prog_python, files_xxd_py, '@INPUT@', '@OUTPUT@' ]
+
+deps_for_libweston_users = [
+	dep_wayland_server,
+	dep_pixman,
+	dep_xkbcommon,
+]
+
 
 subdir('include')
 subdir('protocol')
@@ -175,7 +179,7 @@ subdir('pam')
 if meson.version().version_compare('>= 0.58.0')
 	devenv = environment()
 	devenv.set('WESTON_MODULE_MAP', env_modmap)
-	devenv.set('WESTON_DATA_DIR', join_paths(meson.current_source_dir(), 'data'))
+	devenv.set('WESTON_DATA_DIR', meson.current_source_dir() / 'data')
 	meson.add_devenv(devenv)
 endif
 

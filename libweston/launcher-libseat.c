@@ -44,7 +44,6 @@
 #include <libweston/weston-log.h>
 #include "weston-log-internal.h"
 #include "backend.h"
-#include "dbus.h"
 #include "launcher-impl.h"
 
 struct launcher_libseat_device {

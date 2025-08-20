@@ -988,7 +988,9 @@ input_method_client_notifier(struct wl_listener *listener, void *data)
 				    client_listener);
 
 	text_backend->input_method.client = NULL;
-	respawn_input_method_process(text_backend);
+
+	if (!text_backend->compositor->shutting_down)
+		respawn_input_method_process(text_backend);
 }
 
 static void
@@ -1006,8 +1008,8 @@ launch_input_method(void *data)
 		setenv("WESTON_KEYBOARD_SURFACE_TYPE", "overlay", 1);
 
 	text_backend->input_method.client =
-		weston_client_start(text_backend->compositor,
-				    text_backend->input_method.path);
+		wet_client_start(text_backend->compositor,
+				 text_backend->input_method.path);
 
 	if (!text_backend->input_method.client) {
 		weston_log("not able to start %s\n",

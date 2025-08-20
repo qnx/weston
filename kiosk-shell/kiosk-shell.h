@@ -60,8 +60,13 @@ struct kiosk_shell_surface {
 	struct wl_listener output_destroy_listener;
 
 	struct wl_signal destroy_signal;
+
+	struct wl_signal parent_destroy_signal;
 	struct wl_listener parent_destroy_listener;
 	struct kiosk_shell_surface *parent;
+
+	struct wl_list surface_tree_list;
+	struct wl_list surface_tree_link;
 
 	int focus_count;
 
@@ -70,8 +75,7 @@ struct kiosk_shell_surface {
 
 	struct {
 		bool is_set;
-		int32_t x;
-		int32_t y;
+		struct weston_coord_global pos;
 	} xwayland;
 
 	bool appid_output_assigned;
@@ -94,6 +98,8 @@ struct kiosk_shell_output {
 	struct wl_list link;
 
 	char *app_ids;
+
+	struct wl_list *active_surface_tree;
 };
 
 #endif /* WESTON_KIOSK_SHELL_H */

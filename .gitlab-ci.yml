@@ -1,6 +1,6 @@
 # vim: set expandtab shiftwidth=2 tabstop=8 textwidth=0:
 
-.templates_sha: &template_sha 567700e483aabed992d0a4fea84994a0472deff6 # see https://docs.gitlab.com/ee/ci/yaml/#includefile
+.templates_sha: &template_sha 184ca628f89f3193c249b4e34e45afee2773a833 # see https://docs.gitlab.com/ee/ci/yaml/#includefile
 # This file uses the freedesktop ci-templates to build Weston and run our
 # tests in CI.
 #
@@ -42,8 +42,8 @@
 
 variables:
   FDO_UPSTREAM_REPO: wayland/weston
-  FDO_REPO_SUFFIX: "$BUILD_OS/$BUILD_ARCH"
-  FDO_DISTRIBUTION_TAG: '2023-04-28-add-libdisplay-info.4'
+  FDO_REPO_SUFFIX: "$BUILD_OS-$FDO_DISTRIBUTION_VERSION/$BUILD_ARCH"
+  FDO_DISTRIBUTION_TAG: '2023-10-05-neatvnc-0.7.0'
 
 
 include:
@@ -71,11 +71,19 @@ stages:
 
 
 # Base variables used for anything using a Debian environment
+.os-debian-lts:
+  variables:
+    BUILD_OS: debian
+    LLVM_VERSION: 11
+    FDO_DISTRIBUTION_VERSION: bullseye
+    FDO_DISTRIBUTION_EXEC: 'env FDO_CI_CONCURRENT=${FDO_CI_CONCURRENT} BUILD_ARCH=${BUILD_ARCH} KERNEL_IMAGE=${KERNEL_IMAGE} KERNEL_DEFCONFIG=${KERNEL_DEFCONFIG} LLVM_VERSION=${LLVM_VERSION} FDO_DISTRIBUTION_VERSION=${FDO_DISTRIBUTION_VERSION} bash .gitlab-ci/debian-install.sh'
+
 .os-debian:
   variables:
     BUILD_OS: debian
-    FDO_DISTRIBUTION_VERSION: bullseye
-    FDO_DISTRIBUTION_EXEC: 'env FDO_CI_CONCURRENT=${FDO_CI_CONCURRENT} BUILD_ARCH=${BUILD_ARCH} KERNEL_IMAGE=${KERNEL_IMAGE} KERNEL_DEFCONFIG=${KERNEL_DEFCONFIG} bash .gitlab-ci/debian-install.sh'
+    LLVM_VERSION: 15
+    FDO_DISTRIBUTION_VERSION: bookworm
+    FDO_DISTRIBUTION_EXEC: 'env FDO_CI_CONCURRENT=${FDO_CI_CONCURRENT} BUILD_ARCH=${BUILD_ARCH} KERNEL_IMAGE=${KERNEL_IMAGE} KERNEL_DEFCONFIG=${KERNEL_DEFCONFIG} LLVM_VERSION=${LLVM_VERSION} FDO_DISTRIBUTION_VERSION=${FDO_DISTRIBUTION_VERSION} bash .gitlab-ci/debian-install.sh'
 
 .ci-rules:
   rules:
@@ -99,6 +107,14 @@ check-commit:
     reports:
       junit: results.xml
 
+.debian-lts-x86_64:
+  extends:
+    - .os-debian-lts
+  variables:
+    BUILD_ARCH: "x86-64"
+    KERNEL_IMAGE: "bzImage"
+    KERNEL_DEFCONFIG: "x86_64_defconfig"
+
 .debian-x86_64:
   extends:
     - .os-debian
@@ -107,11 +123,26 @@ check-commit:
     KERNEL_IMAGE: "bzImage"
     KERNEL_DEFCONFIG: "x86_64_defconfig"
 
+.debian-lts-armv7:
+  extends:
+    - .os-debian-lts
+  variables:
+    BUILD_ARCH: "armv7"
+
 .debian-armv7:
   extends:
     - .os-debian
   variables:
     BUILD_ARCH: "armv7"
+
+.debian-lts-aarch64:
+  extends:
+    - .os-debian-lts
+  variables:
+    BUILD_ARCH: "aarch64"
+    KERNEL_IMAGE: "Image"
+    KERNEL_DEFCONFIG: "defconfig"
+    QEMU_SMP: 8 # built-in QEmu limit
 
 .debian-aarch64:
   extends:
@@ -125,11 +156,31 @@ check-commit:
 # Build our base container image, which contains the core distribution, the
 # toolchain, and all our build dependencies. This will be reused in the build
 # stage.
+x86_64-debian-lts-container_prep:
+  extends:
+    - .ci-rules
+    - .debian-lts-x86_64
+    - .fdo.container-build@debian
+  timeout: 30m
+  stage: "Base container"
+
 x86_64-debian-container_prep:
   extends:
     - .ci-rules
     - .debian-x86_64
     - .fdo.container-build@debian
+  timeout: 30m
+  stage: "Base container"
+
+armv7-debian-lts-container_prep:
+  extends:
+    - .ci-rules
+    - .debian-lts-armv7
+    - .fdo.container-build@debian
+  tags:
+    - aarch64
+  variables:
+    FDO_BASE_IMAGE: "arm32v7/debian:$FDO_DISTRIBUTION_VERSION"
   timeout: 30m
   stage: "Base container"
 
@@ -142,6 +193,16 @@ armv7-debian-container_prep:
     - aarch64
   variables:
     FDO_BASE_IMAGE: "arm32v7/debian:$FDO_DISTRIBUTION_VERSION"
+  timeout: 30m
+  stage: "Base container"
+
+aarch64-debian-lts-container_prep:
+  extends:
+    - .ci-rules
+    - .debian-lts-aarch64
+    - .fdo.container-build@debian
+  tags:
+    - aarch64
   timeout: 30m
   stage: "Base container"
 
@@ -170,8 +231,8 @@ aarch64-debian-container_prep:
 
 .build-with-clang:
   variables:
-    CC: clang-11
-    CC_LD: lld-11
+    CC: clang-$LLVM_VERSION
+    CC_LD: lld-$LLVM_VERSION
     MESON_TOOLCHAIN_OPTIONS: "$MESON_OPTIONS -Db_lundef=false" # clang+ASan+undef=boom
 
 # Extends the core build templates to also provide for running our testing. We
@@ -202,7 +263,7 @@ aarch64-debian-container_prep:
     - $BUILDDIR/weston-virtme
     - $PREFIX
     reports:
-      junit: $BUILDDIR/meson-logs/testlog-per-test-asan.sh.junit.xml
+      junit: $BUILDDIR/meson-logs/testlog-junit.xml
 
 # Same as above, but without running any tests.
 .build-no-test:
@@ -222,6 +283,15 @@ aarch64-debian-container_prep:
     - $PREFIX
 
 # OS/architecture-specific variants
+.build-env-debian-lts-x86_64:
+  extends:
+    - .debian-lts-x86_64
+    - .fdo.suffixed-image@debian
+    - .build-env
+  needs:
+    - job: x86_64-debian-lts-container_prep
+      artifacts: false
+
 .build-env-debian-x86_64:
   extends:
     - .debian-x86_64
@@ -229,6 +299,17 @@ aarch64-debian-container_prep:
     - .build-env
   needs:
     - job: x86_64-debian-container_prep
+      artifacts: false
+
+.build-env-debian-lts-armv7:
+  tags:
+    - aarch64
+  extends:
+    - .debian-lts-armv7
+    - .fdo.suffixed-image@debian
+    - .build-env
+  needs:
+    - job: armv7-debian-lts-container_prep
       artifacts: false
 
 .build-env-debian-armv7:
@@ -242,6 +323,17 @@ aarch64-debian-container_prep:
     - job: armv7-debian-container_prep
       artifacts: false
 
+.build-env-debian-lts-aarch64:
+  tags:
+    - aarch64
+  extends:
+    - .debian-lts-aarch64
+    - .fdo.suffixed-image@debian
+    - .build-env
+  needs:
+    - job: aarch64-debian-lts-container_prep
+      artifacts: false
+
 .build-env-debian-aarch64:
   tags:
     - aarch64
@@ -253,6 +345,16 @@ aarch64-debian-container_prep:
     - job: aarch64-debian-container_prep
       artifacts: false
 
+.test-env-debian-lts-x86_64:
+  tags:
+    - kvm
+  extends:
+    - .build-env-debian-lts-x86_64
+    - .build-and-test
+  needs:
+    - job: x86_64-debian-lts-container_prep
+      artifacts: false
+
 .test-env-debian-x86_64:
   tags:
     - kvm
@@ -261,6 +363,16 @@ aarch64-debian-container_prep:
     - .build-and-test
   needs:
     - job: x86_64-debian-container_prep
+      artifacts: false
+
+.test-env-debian-lts-aarch64:
+  tags:
+    - kvm-aarch64
+  extends:
+    - .build-env-debian-lts-aarch64
+    - .build-and-test
+  needs:
+    - job: aarch64-debian-lts-container_prep
       artifacts: false
 
 .test-env-debian-aarch64:
@@ -282,13 +394,16 @@ aarch64-debian-container_prep:
       -Db_coverage=true
       -Dwerror=true
       -Dtest-skip-is-failure=true
-      -Dlauncher-libseat=true
-      -Ddeprecated-launcher-logind=true
       -Ddeprecated-color-management-static=true
       -Ddeprecated-color-management-colord=true
   after_script:
   - ninja -C "$BUILDDIR" coverage-html > "$BUILDDIR/meson-logs/ninja-coverage-html.txt"
   - ninja -C "$BUILDDIR" coverage-xml
+
+x86_64-debian-lts-full-build:
+  extends:
+    - .test-env-debian-lts-x86_64
+    - .build-options-full
 
 x86_64-debian-full-build:
   extends:
@@ -300,14 +415,31 @@ x86_64-debian-full-build:
         coverage_format: cobertura
         path: $BUILDDIR/meson-logs/coverage.xml
 
+aarch64-debian-lts-full-build:
+  extends:
+    - .test-env-debian-lts-aarch64
+    - .build-options-full
+
 aarch64-debian-full-build:
   extends:
     - .test-env-debian-aarch64
     - .build-options-full
 
+x86_64-clang-debian-lts-full-build:
+  extends:
+    - .test-env-debian-lts-x86_64
+    - .build-with-clang
+    - .build-options-full
+
 x86_64-clang-debian-full-build:
   extends:
     - .test-env-debian-x86_64
+    - .build-with-clang
+    - .build-options-full
+
+aarch64-clang-debian-lts-full-build:
+  extends:
+    - .test-env-debian-lts-aarch64
     - .build-with-clang
     - .build-options-full
 
@@ -339,11 +471,21 @@ docs-build:
       -Dremoting=false
       -Dpipewire=false
       -Dwerror=true
-      -Dlauncher-libseat=true
+
+x86_64-debian-lts-no-gl-build:
+  extends:
+    - .test-env-debian-lts-x86_64
+    - .build-options-no-gl
 
 x86_64-debian-no-gl-build:
   extends:
     - .test-env-debian-x86_64
+    - .build-options-no-gl
+
+armv7-debian-lts-no-gl-build:
+  extends:
+    - .build-env-debian-lts-armv7
+    - .build-no-test
     - .build-options-no-gl
 
 armv7-debian-no-gl-build:
@@ -352,11 +494,23 @@ armv7-debian-no-gl-build:
     - .build-no-test
     - .build-options-no-gl
 
+armv7-clang-debian-lts-no-gl-build:
+  extends:
+    - .build-env-debian-lts-armv7
+    - .build-with-clang
+    - .build-no-test
+    - .build-options-no-gl
+
 armv7-clang-debian-no-gl-build:
   extends:
     - .build-env-debian-armv7
     - .build-with-clang
     - .build-no-test
+    - .build-options-no-gl
+
+aarch64-debian-lts-no-gl-build:
+  extends:
+    - .test-env-debian-lts-aarch64
     - .build-options-no-gl
 
 aarch64-debian-no-gl-build:

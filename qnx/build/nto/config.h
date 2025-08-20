@@ -43,15 +43,15 @@
 
 #define PACKAGE_BUGREPORT "https://gitlab.freedesktop.org/wayland/weston/issues/"
 
-#define PACKAGE_STRING "weston 12.0.0"
+#define PACKAGE_STRING "weston 13.0.0"
 
 #define PACKAGE_URL "https://wayland.freedesktop.org"
 
-#define PACKAGE_VERSION "12.0.0"
+#define PACKAGE_VERSION "13.0.0"
 
 #define USE_RESIZE_POOL 1
 
-#define VERSION "12.0.0"
+#define VERSION "13.0.0"
 
 #define WESTON_SHELL_CLIENT "weston-desktop-shell"
 

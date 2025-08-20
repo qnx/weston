@@ -80,7 +80,8 @@ struct weston_renderer {
 			      const struct weston_geometry *area);
 
 	void (*flush_damage)(struct weston_surface *surface,
-			     struct weston_buffer *buffer);
+			     struct weston_buffer *buffer,
+			     struct weston_output *output);
 	void (*attach)(struct weston_surface *es, struct weston_buffer *buffer);
 	void (*destroy)(struct weston_compositor *ec);
 
@@ -237,15 +238,6 @@ weston_compositor_set_touch_mode_normal(struct weston_compositor *compositor);
 void
 weston_compositor_set_touch_mode_calib(struct weston_compositor *compositor);
 
-int
-weston_compositor_set_presentation_clock(struct weston_compositor *compositor,
-					 clockid_t clk_id);
-int
-weston_compositor_set_presentation_clock_software(
-					struct weston_compositor *compositor);
-void
-weston_compositor_shutdown(struct weston_compositor *ec);
-
 void
 weston_compositor_xkb_destroy(struct weston_compositor *ec);
 
@@ -259,6 +251,10 @@ weston_output_disable_planes_incr(struct weston_output *output);
 
 void
 weston_output_disable_planes_decr(struct weston_output *output);
+
+void
+weston_output_set_single_mode(struct weston_output *output,
+			      struct weston_mode *target);
 
 /* weston_plane */
 
@@ -420,8 +416,8 @@ weston_view_takes_input_at_point(struct weston_view *view,
 				 struct weston_coord_surface surf_pos);
 
 void
-weston_view_move_to_plane(struct weston_view *view,
-			  struct weston_plane *plane);
+weston_paint_node_move_to_plane(struct weston_paint_node *pnode,
+				struct weston_plane *plane);
 void
 weston_view_buffer_to_output_matrix(const struct weston_view *view,
 				    const struct weston_output *output,
@@ -508,9 +504,12 @@ weston_compositor_destroy_touch_calibrator(struct weston_compositor *compositor)
 
 enum paint_node_status {
 	PAINT_NODE_CLEAN = 0,
-	PAINT_NODE_OUTPUT_DIRTY = 1 << 1,
-	PAINT_NODE_VIEW_DIRTY = 1 << 2,
-	PAINT_NODE_ALL_DIRTY = 0xf,
+	PAINT_NODE_OUTPUT_DIRTY = 1 << 0,
+	PAINT_NODE_VIEW_DIRTY = 1 << 1,
+	PAINT_NODE_VISIBILITY_DIRTY = 1 << 2,
+	PAINT_NODE_PLANE_DIRTY = 1 << 3,
+	PAINT_NODE_CONTENT_DIRTY = 1 << 4,
+	PAINT_NODE_ALL_DIRTY = (1 << 5) - 1,
 };
 
 /**
@@ -545,6 +544,11 @@ struct weston_paint_node {
 
 	/* struct weston_output::paint_node_z_order_list */
 	struct wl_list z_order_link;
+
+	pixman_region32_t visible;
+	pixman_region32_t damage; /* In global coordinates */
+	struct weston_plane *plane;
+	struct weston_plane *plane_next;
 
 	struct weston_surface_color_transform surf_xform;
 	bool surf_xform_valid;

@@ -42,6 +42,17 @@ by your GPU when suitable drivers are installed. The other uses the
 rendered. You can select between these with the ``--renderer=gl`` and
 ``--renderer=pixman`` arguments when starting Weston.
 
+Multi-back-end support
+----------------------
+
+Some back-ends can be selected via a comma-separated list to run in parallel,
+for example ``-B drm,vnc``. The first back-end in the list is the *primary*
+back-end. It creates the renderer and creates its outputs first. The following
+back-ends are *secondary* backends. They reuse the renderer and create their
+outputs afterwards. Currently, all back-ends support being loaded as the primary
+back-end. The PipeWire and VNC backends support being loaded as secondary
+backends.
+
 Additional set-up steps
 -----------------------
 
@@ -190,10 +201,12 @@ Running weston from a systemd service
 
 Weston could also be started, as a systemd user `service
 <https://www.freedesktop.org/software/systemd/man/systemd.service.html>`_,
-rather than as systemd system service, still relying on logind launcher.  In
+rather than as systemd system service.  In
 order to do that we would need two
 `unit <https://man7.org/linux/man-pages/man5/systemd.unit.5.html>`_ files,
 a ``.service`` and a ``.socket`` one.
+The ``systemd-notify.so`` module needs to be enabled to notify systemd when
+Weston has finished its startup and is ready to accept client connections.
 
 On a Debian system, the systemd user units are under ``/etc/systemd/user/``
 directory.
@@ -236,7 +249,7 @@ directory.
         StandardError=journal
 
         # add a ~/.config/weston.ini and weston will pick-it up
-        ExecStart=/usr/bin/weston
+        ExecStart=/usr/bin/weston --modules=systemd-notify.so
 
         [Install]
         WantedBy=graphical-session.target

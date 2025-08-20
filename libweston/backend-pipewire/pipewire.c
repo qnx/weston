@@ -57,6 +57,8 @@
 #include <libweston/weston-log.h>
 #include "pixel-formats.h"
 #include "pixman-renderer.h"
+#include "renderer-gl/gl-renderer.h"
+#include "shared/weston-egl-ext.h"
 
 struct pipewire_backend {
 	struct weston_backend base;
@@ -72,6 +74,9 @@ struct pipewire_backend {
 	struct pw_context *context;
 	struct pw_core *core;
 	struct spa_hook core_listener;
+
+	const struct pixel_format_info **formats;
+	unsigned int formats_count;
 };
 
 struct pipewire_output {
@@ -94,8 +99,6 @@ struct pipewire_head {
 };
 
 struct pipewire_frame_data {
-	struct pipewire_output *output;
-	struct pw_buffer *buffer;
 	struct weston_renderbuffer *renderbuffer;
 };
 
@@ -180,6 +183,11 @@ to_pipewire_head(struct weston_head *base)
 	return container_of(base, struct pipewire_head, base);
 }
 
+static const uint32_t pipewire_formats[] = {
+	DRM_FORMAT_XRGB8888,
+	DRM_FORMAT_ARGB8888,
+};
+
 static enum spa_video_format
 spa_video_format_from_drm_fourcc(uint32_t fourcc)
 {
@@ -241,10 +249,6 @@ static int
 finish_frame_handler(void *data)
 {
 	struct pipewire_output *output = data;
-	int refresh_nsec = millihz_to_nsec(output->base.current_mode->refresh);
-	struct timespec ts;
-	struct timespec now;
-	int64_t delta;
 
 	/*
 	 * Skip weston_output_finish_frame() if the repaint state machine was
@@ -253,32 +257,15 @@ finish_frame_handler(void *data)
 	if (output->base.repaint_status != REPAINT_AWAITING_COMPLETION)
 		return 1;
 
-	/*
-	 * The timer only has msec precision, but if the approximately hit our
-	 * target, report an exact time stamp by adding to the previous frame
-	 * time.
-	 */
-	timespec_add_nsec(&ts,&output->base.frame_time, refresh_nsec);
-
-	/* If we are more than 1.5 ms late, report the current time instead. */
-	weston_compositor_read_presentation_clock(output->base.compositor, &now);
-	delta = timespec_sub_to_nsec(&now, &ts);
-	if (delta > 1500000)
-		ts = now;
-
-	weston_output_finish_frame(&output->base, &ts, 0);
+	weston_output_finish_frame_from_timer(&output->base);
 
 	return 1;
 }
 
 static int
-pipewire_output_enable(struct weston_output *base)
+pipewire_output_enable_pixman(struct pipewire_output *output)
 {
-	struct weston_renderer *renderer = base->compositor->renderer;
-	struct pipewire_output *output = to_pipewire_output(base);
-	struct pipewire_backend *backend;
-	struct wl_event_loop *loop;
-	int ret;
+	struct weston_renderer *renderer = output->base.compositor->renderer;
 	const struct pixman_renderer_output_options options = {
 		.use_shadow = true,
 		.fb_size = {
@@ -288,9 +275,70 @@ pipewire_output_enable(struct weston_output *base)
 		.format = output->pixel_format,
 	};
 
+	return renderer->pixman->output_create(&output->base, &options);
+}
+
+static void
+pipewire_output_disable_pixman(struct pipewire_output *output)
+{
+	struct weston_renderer *renderer = output->base.compositor->renderer;
+
+	renderer->pixman->output_destroy(&output->base);
+}
+
+static int
+pipewire_output_enable_gl(struct pipewire_output *output)
+{
+	struct pipewire_backend *b = output->backend;
+	struct weston_renderer *renderer = b->compositor->renderer;
+	const struct weston_size fb_size = {
+		output->base.current_mode->width,
+		output->base.current_mode->height
+	};
+	const struct weston_geometry area = {
+		.x = 0,
+		.y = 0,
+		.width = fb_size.width,
+		.height = fb_size.height
+	};
+	const struct gl_renderer_fbo_options options = {
+		.fb_size = fb_size,
+		.area = area,
+	};
+
+	return renderer->gl->output_fbo_create(&output->base, &options);
+}
+
+static void
+pipewire_output_disable_gl(struct pipewire_output *output)
+{
+	struct weston_renderer *renderer = output->base.compositor->renderer;
+
+	renderer->gl->output_destroy(&output->base);
+}
+
+static int
+pipewire_output_enable(struct weston_output *base)
+{
+	struct weston_renderer *renderer = base->compositor->renderer;
+	struct pipewire_output *output = to_pipewire_output(base);
+	struct pipewire_backend *backend;
+	struct wl_event_loop *loop;
+	int ret = -1;
+
 	backend = output->backend;
 
-	ret = renderer->pixman->output_create(&output->base, &options);
+	switch (renderer->type) {
+	case WESTON_RENDERER_PIXMAN:
+		ret = pipewire_output_enable_pixman(output);
+		break;
+	case WESTON_RENDERER_GL:
+		ret = pipewire_output_enable_gl(output);
+		break;
+	default:
+		unreachable("Valid renderer should have been selected");
+	}
+
 	if (ret < 0)
 		return ret;
 
@@ -305,7 +353,17 @@ pipewire_output_enable(struct weston_output *base)
 
 	return 0;
 err:
-	renderer->pixman->output_destroy(&output->base);
+	switch (renderer->type) {
+	case WESTON_RENDERER_PIXMAN:
+		pipewire_output_disable_pixman(output);
+		break;
+	case WESTON_RENDERER_GL:
+		pipewire_output_disable_gl(output);
+		break;
+	default:
+		unreachable("Valid renderer should have been selected");
+	}
+
 
 	wl_event_source_remove(output->finish_frame_timer);
 
@@ -323,7 +381,16 @@ pipewire_output_disable(struct weston_output *base)
 
 	pw_stream_disconnect(output->stream);
 
-	renderer->pixman->output_destroy(&output->base);
+	switch (renderer->type) {
+	case WESTON_RENDERER_PIXMAN:
+		pipewire_output_disable_pixman(output);
+		break;
+	case WESTON_RENDERER_GL:
+		pipewire_output_disable_gl(output);
+		break;
+	default:
+		unreachable("Valid renderer should have been selected");
+	}
 
 	wl_event_source_remove(output->finish_frame_timer);
 
@@ -407,7 +474,6 @@ pipewire_output_stream_param_changed(void *data, uint32_t id,
 	stride = width * output->pixel_format->bpp / 8;
 	size = height * stride;
 
-
 	params[0] = spa_pod_builder_add_object(&builder,
 		SPA_TYPE_OBJECT_ParamBuffers, SPA_PARAM_Buffers,
 		SPA_PARAM_BUFFERS_size, SPA_POD_Int(size),
@@ -422,34 +488,75 @@ pipewire_output_stream_param_changed(void *data, uint32_t id,
 	pw_stream_update_params(output->stream, params, 2);
 }
 
-static void
-pipewire_output_stream_add_buffer(void *data, struct pw_buffer *buffer)
+static struct weston_renderbuffer *
+pipewire_output_stream_add_buffer_pixman(struct pipewire_output *output,
+					 struct pw_buffer *buffer)
 {
-	struct pipewire_output *output = data;
 	struct weston_compositor *ec = output->base.compositor;
-	const struct pixman_renderer_interface *pixman = ec->renderer->pixman;
-	struct pipewire_frame_data *frame_data;
+	const struct weston_renderer *renderer = ec->renderer;
+	struct spa_buffer *buf = buffer->buffer;
+	struct spa_data *d = buf->datas;
 	const struct pixel_format_info *format;
 	unsigned int width;
 	unsigned int height;
 	unsigned int stride;
 	void *ptr;
 
+	format = output->pixel_format;
+	width = output->base.width;
+	height = output->base.height;
+	stride = width * format->bpp / 8;
+	ptr = d[0].data;
+
+	return renderer->pixman->create_image_from_ptr(&output->base,
+						       format, width, height,
+						       ptr, stride);
+}
+
+static struct weston_renderbuffer *
+pipewire_output_stream_add_buffer_gl(struct pipewire_output *output,
+				     struct pw_buffer *buffer)
+{
+	struct weston_compositor *ec = output->base.compositor;
+	const struct weston_renderer *renderer = ec->renderer;
+	struct spa_buffer *buf = buffer->buffer;
+	struct spa_data *d = buf->datas;
+	const struct pixel_format_info *format;
+	unsigned int width;
+	unsigned int height;
+	void *ptr;
+
+	format = output->pixel_format;
+	width = output->base.width;
+	height = output->base.height;
+	ptr = d[0].data;
+
+	return renderer->gl->create_fbo(&output->base,
+					format, width, height, ptr);
+}
+
+static void
+pipewire_output_stream_add_buffer(void *data, struct pw_buffer *buffer)
+{
+	struct pipewire_output *output = data;
+	struct weston_renderer *renderer = output->base.compositor->renderer;
+	struct pipewire_frame_data *frame_data;
+
 	pipewire_output_debug(output, "add buffer: %p", buffer);
 
 	frame_data = xzalloc(sizeof *frame_data);
 	buffer->user_data = frame_data;
 
-	format = output->pixel_format;
-	width = output->base.width;
-	height = output->base.height;
-	stride = width * format->bpp / 8;
-	ptr = buffer->buffer->datas[0].data;
-
-	frame_data->renderbuffer = pixman->create_image_from_ptr(&output->base,
-								 format, width,
-								 height, ptr,
-								 stride);
+	switch (renderer->type) {
+	case WESTON_RENDERER_PIXMAN:
+		frame_data->renderbuffer = pipewire_output_stream_add_buffer_pixman(output, buffer);
+		break;
+	case WESTON_RENDERER_GL:
+		frame_data->renderbuffer = pipewire_output_stream_add_buffer_gl(output, buffer);
+		break;
+	default:
+		unreachable("Valid renderer should have been selected");
+	}
 }
 
 static void
@@ -521,7 +628,7 @@ pipewire_destroy(struct weston_backend *base)
 	weston_log_scope_destroy(b->debug);
 	b->debug = NULL;
 
-	weston_compositor_shutdown(ec);
+	wl_list_remove(&b->base.link);
 
 	pw_loop_leave(b->loop);
 	pw_loop_destroy(b->loop);
@@ -617,28 +724,6 @@ pipewire_submit_buffer(struct pipewire_output *output,
 	output->seq++;
 }
 
-static void
-pipewire_output_arm_timer(struct pipewire_output *output)
-{
-	struct weston_compositor *ec = output->base.compositor;
-	struct timespec now;
-	struct timespec target;
-	int refresh_nsec = millihz_to_nsec(output->base.current_mode->refresh);
-	int refresh_msec = refresh_nsec / 1000000;
-	int next_frame_delta;
-
-	weston_compositor_read_presentation_clock(ec, &now);
-	timespec_add_nsec(&target, &output->base.frame_time, refresh_nsec);
-
-	next_frame_delta = (int)timespec_sub_to_msec(&target, &now);
-	if (next_frame_delta < 1)
-		next_frame_delta = 1;
-	if (next_frame_delta > refresh_msec)
-		next_frame_delta = refresh_msec;
-
-	wl_event_source_timer_update(output->finish_frame_timer, next_frame_delta);
-}
-
 static int
 pipewire_output_repaint(struct weston_output *base, pixman_region32_t *damage)
 {
@@ -667,11 +752,9 @@ pipewire_output_repaint(struct weston_output *base, pixman_region32_t *damage)
 
 	pipewire_submit_buffer(output, buffer);
 
-	pixman_region32_subtract(&ec->primary_plane.damage,
-				 &ec->primary_plane.damage, damage);
 out:
 
-	pipewire_output_arm_timer(output);
+	weston_output_arm_frame_timer(base, output->finish_frame_timer);
 
 	return 0;
 }
@@ -915,23 +998,42 @@ pipewire_backend_create(struct weston_compositor *compositor,
 	backend->base.destroy = pipewire_destroy;
 	backend->base.create_output = pipewire_create_output;
 
-	compositor->backend = &backend->base;
+	wl_list_insert(&compositor->backend_list, &backend->base.link);
 
-	if (weston_compositor_set_presentation_clock_software(compositor) < 0)
-		goto err_compositor;
+	backend->formats_count = ARRAY_LENGTH(pipewire_formats);
+	backend->formats = pixel_format_get_array(pipewire_formats,
+						  backend->formats_count);
 
-	switch (config->renderer) {
-	case WESTON_RENDERER_AUTO:
-	case WESTON_RENDERER_PIXMAN:
-		break;
-	default:
-		weston_log("Unsupported renderer requested\n");
-		goto err_compositor;
+	backend->base.supported_presentation_clocks =
+			WESTON_PRESENTATION_CLOCKS_SOFTWARE;
+
+	if (!compositor->renderer) {
+		switch (config->renderer) {
+		case WESTON_RENDERER_AUTO:
+		case WESTON_RENDERER_PIXMAN:
+			ret = weston_compositor_init_renderer(compositor,
+							      WESTON_RENDERER_PIXMAN,
+							      NULL);
+			break;
+		case WESTON_RENDERER_GL: {
+			const struct gl_renderer_display_options options = {
+				.egl_platform = EGL_PLATFORM_SURFACELESS_MESA,
+				.formats = backend->formats,
+				.formats_count = backend->formats_count,
+			};
+			ret = weston_compositor_init_renderer(compositor,
+							      WESTON_RENDERER_GL,
+							      &options.base);
+			break;
+		}
+		default:
+			weston_log("Unsupported renderer requested\n");
+			goto err_compositor;
+		}
+
+		if (ret < 0)
+			goto err_compositor;
 	}
-
-	if (weston_compositor_init_renderer(compositor, WESTON_RENDERER_PIXMAN,
-					    NULL) < 0)
-		goto err_compositor;
 
 	compositor->capabilities |= WESTON_CAP_ARBITRARY_MODES;
 
@@ -957,8 +1059,7 @@ pipewire_backend_create(struct weston_compositor *compositor,
 	return backend;
 
 err_compositor:
-	weston_compositor_shutdown(compositor);
-
+	wl_list_remove(&backend->base.link);
 	free(backend);
 	return NULL;
 }
@@ -984,6 +1085,17 @@ weston_backend_init(struct weston_compositor *compositor,
 	    config_base->struct_size > sizeof(struct weston_pipewire_backend_config)) {
 		weston_log("PipeWire backend config structure is invalid\n");
 		return -1;
+	}
+
+	if (compositor->renderer) {
+		switch (compositor->renderer->type) {
+		case WESTON_RENDERER_PIXMAN:
+		case WESTON_RENDERER_GL:
+			break;
+		default:
+			weston_log("Renderer not supported by PipeWire backend\n");
+			return -1;
+		}
 	}
 
 	config_init_to_defaults(&config);

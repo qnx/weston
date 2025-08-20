@@ -41,6 +41,15 @@
 #include "shared/helpers.h"
 #include "shared/string-helpers.h"
 
+static void
+weston_xserver_client_destroyed(struct wl_listener *listener, void *data)
+{
+	struct weston_xserver *wxs =
+		container_of(listener, struct weston_xserver, client_destroy_listener);
+
+	wxs->client = NULL;
+}
+
 static int
 weston_xserver_handle_event(int listen_fd, uint32_t mask, void *data)
 {
@@ -49,13 +58,15 @@ weston_xserver_handle_event(int listen_fd, uint32_t mask, void *data)
 
 	snprintf(display, sizeof display, ":%d", wxs->display);
 
-	wxs->pid = wxs->spawn_func(wxs->user_data, display, wxs->abstract_fd, wxs->unix_fd);
-	if (wxs->pid == -1) {
+	wxs->client = wxs->spawn_func(wxs->user_data, display, wxs->abstract_fd, wxs->unix_fd);
+	if (wxs->client == NULL) {
 		weston_log("Failed to spawn the Xwayland server\n");
 		return 1;
 	}
+	wxs->client_destroy_listener.notify = weston_xserver_client_destroyed;
+	wl_client_add_destroy_late_listener(wxs->client,
+					    &wxs->client_destroy_listener);
 
-	weston_log("Spawned Xwayland server, pid %d\n", wxs->pid);
 	wl_event_source_remove(wxs->abstract_source);
 	wl_event_source_remove(wxs->unix_source);
 
@@ -71,7 +82,10 @@ weston_xserver_shutdown(struct weston_xserver *wxs)
 	unlink(path);
 	snprintf(path, sizeof path, "/tmp/.X11-unix/X%d", wxs->display);
 	unlink(path);
-	if (wxs->pid == 0) {
+	if (wxs->client) {
+		wl_client_destroy(wxs->client);
+		wxs->client = NULL;
+	} else {
 		wl_event_source_remove(wxs->abstract_source);
 		wl_event_source_remove(wxs->unix_source);
 	}
@@ -222,9 +236,9 @@ static void
 weston_xserver_destroy(struct wl_listener *l, void *data)
 {
 	struct weston_xserver *wxs =
-		container_of(l, struct weston_xserver, destroy_listener);
+		container_of(l, struct weston_xserver, compositor_destroy_listener);
 
-	wl_list_remove(&wxs->destroy_listener.link);
+	wl_list_remove(&wxs->compositor_destroy_listener.link);
 
 	if (wxs->loop)
 		weston_xserver_shutdown(wxs);
@@ -245,7 +259,7 @@ weston_xwayland_get(struct weston_compositor *compositor)
 	if (!listener)
 		return NULL;
 
-	wxs = wl_container_of(listener, wxs, destroy_listener);
+	wxs = wl_container_of(listener, wxs, compositor_destroy_listener);
 	return (struct weston_xwayland *)wxs;
 }
 
@@ -305,21 +319,19 @@ retry:
 }
 
 static void
-weston_xwayland_xserver_loaded(struct weston_xwayland *xwayland,
-			       struct wl_client *client, int wm_fd)
+weston_xwayland_xserver_loaded(struct weston_xwayland *xwayland, int wm_fd)
 {
 	struct weston_xserver *wxs = (struct weston_xserver *)xwayland;
 	wxs->wm = weston_wm_create(wxs, wm_fd);
-	wxs->client = client;
 }
 
 static void
-weston_xwayland_xserver_exited(struct weston_xwayland *xwayland,
-			       int exit_status)
+weston_xwayland_xserver_exited(struct weston_xwayland *xwayland)
 {
 	struct weston_xserver *wxs = (struct weston_xserver *)xwayland;
 
-	wxs->pid = 0;
+	if (wxs->client)
+		wl_client_destroy(wxs->client);
 	wxs->client = NULL;
 
 	wxs->abstract_source =
@@ -332,14 +344,14 @@ weston_xwayland_xserver_exited(struct weston_xwayland *xwayland,
 				     weston_xserver_handle_event, wxs);
 
 	if (wxs->wm) {
-		weston_log("xserver exited, code %d\n", exit_status);
+		weston_log("xserver exited, will restart on demand\n");
 		weston_wm_destroy(wxs->wm);
 		wxs->wm = NULL;
 	} else {
 		/* If the X server crashes before it binds to the
 		 * xserver interface, shut down and don't try
 		 * again. */
-		weston_log("xserver crashing too fast: %d\n", exit_status);
+		weston_log("xserver crashing too fast, not restarting\n");
 		weston_xserver_shutdown(wxs);
 	}
 }
@@ -367,7 +379,7 @@ weston_module_init(struct weston_compositor *compositor)
 	wxs->compositor = compositor;
 
 	if (!weston_compositor_add_destroy_listener_once(compositor,
-							 &wxs->destroy_listener,
+							 &wxs->compositor_destroy_listener,
 							 weston_xserver_destroy)) {
 		free(wxs);
 		return 0;
@@ -402,7 +414,7 @@ weston_module_init(struct weston_compositor *compositor)
 	return 0;
 
 out_free:
-	wl_list_remove(&wxs->destroy_listener.link);
+	wl_list_remove(&wxs->compositor_destroy_listener.link);
 	free(wxs);
 	return -1;
 }

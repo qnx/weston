@@ -441,10 +441,7 @@ x11_output_repaint_gl(struct weston_output *output_base,
 
 	ec->renderer->repaint_output(output_base, damage, NULL);
 
-	pixman_region32_subtract(&ec->primary_plane.damage,
-				 &ec->primary_plane.damage, damage);
-
-	wl_event_source_timer_update(output->finish_frame_timer, 10);
+	weston_output_arm_frame_timer(output_base, output->finish_frame_timer);
 	return 0;
 }
 
@@ -522,8 +519,6 @@ x11_output_repaint_shm(struct weston_output *output_base,
 
 	ec->renderer->repaint_output(output_base, damage, output->renderbuffer);
 
-	pixman_region32_subtract(&ec->primary_plane.damage,
-				 &ec->primary_plane.damage, damage);
 	set_clip_for_output(output_base, damage);
 	cookie = xcb_shm_put_image_checked(b->conn, output->window, output->gc,
 					pixman_image_get_width(image),
@@ -539,7 +534,7 @@ x11_output_repaint_shm(struct weston_output *output_base,
 		free(err);
 	}
 
-	wl_event_source_timer_update(output->finish_frame_timer, 10);
+	weston_output_arm_frame_timer(output_base, output->finish_frame_timer);
 	return 0;
 }
 
@@ -547,10 +542,8 @@ static int
 finish_frame_handler(void *data)
 {
 	struct x11_output *output = data;
-	struct timespec ts;
 
-	weston_compositor_read_presentation_clock(output->base.compositor, &ts);
-	weston_output_finish_frame(&output->base, &ts, 0);
+	weston_output_finish_frame_from_timer(&output->base);
 
 	return 1;
 }
@@ -906,11 +899,16 @@ x11_output_disable(struct weston_output *base)
 
 	wl_event_source_remove(output->finish_frame_timer);
 
-	if (renderer->type == WESTON_RENDERER_PIXMAN) {
+	switch (renderer->type) {
+	case WESTON_RENDERER_PIXMAN:
 		x11_output_deinit_shm(backend, output);
 		renderer->pixman->output_destroy(&output->base);
-	} else {
+		break;
+	case WESTON_RENDERER_GL:
 		renderer->gl->output_destroy(&output->base);
+		break;
+	default:
+		unreachable("invalid renderer");
 	}
 
 	xcb_destroy_window(backend->conn, output->window);
@@ -1041,7 +1039,8 @@ x11_output_enable(struct weston_output *base)
 	if (b->fullscreen)
 		x11_output_wait_for_map(b, output);
 
-	if (renderer->type == WESTON_RENDERER_PIXMAN) {
+	switch (renderer->type) {
+	case WESTON_RENDERER_PIXMAN: {
 		const struct pixman_renderer_output_options options = {
 			.use_shadow = true,
 			.fb_size = {
@@ -1064,7 +1063,9 @@ x11_output_enable(struct weston_output *base)
 		}
 
 		output->base.repaint = x11_output_repaint_shm;
-	} else {
+		break;
+	}
+	case WESTON_RENDERER_GL: {
 		/* eglCreatePlatformWindowSurfaceEXT takes a Window*
 		 * but eglCreateWindowSurface takes a Window. */
 		Window xid = (Window) output->window;
@@ -1086,6 +1087,10 @@ x11_output_enable(struct weston_output *base)
 			goto err;
 
 		output->base.repaint = x11_output_repaint_gl;
+		break;
+	}
+	default:
+		unreachable("invalid renderer");
 	}
 
 	output->base.start_repaint_loop = x11_output_start_repaint_loop;
@@ -1234,10 +1239,12 @@ x11_head_destroy(struct weston_head *base)
 static struct x11_output *
 x11_backend_find_output(struct x11_backend *b, xcb_window_t window)
 {
-	struct x11_output *output;
+	struct weston_output *base;
 
-	wl_list_for_each(output, &b->compositor->output_list, base.link) {
-		if (output->window == window)
+	wl_list_for_each(base, &b->compositor->output_list, link) {
+		struct x11_output *output = to_x11_output(base);
+
+		if (output && output->window == window)
 			return output;
 	}
 
@@ -1446,7 +1453,7 @@ x11_backend_deliver_motion_event(struct x11_backend *b,
 
 	motion_event = (struct weston_pointer_motion_event) {
 		.mask = WESTON_POINTER_MOTION_REL,
-		.rel = weston_coord_sub(pos.c, b->prev_pos.c),
+		.rel = weston_coord_global_sub(pos, b->prev_pos).c,
 	};
 	weston_compositor_get_time(&time);
 	notify_motion(&b->core_seat, &time, &motion_event);
@@ -1829,16 +1836,23 @@ x11_backend_get_wm_info(struct x11_backend *c)
 }
 
 static void
-x11_destroy(struct weston_backend *base)
+x11_shutdown(struct weston_backend *base)
 {
-	struct x11_backend *backend = container_of(base, struct x11_backend, base);
-	struct weston_compositor *ec = backend->compositor;
-	struct weston_head *head, *next;
+	struct x11_backend *backend = to_x11_backend(base);
+
 
 	wl_event_source_remove(backend->xcb_source);
 	x11_input_destroy(backend);
+}
 
-	weston_compositor_shutdown(ec); /* destroys outputs, too */
+static void
+x11_destroy(struct weston_backend *base)
+{
+	struct x11_backend *backend = to_x11_backend(base);
+	struct weston_compositor *ec = backend->compositor;
+	struct weston_head *head, *next;
+
+	wl_list_remove(&backend->base.link);
 
 	wl_list_for_each_safe(head, next, &ec->head_list, compositor_link) {
 		if (to_x11_head(head))
@@ -1871,10 +1885,10 @@ x11_backend_create(struct weston_compositor *compositor,
 	b->fullscreen = config->fullscreen;
 	b->no_input = config->no_input;
 
-	compositor->backend = &b->base;
+	wl_list_insert(&compositor->backend_list, &b->base.link);
 
-	if (weston_compositor_set_presentation_clock_software(compositor) < 0)
-		goto err_free;
+	b->base.supported_presentation_clocks =
+			WESTON_PRESENTATION_CLOCKS_SOFTWARE;
 
 	b->dpy = XOpenDisplay(NULL);
 	if (b->dpy == NULL)
@@ -1901,15 +1915,17 @@ x11_backend_create(struct weston_compositor *compositor,
 	b->formats_count = ARRAY_LENGTH(x11_formats);
 	b->formats = pixel_format_get_array(x11_formats, b->formats_count);
 
-	if (config->renderer == WESTON_RENDERER_PIXMAN) {
+	switch (config->renderer) {
+	case WESTON_RENDERER_PIXMAN:
 		if (weston_compositor_init_renderer(compositor,
 						    WESTON_RENDERER_PIXMAN,
 						    NULL) < 0) {
 			weston_log("Failed to initialize pixman renderer for X11 backend\n");
 			goto err_xdisplay;
 		}
-	}
-	else {
+		break;
+	case WESTON_RENDERER_AUTO:
+	case WESTON_RENDERER_GL: {
 		const struct gl_renderer_display_options options = {
 			.egl_platform = EGL_PLATFORM_X11_KHR,
 			.egl_native_display = b->dpy,
@@ -1921,8 +1937,14 @@ x11_backend_create(struct weston_compositor *compositor,
 						    WESTON_RENDERER_GL,
 						    &options.base) < 0)
 			goto err_xdisplay;
+		break;
+	}
+	default:
+		weston_log("Unsupported renderer requested\n");
+		goto err_xdisplay;
 	}
 
+	b->base.shutdown = x11_shutdown;
 	b->base.destroy = x11_destroy;
 	b->base.create_output = x11_output_create;
 
@@ -1968,6 +1990,7 @@ err_renderer:
 err_xdisplay:
 	XCloseDisplay(b->dpy);
 err_free:
+	wl_list_remove(&b->base.link);
 	free(b->formats);
 	free(b);
 	return NULL;
@@ -1989,6 +2012,11 @@ weston_backend_init(struct weston_compositor *compositor,
 	    config_base->struct_version != WESTON_X11_BACKEND_CONFIG_VERSION ||
 	    config_base->struct_size > sizeof(struct weston_x11_backend_config)) {
 		weston_log("X11 backend config structure is invalid\n");
+		return -1;
+	}
+
+	if (compositor->renderer) {
+		weston_log("X11 backend must be the primary backend\n");
 		return -1;
 	}
 

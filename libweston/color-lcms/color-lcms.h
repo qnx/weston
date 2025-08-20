@@ -127,6 +127,9 @@ get_cprof(struct weston_color_profile *cprof_base)
 	return container_of(cprof_base, struct cmlcms_color_profile, base);
 }
 
+struct weston_color_profile *
+cmlcms_get_stock_sRGB_color_profile(struct weston_color_manager *cm_base);
+
 bool
 cmlcms_get_color_profile_from_icc(struct weston_color_manager *cm,
 				  const void *icc_data,
@@ -237,6 +240,9 @@ retrieve_eotf_and_output_inv_eotf(cmsContext lcms_ctx,
 
 unsigned int
 cmlcms_reasonable_1D_points(void);
+
+void
+lcms_optimize_pipeline(cmsPipeline **lut, cmsContext context_id);
 
 cmsToneCurve *
 lcmsJoinToneCurve(cmsContext context_id, const cmsToneCurve *X,

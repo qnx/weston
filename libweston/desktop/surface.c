@@ -51,7 +51,7 @@ struct weston_desktop_surface {
 	void *user_data;
 	struct weston_surface *surface;
 	struct wl_list view_list;
-	struct weston_position buffer_move;
+	struct weston_coord_surface buffer_move;
 	struct wl_listener surface_commit_listener;
 	struct wl_listener surface_destroy_listener;
 	struct wl_listener client_destroy_listener;
@@ -69,7 +69,7 @@ struct weston_desktop_surface {
 	struct {
 		struct weston_desktop_surface *parent;
 		struct wl_list children_link;
-		struct weston_position position;
+		struct weston_coord pos_offset;
 		bool use_geometry;
 	};
 	struct {
@@ -81,27 +81,41 @@ static void
 weston_desktop_surface_update_view_position(struct weston_desktop_surface *surface)
 {
 	struct weston_desktop_view *view;
-	int32_t x, y;
+	struct weston_desktop_surface *parent =
+		weston_desktop_surface_get_parent(surface);
+	int32_t x = surface->pos_offset.x;
+	int32_t y = surface->pos_offset.y;
 
-	x = surface->position.x;
-	y = surface->position.y;
+	if (!parent) {
+		struct weston_coord_global pos;
+
+		assert(!surface->use_geometry);
+
+		pos.c = weston_coord(x, y);
+		wl_list_for_each(view, &surface->view_list, link)
+			weston_view_set_position(view->view, pos);
+
+		return;
+	}
 
 	if (surface->use_geometry) {
+		struct weston_geometry geometry, parent_geometry;
 		struct weston_desktop_surface *parent =
 			weston_desktop_surface_get_parent(surface);
-		struct weston_geometry geometry, parent_geometry;
 
 		geometry = weston_desktop_surface_get_geometry(surface);
 		parent_geometry = weston_desktop_surface_get_geometry(parent);
 
 		x += parent_geometry.x - geometry.x;
 		y += parent_geometry.y - geometry.y;
+	}
 
-		wl_list_for_each(view, &surface->view_list, link)
-			weston_view_set_rel_position(view->view, x, y);
-	} else {
-		wl_list_for_each(view, &surface->view_list, link)
-			weston_view_set_position(view->view, x, y);
+	wl_list_for_each(view, &surface->view_list, link) {
+		struct weston_coord_surface offset;
+		struct weston_view *wv = view->view;
+
+		offset = weston_coord_surface(x, y, wv->geometry.parent->surface);
+		weston_view_set_rel_position(view->view, offset);
 	}
 }
 
@@ -173,12 +187,13 @@ weston_desktop_surface_surface_committed(struct wl_listener *listener,
 {
 	struct weston_desktop_surface *surface =
 		wl_container_of(listener, surface, surface_commit_listener);
+	struct weston_surface *wsurface = surface->surface;
 
-	if (surface->implementation->committed != NULL)
+	if (surface->implementation->committed != NULL) {
 		surface->implementation->committed(surface,
 						   surface->implementation_data,
-						   surface->buffer_move.x,
-						   surface->buffer_move.y);
+						   surface->buffer_move);
+	}
 
 	if (surface->parent != NULL) {
 		struct weston_desktop_view *view;
@@ -198,8 +213,7 @@ weston_desktop_surface_surface_committed(struct wl_listener *listener,
 			weston_desktop_surface_update_view_position(child);
 	}
 
-	surface->buffer_move.x = 0;
-	surface->buffer_move.y = 0;
+	surface->buffer_move = weston_coord_surface(0, 0, wsurface);
 }
 
 static void
@@ -228,8 +242,7 @@ weston_desktop_surface_committed(struct weston_surface *wsurface,
 {
 	struct weston_desktop_surface *surface = wsurface->committed_private;
 
-	surface->buffer_move.x = new_origin.c.x;
-	surface->buffer_move.y = new_origin.c.y;
+	surface->buffer_move = new_origin;
 }
 
 static void
@@ -434,24 +447,15 @@ static void
 weston_desktop_view_propagate_layer(struct weston_desktop_view *view)
 {
 	struct weston_desktop_view *child;
-	struct wl_list *link = &view->view->layer_link.link;
+	struct wl_list *parent_pos = &view->view->layer_link.link;
 
+	/* Move each child to the same layer, immediately in front of its
+	 * parent. */
 	wl_list_for_each_reverse(child, &view->children_list, children_link) {
-		struct weston_layer_entry *prev =
-			wl_container_of(link->prev, prev, link);
+		struct weston_layer_entry *child_pos =
+			wl_container_of(parent_pos->prev, child_pos, link);
 
-		if (prev == &child->view->layer_link)
-			continue;
-
-		child->view->is_mapped = true;
-		weston_view_damage_below(child->view);
-		weston_view_geometry_dirty(child->view);
-		weston_layer_entry_remove(&child->view->layer_link);
-		weston_layer_entry_insert(prev, &child->view->layer_link);
-		weston_view_geometry_dirty(child->view);
-		weston_surface_damage(child->view->surface);
-		weston_view_update_transform(child->view);
-
+		weston_view_move_to_layer(child->view, child_pos);
 		weston_desktop_view_propagate_layer(child);
 	}
 }
@@ -785,15 +789,14 @@ weston_desktop_surface_set_geometry(struct weston_desktop_surface *surface,
 void
 weston_desktop_surface_set_relative_to(struct weston_desktop_surface *surface,
 				       struct weston_desktop_surface *parent,
-				       int32_t x, int32_t y, bool use_geometry)
+				       struct weston_coord_surface offset, bool use_geometry)
 {
 	struct weston_desktop_view *view, *parent_view;
 	struct wl_list *link, *tmp;
 
 	assert(parent);
 
-	surface->position.x = x;
-	surface->position.y = y;
+	surface->pos_offset = offset.c;
 	surface->use_geometry = use_geometry;
 
 	if (surface->parent == parent)
@@ -840,6 +843,7 @@ weston_desktop_surface_unset_relative_to(struct weston_desktop_surface *surface)
 		return;
 
 	surface->parent = NULL;
+	surface->use_geometry = false;
 	wl_list_remove(&surface->children_link);
 	wl_list_init(&surface->children_link);
 

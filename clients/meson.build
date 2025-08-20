@@ -38,7 +38,7 @@ dep_toytoolkit = declare_dependency(
 	link_with: lib_toytoolkit,
 	dependencies: deps_toytoolkit,
 )
-dep_gbm = dependency('gbm', required: false)
+dep_gbm = dependency('gbm', required: false, version: '>= 21.1.1')
 if dep_gbm.found() and dep_gbm.version().version_compare('>= 21.3')
 	config_h.set('HAVE_GBM_BO_CREATE_WITH_MODIFIERS2', '1')
 endif
@@ -123,8 +123,11 @@ simple_clients = [
 			weston_direct_display_protocol_c,
 			fullscreen_shell_unstable_v1_client_protocol_h,
 			fullscreen_shell_unstable_v1_protocol_c,
+			viewporter_client_protocol_h,
+			viewporter_protocol_c,
 		],
-		'dep_objs': [ dep_wayland_client, dep_libdrm_headers ]
+		'dep_objs': [ dep_wayland_client, dep_libdrm_headers ],
+		'deps': [ 'wayland-cursor' ]
 	},
 	{
 		'name': 'egl',
@@ -272,7 +275,13 @@ demo_clients = [
 		'basename': 'cliptest',
 		'dep_objs': [ dep_vertex_clipping, dep_matrix_c ]
 	},
-	{ 'basename': 'confine' },
+	{
+		'basename': 'constraints',
+		'add_sources': [
+			xdg_shell_client_protocol_h,
+			xdg_shell_protocol_c,
+		],
+	},
 	{
 		'basename': 'content_protection',
 		'add_sources': [

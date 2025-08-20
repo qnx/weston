@@ -39,6 +39,7 @@ struct ivi_shell
 	struct wl_listener show_input_panel_listener;
 	struct wl_listener hide_input_panel_listener;
 	struct wl_listener update_input_panel_listener;
+	struct wl_listener seat_created_listener;
 
 	struct weston_compositor *compositor;
 
@@ -52,6 +53,8 @@ struct ivi_shell
 		struct wl_resource *binding;
 		struct wl_list surfaces;
 	} input_panel;
+
+	struct wl_list seat_list;
 };
 
 void
@@ -62,6 +65,13 @@ struct ivi_layout_surface;
 
 struct ivi_layout_surface *
 shell_get_ivi_layout_surface(struct weston_surface *surface);
+
+struct ivi_layout_surface *
+shell_get_focused_ivi_layout_surface(struct weston_seat *seat);
+
+void
+shell_set_focused_ivi_layout_surface(struct ivi_layout_surface *ivisurface,
+				     struct weston_seat *seat);
 
 void
 shell_ensure_text_input(struct ivi_shell *shell);

@@ -11,18 +11,30 @@ set -o xtrace -o errexit
 export MAKEFLAGS="-j${FDO_CI_CONCURRENT:-4}"
 export NINJAFLAGS="-j${FDO_CI_CONCURRENT:-4}"
 
+# When calling pip in newer versions, we're required to pass
+# --break-system-packages so it knows that we did really want to call pip and
+# aren't just doing it by accident.
+PIP_ARGS="--user"
+case "$FDO_DISTRIBUTION_VERSION" in
+  bullseye)
+    ;;
+  *)
+    PIP_ARGS="$PIP_ARGS --break-system-packages"
+    ;;
+esac
+
 # Build and install Meson. Generally we want to keep this in sync with what
 # we require inside meson.build.
-pip3 install --user git+https://github.com/mesonbuild/meson.git@1.0.0
+pip3 install $PIP_ARGS git+https://github.com/mesonbuild/meson.git@1.0.0
 export PATH=$HOME/.local/bin:$PATH
 
 # Our docs are built using Sphinx (top-level organisation and final HTML/CSS
 # generation), Doxygen (parse structures/functions/comments from source code),
 # Breathe (a bridge between Doxygen and Sphinx), and we use the Read the Docs
 # theme for the final presentation.
-pip3 install sphinx==4.2.0 --user
-pip3 install breathe==4.31.0 --user
-pip3 install sphinx_rtd_theme==1.0.0 --user
+pip3 install $PIP_ARGS sphinx==4.2.0
+pip3 install $PIP_ARGS breathe==4.31.0
+pip3 install $PIP_ARGS sphinx_rtd_theme==1.0.0
 
 # Build a Linux kernel for use in testing. We enable the VKMS module so we can
 # predictably test the DRM backend in the absence of real hardware. We lock the
@@ -46,7 +58,7 @@ pip3 install sphinx_rtd_theme==1.0.0 --user
 # The fork pulls in this support from the original GitHub PR, rebased on top of
 # a newer upstream version which fixes AArch64 support.
 if [[ -n "$KERNEL_DEFCONFIG" ]]; then
-	git clone --depth=1 --branch=v5.14 https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git linux
+	git clone --depth=1 --branch=v6.3 https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git linux
 	cd linux
 
 	if [[ "${BUILD_ARCH}" = "x86-64" ]]; then
@@ -86,14 +98,14 @@ if [[ -n "$KERNEL_DEFCONFIG" ]]; then
 
 	git clone https://github.com/fooishbar/virtme
 	cd virtme
-	git checkout -b snapshot 70e390c564cd09e0da287a7f2c04a6592e59e379
+	git checkout -b snapshot 036fc0c8b3ee0881a035abc47ab4f152546a4408
 	./setup.py install
 	cd ..
 fi
 
 # Build and install Wayland; keep this version in sync with our dependency
 # in meson.build.
-git clone --branch 1.20.0 --depth=1 https://gitlab.freedesktop.org/wayland/wayland
+git clone --branch 1.22.0 --depth=1 https://gitlab.freedesktop.org/wayland/wayland
 cd wayland
 git show -s HEAD
 mkdir build
@@ -113,6 +125,17 @@ ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf wayland-protocols
 
+# Build and install our own version of libdrm. Debian 11 (bullseye) provides
+# libdrm 2.4.104 which doesn't have the IN_FORMATS iterator api, and Mesa
+# depends on 2.4.109 as well.
+git clone --branch libdrm-2.4.109 --depth=1 https://gitlab.freedesktop.org/mesa/drm.git
+cd drm
+meson build --wrap-mode=nofallback -Dauto_features=disabled \
+	-Dvc4=false -Dfreedreno=false -Detnaviv=false
+ninja ${NINJAFLAGS} -C build install
+cd ..
+rm -rf drm
+
 # Build and install our own version of Mesa. Debian provides a perfectly usable
 # Mesa, however llvmpipe's rendering behaviour can change subtly over time.
 # This doesn't work for our tests which expect pixel-precise reproduction, so
@@ -120,24 +143,13 @@ rm -rf wayland-protocols
 # features from Mesa then bump this version and $FDO_DISTRIBUTION_TAG, however
 # please be prepared for some of the tests to change output, which will need to
 # be manually inspected for correctness.
-git clone --branch 21.3 --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
+git clone --branch 23.0 --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
 cd mesa
 meson build --wrap-mode=nofallback -Dauto_features=disabled \
 	-Dgallium-drivers=swrast -Dvulkan-drivers= -Ddri-drivers=
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf mesa
-
-# Build and install our own version of libdrm. Debian 11 (bullseye) provides
-# libdrm 2.4.104 which doesn't have the IN_FORMATS iterator api. We can stop
-# building and installing libdrm as soon as we move to Debian 12.
-git clone --branch libdrm-2.4.108 --depth=1 https://gitlab.freedesktop.org/mesa/drm.git
-cd drm
-meson build --wrap-mode=nofallback -Dauto_features=disabled \
-	-Dvc4=false -Dfreedreno=false -Detnaviv=false
-ninja ${NINJAFLAGS} -C build install
-cd ..
-rm -rf drm
 
 # PipeWire is used for remoting support. Unlike our other dependencies its
 # behaviour will be stable, however as a pre-1.0 project its API is not yet
@@ -169,7 +181,7 @@ meson build --wrap-mode=nofallback
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf aml
-git clone --branch v0.6.0 --depth=1 https://github.com/any1/neatvnc.git
+git clone --branch v0.7.0 --depth=1 https://github.com/any1/neatvnc.git
 cd neatvnc
 meson build --wrap-mode=nofallback -Dauto_features=disabled
 ninja ${NINJAFLAGS} -C build install

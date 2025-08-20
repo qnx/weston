@@ -23,8 +23,6 @@
  */
 #pragma once
 
-#include "config.h"
-#include "shared/helpers.h"
 #include <libweston/libweston.h>
 
 #ifdef __cplusplus
@@ -38,7 +36,8 @@ struct weston_curtain_params {
 				  struct weston_coord_surface new_origin);
 	void *surface_private;
 	float r, g, b, a;
-	int x, y, width, height;
+	struct weston_coord_global pos;
+	int width, height;
 	bool capture_input;
 };
 
@@ -72,6 +71,9 @@ weston_shell_utils_curtain_create(struct weston_compositor *compositor,
 				  struct weston_curtain_params *params);
 void
 weston_shell_utils_curtain_destroy(struct weston_curtain *curtain);
+
+enum weston_layer_position
+weston_shell_utils_view_get_layer_position(struct weston_view *view);
 
 #ifdef __cplusplus
 }

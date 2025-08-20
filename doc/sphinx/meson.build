@@ -3,9 +3,9 @@ doxygen = find_program('doxygen', required: true)
 dot = find_program('dot', required: true)
 breathe = find_program('breathe-apidoc', required: true)
 
-sphinx_c = run_command(sphinx, '--version')
-breathe_c = run_command(breathe, '--version')
-doxygen_c = run_command(doxygen, '--version')
+sphinx_c = run_command(sphinx, '--version', check: true)
+breathe_c = run_command(breathe, '--version', check: true)
+doxygen_c = run_command(doxygen, '--version', check: true)
 
 sphinx_v = sphinx_c.stdout().split(' ')[1].strip()
 breathe_v = breathe_c.stdout().split(' ')[2].strip()
@@ -37,7 +37,7 @@ sphinx_conf = configure_file(
 )
 
 doxy_conf_data = configuration_data()
-doxy_conf_data.set('SRC_ROOT', meson.source_root())
+doxy_conf_data.set('SRC_ROOT', meson.project_source_root())
 doxy_conf_data.set('OUTPUT_DIR', doxygen_database)
 doxy_conf_data.set('MESON_WERROR', get_option('werror') == true ? 'YES' : 'NO')
 doxygen_conf_weston = configure_file(
@@ -54,8 +54,8 @@ script_data.set('OUTDIR', meson.current_build_dir() + '/doc')
 script_data.set('DOCTREES_DIR', meson.current_build_dir() + '/doctrees')
 
 script_data.set('DOXYGEN_CONF', meson.current_build_dir() + '/doxygen.ini')
-script_data.set('DOXYGEN_CMD', doxygen.path())
-script_data.set('SPHINX_CMD', sphinx.path())
+script_data.set('DOXYGEN_CMD', doxygen.full_path())
+script_data.set('SPHINX_CMD', sphinx.full_path())
 script_doxy_sphinx = configure_file(
 	input: 'run_doxygen_sphinx.sh.in',
 	output: 'run_doxygen_sphinx.sh',
@@ -73,11 +73,17 @@ endforeach
 # and those in toc
 subdir('toc')
 
+sphinx_env = []
+if doxygen_v.version_compare('< 1.9.7')
+	sphinx_env += 'CAIRO_DEBUG_PDF=1'
+endif
+
 sphinx_doc = custom_target(
 		'weston-doc-breathe',
 		command: script_doxy_sphinx,
 		output: 'doc',
 		build_by_default: true,
+		env: sphinx_env,
 )
 
 # we need this because we will have a stale 'doc' directory
@@ -89,7 +95,7 @@ docs = run_target(
 
 install_subdir(
 	sphinx_doc.full_path(),
-	install_dir: join_paths(dir_data, 'doc', 'weston'),
+	install_dir: dir_data / 'doc' / 'weston',
 	exclude_files: '.buildinfo',
 	strip_directory: true,
 )

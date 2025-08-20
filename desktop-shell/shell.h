@@ -67,17 +67,13 @@ struct shell_output {
 	struct wl_list        link;
 
 	struct weston_surface *panel_surface;
+	struct weston_view *panel_view;
 	struct wl_listener panel_surface_listener;
+	struct weston_coord_global panel_offset;
 
 	struct weston_surface *background_surface;
+	struct weston_view *background_view;
 	struct wl_listener background_surface_listener;
-
-	struct {
-		struct weston_curtain *curtain;
-		struct weston_view_animation *animation;
-		enum fade_type type;
-		struct wl_event_source *startup_timer;
-	} fade;
 };
 
 struct weston_desktop;
@@ -126,6 +122,7 @@ struct desktop_shell {
 
 	struct weston_surface *lock_surface;
 	struct wl_listener lock_surface_listener;
+	struct weston_view *lock_view;
 
 	struct workspace workspace;
 
@@ -133,6 +130,13 @@ struct desktop_shell {
 		struct wl_resource *binding;
 		struct wl_list surfaces;
 	} input_panel;
+
+	struct {
+		struct weston_curtain *curtain;
+		struct weston_view_animation *animation;
+		enum fade_type type;
+		struct wl_event_source *startup_timer;
+	} fade;
 
 	bool allow_zap;
 	uint32_t binding_modifier;
@@ -148,6 +152,7 @@ struct desktop_shell {
 	struct wl_listener output_move_listener;
 	struct wl_list output_list;
 	struct wl_list seat_list;
+	struct wl_list shsurf_list;
 
 	enum weston_desktop_shell_panel_position panel_position;
 

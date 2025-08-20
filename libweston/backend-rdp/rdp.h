@@ -99,6 +99,9 @@ struct rdp_backend {
         rdp_audio_out_teardown audio_out_teardown;
 
 	uint32_t head_index;
+
+	const struct pixel_format_info **formats;
+	unsigned int formats_count;
 };
 
 enum peer_item_flags {
@@ -126,6 +129,7 @@ struct rdp_output {
 	struct rdp_backend *backend;
 	struct wl_event_source *finish_frame_timer;
 	struct weston_renderbuffer *renderbuffer;
+	pixman_image_t *shadow_surface;
 };
 
 struct rdp_peer_context {

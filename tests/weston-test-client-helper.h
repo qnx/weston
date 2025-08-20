@@ -39,6 +39,7 @@
 #include "weston-test-client-protocol.h"
 #include "viewporter-client-protocol.h"
 #include "weston-output-capture-client-protocol.h"
+#include "weston-testsuite-data.h"
 
 struct client {
 	struct wl_display *wl_display;
@@ -229,6 +230,9 @@ surface_contains(struct surface *surface, int x, int y);
 void
 move_client(struct client *client, int x, int y);
 
+void
+move_client_offscreenable(struct client *client, int x, int y);
+
 #define client_roundtrip(c) do { \
 	assert(wl_display_roundtrip((c)->wl_display) >= 0); \
 } while (0)
@@ -316,5 +320,43 @@ fill_image_with_color(pixman_image_t *image, const pixman_color_t *color);
 
 pixman_color_t *
 color_rgb888(pixman_color_t *tmp, uint8_t r, uint8_t g, uint8_t b);
+
+/* Helper to wait for the next breakpoint and execute inside it; as this is a
+ * for loop, continue/break/etc will not affect an enclosing scope! */
+#define RUN_INSIDE_BREAKPOINT(client_, suite_data_)				\
+	for (struct wet_test_active_breakpoint *breakpoint =			\
+		client_wait_breakpoint(client_, suite_data_);			\
+	     suite_data_->breakpoints.in_client_break;				\
+	     client_release_breakpoint(client_, suite_data_, breakpoint))
+
+/* Specifies that the currently-executing breakpoint should be rearmed */
+#define REARM_BREAKPOINT(breakpoint_) breakpoint_->rearm_on_release = true
+
+void
+client_push_breakpoint(struct client *client,
+		       struct wet_testsuite_data *suite_data,
+		       enum weston_test_breakpoint breakpoint,
+		       struct wl_proxy *proxy);
+
+struct wet_test_active_breakpoint *
+client_wait_breakpoint(struct client *client,
+		       struct wet_testsuite_data *suite_data);
+
+void
+client_insert_breakpoint(struct client *client,
+			 struct wet_testsuite_data *suite_data,
+			 enum weston_test_breakpoint breakpoint,
+			 struct wl_proxy *proxy);
+
+void
+client_remove_breakpoint(struct client *client,
+			 struct wet_testsuite_data *suite_data,
+			 enum weston_test_breakpoint breakpoint,
+			 struct wl_proxy *proxy);
+
+void
+client_release_breakpoint(struct client *client,
+			  struct wet_testsuite_data *suite_data,
+			  struct wet_test_active_breakpoint *active_bp);
 
 #endif

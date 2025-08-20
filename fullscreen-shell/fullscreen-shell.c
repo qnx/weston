@@ -228,11 +228,11 @@ black_surface_committed(struct weston_surface *es,
 
 static struct weston_curtain *
 create_curtain(struct weston_compositor *ec, struct fs_output *fsout,
-	       float x, float y, int w, int h)
+	       struct weston_coord_global pos, int w, int h)
 {
 	struct weston_curtain_params curtain_params = {
 		.r = 0.0, .g = 0.0, .b = 0.0, .a = 1.0,
-		.x = x, .y = y, .width = w, .height = h,
+		.pos = pos, .width = w, .height = h,
 		.surface_committed = black_surface_committed,
 		.get_label = NULL,
 		.surface_private = fsout,
@@ -324,7 +324,7 @@ fs_output_create(struct fullscreen_shell *shell, struct weston_output *output)
 	fsout->surface_destroyed.notify = surface_destroyed;
 	fsout->pending.surface_destroyed.notify = pending_surface_destroyed;
 	fsout->curtain = create_curtain(shell->compositor, fsout,
-					output->x, output->y,
+					output->pos,
 					output->width, output->height);
 	fsout->curtain->view->is_mapped = true;
 	weston_layer_entry_insert(&shell->layer.view_list,
@@ -365,33 +365,33 @@ restore_output_mode(struct weston_output *output)
 static void
 fs_output_scale_view(struct fs_output *fsout, float width, float height)
 {
-	float x, y;
 	int32_t surf_x, surf_y, surf_width, surf_height;
 	struct weston_matrix *matrix;
 	struct weston_view *view = fsout->view;
 	struct weston_output *output = fsout->output;
+	struct weston_coord_global pos = fsout->output->pos;
 
 	weston_shell_utils_subsurfaces_boundingbox(view->surface, &surf_x, &surf_y,
 						   &surf_width, &surf_height);
 
 	if (output->width == surf_width && output->height == surf_height) {
-		weston_view_set_position(view,
-					 fsout->output->x - surf_x,
-					 fsout->output->y - surf_y);
+		pos.c.x -= surf_x;
+		pos.c.y -= surf_y;
+		weston_view_set_position(view, pos);
+		weston_view_remove_transform(fsout->view, &fsout->transform);
 	} else {
 		matrix = &fsout->transform.matrix;
 		weston_matrix_init(matrix);
 
 		weston_matrix_scale(matrix, width / surf_width,
 				    height / surf_height, 1);
-		wl_list_remove(&fsout->transform.link);
-		wl_list_insert(&fsout->view->geometry.transformation_list,
-			       &fsout->transform.link);
+		weston_view_add_transform(fsout->view,
+					  &fsout->view->geometry.transformation_list,
+					  &fsout->transform);
 
-		x = output->x + (output->width - width) / 2 - surf_x;
-		y = output->y + (output->height - height) / 2 - surf_y;
-
-		weston_view_set_position(view, x, y);
+		pos.c.x += (output->width - width) / 2 - surf_x;
+		pos.c.y += (output->height - height) / 2 - surf_y;
+		weston_view_set_position(view, pos);
 	}
 }
 
@@ -405,6 +405,7 @@ fs_output_configure_simple(struct fs_output *fsout,
 	struct weston_output *output = fsout->output;
 	float output_aspect, surface_aspect;
 	int32_t surf_x, surf_y, surf_width, surf_height;
+	struct weston_coord_global pos;
 
 	if (fsout->pending.surface == configured_surface)
 		fs_output_apply_pending(fsout);
@@ -458,9 +459,10 @@ fs_output_configure_simple(struct fs_output *fsout,
 		break;
 	}
 
-	weston_view_set_position(fsout->curtain->view,
-				 fsout->output->x - surf_x,
-				 fsout->output->y - surf_y);
+	pos = fsout->output->pos;
+	pos.c.x -= surf_x;
+	pos.c.y -= surf_y;
+	weston_view_set_position(fsout->curtain->view, pos);
 	weston_surface_set_size(fsout->curtain->view->surface,
 				fsout->output->width,
 				fsout->output->height);
@@ -472,6 +474,7 @@ fs_output_configure_for_mode(struct fs_output *fsout,
 {
 	int32_t surf_x, surf_y, surf_width, surf_height;
 	struct weston_mode mode;
+	struct weston_coord_global pos;
 	int ret;
 
 	if (fsout->pending.surface != configured_surface) {
@@ -536,9 +539,10 @@ fs_output_configure_for_mode(struct fs_output *fsout,
 
 	fs_output_apply_pending(fsout);
 
-	weston_view_set_position(fsout->view,
-				 fsout->output->x - surf_x,
-				 fsout->output->y - surf_y);
+	pos = fsout->output->pos;
+	pos.c.x -= surf_x;
+	pos.c.y -= surf_y;
+	weston_view_set_position(fsout->view, pos);
 }
 
 static void
@@ -613,15 +617,12 @@ fs_output_apply_pending(struct fs_output *fsout)
 			weston_log("no memory\n");
 			return;
 		}
-		fsout->view->is_mapped = true;
 		fsout->surface->is_mapped = true;
 
 		wl_signal_add(&fsout->surface->destroy_signal,
 			      &fsout->surface_destroyed);
-		weston_layer_entry_insert(&fsout->shell->layer.view_list,
-			       &fsout->view->layer_link);
-
-		weston_view_geometry_dirty(fsout->view);
+		weston_view_move_to_layer(fsout->view,
+					  &fsout->shell->layer.view_list);
 	}
 
 	fs_output_clear_pending(fsout);
@@ -698,7 +699,6 @@ fullscreen_shell_present_surface(struct wl_client *client,
 {
 	struct fullscreen_shell *shell =
 		wl_resource_get_user_data(resource);
-	struct weston_output *output;
 	struct weston_surface *surface;
 	struct weston_seat *seat;
 	struct fs_output *fsout;
@@ -719,8 +719,13 @@ fullscreen_shell_present_surface(struct wl_client *client,
 	}
 
 	if (output_res) {
-		output = weston_head_from_resource(output_res)->output;
-		fsout = fs_output_for_output(output);
+		struct weston_head *head =
+			weston_head_from_resource(output_res);
+
+		if (!head)
+			return;
+
+		fsout = fs_output_for_output(head->output);
 		fs_output_set_surface(fsout, surface, method, 0, 0);
 	} else {
 		replace_default_surface(shell, surface, method);
@@ -758,13 +763,15 @@ fullscreen_shell_present_surface_for_mode(struct wl_client *client,
 {
 	struct fullscreen_shell *shell =
 		wl_resource_get_user_data(resource);
-	struct weston_output *output;
 	struct weston_surface *surface;
 	struct weston_seat *seat;
 	struct fs_output *fsout;
+	struct weston_head *head = weston_head_from_resource(output_res);
 
-	output = weston_head_from_resource(output_res)->output;
-	fsout = fs_output_for_output(output);
+	if (!head)
+		return;
+
+	fsout = fs_output_for_output(head->output);
 
 	if (surface_res == NULL) {
 		fs_output_set_surface(fsout, NULL, 0, 0, 0);

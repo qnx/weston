@@ -44,6 +44,7 @@
 
 struct desktest_shell {
 	struct wl_listener compositor_destroy_listener;
+	struct weston_compositor *compositor;
 	struct weston_desktop *desktop;
 	struct weston_layer background_layer;
 	struct weston_curtain *background;
@@ -79,13 +80,15 @@ desktop_surface_removed(struct weston_desktop_surface *desktop_surface,
 
 static void
 desktop_surface_committed(struct weston_desktop_surface *desktop_surface,
-			  int32_t sx, int32_t sy, void *shell)
+			  struct weston_coord_surface unused, void *shell)
 {
 	struct desktest_shell *dts = shell;
 	struct weston_surface *surface =
 		weston_desktop_surface_get_surface(desktop_surface);
 	struct weston_geometry geometry =
 		weston_desktop_surface_get_geometry(desktop_surface);
+	struct weston_coord_global pos;
+	struct weston_coord_surface offset;
 
 	assert(dts->view);
 
@@ -93,10 +96,13 @@ desktop_surface_committed(struct weston_desktop_surface *desktop_surface,
 		return;
 
 	weston_surface_map(surface);
+	pos.c = weston_coord(0, 0);
+	offset = weston_coord_surface(geometry.x, geometry.y,
+				      dts->view->surface);
+	offset = weston_coord_surface_invert(offset);
+	weston_view_set_position_with_offset(dts->view, pos, offset);
 	weston_layer_entry_insert(&dts->layer.view_list, &dts->view->layer_link);
-	weston_view_set_position(dts->view, 0 - geometry.x, 0 - geometry.y);
-	weston_view_update_transform(dts->view);
-	dts->view->is_mapped = true;
+	weston_view_move_to_layer(dts->view, &dts->layer.view_list);
 }
 
 static void
@@ -182,6 +188,28 @@ shell_destroy(struct wl_listener *listener, void *data)
 	free(dts);
 }
 
+static void
+desktest_shell_click_to_activate_binding(struct weston_pointer *pointer,
+					 const struct timespec *time,
+					 uint32_t button, void *data)
+{
+	if (pointer->grab != &pointer->default_grab)
+		return;
+	if (pointer->focus == NULL)
+		return;
+
+	weston_view_activate_input(pointer->focus, pointer->seat,
+				   WESTON_ACTIVATE_FLAG_CLICKED);
+}
+
+static void
+desktest_shell_add_bindings(struct desktest_shell *dts)
+{
+	weston_compositor_add_button_binding(dts->compositor, BTN_LEFT, 0,
+					     desktest_shell_click_to_activate_binding,
+					     dts);
+}
+
 WL_EXPORT int
 wet_shell_init(struct weston_compositor *ec,
 	       int *argc, char *argv[])
@@ -189,12 +217,14 @@ wet_shell_init(struct weston_compositor *ec,
 	struct desktest_shell *dts;
 	struct weston_curtain_params background_params = {
 		.r = 0.16, .g = 0.32, .b = 0.48, .a = 1.0,
-		.x = 0, .y = 0, .width = 2000, .height = 2000,
+		.pos.c = weston_coord(0, 0),
+		.width = 2000, .height = 2000,
 		.capture_input = true,
 		.surface_committed = NULL,
 		.get_label = background_get_label,
 		.surface_private = NULL,
 	};
+	struct weston_coord_global pos;
 
 	dts = zalloc(sizeof *dts);
 	if (!dts)
@@ -206,6 +236,8 @@ wet_shell_init(struct weston_compositor *ec,
 		free(dts);
 		return 0;
 	}
+
+	dts->compositor = ec;
 
 	weston_layer_init(&dts->layer, ec);
 	weston_layer_init(&dts->background_layer, ec);
@@ -221,17 +253,18 @@ wet_shell_init(struct weston_compositor *ec,
 	weston_surface_set_role(dts->background->view->surface,
 				"test-desktop background", NULL, 0);
 
-	weston_view_set_position(dts->background->view, 0, 0);
-	weston_layer_entry_insert(&dts->background_layer.view_list,
-				  &dts->background->view->layer_link);
-	weston_view_update_transform(dts->background->view);
-	dts->background->view->is_mapped = true;
+	pos.c = weston_coord(0, 0);
+	weston_view_set_position(dts->background->view, pos);
+	weston_view_move_to_layer(dts->background->view,
+				  &dts->background_layer.view_list);
 
 	dts->desktop = weston_desktop_create(ec, &shell_desktop_api, dts);
 	if (dts->desktop == NULL)
 		goto out_view;
 
 	screenshooter_create(ec);
+
+	desktest_shell_add_bindings(dts);
 
 	return 0;
 

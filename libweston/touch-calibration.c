@@ -199,9 +199,7 @@ map_calibrator(struct weston_touch_calibrator *calibrator)
 	weston_layer_entry_insert(&c->calibrator_layer.view_list,
 				  &calibrator->view->layer_link);
 
-	weston_view_set_position(calibrator->view,
-				 calibrator->output->x,
-				 calibrator->output->y);
+	weston_view_set_position(calibrator->view, calibrator->output->pos);
 	calibrator->view->output = calibrator->surface->output;
 	calibrator->view->is_mapped = true;
 

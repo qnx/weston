@@ -42,10 +42,6 @@
 #include "pixel-formats.h"
 #include "presentation-time-server-protocol.h"
 
-#ifndef DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP
-#define DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP 0x15
-#endif
-
 struct drm_property_enum_info plane_type_enums[] = {
 	[WDRM_PLANE_TYPE_PRIMARY] = {
 		.name = "Primary",
@@ -708,8 +704,6 @@ drm_output_set_cursor(struct drm_output_state *output_state)
 		return;
 
 	if (!state->fb) {
-		pixman_region32_fini(&plane->base.damage);
-		pixman_region32_init(&plane->base.damage);
 		drmModeSetCursor(device->drm.fd, crtc->crtc_id, 0, 0, 0);
 		return;
 	}
@@ -726,9 +720,6 @@ drm_output_set_cursor(struct drm_output_state *output_state)
 			goto err;
 		}
 	}
-
-	pixman_region32_fini(&plane->base.damage);
-	pixman_region32_init(&plane->base.damage);
 
 	if (drmModeMoveCursor(device->drm.fd, crtc->crtc_id,
 	                      state->dest_x, state->dest_y)) {
@@ -1796,7 +1787,6 @@ int
 init_kms_caps(struct drm_device *device)
 {
 	struct drm_backend *b = device->backend;
-	struct weston_compositor *compositor = b->compositor;
 	uint64_t cap;
 	int ret;
 
@@ -1808,10 +1798,7 @@ init_kms_caps(struct drm_device *device)
 		return -1;
 	}
 
-	if (weston_compositor_set_presentation_clock(compositor, CLOCK_MONOTONIC) < 0) {
-		weston_log("Error: failed to set presentation clock to CLOCK_MONOTONIC.\n");
-		return -1;
-	}
+	b->base.supported_presentation_clocks = 1 << CLOCK_MONOTONIC;
 
 	ret = drmGetCap(device->drm.fd, DRM_CAP_CURSOR_WIDTH, &cap);
 	if (ret == 0)
@@ -1851,10 +1838,19 @@ init_kms_caps(struct drm_device *device)
 
 	drmSetClientCap(device->drm.fd, DRM_CLIENT_CAP_WRITEBACK_CONNECTORS, 1);
 
+#if 0
+	/* FIXME: DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP isn't merged into mainline so
+	 * we can't really use it at this point. Until then, make it so we
+	 * don't support it. After it gets merged, we can flip this back such
+	 * that we don't need to revert the entire tearing work, and we can
+	 * still get it all back, when the capability is actually available in
+	 * the kernel. */
 	ret = drmGetCap(device->drm.fd, DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP, &cap);
 	if (ret != 0)
 		cap = 0;
-	device->tearing_supported = cap;
+#endif
+	device->tearing_supported = 0;
+	weston_log("DRM: does not support async page flipping\n");
 
 	/*
 	 * KMS support for hardware planes cannot properly synchronize

@@ -583,9 +583,25 @@ set_notification_remove_surface(struct wl_listener *listener, void *data)
 	struct hmi_controller *hmi_ctrl =
 			wl_container_of(listener, hmi_ctrl,
 					surface_removed);
-	(void)data;
+	struct ivi_layout_surface *ivisurf = data;
 
 	switch_mode(hmi_ctrl, hmi_ctrl->layout_mode);
+
+	/* set focus */
+	if (hmi_ctrl->interface->surface_is_active(ivisurf)) {
+		struct ivi_layout_surface **pp_surface = NULL;
+		int32_t surface_length = 0;
+		int32_t i;
+
+		hmi_ctrl->interface->get_surfaces(&surface_length, &pp_surface);
+
+		for (i = 0; i < surface_length; i++) {
+			if (pp_surface[i] != ivisurf) {
+				hmi_ctrl->interface->surface_activate(pp_surface[i]);
+				break;
+			}
+		}
+	}
 }
 
 static void
@@ -643,6 +659,9 @@ set_notification_configure_surface(struct wl_listener *listener, void *data)
 		ivisurfs = NULL;
 	}
 
+	hmi_ctrl->interface->layer_add_surface(application_layer, ivisurf);
+	hmi_ctrl->interface->surface_activate(ivisurf);
+
 	switch_mode(hmi_ctrl, hmi_ctrl->layout_mode);
 }
 
@@ -678,7 +697,9 @@ set_notification_configure_desktop_surface(struct wl_listener *listener, void *d
 				0, surface->width, surface->height);
 	}
 
+	hmi_ctrl->interface->surface_activate(ivisurf);
 	hmi_ctrl->interface->commit_changes();
+
 	switch_mode(hmi_ctrl, hmi_ctrl->layout_mode);
 }
 
@@ -923,6 +944,13 @@ hmi_controller_create(struct weston_compositor *ec)
 	}
 
 	hmi_ctrl = xzalloc(sizeof(*hmi_ctrl));
+
+	if(interface->shell_add_destroy_listener_once(&hmi_ctrl->destroy_listener,
+				hmi_controller_destroy) == IVI_FAILED){
+		free(hmi_ctrl);
+		return NULL;
+	}
+
 	i = 0;
 
 	wl_array_init(&hmi_ctrl->ui_widgets);
@@ -1034,13 +1062,6 @@ hmi_controller_create(struct weston_compositor *ec)
 
 	hmi_ctrl->input_panel_update.notify = set_notification_update_input_panel;
 	hmi_ctrl->interface->add_listener_update_input_panel(&hmi_ctrl->input_panel_update);
-
-	if(hmi_ctrl->interface->shell_add_destroy_listener_once(&hmi_ctrl->destroy_listener,
-				hmi_controller_destroy) == IVI_FAILED){
-		hmi_controller_destroy(&hmi_ctrl->destroy_listener, NULL);
-		return NULL;
-	}
-
 
 	return hmi_ctrl;
 }
@@ -1603,7 +1624,8 @@ touch_move_workspace_grab_end(struct touch_grab *grab)
 	struct ivi_layout_layer *layer = tch_move_grab->base.layer;
 
 	move_workspace_grab_end(&tch_move_grab->move, grab->resource,
-				grab->grab.touch->grab_x, layer);
+				wl_fixed_from_double(grab->grab.touch->grab_pos.c.x),
+				layer);
 
 	weston_touch_end_grab(grab->grab.touch);
 }
@@ -1711,7 +1733,7 @@ pointer_move_grab_motion(struct weston_pointer_grab *grab,
 static void
 touch_move_grab_motion(struct weston_touch_grab *grab,
 		       const struct timespec *time, int touch_id,
-		       wl_fixed_t x, wl_fixed_t y)
+		       struct weston_coord_global c)
 {
 	struct touch_move_grab *tch_move_grab = (struct touch_move_grab *)grab;
 	struct hmi_controller *hmi_ctrl =
@@ -1721,8 +1743,8 @@ touch_move_grab_motion(struct weston_touch_grab *grab,
 		return;
 
 	wl_fixed_t pointer_pos[2] = {
-		grab->touch->grab_x,
-		grab->touch->grab_y
+		wl_fixed_from_double(grab->touch->grab_pos.c.x),
+		wl_fixed_from_double(grab->touch->grab_pos.c.y)
 	};
 
 	move_grab_update(&tch_move_grab->move, pointer_pos);
@@ -1747,7 +1769,7 @@ pointer_move_workspace_grab_button(struct weston_pointer_grab *grab,
 static void
 touch_nope_grab_down(struct weston_touch_grab *grab,
 		     const struct timespec *time,
-		     int touch_id, wl_fixed_t sx, wl_fixed_t sy)
+		     int touch_id, struct weston_coord_global c)
 {
 }
 
@@ -1907,8 +1929,10 @@ create_workspace_touch_move(struct weston_touch *touch,
 
 	tch_move_grab->base.resource = resource;
 	tch_move_grab->is_active = 1;
-	move_grab_init_workspace(&tch_move_grab->move, touch->grab_x,
-				 touch->grab_y, resource);
+	move_grab_init_workspace(&tch_move_grab->move,
+				 wl_fixed_from_double(touch->grab_pos.c.x),
+				 wl_fixed_from_double(touch->grab_pos.c.y),
+				 resource);
 
 	return tch_move_grab;
 }
@@ -2098,8 +2122,8 @@ launch_hmi_client_process(void *data)
 		(struct hmi_controller *)data;
 
 	hmi_ctrl->user_interface =
-		weston_client_start(hmi_ctrl->compositor,
-				    hmi_ctrl->hmi_setting->ivi_homescreen);
+		wet_client_start(hmi_ctrl->compositor,
+				 hmi_ctrl->hmi_setting->ivi_homescreen);
 
 	free(hmi_ctrl->hmi_setting->ivi_homescreen);
 }

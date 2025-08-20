@@ -58,10 +58,6 @@ struct weston_geometry {
 	int32_t width, height;
 };
 
-struct weston_position {
-	int32_t x, y;
-};
-
 struct weston_size {
 	int32_t width, height;
 };
@@ -129,12 +125,18 @@ enum weston_surface_protection_mode {
 	WESTON_SURFACE_PROTECTION_MODE_ENFORCED
 };
 
+/** Possible mode of an output
+ *
+ * \ingroup output
+ */
 struct weston_mode {
 	uint32_t flags;
+	/** Picture aspect ratio.*/
 	enum weston_mode_aspect_ratio aspect_ratio;
-	int32_t width, height;
-	uint32_t refresh;
-	struct wl_list link;
+	int32_t width;		/**< Width in pixels. */
+	int32_t height;		/**< Height in pixels. */
+	uint32_t refresh;	/**< Refresh rate in mHz. */
+	struct wl_list link;	/**< in weston_output::mode_list */
 };
 
 struct weston_animation {
@@ -440,6 +442,12 @@ enum weston_output_power_state {
 	WESTON_OUTPUT_POWER_NORMAL
 };
 
+struct weston_plane {
+	struct weston_compositor *compositor;
+	int32_t x, y;
+	struct wl_list link;
+};
+
 /** Content producer for heads
  *
  * \rst
@@ -451,10 +459,13 @@ struct weston_output {
 	uint32_t id;
 	char *name;
 
+	struct weston_backend *backend;
+
 	/** Matches the lifetime from the user perspective */
 	struct wl_signal user_destroy_signal;
 
 	void *renderer_state;
+	struct weston_plane primary_plane;
 
 	struct wl_list link;
 	struct weston_compositor *compositor;
@@ -468,7 +479,8 @@ struct weston_output {
 	struct weston_matrix inverse_matrix;
 
 	struct wl_list animation_list;
-	int32_t x, y, width, height;
+	struct weston_coord_global pos;
+	int32_t width, height;
 
 	/** List of paint nodes in z-order, from top to bottom, maybe pruned
 	 *
@@ -482,6 +494,9 @@ struct weston_output {
 	/** True if damage has occurred since the last repaint for this output;
 	 *  if set, a repaint will eventually occur. */
 	bool repaint_needed;
+
+	/** True if the entire contents of the output should be redrawn */
+	bool full_repaint_needed;
 
 	/** Used only between repaint_begin and repaint_cancel. */
 	bool repainted;
@@ -503,7 +518,7 @@ struct weston_output {
 
 	struct wl_signal frame_signal;
 	struct wl_signal destroy_signal;	/**< sent when disabled */
-	int move_x, move_y;
+	struct weston_coord_global move;
 	struct timespec frame_time; /* presentation timestamp */
 	uint64_t msc;        /* media stream counter */
 	int disable_planes;
@@ -655,16 +670,14 @@ struct weston_touch_grab_interface {
 	void (*down)(struct weston_touch_grab *grab,
 			const struct timespec *time,
 			int touch_id,
-			wl_fixed_t sx,
-			wl_fixed_t sy);
+			struct weston_coord_global c);
 	void (*up)(struct weston_touch_grab *grab,
 			const struct timespec *time,
 			int touch_id);
 	void (*motion)(struct weston_touch_grab *grab,
 			const struct timespec *time,
 			int touch_id,
-			wl_fixed_t sx,
-			wl_fixed_t sy);
+			struct weston_coord_global c);
 	void (*frame)(struct weston_touch_grab *grab);
 	void (*cancel)(struct weston_touch_grab *grab);
 };
@@ -875,7 +888,7 @@ struct weston_touch {
 	struct weston_touch_grab *grab;
 	struct weston_touch_grab default_grab;
 	int grab_touch_id;
-	wl_fixed_t grab_x, grab_y;
+	struct weston_coord_global grab_pos;
 	uint32_t grab_serial;
 	struct timespec grab_time;
 
@@ -1208,6 +1221,9 @@ struct weston_layer_entry {
  * at their discretion.
  */
 enum weston_layer_position {
+	/* Special value to indicate an invalid layer position. */
+	WESTON_LAYER_POSITION_NONE = -1,
+
 	/*
 	 * Special value to make the layer invisible and still rendered.
 	 * This is used by compositors wanting e.g. minimized surfaces to still
@@ -1259,14 +1275,6 @@ struct weston_layer {
 	enum weston_layer_position position;
 	pixman_box32_t mask;
 	struct weston_layer_entry view_list;
-};
-
-struct weston_plane {
-	struct weston_compositor *compositor;
-	pixman_region32_t damage; /**< in global coords */
-	pixman_region32_t clip;
-	int32_t x, y;
-	struct wl_list link;
 };
 
 struct weston_drm_format_array;
@@ -1365,6 +1373,7 @@ struct weston_renderer;
  */
 struct weston_compositor {
 	struct wl_signal destroy_signal;
+	bool shutting_down;
 
 	struct wl_display *wl_display;
 	struct weston_desktop_xwayland *xwayland;
@@ -1415,6 +1424,8 @@ struct weston_compositor {
 	struct wl_list axis_binding_list;
 	struct wl_list debug_binding_list;
 
+	bool view_list_needs_rebuild;
+
 	uint32_t state;
 	struct wl_event_source *idle_source;
 	uint32_t idle_inhibit;
@@ -1424,14 +1435,16 @@ struct weston_compositor {
 	const struct weston_pointer_grab_interface *default_pointer_grab;
 
 	/* Repaint state. */
-	struct weston_plane primary_plane;
 	uint32_t capabilities; /* combination of enum weston_capability */
 
 	struct weston_color_manager *color_manager;
 	struct weston_renderer *renderer;
 	const struct pixel_format_info *read_format;
 
-	struct weston_backend *backend;
+	/* Pointer to the first backend on backend_list */
+	struct weston_backend *primary_backend;
+	struct wl_list backend_list;
+
 	struct weston_launcher *launcher;
 
 	struct weston_dmabuf_feedback *default_dmabuf_feedback;
@@ -1469,6 +1482,9 @@ struct weston_compositor {
 
 	/* Whether to let the compositor run without any input device. */
 	bool require_input;
+
+	/* Whether to load multiple backends. */
+	bool multi_backend;
 
 	/* Test suite data */
 	struct weston_testsuite_data test_data;
@@ -1575,8 +1591,6 @@ struct weston_buffer_viewport {
 		 */
 		int32_t width, height;
 	} surface;
-
-	int changed;
 };
 
 struct weston_buffer_release {
@@ -1636,6 +1650,7 @@ struct weston_view {
 	struct weston_surface *surface;
 	struct wl_list surface_link;
 	struct wl_signal destroy_signal;
+	struct wl_signal map_signal;
 	struct wl_signal unmap_signal;
 
 	/* struct weston_paint_node::view_link */
@@ -1643,14 +1658,13 @@ struct weston_view {
 
 	struct wl_list link;             /* weston_compositor::view_list */
 	struct weston_layer_entry layer_link; /* part of geometry */
-	struct weston_plane *plane;
 
 	/* For weston_layer inheritance from another view */
 	struct weston_view *parent_view;
 
 	unsigned int click_to_activate_serial;
 
-	pixman_region32_t clip;          /* See weston_view_damage_below() */
+	pixman_region32_t visible;       /* Unoccluded region in global space */
 	float alpha;                     /* part of geometry, see below */
 
 	/* Surface geometry state, mutable.
@@ -1726,14 +1740,33 @@ struct weston_view {
 	struct weston_log_pacer subsurface_parent_log_pacer;
 };
 
+enum weston_surface_status {
+	/** nothing has changed */
+	WESTON_SURFACE_CLEAN = 0,
+	/** a new buffer has been attached, but is like-for-like with the
+	 * previous */
+	WESTON_SURFACE_DIRTY_BUFFER = 1 << 0,
+	/** surface has been resized */
+	WESTON_SURFACE_DIRTY_SIZE = 1 << 1,
+	/** x/y position has changed */
+	WESTON_SURFACE_DIRTY_POS = 1 << 2,
+	/** buffer parameters have changed in a way which impacts the
+	 * processing pipeline, e.g. format/opacity */
+	WESTON_SURFACE_DIRTY_BUFFER_PARAMS = 1 << 3,
+	/** input region has changed */
+	WESTON_SURFACE_DIRTY_INPUT = 1 << 4,
+	/** subsurfaces have been added, removed, or restacked */
+	WESTON_SURFACE_DIRTY_SUBSURFACE_CONFIG = 1 << 5,
+};
+
 struct weston_surface_state {
+	enum weston_surface_status status;
+
 	/* wl_surface.attach */
-	int newly_attached;
 	struct weston_buffer *buffer;
 	struct wl_listener buffer_destroy_listener;
 
-	int32_t sx;
-	int32_t sy;
+	struct weston_coord_surface buf_offset;
 
 	/* wl_surface.damage */
 	pixman_region32_t damage_surface;
@@ -1772,8 +1805,9 @@ struct weston_surface_state {
 };
 
 struct weston_surface_activation_data {
-	struct weston_surface *surface;
+	struct weston_view *view;
 	struct weston_seat *seat;
+	uint32_t flags;
 };
 
 struct weston_pointer_constraint {
@@ -1790,10 +1824,8 @@ struct weston_pointer_constraint {
 	pixman_region32_t region_pending;
 	bool region_is_pending;
 
-	wl_fixed_t hint_x;
-	wl_fixed_t hint_y;
-	wl_fixed_t hint_x_pending;
-	wl_fixed_t hint_y_pending;
+	struct weston_coord_surface hint;
+	struct weston_coord_surface hint_pending;
 	bool hint_is_pending;
 
 	struct wl_listener pointer_destroy_listener;
@@ -1874,6 +1906,13 @@ struct weston_surface {
 	void *committed_private;
 	int (*get_label)(struct weston_surface *surface, char *buf, size_t len);
 
+	/*
+	 * Sent when the surface has been mapped and unmapped, respectively.
+	 * The data argument is the weston_surface.
+	 */
+	struct wl_signal map_signal;
+	struct wl_signal unmap_signal;
+
 	/* Parent's list of its sub-surfaces, weston_subsurface:parent_link.
 	 * Contains also the parent itself as a dummy weston_subsurface,
 	 * if the list is not empty.
@@ -1890,7 +1929,7 @@ struct weston_surface {
 	 */
 	const char *role_name;
 
-	bool is_mapped, is_unmapping;
+	bool is_mapped, is_unmapping, is_mapping;
 	bool is_opaque;
 
 	/* An list of per seat pointer constraints. */
@@ -1939,6 +1978,8 @@ struct weston_subsurface {
 
 	/* Used for constructing the view tree */
 	struct wl_list unused_views;
+
+	struct weston_log_pacer subsurface_offset_pacer;
 };
 
 struct protected_surface {
@@ -1967,6 +2008,7 @@ enum weston_activate_flag {
 	WESTON_ACTIVATE_FLAG_NONE = 0,
 	WESTON_ACTIVATE_FLAG_CONFIGURE = 1 << 0,
 	WESTON_ACTIVATE_FLAG_CLICKED = 1 << 1,
+	WESTON_ACTIVATE_FLAG_FULLSCREEN = 1 << 2,
 };
 
 void
@@ -1981,6 +2023,15 @@ weston_view_update_transform(struct weston_view *view);
 void
 weston_view_geometry_dirty(struct weston_view *view);
 
+void
+weston_view_add_transform(struct weston_view *view,
+			  struct wl_list *pos,
+			  struct weston_transform *transform);
+
+void
+weston_view_remove_transform(struct weston_view *view,
+			     struct weston_transform *transform);
+
 struct weston_coord_global __attribute__ ((warn_unused_result))
 weston_coord_surface_to_global(const struct weston_view *view,
 			       struct weston_coord_surface coord);
@@ -1993,6 +2044,10 @@ struct weston_coord_buffer __attribute__ ((warn_unused_result))
 weston_coord_surface_to_buffer(const struct weston_surface *surface,
 			       struct weston_coord_surface coord);
 
+struct weston_coord_global __attribute__ ((warn_unused_result))
+weston_coord_global_clamp_for_output(struct weston_coord_global pos,
+				     const struct weston_output *output);
+
 void
 weston_view_activate_input(struct weston_view *view,
 		           struct weston_seat *seat,
@@ -2000,6 +2055,13 @@ weston_view_activate_input(struct weston_view *view,
 
 void
 notify_modifiers(struct weston_seat *seat, uint32_t serial);
+
+void
+weston_view_set_alpha(struct weston_view *view, float alpha);
+
+void
+weston_view_move_to_layer(struct weston_view *view,
+			  struct weston_layer_entry *layer);
 
 void
 weston_layer_entry_insert(struct weston_layer_entry *list,
@@ -2149,11 +2211,22 @@ weston_view_destroy(struct weston_view *view);
 
 void
 weston_view_set_rel_position(struct weston_view *view,
-			     float x, float y);
+			     struct weston_coord_surface offset);
 
 void
 weston_view_set_position(struct weston_view *view,
-			 float x, float y);
+			 struct weston_coord_global pos);
+
+void
+weston_view_set_position_with_offset(struct weston_view *view,
+				     struct weston_coord_global pos,
+				     struct weston_coord_surface offset);
+
+struct weston_coord_surface
+weston_view_get_pos_offset_rel(struct weston_view *view);
+
+struct weston_coord_global
+weston_view_get_pos_offset_global(struct weston_view *view);
 
 void
 weston_view_set_transform_parent(struct weston_view *view,
@@ -2174,6 +2247,9 @@ weston_view_schedule_repaint(struct weston_view *view);
 
 bool
 weston_surface_is_mapped(struct weston_surface *surface);
+
+bool
+weston_surface_is_mapping(struct weston_surface *surface);
 
 bool
 weston_surface_is_unmapping(struct weston_surface *surface);
@@ -2269,7 +2345,7 @@ enum weston_renderer_type {
 	WESTON_RENDERER_GL = 3,
 };
 
-int
+struct weston_backend *
 weston_compositor_load_backend(struct weston_compositor *compositor,
 			       enum weston_compositor_backend backend,
 			       struct weston_backend_config *config_base);
@@ -2551,8 +2627,8 @@ weston_output_allow_protection(struct weston_output *output,
 			       bool allow_protection);
 
 bool
-weston_output_contains_point(struct weston_output *output,
-			     int32_t x, int32_t y);
+weston_output_contains_coord(struct weston_output *output,
+			     struct weston_coord_global pos);
 
 int
 weston_compositor_enable_touch_calibrator(struct weston_compositor *compositor,
@@ -2608,6 +2684,9 @@ weston_compositor_add_screenshot_authority(struct weston_compositor *compositor,
 					   struct wl_listener *listener,
 					   void (*auth)(struct wl_listener *l,
 					   		struct weston_output_capture_attempt *att));
+
+int
+weston_compositor_backends_loaded(struct weston_compositor *compositor);
 
 #ifdef  __cplusplus
 }

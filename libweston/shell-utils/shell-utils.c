@@ -27,6 +27,7 @@
 #include "config.h"
 #include <libweston/shell-utils.h>
 #include <libweston/desktop.h>
+#include "shared/helpers.h"
 
 /**
  * \defgroup shell-utils Shell utils
@@ -130,20 +131,22 @@ weston_shell_utils_center_on_output(struct weston_view *view,
 				    struct weston_output *output)
 {
 	int32_t surf_x, surf_y, width, height;
-	float x, y;
+	struct weston_coord_global pos;
 
 	if (!output) {
-		weston_view_set_position(view, 0, 0);
+		pos.c = weston_coord(0, 0);
+		weston_view_set_position(view, pos);
 		return;
 	}
 
 	weston_shell_utils_subsurfaces_boundingbox(view->surface, &surf_x,
 						   &surf_y, &width, &height);
 
-	x = output->x + (output->width - width) / 2 - surf_x / 2;
-	y = output->y + (output->height - height) / 2 - surf_y / 2;
+	pos = output->pos;
+	pos.c.x += (output->width - width) / 2 - surf_x / 2;
+	pos.c.y += (output->height - height) / 2 - surf_y / 2;
 
-	weston_view_set_position(view, x, y);
+	weston_view_set_position(view, pos);
 }
 
 /**
@@ -218,7 +221,7 @@ weston_shell_utils_curtain_create(struct weston_compositor *compositor,
 
 	weston_surface_map(surface);
 
-	weston_view_set_position(view, params->x, params->y);
+	weston_view_set_position(view, params->pos);
 
 	return curtain;
 
@@ -245,4 +248,16 @@ weston_shell_utils_curtain_destroy(struct weston_curtain *curtain)
 	weston_surface_unref(surface);
 	weston_buffer_destroy_solid(curtain->buffer_ref);
 	free(curtain);
+}
+
+/**
+ * \ingroup shell-utils
+ */
+WL_EXPORT enum weston_layer_position
+weston_shell_utils_view_get_layer_position(struct weston_view *view)
+{
+	if (!weston_view_is_mapped(view))
+		return WESTON_LAYER_POSITION_NONE;
+
+	return view->layer_link.layer->position;
 }

@@ -37,10 +37,10 @@ extern "C" {
 struct weston_compositor;
 struct weston_xwayland;
 
-#define WESTON_XWAYLAND_API_NAME "weston_xwayland_v1"
+#define WESTON_XWAYLAND_API_NAME "weston_xwayland_v3"
 #define WESTON_XWAYLAND_SURFACE_API_NAME "weston_xwayland_surface_v1"
 
-typedef pid_t
+typedef struct wl_client *
 (*weston_xwayland_spawn_xserver_func_t)(
 	void *user_data, const char *display, int abstract_fd, int unix_fd);
 
@@ -83,19 +83,16 @@ struct weston_xwayland_api {
 	/** Notify the Xwayland module that the Xwayland server is loaded.
 	 *
 	 * After the Xwayland server process has been spawned it will notify
-	 * the parent that is has finished the initialization by sending a
-	 * SIGUSR1 signal.
-	 * The caller should listen for that signal and call this function
+	 * the parent that it has finished the initialization by writing to
+	 * the displayfd passed.
+	 * The caller should listen for that write and call this function
 	 * when it is received.
 	 *
 	 * \param xwayland The Xwayland context object.
-	 * \param client The wl_client object representing the connection of
-	 *               the Xwayland server process.
 	 * \param wm_fd The file descriptor for the wm.
 	 */
 	void
-	(*xserver_loaded)(struct weston_xwayland *xwayland,
-			  struct wl_client *client, int wm_fd);
+	(*xserver_loaded)(struct weston_xwayland *xwayland, int wm_fd);
 
 	/** Notify the Xwayland module that the Xwayland server has exited.
 	 *
@@ -105,10 +102,9 @@ struct weston_xwayland_api {
 	 * socket, and may call the spawn function again.
 	 *
 	 * \param xwayland The Xwayland context object.
-	 * \param exit_status The exit status of the Xwayland server process.
 	 */
 	void
-	(*xserver_exited)(struct weston_xwayland *xwayland, int exit_status);
+	(*xserver_exited)(struct weston_xwayland *xwayland);
 };
 
 /** Retrieve the API object for the libweston Xwayland module.

@@ -43,11 +43,11 @@ struct weston_xserver {
 	int unix_fd;
 	struct wl_event_source *unix_source;
 	int display;
-	pid_t pid;
 	struct wl_client *client;
+	struct wl_listener client_destroy_listener;
 	struct weston_compositor *compositor;
+	struct wl_listener compositor_destroy_listener;
 	struct weston_wm *wm;
-	struct wl_listener destroy_listener;
 	weston_xwayland_spawn_xserver_func_t spawn_func;
 	void *user_data;
 

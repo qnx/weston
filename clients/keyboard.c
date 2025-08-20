@@ -506,7 +506,7 @@ delete_before_cursor(struct virtual_keyboard *keyboard)
 	end = keyboard->surrounding_text + keyboard->surrounding_cursor;
 
 	zwp_input_method_context_v1_delete_surrounding_text(keyboard->context,
-							    (start - keyboard->surrounding_text) - keyboard->surrounding_cursor,
+							    start - keyboard->surrounding_text,
 							    end - start);
 	zwp_input_method_context_v1_commit_string(keyboard->context,
 						  keyboard->serial,
@@ -960,35 +960,19 @@ global_handler(struct display *display, uint32_t name,
 static void
 set_toplevel(struct output *output, struct virtual_keyboard *virtual_keyboard)
 {
-	struct zwp_input_panel_surface_v1 *ips;
-	struct keyboard *keyboard = virtual_keyboard->keyboard;
-
-	ips = zwp_input_panel_v1_get_input_panel_surface(virtual_keyboard->input_panel,
-							 window_get_wl_surface(keyboard->window));
-
-	zwp_input_panel_surface_v1_set_toplevel(ips,
+	zwp_input_panel_surface_v1_set_toplevel(virtual_keyboard->ips,
 						output_get_wl_output(output),
 						ZWP_INPUT_PANEL_SURFACE_V1_POSITION_CENTER_BOTTOM);
-
 	virtual_keyboard->toplevel = true;
 	virtual_keyboard->overlay = false;
-	virtual_keyboard->ips = ips;
 }
 
 static void
 set_overlay(struct output *output, struct virtual_keyboard *virtual_keyboard)
 {
-	struct zwp_input_panel_surface_v1 *ips;
-	struct keyboard *keyboard = virtual_keyboard->keyboard;
-
-	ips = zwp_input_panel_v1_get_input_panel_surface(virtual_keyboard->input_panel,
-							 window_get_wl_surface(keyboard->window));
-
-	zwp_input_panel_surface_v1_set_overlay_panel(ips);
-
+	zwp_input_panel_surface_v1_set_overlay_panel(virtual_keyboard->ips);
 	virtual_keyboard->toplevel = false;
 	virtual_keyboard->overlay = true;
-	virtual_keyboard->ips = ips;
 }
 
 static void
@@ -1018,6 +1002,9 @@ keyboard_create(struct virtual_keyboard *virtual_keyboard)
 	keyboard->window = window_create_custom(virtual_keyboard->display);
 	keyboard->widget = window_add_widget(keyboard->window, keyboard);
 
+	virtual_keyboard->ips =
+		zwp_input_panel_v1_get_input_panel_surface(virtual_keyboard->input_panel,
+							   window_get_wl_surface(keyboard->window));
 	virtual_keyboard->keyboard = keyboard;
 
 	window_set_title(keyboard->window, "Virtual keyboard");

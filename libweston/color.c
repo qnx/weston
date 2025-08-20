@@ -54,7 +54,6 @@
 WL_EXPORT struct weston_color_profile *
 weston_color_profile_ref(struct weston_color_profile *cprof)
 {
-	/* NULL is a valid color space: sRGB */
 	if (!cprof)
 		return NULL;
 
@@ -96,7 +95,7 @@ weston_color_profile_get_description(struct weston_color_profile *cprof)
 	if (cprof)
 		return cprof->description;
 	else
-		return "built-in default sRGB SDR profile";
+		return "(untagged)";
 }
 
 /**

@@ -229,21 +229,13 @@ cmlcms_get_hdr_meta(struct weston_output *output,
 {
 	const struct weston_color_characteristics *cc;
 
+	/* TODO: get color characteristics from color profiles instead. */
+
 	hdr_meta->group_mask = 0;
 
 	/* Only SMPTE ST 2084 mode uses HDR Static Metadata Type 1 */
 	if (weston_output_get_eotf_mode(output) != WESTON_EOTF_MODE_ST2084)
 		return true;
-
-	/* ICC profile overrides color characteristics */
-	if (output->color_profile) {
-		/*
-		 * TODO: extract characteristics from profile?
-		 * Get dynamic range from weston_color_characteristics?
-		 */
-
-		return true;
-	}
 
 	cc = weston_output_get_color_characteristics(output);
 
@@ -312,13 +304,7 @@ cmlcms_create_output_color_outcome(struct weston_color_manager *cm_base,
 	if (!cmlcms_get_hdr_meta(output, &co->hdr_meta))
 		goto out_fail;
 
-	/*
-	 * TODO: if output->color_profile is NULL, maybe manufacture a
-	 * profile from weston_color_characteristics if it has enough
-	 * information?
-	 * Or let the frontend decide to call a "create a profile from
-	 * characteristics" API?
-	 */
+	assert(output->color_profile);
 
 	/* TODO: take container color space into account */
 
@@ -381,8 +367,11 @@ cmlcms_destroy(struct weston_color_manager *cm_base)
 {
 	struct weston_color_manager_lcms *cm = get_cmlcms(cm_base);
 
-	if (cm->sRGB_profile)
-		cmlcms_color_profile_destroy(cm->sRGB_profile);
+	if (cm->sRGB_profile) {
+		assert(cm->sRGB_profile->base.ref_count == 1);
+		unref_cprof(cm->sRGB_profile);
+	}
+
 	assert(wl_list_empty(&cm->color_transform_list));
 	assert(wl_list_empty(&cm->color_profile_list));
 
@@ -454,6 +443,7 @@ weston_color_manager_create(struct weston_compositor *compositor)
 	cm->base.init = cmlcms_init;
 	cm->base.destroy = cmlcms_destroy;
 	cm->base.destroy_color_profile = cmlcms_destroy_color_profile;
+	cm->base.get_stock_sRGB_color_profile = cmlcms_get_stock_sRGB_color_profile;
 	cm->base.get_color_profile_from_icc = cmlcms_get_color_profile_from_icc;
 	cm->base.destroy_color_transform = cmlcms_destroy_color_transform;
 	cm->base.get_surface_color_transform = cmlcms_get_surface_color_transform;

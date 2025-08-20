@@ -155,48 +155,6 @@ out:
 }
 
 #ifdef BUILD_DRM_GBM
-/**
- * Update the image for the current cursor surface
- *
- * @param plane_state DRM cursor plane state
- * @param ev Source view for cursor
- */
-static void
-cursor_bo_update(struct drm_plane_state *plane_state, struct weston_view *ev)
-{
-	struct drm_output *output = plane_state->output;
-	struct drm_device *device = output->device;
-	struct gbm_bo *bo = plane_state->fb->bo;
-	struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
-	uint32_t buf[device->cursor_width * device->cursor_height];
-	int32_t stride;
-	uint8_t *s;
-	int i;
-
-	assert(buffer && buffer->shm_buffer);
-	assert(buffer->width <= device->cursor_width);
-	assert(buffer->height <= device->cursor_height);
-
-	memset(buf, 0, sizeof buf);
-	stride = wl_shm_buffer_get_stride(buffer->shm_buffer);
-	s = wl_shm_buffer_get_data(buffer->shm_buffer);
-
-	wl_shm_buffer_begin_access(buffer->shm_buffer);
-	for (i = 0; i < buffer->height; i++)
-		memcpy(buf + i * device->cursor_width,
-		       s + i * stride,
-		       buffer->width * 4);
-	wl_shm_buffer_end_access(buffer->shm_buffer);
-
-	if (bo) {
-		if (gbm_bo_write(bo, buf, sizeof buf) < 0)
-			weston_log("failed update cursor: %s\n", strerror(errno));
-	} else {
-		memcpy(output->gbm_cursor_fb[output->current_cursor]->map,
-		       buf, sizeof buf);
-	}
-}
-
 static struct drm_plane_state *
 drm_output_prepare_cursor_paint_node(struct drm_output_state *output_state,
 				     struct weston_paint_node *node,
@@ -208,7 +166,6 @@ drm_output_prepare_cursor_paint_node(struct drm_output_state *output_state,
 	struct drm_plane *plane = output->cursor_plane;
 	struct weston_view *ev = node->view;
 	struct drm_plane_state *plane_state;
-	bool needs_update = false;
 	const char *p_name = drm_output_get_plane_type_name(plane);
 
 	assert(!device->cursors_are_broken);
@@ -242,31 +199,16 @@ drm_output_prepare_cursor_paint_node(struct drm_output_state *output_state,
 		goto err;
 	}
 
-	/* Since we're setting plane state up front, we need to work out
-	 * whether or not we need to upload a new cursor. We can't use the
-	 * plane damage, since the planes haven't actually been calculated
-	 * yet: instead try to figure it out directly. KMS cursor planes are
-	 * pretty unique here, in that they lie partway between a Weston plane
-	 * (direct scanout) and a renderer. */
-	if (ev != output->cursor_view ||
-	    pixman_region32_not_empty(&ev->surface->damage)) {
-		output->current_cursor++;
-		output->current_cursor =
-			output->current_cursor %
-				ARRAY_LENGTH(output->gbm_cursor_fb);
-		needs_update = true;
-	}
-
 	drm_output_set_cursor_view(output, ev);
 	plane_state->ev = ev;
-
-	plane_state->fb =
-		drm_fb_ref(output->gbm_cursor_fb[output->current_cursor]);
-
-	if (needs_update) {
-		drm_debug(b, "\t\t\t\t[%s] copying new content to cursor BO\n", p_name);
-		cursor_bo_update(plane_state, ev);
-	}
+	/* We always test with cursor fb 0. There are two potential fbs, and
+	 * they are identically allocated for cursor use specifically, so if
+	 * one works the other almost certainly should as well.
+	 *
+	 * Later when we determine if the cursor needs an update, we'll
+	 * select the correct fb to use.
+	 */
+	plane_state->fb = drm_fb_ref(output->gbm_cursor_fb[0]);
 
 	/* The cursor API is somewhat special: in cursor_bo_update(), we upload
 	 * a buffer which is always cursor_width x cursor_height, even if the
@@ -425,7 +367,7 @@ dmabuf_feedback_maybe_update(struct drm_device *device, struct weston_view *ev,
 
 	drm_debug(b, "\t[repaint] Need to update and resend the "
 		     "dma-buf feedback for surface of view %p\n", ev);
-	weston_dmabuf_feedback_send_all(dmabuf_feedback,
+	weston_dmabuf_feedback_send_all(b->compositor, dmabuf_feedback,
 					b->compositor->dmabuf_feedback_format_table);
 
 	/* Set the timer to off */
@@ -767,14 +709,7 @@ drm_output_propose_state(struct weston_output *output_base,
 		          ev, output->base.name,
 			  (unsigned long) output->base.id);
 
-		/* If this view doesn't touch our output at all, there's no
-		 * reason to do anything with it. */
-		/* TODO: turn this into assert once z_order_list is pruned. */
-		if (!(ev->output_mask & (1u << output->base.id))) {
-			drm_debug(b, "\t\t\t\t[view] ignoring view %p "
-			             "(not on our output)\n", ev);
-			continue;
-		}
+		assert(ev->output_mask & (1u << output->base.id));
 
 		/* Cannot show anything without a color transform. */
 		if (!pnode->surf_xform_valid) {
@@ -802,14 +737,6 @@ drm_output_propose_state(struct weston_output *output_base,
 			pixman_region32_fini(&surface_overlap);
 			pixman_region32_fini(&clipped_view);
 			continue;
-		}
-
-		/* We only assign planes to views which are exclusively present
-		 * on our output. */
-		if (ev->output_mask != (1u << output->base.id)) {
-			drm_debug(b, "\t\t\t\t[view] not assigning view %p to plane "
-			             "(on multiple outputs)\n", ev);
-			force_renderer = true;
 		}
 
 		if (!b->gbm) {
@@ -969,7 +896,7 @@ drm_assign_planes(struct weston_output *output_base)
 	struct drm_plane_state *plane_state;
 	struct drm_writeback_state *wb_state = output->wb_state;
 	struct weston_paint_node *pnode;
-	struct weston_plane *primary = &output_base->compositor->primary_plane;
+	struct weston_plane *primary = &output_base->primary_plane;
 	enum drm_output_propose_state_mode mode = DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY;
 
 	assert(output);
@@ -1022,11 +949,7 @@ drm_assign_planes(struct weston_output *output_base)
 		struct weston_view *ev = pnode->view;
 		struct drm_plane *target_plane = NULL;
 
-		/* If this view doesn't touch our output at all, there's no
-		 * reason to do anything with it. */
-		/* TODO: turn this into assert once z_order_list is pruned. */
-		if (!(ev->output_mask & (1u << output->base.id)))
-			continue;
+		assert(ev->output_mask & (1u << output->base.id));
 
 		/* Update dmabuf-feedback if needed */
 		if (ev->surface->dmabuf_feedback)
@@ -1066,11 +989,11 @@ drm_assign_planes(struct weston_output *output_base)
 			drm_debug(b, "\t[repaint] view %p on %s plane %lu\n",
 				  ev, plane_type_enums[target_plane->type].name,
 				  (unsigned long) target_plane->plane_id);
-			weston_view_move_to_plane(ev, &target_plane->base);
+			weston_paint_node_move_to_plane(pnode, &target_plane->base);
 		} else {
 			drm_debug(b, "\t[repaint] view %p using renderer "
 				     "composition\n", ev);
-			weston_view_move_to_plane(ev, primary);
+			weston_paint_node_move_to_plane(pnode, primary);
 		}
 
 		if (!target_plane ||

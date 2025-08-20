@@ -55,6 +55,8 @@
 #include <libweston/weston-log.h>
 #include "pixel-formats.h"
 #include "pixman-renderer.h"
+#include "renderer-gl/gl-renderer.h"
+#include "shared/weston-egl-ext.h"
 
 #define DEFAULT_AXIS_STEP_DISTANCE 10
 
@@ -73,6 +75,9 @@ struct vnc_backend {
 	struct wl_event_source *aml_event;
 	struct nvnc *server;
 	int vnc_monitor_refresh_rate;
+
+	const struct pixel_format_info **formats;
+	unsigned int formats_count;
 };
 
 struct vnc_output {
@@ -86,6 +91,8 @@ struct vnc_output {
 	struct nvnc_fb_pool *fb_pool;
 
 	struct wl_list peers;
+
+	bool resizeable;
 };
 
 struct vnc_peer {
@@ -270,6 +277,11 @@ struct vnc_keysym_to_keycode key_translation[] = {
 	{ },
 };
 
+static const uint32_t vnc_formats[] = {
+	DRM_FORMAT_XRGB8888,
+	DRM_FORMAT_ARGB8888,
+};
+
 static void
 vnc_handle_key_event(struct nvnc_client *client, uint32_t keysym,
 		     bool is_pressed)
@@ -346,6 +358,59 @@ vnc_handle_key_code_event(struct nvnc_client *client, uint32_t key,
 		state = WL_KEYBOARD_KEY_STATE_RELEASED;
 
 	notify_key(peer->seat, &time, key, state, STATE_UPDATE_AUTOMATIC);
+}
+
+static void
+vnc_log_desktop_layout(struct vnc_backend *backend,
+		       const struct nvnc_desktop_layout *layout)
+{
+	uint8_t num_displays = nvnc_desktop_layout_get_display_count(layout);
+	char timestr[128];
+
+	if (!weston_log_scope_is_enabled(backend->debug))
+		return;
+
+	weston_log_scope_timestamp(backend->debug, timestr, sizeof timestr);
+
+	weston_log_scope_printf(backend->debug,
+				"%s desktop size event, %u displays:",
+				timestr, num_displays);
+	for (int i = 0; i < num_displays; i++) {
+		uint16_t x = nvnc_desktop_layout_get_display_x_pos(layout, i);
+		uint16_t y = nvnc_desktop_layout_get_display_y_pos(layout, i);
+		uint16_t width = nvnc_desktop_layout_get_display_width(layout, i);
+		uint16_t height = nvnc_desktop_layout_get_display_height(layout, i);
+		struct nvnc_display *display = nvnc_desktop_layout_get_display(layout, i);
+
+		weston_log_scope_printf(backend->debug, " %ux%u(%u,%u)%s",
+					width, height, x, y,
+					display ? "" : "*");
+	}
+	weston_log_scope_printf(backend->debug, "\n");
+}
+
+static bool
+vnc_handle_desktop_layout_event(struct nvnc_client *client,
+				const struct nvnc_desktop_layout *layout)
+{
+	struct vnc_peer *peer = nvnc_get_userdata(client);
+	struct vnc_output *output = peer->backend->output;
+	struct weston_mode new_mode;
+	uint16_t width = nvnc_desktop_layout_get_width(layout);
+	uint16_t height = nvnc_desktop_layout_get_height(layout);
+
+	vnc_log_desktop_layout(peer->backend, layout);
+
+	if (!output->resizeable)
+		return false;
+
+	new_mode.width = width;
+	new_mode.height = height;
+	new_mode.refresh = peer->backend->vnc_monitor_refresh_rate;
+
+	weston_output_mode_set_native(&output->base, &new_mode, 1);
+
+	return true;
 }
 
 static void
@@ -438,7 +503,8 @@ vnc_client_cleanup(struct nvnc_client *client)
 }
 
 static struct weston_pointer *
-vnc_output_get_pointer(struct vnc_output *output)
+vnc_output_get_pointer(struct vnc_output *output,
+		       struct weston_paint_node **pointer_pnode)
 {
 	struct weston_pointer *pointer = NULL;
 	struct weston_paint_node *pnode;
@@ -453,8 +519,10 @@ vnc_output_get_pointer(struct vnc_output *output)
 		return NULL;
 
 	wl_list_for_each(pnode, &output->base.paint_node_z_order_list, z_order_link) {
-		if (pnode->view == pointer->sprite)
+		if (pnode->view == pointer->sprite) {
+			*pointer_pnode = pnode;
 			return pointer;
+		}
 	}
 
 	return NULL;
@@ -465,37 +533,28 @@ vnc_output_update_cursor(struct vnc_output *output)
 {
 	struct vnc_backend *backend = output->backend;
 	struct weston_pointer *pointer;
-	struct weston_view *view;
+	struct weston_paint_node *pointer_pnode = NULL;
+	bool update_cursor;
+	pixman_region32_t damage;
 	struct weston_buffer *buffer;
+	struct weston_surface *cursor_surface;
 	struct nvnc_fb *fb;
 	int32_t stride;
-	uint32_t format;
 	uint8_t *src, *dst;
 	int i;
 
-	pointer = vnc_output_get_pointer(output);
-	if (!pointer)
+	pointer = vnc_output_get_pointer(output, &pointer_pnode);
+
+	pixman_region32_init(&damage);
+	weston_output_flush_damage_for_plane(&output->base, &output->cursor_plane, &damage);
+	update_cursor = pixman_region32_not_empty(&damage);
+	pixman_region32_fini(&damage);
+
+	if (!update_cursor)
 		return;
 
-	view = pointer->sprite;
-	if (!weston_view_has_valid_buffer(view))
-		return;
-
-	buffer = view->surface->buffer_ref.buffer;
-	if (buffer->type != WESTON_BUFFER_SHM)
-		return;
-
-	format = wl_shm_buffer_get_format(buffer->shm_buffer);
-	if (format != WL_SHM_FORMAT_ARGB8888)
-		return;
-
-	weston_view_move_to_plane(view, &output->cursor_plane);
-
-	if (view->surface == output->cursor_surface &&
-	    !pixman_region32_not_empty(&view->surface->damage))
-		return;
-
-	output->cursor_surface = view->surface;
+	cursor_surface = output->cursor_surface;
+	buffer = cursor_surface->buffer_ref.buffer;
 
 	stride = wl_shm_buffer_get_stride(buffer->shm_buffer);
 
@@ -517,14 +576,40 @@ vnc_output_update_cursor(struct vnc_output *output)
 	nvnc_fb_unref(fb);
 }
 
-/*
- * Convert damage rectangles from 32-bit global coordinates to 16-bit local
- * coordinates. The output transformation has to be a pure translation.
- */
 static void
-vnc_region_global_to_output(pixman_region16_t *dst,
-			    struct weston_output *output,
-			    pixman_region32_t *src)
+vnc_output_assign_cursor_plane(struct vnc_output *output)
+{
+	struct weston_pointer *pointer;
+	struct weston_paint_node *pointer_pnode = NULL;
+	struct weston_view *view;
+	struct weston_buffer *buffer;
+	uint32_t format;
+
+	pointer = vnc_output_get_pointer(output, &pointer_pnode);
+	if (!pointer)
+		return;
+
+	view = pointer->sprite;
+	if (!weston_view_has_valid_buffer(view))
+		return;
+
+	buffer = view->surface->buffer_ref.buffer;
+	if (buffer->type != WESTON_BUFFER_SHM)
+		return;
+
+	format = wl_shm_buffer_get_format(buffer->shm_buffer);
+	if (format != WL_SHM_FORMAT_ARGB8888)
+		return;
+
+	assert(pointer_pnode);
+
+	weston_paint_node_move_to_plane(pointer_pnode, &output->cursor_plane);
+
+	output->cursor_surface = view->surface;
+}
+
+static void
+vnc_region32_to_region16(pixman_region16_t *dst, pixman_region32_t *src)
 {
 	struct pixman_box32 *src_rects;
 	struct pixman_box16 *dest_rects;
@@ -538,10 +623,10 @@ vnc_region_global_to_output(pixman_region16_t *dst,
 	dest_rects = xcalloc(n_rects, sizeof(*dest_rects));
 
 	for (i = 0; i < n_rects; i++) {
-		dest_rects[i].x1 = src_rects[i].x1 - output->x;
-		dest_rects[i].y1 = src_rects[i].y1 - output->y;
-		dest_rects[i].x2 = src_rects[i].x2 - output->x;
-		dest_rects[i].y2 = src_rects[i].y2 - output->y;
+		dest_rects[i].x1 = src_rects[i].x1;
+		dest_rects[i].y1 = src_rects[i].y1;
+		dest_rects[i].x2 = src_rects[i].x2;
+		dest_rects[i].y2 = src_rects[i].y2;
 	}
 
 	pixman_region_init_rects(dst, dest_rects, n_rects);
@@ -598,7 +683,8 @@ vnc_update_buffer(struct nvnc_display *display, struct pixman_region32 *damage)
 	struct vnc_output *output = backend->output;
 	struct weston_compositor *ec = output->base.compositor;
 	struct weston_renderbuffer *renderbuffer;
-	pixman_region16_t local_damage;
+	pixman_region32_t local_damage;
+	pixman_region16_t nvnc_damage;
 	struct nvnc_fb *fb;
 
 	fb = nvnc_fb_pool_acquire(output->fb_pool);
@@ -606,18 +692,35 @@ vnc_update_buffer(struct nvnc_display *display, struct pixman_region32 *damage)
 
 	renderbuffer = nvnc_get_userdata(fb);
 	if (!renderbuffer) {
-		const struct pixman_renderer_interface *pixman;
 		const struct pixel_format_info *pfmt;
 
-		pixman = ec->renderer->pixman;
 		pfmt = pixel_format_get_info(DRM_FORMAT_XRGB8888);
 
-		renderbuffer =
-			pixman->create_image_from_ptr(&output->base, pfmt,
-						      output->base.width,
-						      output->base.height,
-						      nvnc_fb_get_addr(fb),
-						      output->base.width * 4);
+		switch (ec->renderer->type) {
+		case WESTON_RENDERER_PIXMAN: {
+			const struct pixman_renderer_interface *pixman;
+
+			pixman = ec->renderer->pixman;
+
+			renderbuffer =
+				pixman->create_image_from_ptr(&output->base, pfmt,
+							      output->base.width,
+							      output->base.height,
+							      nvnc_fb_get_addr(fb),
+							      output->base.width * 4);
+			break;
+		}
+		case WESTON_RENDERER_GL: {
+			renderbuffer =
+				ec->renderer->gl->create_fbo(&output->base, pfmt,
+							     output->base.width,
+							     output->base.height,
+							     nvnc_fb_get_addr(fb));
+			break;
+		}
+		default:
+			unreachable("cannot have auto renderer at runtime");
+		}
 
 		/* This is a new buffer, so the whole surface is damaged. */
 		pixman_region32_copy(&renderbuffer->damage,
@@ -632,12 +735,17 @@ vnc_update_buffer(struct nvnc_display *display, struct pixman_region32 *damage)
 	ec->renderer->repaint_output(&output->base, damage, renderbuffer);
 
 	/* Convert to local coordinates */
-	pixman_region_init(&local_damage);
-	vnc_region_global_to_output(&local_damage, &output->base, damage);
+	pixman_region32_init(&local_damage);
+	weston_region_global_to_output(&local_damage, &output->base, damage);
 
-	nvnc_display_feed_buffer(output->display, fb, &local_damage);
+	/* Convert to 16-bit */
+	pixman_region_init(&nvnc_damage);
+	vnc_region32_to_region16(&nvnc_damage, &local_damage);
+
+	nvnc_display_feed_buffer(output->display, fb, &nvnc_damage);
 	nvnc_fb_unref(fb);
-	pixman_region_fini(&local_damage);
+	pixman_region32_fini(&local_damage);
+	pixman_region_fini(&nvnc_damage);
 }
 
 static void
@@ -675,28 +783,12 @@ vnc_new_client(struct nvnc_client *client)
 	weston_output_schedule_repaint(&output->base);
 }
 
-
 static int
 finish_frame_handler(void *data)
 {
 	struct vnc_output *output = data;
-	int refresh_nsec = millihz_to_nsec(output->base.current_mode->refresh);
-	struct timespec now, ts;
-	int delta;
 
-	/* The timer only has msec precision, but if we approximately hit our
-	 * target, report an exact time stamp by adding to the previous frame
-	 * time.
-	 */
-	timespec_add_nsec(&ts, &output->base.frame_time, refresh_nsec);
-
-	/* If we are more than 1.5 ms late, report the current time instead. */
-	weston_compositor_read_presentation_clock(output->base.compositor, &now);
-	delta = (int)timespec_sub_to_nsec(&now, &ts);
-	if (delta > 1500000)
-		ts = now;
-
-	weston_output_finish_frame(&output->base, &ts, 0);
+	weston_output_finish_frame_from_timer(&output->base);
 
 	return 1;
 }
@@ -708,13 +800,6 @@ vnc_output_enable(struct weston_output *base)
 	struct vnc_output *output = to_vnc_output(base);
 	struct vnc_backend *backend;
 	struct wl_event_loop *loop;
-	const struct pixman_renderer_output_options options = {
-		.fb_size = {
-			.width = output->base.width,
-			.height = output->base.height,
-		},
-		.format = pixel_format_get_info(DRM_FORMAT_XRGB8888),
-	};
 
 	assert(output);
 
@@ -723,8 +808,37 @@ vnc_output_enable(struct weston_output *base)
 
 	weston_plane_init(&output->cursor_plane, backend->compositor);
 
-	if (renderer->pixman->output_create(&output->base, &options) < 0)
-		return -1;
+	switch (renderer->type) {
+	case WESTON_RENDERER_PIXMAN: {
+		const struct pixman_renderer_output_options options = {
+			.fb_size = {
+				.width = output->base.width,
+				.height = output->base.height,
+			},
+			.format = backend->formats[0],
+		};
+		if (renderer->pixman->output_create(&output->base, &options) < 0)
+			return -1;
+		break;
+	}
+	case WESTON_RENDERER_GL: {
+		const struct gl_renderer_fbo_options options = {
+			.area = {
+				.width = output->base.width,
+				.height = output->base.height,
+			},
+			.fb_size = {
+				.width = output->base.width,
+				.height = output->base.height,
+			},
+		};
+		if (renderer->gl->output_fbo_create(&output->base, &options) < 0)
+			return -1;
+		break;
+	}
+	default:
+		unreachable("cannot have auto renderer at runtime");
+	}
 
 	loop = wl_display_get_event_loop(backend->compositor->wl_display);
 	output->finish_frame_timer = wl_event_loop_add_timer(loop,
@@ -733,7 +847,7 @@ vnc_output_enable(struct weston_output *base)
 
 	output->fb_pool = nvnc_fb_pool_new(output->base.width,
 					   output->base.height,
-					   options.format->format,
+					   backend->formats[0]->format,
 					   output->base.width);
 
 	output->display = nvnc_display_new(0, 0);
@@ -760,7 +874,16 @@ vnc_output_disable(struct weston_output *base)
 	nvnc_display_unref(output->display);
 	nvnc_fb_pool_unref(output->fb_pool);
 
-	renderer->pixman->output_destroy(&output->base);
+	switch (renderer->type) {
+	case WESTON_RENDERER_PIXMAN:
+		renderer->pixman->output_destroy(&output->base);
+		break;
+	case WESTON_RENDERER_GL:
+		renderer->gl->output_destroy(&output->base);
+		break;
+	default:
+		unreachable("cannot have auto renderer at runtime");
+	}
 
 	wl_event_source_remove(output->finish_frame_timer);
 	backend->output = NULL;
@@ -809,15 +932,21 @@ vnc_create_output(struct weston_backend *backend, const char *name)
 }
 
 static void
+vnc_shutdown(struct weston_backend *base)
+{
+	struct vnc_backend *backend = container_of(base, struct vnc_backend, base);
+
+	nvnc_close(backend->server);
+}
+
+static void
 vnc_destroy(struct weston_backend *base)
 {
 	struct vnc_backend *backend = container_of(base, struct vnc_backend, base);
 	struct weston_compositor *ec = backend->compositor;
 	struct weston_head *head, *next;
 
-	nvnc_close(backend->server);
-
-	weston_compositor_shutdown(ec);
+	wl_list_remove(&backend->base.link);
 
 	wl_event_source_remove(backend->aml_event);
 
@@ -878,22 +1007,17 @@ static int
 vnc_output_repaint(struct weston_output *base, pixman_region32_t *damage)
 {
 	struct vnc_output *output = to_vnc_output(base);
-	struct weston_compositor *ec = output->base.compositor;
 	struct vnc_backend *backend = output->backend;
-	struct timespec now, target;
-	int refresh_nsec = millihz_to_nsec(output->base.current_mode->refresh);
-	int refresh_msec = refresh_nsec / 1000000;
-	int next_frame_delta;
 
 	assert(output);
 
 	if (wl_list_empty(&output->peers))
 		weston_output_power_off(base);
 
+	vnc_output_update_cursor(output);
+
 	if (pixman_region32_not_empty(damage)) {
 		vnc_update_buffer(output->display, damage);
-		pixman_region32_subtract(&ec->primary_plane.damage,
-					 &ec->primary_plane.damage, damage);
 	}
 
 	/*
@@ -904,17 +1028,7 @@ vnc_output_repaint(struct weston_output *base, pixman_region32_t *damage)
 	 */
 	aml_dispatch(backend->aml);
 
-	weston_compositor_read_presentation_clock(ec, &now);
-	timespec_add_nsec(&target, &output->base.frame_time, refresh_nsec);
-
-	next_frame_delta = (int)timespec_sub_to_msec(&target, &now);
-	if (next_frame_delta < 1)
-		next_frame_delta = 1;
-	if (next_frame_delta > refresh_msec)
-		next_frame_delta = refresh_msec;
-
-	wl_event_source_timer_update(output->finish_frame_timer,
-				     next_frame_delta);
+	weston_output_arm_frame_timer(base, output->finish_frame_timer);
 
 	return 0;
 }
@@ -944,59 +1058,18 @@ vnc_output_assign_planes(struct weston_output *base)
 
 	/* Update VNC cursor and move cursor view to plane */
 	if (vnc_clients_support_cursor(output))
-		vnc_output_update_cursor(output);
-}
-
-static struct weston_mode *
-vnc_insert_new_mode(struct weston_output *output, int width, int height,
-		    int rate)
-{
-	struct weston_mode *mode;
-
-	mode = xzalloc(sizeof *mode);
-	mode->width = width;
-	mode->height = height;
-	mode->refresh = rate;
-	wl_list_insert(&output->mode_list, &mode->link);
-
-	return mode;
-}
-
-static struct weston_mode *
-vnc_ensure_matching_mode(struct vnc_output *output,
-			 struct weston_mode *target)
-{
-	struct vnc_backend *backend = output->backend;
-	struct weston_mode *local;
-
-	wl_list_for_each(local, &output->base.mode_list, link) {
-		if ((local->width == target->width) &&
-		    (local->height == target->height))
-			return local;
-	}
-
-	return vnc_insert_new_mode(&output->base, target->width, target->height,
-				   backend->vnc_monitor_refresh_rate);
+		vnc_output_assign_cursor_plane(output);
 }
 
 static int
 vnc_switch_mode(struct weston_output *base, struct weston_mode *target_mode)
 {
 	struct vnc_output *output = to_vnc_output(base);
-	struct weston_mode *local_mode;
 	struct weston_size fb_size;
 
 	assert(output);
 
-	local_mode = vnc_ensure_matching_mode(output, target_mode);
-
-	if (local_mode == base->current_mode)
-		return 0;
-
-	base->current_mode->flags &= ~WL_OUTPUT_MODE_CURRENT;
-
-	base->current_mode = base->native_mode = local_mode;
-	base->current_mode->flags |= WL_OUTPUT_MODE_CURRENT;
+	weston_output_set_single_mode(base, target_mode);
 
 	fb_size.width = target_mode->width;
 	fb_size.height = target_mode->height;
@@ -1011,11 +1084,11 @@ vnc_switch_mode(struct weston_output *base, struct weston_mode *target_mode)
 }
 
 static int
-vnc_output_set_size(struct weston_output *base, int width, int height)
+vnc_output_set_size(struct weston_output *base, int width, int height,
+		    bool resizeable)
 {
 	struct vnc_output *output = to_vnc_output(base);
 	struct vnc_backend *backend = output->backend;
-	struct weston_mode *current_mode;
 	struct weston_mode init_mode;
 
 	/* We can only be called once. */
@@ -1027,10 +1100,7 @@ vnc_output_set_size(struct weston_output *base, int width, int height)
 	init_mode.height = height;
 	init_mode.refresh = backend->vnc_monitor_refresh_rate;
 
-	current_mode = vnc_ensure_matching_mode(output, &init_mode);
-	current_mode->flags = WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED;
-
-	output->base.current_mode = output->base.native_mode = current_mode;
+	weston_output_set_single_mode(base, &init_mode);
 
 	output->base.start_repaint_loop = vnc_output_start_repaint_loop;
 	output->base.repaint = vnc_output_repaint;
@@ -1038,6 +1108,8 @@ vnc_output_set_size(struct weston_output *base, int width, int height)
 	output->base.set_backlight = NULL;
 	output->base.set_dpms = NULL;
 	output->base.switch_mode = vnc_switch_mode;
+
+	output->resizeable = resizeable;
 
 	return 0;
 }
@@ -1071,7 +1143,10 @@ vnc_backend_create(struct weston_compositor *compositor,
 	if (backend == NULL)
 		return NULL;
 
+	wl_list_init(&backend->base.link);
+
 	backend->compositor = compositor;
+	backend->base.shutdown = vnc_shutdown;
 	backend->base.destroy = vnc_destroy;
 	backend->base.create_output = vnc_create_output;
 	backend->vnc_monitor_refresh_rate = config->refresh_rate * 1000;
@@ -1081,23 +1156,40 @@ vnc_backend_create(struct weston_compositor *compositor,
 							 "Debug messages from VNC backend\n",
 							 NULL, NULL, NULL);
 
-	compositor->backend = &backend->base;
+	wl_list_insert(&compositor->backend_list, &backend->base.link);
 
-	if (weston_compositor_set_presentation_clock_software(compositor) < 0)
-		goto err_compositor;
+	backend->base.supported_presentation_clocks =
+			WESTON_PRESENTATION_CLOCKS_SOFTWARE;
 
-	switch (config->renderer) {
-	case WESTON_RENDERER_AUTO:
-	case WESTON_RENDERER_PIXMAN:
-		break;
-	default:
-		weston_log("Unsupported renderer requested\n");
-		goto err_compositor;
+	backend->formats_count = ARRAY_LENGTH(vnc_formats);
+	backend->formats = pixel_format_get_array(vnc_formats,
+						  backend->formats_count);
+	if (!compositor->renderer) {
+		switch (config->renderer) {
+		case WESTON_RENDERER_AUTO:
+		case WESTON_RENDERER_PIXMAN:
+			if (weston_compositor_init_renderer(compositor,
+							    WESTON_RENDERER_PIXMAN,
+							    NULL) < 0)
+				goto err_compositor;
+			break;
+		case WESTON_RENDERER_GL: {
+			const struct gl_renderer_display_options options = {
+				.egl_platform = EGL_PLATFORM_SURFACELESS_MESA,
+				.formats = backend->formats,
+				.formats_count = backend->formats_count,
+			};
+			if (weston_compositor_init_renderer(compositor,
+							    WESTON_RENDERER_GL,
+							    &options.base) < 0)
+				goto err_compositor;
+			break;
+		}
+		default:
+			weston_log("Unsupported renderer requested\n");
+			goto err_compositor;
+		}
 	}
-
-	if (weston_compositor_init_renderer(compositor, WESTON_RENDERER_PIXMAN,
-					    NULL) < 0)
-		goto err_compositor;
 
 	vnc_head_create(backend, "vnc");
 
@@ -1132,6 +1224,7 @@ vnc_backend_create(struct weston_compositor *compositor,
 	nvnc_set_pointer_fn(backend->server, vnc_pointer_event);
 	nvnc_set_key_fn(backend->server, vnc_handle_key_event);
 	nvnc_set_key_code_fn(backend->server, vnc_handle_key_code_event);
+	nvnc_set_desktop_layout_fn(backend->server, vnc_handle_desktop_layout_event);
 	nvnc_set_userdata(backend->server, backend, NULL);
 	nvnc_set_name(backend->server, "Weston VNC backend");
 
@@ -1153,8 +1246,15 @@ vnc_backend_create(struct weston_compositor *compositor,
 		goto err_output;
 	}
 
-	ret = nvnc_enable_auth(backend->server, config->server_key,
-			       config->server_cert, vnc_handle_auth,
+	ret = nvnc_set_tls_creds(backend->server, config->server_key,
+				 config->server_cert);
+	if (ret) {
+		weston_log("Failed set TLS credentials\n");
+		goto err_output;
+	}
+
+	ret = nvnc_enable_auth(backend->server, NVNC_AUTH_REQUIRE_AUTH |
+			       NVNC_AUTH_REQUIRE_ENCRYPTION, vnc_handle_auth,
 			       NULL);
 	if (ret) {
 		weston_log("Failed to enable TLS support\n");
@@ -1176,7 +1276,7 @@ err_output:
 	wl_list_for_each_safe(base, next, &compositor->head_list, compositor_link)
 		vnc_head_destroy(base);
 err_compositor:
-	weston_compositor_shutdown(compositor);
+	wl_list_remove(&backend->base.link);
 	free(backend);
 	return NULL;
 }
@@ -1203,6 +1303,17 @@ weston_backend_init(struct weston_compositor *compositor,
 	    config_base->struct_size > sizeof(struct weston_vnc_backend_config)) {
 		weston_log("VNC backend config structure is invalid\n");
 		return -1;
+	}
+
+	if (compositor->renderer) {
+		switch (compositor->renderer->type) {
+		case WESTON_RENDERER_PIXMAN:
+		case WESTON_RENDERER_GL:
+			break;
+		default:
+			weston_log("Renderer not supported by VNC backend\n");
+			return -1;
+		}
 	}
 
 	config_init_to_defaults(&config);

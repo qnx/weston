@@ -31,6 +31,7 @@
 #include <lcms2_plugin.h>
 
 #include "color.h"
+#include "color-curve-segments.h"
 #include "color-lcms.h"
 #include "shared/helpers.h"
 #include "shared/string-helpers.h"
@@ -375,6 +376,15 @@ join_curvesets(cmsContext context_id, const cmsStage *prev,
 	assert(prev_->nCurves == ARRAY_LENGTH(arr));
 	assert(next_->nCurves == ARRAY_LENGTH(arr));
 
+	/* If the CurveSet's are parametric powerlaw curves that we know how to
+	 * merge (preserving them as parametric powerlaw curves), we do that. We
+	 * want to avoid transforming parametric curves into sampled curves. */
+	ret = join_powerlaw_curvesets(context_id,
+				      prev_->TheCurves, next_->TheCurves);
+	if (ret)
+		return ret;
+
+	/* Transform both CurveSet's into a single sampled one. */
 	for (i = 0; i < ARRAY_LENGTH(arr); i++) {
 		arr[i] = lcmsJoinToneCurve(context_id, prev_->TheCurves[i],
 					   next_->TheCurves[i], num_samples);
@@ -422,6 +432,17 @@ merge_curvesets(cmsPipeline **lut, cmsContext context_id)
 	do {
 		if (prev && cmsStageType(prev) == cmsSigCurveSetElemType &&
 		    elem && cmsStageType(elem) == cmsSigCurveSetElemType) {
+			/* If the curvesets are inverse, joining them results in
+			 * the identity. So we can drop both and continue. */
+			if (are_curvesets_inverse(prev, elem)) {
+				prev = cmsStageNext(elem);
+				if (prev)
+					elem = cmsStageNext(prev);
+				else
+					elem = NULL;
+				modified = true;
+				continue;
+			}
 			/* Replace two curve set elements with a merged one. */
 			prev = join_curvesets(context_id, prev, elem,
 					      cmlcms_reasonable_1D_points());
@@ -560,9 +581,8 @@ translate_pipeline(struct cmlcms_color_transform *xform, const cmsPipeline *lut)
 	return false;
 }
 
-static cmsBool
-optimize_float_pipeline(cmsPipeline **lut, cmsContext context_id,
-			struct cmlcms_color_transform *xform)
+WESTON_EXPORT_FOR_TESTS void
+lcms_optimize_pipeline(cmsPipeline **lut, cmsContext context_id)
 {
 	bool cont_opt;
 
@@ -576,6 +596,13 @@ optimize_float_pipeline(cmsPipeline **lut, cmsContext context_id,
 		cont_opt = merge_matrices(lut, context_id);
 		cont_opt |= merge_curvesets(lut, context_id);
 	} while (cont_opt);
+}
+
+static cmsBool
+optimize_float_pipeline(cmsPipeline **lut, cmsContext context_id,
+			struct cmlcms_color_transform *xform)
+{
+	lcms_optimize_pipeline(lut, context_id);
 
 	if (translate_pipeline(xform, *lut)) {
 		xform->status = CMLCMS_TRANSFORM_OPTIMIZED;
@@ -651,9 +678,6 @@ matrix_print(cmsStage *stage, struct weston_log_scope *scope)
 	double elem;
 	const char *sep;
 
-	if (!weston_log_scope_is_enabled(scope))
-		return;
-
 	assert(cmsStageType(stage) == cmsSigMatrixElemType);
 	data = cmsStageData(stage);
 
@@ -685,7 +709,7 @@ pipeline_print(cmsPipeline **lut, cmsContext context_id,
 		return;
 
 	if (!stage) {
-		weston_log_scope_printf(scope, "no elements\n");
+		weston_log_scope_printf(scope, "    no elements\n");
 		return;
 	}
 
@@ -701,6 +725,9 @@ pipeline_print(cmsPipeline **lut, cmsContext context_id,
 		switch(cmsStageType(stage)) {
 		case cmsSigMatrixElemType:
 			matrix_print(stage, scope);
+			break;
+		case cmsSigCurveSetElemType:
+			curveset_print(stage, scope);
 			break;
 		default:
 			break;

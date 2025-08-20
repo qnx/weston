@@ -95,6 +95,14 @@ struct ivi_input_panel_surface
 	struct wl_list link;
 };
 
+struct ivi_shell_seat {
+	struct weston_seat *seat;
+	struct wl_listener seat_destroy_listener;
+	struct ivi_layout_surface *focused_ivisurf;
+
+	struct wl_list link;	/** ivi_shell::seat_list */
+};
+
 /*
  * Implementation of ivi_surface
  */
@@ -126,6 +134,43 @@ shell_get_ivi_layout_surface(struct weston_surface *surface)
 		return NULL;
 
 	return shsurf->layout_surface;
+}
+
+static void
+ivi_shell_seat_handle_destroy(struct wl_listener *listener, void *data);
+
+static struct ivi_shell_seat *
+get_ivi_shell_seat(struct weston_seat *seat)
+{
+	struct wl_listener *listener;
+
+	if (!seat)
+		return NULL;
+
+	listener = wl_signal_get(&seat->destroy_signal,
+				 ivi_shell_seat_handle_destroy);
+	if (!listener)
+		return NULL;
+
+	return container_of(listener, struct ivi_shell_seat,
+			    seat_destroy_listener);
+}
+
+struct ivi_layout_surface *
+shell_get_focused_ivi_layout_surface(struct weston_seat *seat)
+{
+	struct ivi_shell_seat *shseat = get_ivi_shell_seat(seat);
+
+	return shseat->focused_ivisurf;
+}
+
+void
+shell_set_focused_ivi_layout_surface(struct ivi_layout_surface *ivisurf,
+				     struct weston_seat *seat)
+{
+	struct ivi_shell_seat *shseat = get_ivi_shell_seat(seat);
+
+	shseat->focused_ivisurf = ivisurf;
 }
 
 void
@@ -357,6 +402,44 @@ bind_ivi_application(struct wl_client *client,
 				       shell, NULL);
 }
 
+/*
+ * ivi_shell_seat
+ */
+static void
+ivi_shell_seat_destroy(struct ivi_shell_seat *shseat)
+{
+	wl_list_remove(&shseat->seat_destroy_listener.link);
+	wl_list_remove(&shseat->link);
+	free(shseat);
+}
+
+static void
+ivi_shell_seat_handle_destroy(struct wl_listener *listener, void *data)
+{
+	struct ivi_shell_seat *shseat = container_of(listener,
+						     struct ivi_shell_seat,
+						     seat_destroy_listener);
+
+	ivi_shell_seat_destroy(shseat);
+}
+
+static struct ivi_shell_seat *
+ivi_shell_seat_create(struct ivi_shell *shell, struct weston_seat *seat)
+{
+	struct ivi_shell_seat *shseat;
+
+	shseat = xzalloc(sizeof *shseat);
+
+	shseat->seat = seat;
+
+	shseat->seat_destroy_listener.notify = ivi_shell_seat_handle_destroy;
+	wl_signal_add(&seat->destroy_signal, &shseat->seat_destroy_listener);
+
+	wl_list_insert(&shell->seat_list, &shseat->link);
+
+	return shseat;
+}
+
 void
 input_panel_destroy(struct ivi_shell *shell);
 
@@ -369,11 +452,13 @@ shell_destroy(struct wl_listener *listener, void *data)
 	struct ivi_shell *shell =
 		container_of(listener, struct ivi_shell, destroy_listener);
 	struct ivi_shell_surface *ivisurf, *next;
+	struct ivi_shell_seat *shseat, *shseat_next;
 
 	ivi_layout_ivi_shell_destroy();
 
 	wl_list_remove(&shell->destroy_listener.link);
 	wl_list_remove(&shell->wake_listener.link);
+	wl_list_remove(&shell->seat_created_listener.link);
 
 	if (shell->text_backend) {
 		text_backend_destroy(shell->text_backend);
@@ -386,6 +471,9 @@ shell_destroy(struct wl_listener *listener, void *data)
 		wl_list_remove(&ivisurf->link);
 		free(ivisurf);
 	}
+
+	wl_list_for_each_safe(shseat, shseat_next, &shell->seat_list, link)
+		ivi_shell_seat_destroy(shseat);
 
 	ivi_layout_fini();
 
@@ -473,9 +561,8 @@ activate_binding(struct weston_seat *seat,
 		return;
 	}
 
-	/* FIXME: need to activate the surface like
-	   kiosk_shell_surface_activate() */
-	weston_view_activate_input(focus_view, seat, flags);
+	ivi_layout_surface_activate_with_seat(ivisurf->layout_surface, seat,
+					      flags);
 }
 
 static void
@@ -601,7 +688,7 @@ desktop_surface_removed(struct weston_desktop_surface *surface,
 
 static void
 desktop_surface_committed(struct weston_desktop_surface *surface,
-			  int32_t sx, int32_t sy, void *user_data)
+			  struct weston_coord_surface buf_offset, void *user_data)
 {
 	struct ivi_shell_surface *ivisurf = (struct ivi_shell_surface *)
 			weston_desktop_surface_get_user_data(surface);
@@ -684,7 +771,7 @@ desktop_surface_minimized_requested(struct weston_desktop_surface *surface,
 
 static void
 desktop_surface_set_xwayland_position(struct weston_desktop_surface *surface,
-				      int32_t x, int32_t y, void *user_data)
+				      struct weston_coord_global pos, void *user_data)
 {
 	/* Not supported */
 }
@@ -705,6 +792,16 @@ static const struct weston_desktop_api shell_desktop_api = {
 	.minimized_requested = desktop_surface_minimized_requested,
 	.set_xwayland_position = desktop_surface_set_xwayland_position,
 };
+
+static void
+ivi_shell_handle_seat_created(struct wl_listener *listener, void *data)
+{
+	struct weston_seat *seat = data;
+	struct ivi_shell *shell =
+		container_of(listener, struct ivi_shell, seat_created_listener);
+
+	ivi_shell_seat_create(shell, seat);
+}
 
 /*
  * end of libweston-desktop
@@ -878,8 +975,10 @@ input_panel_surface_set_toplevel(struct wl_client *client,
 
 	head = weston_head_from_resource(output_resource);
 
-	ipsurf->type = INPUT_PANEL_TOPLEVEL;
-	ipsurf->output = head->output;
+	if (head) {
+		ipsurf->type = INPUT_PANEL_TOPLEVEL;
+		ipsurf->output = head->output;
+	}
 }
 
 static void
@@ -1042,6 +1141,7 @@ wet_shell_init(struct weston_compositor *compositor,
 	       int *argc, char *argv[])
 {
 	struct ivi_shell *shell;
+	struct weston_seat *seat;
 
 	shell = xzalloc(sizeof *shell);
 
@@ -1065,6 +1165,13 @@ wet_shell_init(struct weston_compositor *compositor,
 			     &ivi_application_interface, 1,
 			     shell, bind_ivi_application) == NULL)
 		goto err_desktop;
+
+	wl_list_init(&shell->seat_list);
+	wl_list_for_each(seat, &compositor->seat_list, link)
+		ivi_shell_seat_create(shell, seat);
+	shell->seat_created_listener.notify = ivi_shell_handle_seat_created;
+	wl_signal_add(&compositor->seat_created_signal,
+		      &shell->seat_created_listener);
 
 	ivi_layout_init(compositor, shell);
 

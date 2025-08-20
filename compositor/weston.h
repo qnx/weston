@@ -36,32 +36,34 @@ extern "C" {
 void
 screenshooter_create(struct weston_compositor *ec);
 
-struct weston_process;
-typedef void (*weston_process_cleanup_func_t)(struct weston_process *process,
-					    int status);
+struct wet_process;
+typedef void (*wet_process_cleanup_func_t)(struct wet_process *process,
+					   int status,
+					   void *data);
 
-struct weston_process {
+struct wet_process {
 	pid_t pid;
-	weston_process_cleanup_func_t cleanup;
+	char *path;
+	wet_process_cleanup_func_t cleanup;
+	void *cleanup_data;
 	struct wl_list link;
 };
 
 struct custom_env;
 
-bool
-weston_client_launch(struct weston_compositor *compositor,
-		     struct weston_process *proc,
-		     struct custom_env *custom_env,
-		     int *fds_no_cloexec,
-		     size_t num_fds_no_cloexec,
-		     weston_process_cleanup_func_t cleanup);
+struct wet_process *
+wet_client_launch(struct weston_compositor *compositor,
+		  struct custom_env *custom_env,
+		  int *fds_no_cloexec,
+		  size_t num_fds_no_cloexec,
+		  wet_process_cleanup_func_t cleanup,
+		  void *cleanup_data);
 
 struct wl_client *
-weston_client_start(struct weston_compositor *compositor, const char *path);
+wet_client_start(struct weston_compositor *compositor, const char *path);
 
 void
-wet_watch_process(struct weston_compositor *compositor,
-				  struct weston_process *process);
+wet_process_destroy(struct wet_process *process, int status, bool call_cleanup);
 
 struct weston_config *
 wet_get_config(struct weston_compositor *compositor);
@@ -86,8 +88,11 @@ wet_get_libexec_path(const char *name);
 char *
 wet_get_bindir_path(const char *name);
 
-int
+void *
 wet_load_xwayland(struct weston_compositor *comp);
+
+void
+wet_xwayland_destroy(struct weston_compositor *comp, void *data);
 
 struct text_backend;
 
