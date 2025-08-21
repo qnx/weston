@@ -10,7 +10,7 @@
     <file name="${targetfolder}/[ARCH]/usr/bin/weston-calibrator" />
     <file name="${targetfolder}/[ARCH]/usr/bin/weston-clickdot" />
     <file name="${targetfolder}/[ARCH]/usr/bin/weston-cliptest" />
-    <file name="${targetfolder}/[ARCH]/usr/bin/weston-confine" />
+    <file name="${targetfolder}/[ARCH]/usr/bin/weston-constraints" />
     <file name="${targetfolder}/[ARCH]/usr/bin/weston-debug" />
     <file name="${targetfolder}/[ARCH]/usr/bin/weston-dnd" />
     <file name="${targetfolder}/[ARCH]/usr/bin/weston-eventdemo" />

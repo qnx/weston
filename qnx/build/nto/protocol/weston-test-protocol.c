@@ -63,6 +63,7 @@ static const struct wl_message weston_test_requests[] = {
 	{ "device_release", "s", weston_test_types + 0 },
 	{ "device_add", "s", weston_test_types + 0 },
 	{ "send_touch", "uuuiffu", weston_test_types + 0 },
+	{ "client_break", "uu", weston_test_types + 0 },
 };
 
 static const struct wl_message weston_test_events[] = {
@@ -71,7 +72,7 @@ static const struct wl_message weston_test_events[] = {
 
 WL_PRIVATE const struct wl_interface weston_test_interface = {
 	"weston_test", 1,
-	9, weston_test_requests,
+	10, weston_test_requests,
 	1, weston_test_events,
 };
 

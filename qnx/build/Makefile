@@ -1,19 +1,16 @@
-install:
-# 	build disabled
+ifndef QRECURSE
+QRECURSE=recurse.mk
+ifdef QCONFIG
+QRDIR=$(dir $(QCONFIG))
+endif
+endif
 
-# ifndef QRECURSE
-# QRECURSE=recurse.mk
-# ifdef QCONFIG
-# QRDIR=$(dir $(QCONFIG))
-# endif
-# endif
+EARLY_DIRS = \
+	libs \
+	renderers \
+	backends \
+	weston \
+	clients \
+	tests
 
-# EARLY_DIRS = \
-# 	libs \
-# 	renderers \
-# 	backends \
-# 	weston \
-# 	clients \
-# 	tests
-
-# include $(QRDIR)$(QRECURSE)
+include $(QRDIR)$(QRECURSE)

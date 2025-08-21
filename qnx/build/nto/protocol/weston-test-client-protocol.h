@@ -128,6 +128,16 @@ enum weston_test_error {
 };
 #endif /* WESTON_TEST_ERROR_ENUM */
 
+#ifndef WESTON_TEST_BREAKPOINT_ENUM
+#define WESTON_TEST_BREAKPOINT_ENUM
+enum weston_test_breakpoint {
+	/**
+	 * after output repaint (filter type: wl_output)
+	 */
+	WESTON_TEST_BREAKPOINT_POST_REPAINT = 0,
+};
+#endif /* WESTON_TEST_BREAKPOINT_ENUM */
+
 /**
  * @ingroup iface_weston_test
  * @struct weston_test_listener
@@ -161,6 +171,7 @@ weston_test_add_listener(struct weston_test *weston_test,
 #define WESTON_TEST_DEVICE_RELEASE 6
 #define WESTON_TEST_DEVICE_ADD 7
 #define WESTON_TEST_SEND_TOUCH 8
+#define WESTON_TEST_CLIENT_BREAK 9
 
 /**
  * @ingroup iface_weston_test
@@ -203,6 +214,10 @@ weston_test_add_listener(struct weston_test *weston_test,
  * @ingroup iface_weston_test
  */
 #define WESTON_TEST_SEND_TOUCH_SINCE_VERSION 1
+/**
+ * @ingroup iface_weston_test
+ */
+#define WESTON_TEST_CLIENT_BREAK_SINCE_VERSION 1
 
 /** @ingroup iface_weston_test */
 static inline void
@@ -319,6 +334,20 @@ weston_test_send_touch(struct weston_test *weston_test, uint32_t tv_sec_hi, uint
 {
 	wl_proxy_marshal((struct wl_proxy *) weston_test,
 			 WESTON_TEST_SEND_TOUCH, tv_sec_hi, tv_sec_lo, tv_nsec, touch_id, x, y, touch_type);
+}
+
+/**
+ * @ingroup iface_weston_test
+ *
+ * Request that the compositor pauses execution at a certain point. When
+ * execution is paused, the compositor will signal the shared semaphore
+ * to the client.
+ */
+static inline void
+weston_test_client_break(struct weston_test *weston_test, uint32_t breakpoint, uint32_t resource_id)
+{
+	wl_proxy_marshal((struct wl_proxy *) weston_test,
+			 WESTON_TEST_CLIENT_BREAK, breakpoint, resource_id);
 }
 
 #ifndef WESTON_TEST_RUNNER_ERROR_ENUM

@@ -85,10 +85,7 @@ struct weston_qnx_screen_backend_config {
 
 	bool fullscreen;
 	bool no_input;
-
-	/** Whether to use the pixman renderer instead of the OpenGL ES renderer. */
-	bool use_pixman;
-
+	int renderer;
 	int egl_display;
 };
 

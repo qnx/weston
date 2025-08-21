@@ -3980,7 +3980,7 @@ load_qnx_screen_backend(struct weston_compositor *c,
 	const struct weston_windowed_output_api *api;
 	struct weston_qnx_screen_backend_config config = {{ 0, }};
 	struct weston_config_section *section;
-	int ret = 0;
+	struct wet_backend *wb;
 	int option_count = 1;
 	int output_count = 0;
 	char const *section_name;
@@ -4022,19 +4022,18 @@ load_qnx_screen_backend(struct weston_compositor *c,
 		weston_log("error: conflicting renderer specification\n");
 		return -1;
 	} else if (force_pixman) {
-		config.use_pixman = true;
+		config.renderer = WESTON_RENDERER_PIXMAN;
 	} else {
-		config.use_pixman = (renderer == WESTON_RENDERER_PIXMAN);
+		config.renderer = renderer;
 	}
 
-	wet_set_simple_head_configurator(c, qnx_screen_backend_output_configure);
-
 	/* load the actual backend and configure it */
-	ret = weston_compositor_load_backend(c, WESTON_BACKEND_QNX_SCREEN,
-					     &config.base);
+	wb = wet_compositor_load_backend(c, WESTON_BACKEND_QNX_SCREEN,
+					    &config.base, simple_heads_changed,
+						qnx_screen_backend_output_configure);
 
-	if (ret < 0)
-		return ret;
+	if (!wb)
+		return -1;
 
 	api = weston_windowed_output_get_api(c);
 
@@ -4060,7 +4059,7 @@ load_qnx_screen_backend(struct weston_compositor *c,
 			continue;
 		}
 
-		if (api->create_head(c->backend, output_name) < 0) {
+		if (api->create_head(wb->backend, output_name) < 0) {
 			free(output_name);
 			return -1;
 		}
@@ -4076,7 +4075,7 @@ load_qnx_screen_backend(struct weston_compositor *c,
 			return -1;
 		}
 
-		if (api->create_head(c->backend, default_output) < 0) {
+		if (api->create_head(wb->backend, default_output) < 0) {
 			free(default_output);
 			return -1;
 		}
@@ -4531,7 +4530,7 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 		weston_config_section_get_string(section, "backend",
 							 &backends, NULL);
 		if (!backends)
-			backend = weston_choose_default_backend();
+			backends = weston_choose_default_backend();
 
 	}
 

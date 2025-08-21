@@ -3,7 +3,7 @@ QCONFIG=qconfig.mk
 endif
 include $(QCONFIG)
 
-NAME = weston-confine
+NAME = weston-constraints
 
 DIST_ROOT = $(PROJECT_ROOT)/../../../..
 INSTALLDIR = usr/bin
@@ -22,7 +22,7 @@ EXTRA_LIBVPATH += $(PROJECT_ROOT)/../../libs/shared-cairo/$(OS)/$(CPU)/$(shell e
 EXTRA_LIBVPATH += $(PROJECT_ROOT)/../../libs/toytoolkit/$(OS)/$(CPU)/$(shell echo $(VARIANT1) | sed 's/^o\(.*\)$$/a.shared\1/')
 
 SRCS += \
-	confine.c
+	constraints.c
 
 LIBS += \
 	toytoolkitS \
@@ -42,7 +42,7 @@ LIBS += \
 	m
 
 define PINFO
-PINFO DESCRIPTION = Weston Confine Client
+PINFO DESCRIPTION = Weston Constraints Client
 endef
 
 include $(MKFILES_ROOT)/qtargets.mk

@@ -131,6 +131,16 @@ enum weston_test_error {
 };
 #endif /* WESTON_TEST_ERROR_ENUM */
 
+#ifndef WESTON_TEST_BREAKPOINT_ENUM
+#define WESTON_TEST_BREAKPOINT_ENUM
+enum weston_test_breakpoint {
+	/**
+	 * after output repaint (filter type: wl_output)
+	 */
+	WESTON_TEST_BREAKPOINT_POST_REPAINT = 0,
+};
+#endif /* WESTON_TEST_BREAKPOINT_ENUM */
+
 /**
  * @ingroup iface_weston_test
  * @struct weston_test_interface
@@ -205,6 +215,19 @@ struct weston_test_interface {
 			   wl_fixed_t x,
 			   wl_fixed_t y,
 			   uint32_t touch_type);
+	/**
+	 * request compositor pause at a certain point
+	 *
+	 * Request that the compositor pauses execution at a certain
+	 * point. When execution is paused, the compositor will signal the
+	 * shared semaphore to the client.
+	 * @param breakpoint event type to wait for
+	 * @param resource_id optional Wayland resource ID to filter for (type-specific)
+	 */
+	void (*client_break)(struct wl_client *client,
+			     struct wl_resource *resource,
+			     uint32_t breakpoint,
+			     uint32_t resource_id);
 };
 
 #define WESTON_TEST_POINTER_POSITION 0
@@ -250,6 +273,10 @@ struct weston_test_interface {
  * @ingroup iface_weston_test
  */
 #define WESTON_TEST_SEND_TOUCH_SINCE_VERSION 1
+/**
+ * @ingroup iface_weston_test
+ */
+#define WESTON_TEST_CLIENT_BREAK_SINCE_VERSION 1
 
 /**
  * @ingroup iface_weston_test

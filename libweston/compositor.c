@@ -9233,8 +9233,10 @@ weston_compositor_set_presentation_clock(struct weston_compositor *compositor,
 {
 	/* In order of preference */
 	static const clockid_t clocks[] = {
+#if !defined(__QNX__)
 		CLOCK_MONOTONIC_RAW,	/* no jumps, no crawling */
 		CLOCK_MONOTONIC_COARSE,	/* no jumps, may crawl, fast & coarse */
+#endif
 		CLOCK_MONOTONIC,	/* no jumps, may crawl */
 	};
 	struct timespec ts;
