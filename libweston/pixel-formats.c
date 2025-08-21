@@ -144,6 +144,9 @@ static const struct pixel_format_info pixel_format_table[] = {
 		.bpp = 16,
 		.hide_from_clients = true,
 		GL_FORMAT_INFO(GL_R16_EXT, GL_RED, GL_UNSIGNED_SHORT, R001),
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+		VULKAN_FORMAT(VK_FORMAT_R16_UNORM),
+#endif
 	},
 	{
 		DRM_FORMAT(GR88),
@@ -171,6 +174,9 @@ static const struct pixel_format_info pixel_format_table[] = {
 		.bpp = 32,
 		.hide_from_clients = true,
 		GL_FORMAT_INFO(GL_RG16_EXT, GL_RG, GL_UNSIGNED_SHORT, RG01),
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+		VULKAN_FORMAT(VK_FORMAT_R16G16_UNORM),
+#endif
 	},
 	{
 		DRM_FORMAT(RG1616),
@@ -235,6 +241,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		GL_FORMAT_INFO(GL_RGBA4, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, RGB1),
 		GL_FORMAT(GL_RGBA),
 		GL_TYPE(GL_UNSIGNED_SHORT_4_4_4_4),
+		VULKAN_FORMAT(VK_FORMAT_R4G4B4A4_UNORM_PACK16),
 #else
 		GL_FORMAT_INFO(GL_RGBA4, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, B1RG),
 #endif
@@ -249,6 +256,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		GL_FORMAT_INFO(GL_RGBA4, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, RGBA),
 		GL_FORMAT(GL_RGBA),
 		GL_TYPE(GL_UNSIGNED_SHORT_4_4_4_4),
+		VULKAN_FORMAT(VK_FORMAT_R4G4B4A4_UNORM_PACK16),
 #else
 		GL_FORMAT_INFO(GL_RGBA4, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, BARG),
 #endif
@@ -260,6 +268,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		.bpp = 16,
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 		GL_FORMAT_INFO(GL_RGBA4, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, BGR1),
+		VULKAN_FORMAT(VK_FORMAT_B4G4R4A4_UNORM_PACK16),
 #else
 		GL_FORMAT_INFO(GL_RGBA4, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, R1BG),
 #endif
@@ -272,6 +281,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		.opaque_substitute = DRM_FORMAT_BGRX4444,
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 		GL_FORMAT_INFO(GL_RGBA4, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, BGRA),
+		VULKAN_FORMAT(VK_FORMAT_B4G4R4A4_UNORM_PACK16),
 #else
 		GL_FORMAT_INFO(GL_RGBA4, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, RABG),
 #endif
@@ -282,6 +292,9 @@ static const struct pixel_format_info pixel_format_table[] = {
 		BITS_RGBA_FIXED(5, 5, 5, 0),
 		.addfb_legacy_depth = 15,
 		.bpp = 16,
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+		VULKAN_FORMAT(VK_FORMAT_A1R5G5B5_UNORM_PACK16),
+#endif
 	},
 	{
 		DRM_FORMAT(ARGB1555),
@@ -289,6 +302,9 @@ static const struct pixel_format_info pixel_format_table[] = {
 		BITS_RGBA_FIXED(5, 5, 5, 1),
 		.bpp = 16,
 		.opaque_substitute = DRM_FORMAT_XRGB1555,
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+		VULKAN_FORMAT(VK_FORMAT_A1R5G5B5_UNORM_PACK16),
+#endif
 	},
 	{
 		DRM_FORMAT(XBGR1555),
@@ -312,6 +328,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		GL_FORMAT_INFO(GL_RGB5_A1, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1, RGB1),
 		GL_FORMAT(GL_RGBA),
 		GL_TYPE(GL_UNSIGNED_SHORT_5_5_5_1),
+		VULKAN_FORMAT(VK_FORMAT_R5G5B5A1_UNORM_PACK16),
 #endif
 	},
 	{
@@ -324,6 +341,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		GL_FORMAT_INFO(GL_RGB5_A1, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1, RGBA),
 		GL_FORMAT(GL_RGBA),
 		GL_TYPE(GL_UNSIGNED_SHORT_5_5_5_1),
+		VULKAN_FORMAT(VK_FORMAT_R5G5B5A1_UNORM_PACK16),
 #endif
 	},
 	{
@@ -333,6 +351,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		.bpp = 16,
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 		GL_FORMAT_INFO(GL_RGB5_A1, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1, BGR1),
+		VULKAN_FORMAT(VK_FORMAT_B5G5R5A1_UNORM_PACK16),
 #endif
 	},
 	{
@@ -343,6 +362,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		.opaque_substitute = DRM_FORMAT_BGRX5551,
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 		GL_FORMAT_INFO(GL_RGB5_A1, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1, BGRA),
+		VULKAN_FORMAT(VK_FORMAT_B5G5R5A1_UNORM_PACK16),
 #endif
 	},
 	{
@@ -356,6 +376,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		GL_FORMAT(GL_RGB),
 		GL_TYPE(GL_UNSIGNED_SHORT_5_6_5),
 		PIXMAN_FMT(r5g6b5),
+		VULKAN_FORMAT(VK_FORMAT_R5G6B5_UNORM_PACK16),
 #endif
 	},
 	{
@@ -365,6 +386,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		.bpp = 16,
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 		GL_FORMAT_INFO(GL_RGB565, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, BGR1),
+		VULKAN_FORMAT(VK_FORMAT_B5G6R5_UNORM_PACK16),
 #endif
 	},
 	{
@@ -521,6 +543,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 		GL_FORMAT_INFO(GL_RGB10_A2, GL_RGBA, GL_UNSIGNED_INT_2_10_10_10_REV, BGR1),
 		PIXMAN_FMT(x2r10g10b10),
+		VULKAN_FORMAT(VK_FORMAT_A2R10G10B10_UNORM_PACK32),
 #endif
 	},
 	{
@@ -533,6 +556,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 		GL_FORMAT_INFO(GL_RGB10_A2, GL_RGBA, GL_UNSIGNED_INT_2_10_10_10_REV, BGRA),
 		PIXMAN_FMT(a2r10g10b10),
+		VULKAN_FORMAT(VK_FORMAT_A2R10G10B10_UNORM_PACK32),
 #endif
 	},
 	{
@@ -545,6 +569,7 @@ static const struct pixel_format_info pixel_format_table[] = {
 		GL_FORMAT(GL_RGBA),
 		GL_TYPE(GL_UNSIGNED_INT_2_10_10_10_REV_EXT),
 		PIXMAN_FMT(x2b10g10r10),
+		VULKAN_FORMAT(VK_FORMAT_A2B10G10R10_UNORM_PACK32),
 #endif
 	},
 	{
@@ -553,12 +578,12 @@ static const struct pixel_format_info pixel_format_table[] = {
 		BITS_RGBA_FIXED(10, 10, 10, 2),
 		.bpp = 32,
 		.opaque_substitute = DRM_FORMAT_XBGR2101010,
-		VULKAN_FORMAT(VK_FORMAT_A2B10G10R10_UNORM_PACK32),
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 		GL_FORMAT_INFO(GL_RGB10_A2, GL_RGBA, GL_UNSIGNED_INT_2_10_10_10_REV, RGBA),
 		GL_FORMAT(GL_RGBA),
 		GL_TYPE(GL_UNSIGNED_INT_2_10_10_10_REV_EXT),
 		PIXMAN_FMT(a2b10g10r10),
+		VULKAN_FORMAT(VK_FORMAT_A2B10G10R10_UNORM_PACK32),
 #endif
 	},
 	{
