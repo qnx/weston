@@ -561,7 +561,7 @@ qnx_screen_output_switch_mode(struct weston_output *base, struct weston_mode *mo
 		if (qnx_screen_output_init_shm(b, output,
 					output->base.current_mode->width,
 					output->base.current_mode->height) < 0) {
-			weston_log("Failed to initialize SHM for the X11 output\n");
+			weston_log("Failed to initialize SHM for the qnx-screen output\n");
 			return -1;
 		}
 		if (renderer->pixman->output_create(&output->base, &options) < 0) {
