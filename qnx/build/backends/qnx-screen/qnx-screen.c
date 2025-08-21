@@ -619,7 +619,8 @@ qnx_screen_output_disable(struct weston_output *base)
 	}
 
 	screen_destroy_session(output->session);
-	output->window = NULL;
+	output->session = NULL;
+
 	screen_destroy_window(output->window);
 	output->window = NULL;
 
