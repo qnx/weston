@@ -134,9 +134,9 @@ query_dmabuf_support(struct vulkan_renderer *vr, VkFormat vk_format,
 	result = vkGetPhysicalDeviceImageFormatProperties2(vr->phys_dev, &pdev_image_format_info, &image_format_props);
 	if (result != VK_SUCCESS) {
 		if (result == VK_ERROR_FORMAT_NOT_SUPPORTED) {
-			weston_log("unsupported format\n");
+			weston_log("unsupported dmabuf format 0x%08x\n", vk_format);
 		} else {
-			weston_log("failed to get format properties\n");
+			weston_log("failed to get dmabuf format properties 0x%08x\n", vk_format);
 		}
 		return false;
 	}
@@ -154,14 +154,6 @@ query_dmabuf_modifier_support(struct vulkan_renderer *vr, const struct pixel_for
 
 		int ret = weston_drm_format_add_modifier(fmt, modifier);
 		assert(ret == 0);
-
-		char *modifier_name = drmGetFormatModifierName(modifier);
-		weston_log("DRM dmabuf format %s (0x%08x) modifier %s (0x%016lx)\n",
-			   format->drm_format_name ? format->drm_format_name : "<unknown>",
-			   format->format,
-			   modifier_name ? modifier_name : "<unknown>",
-			   modifier);
-		free(modifier_name);
 		return;
 	}
 
@@ -194,16 +186,6 @@ query_dmabuf_modifier_support(struct vulkan_renderer *vr, const struct pixel_for
 
 		int ret = weston_drm_format_add_modifier(fmt, m.drmFormatModifier);
 		assert(ret == 0);
-
-		char *modifier_name = drmGetFormatModifierName(m.drmFormatModifier);
-		weston_log("DRM dmabuf format %s (0x%08x) modifier %s (0x%016lx) %d planes\n",
-			   format->drm_format_name ? format->drm_format_name : "<unknown>",
-			   format->format,
-			   modifier_name ? modifier_name : "<unknown>",
-			   m.drmFormatModifier,
-			   m.drmFormatModifierPlaneCount);
-		free(modifier_name);
-
 	}
 
 	free(drm_format_mod_props.pDrmFormatModifierProperties);
@@ -230,10 +212,6 @@ vulkan_renderer_query_dmabuf_format(struct vulkan_renderer *vr, const struct pix
 
 	fmt = weston_drm_format_array_add_format(&vr->supported_formats, format->format);
 	assert(fmt);
-
-	weston_log("DRM dmabuf format %s (0x%08x)\n",
-		   format->drm_format_name ? format->drm_format_name : "<unknown>",
-		   format->format);
 
 	query_dmabuf_modifier_support(vr, format, fmt);
 
