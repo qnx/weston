@@ -27,6 +27,7 @@
 
 #include <fcntl.h>
 #include <math.h>
+#include <linux/dma-buf.h>
 #include <sys/ioctl.h>
 #include <stdio.h>
 #include <string.h>
@@ -170,6 +171,7 @@ enum buffer_type {
 };
 
 struct client_buffer {
+	enum buffer_type type;
 	void *data;
 	size_t bytes;
 	struct wl_buffer *wl_buffer;
@@ -248,6 +250,7 @@ shm_buffer_create(struct client *client,
 	}
 
 	buf = xzalloc(sizeof *buf);
+	buf->type = BUFFER_TYPE_SHM;
 	buf->fd = -1;
 	buf->bytes = bytes;
 	buf->width = width;
@@ -363,6 +366,7 @@ dmabuf_buffer_create(struct client *client,
 	test_assert_int_ge(fd, 0);
 
 	buf = xzalloc(sizeof *buf);
+	buf->type = BUFFER_TYPE_DMABUF;
 	buf->bytes = bytes;
 	buf->fd = fd;
 	buf->width = width;
@@ -442,6 +446,34 @@ client_buffer_destroy(struct client_buffer *buf)
 	if (buf->fd > -1)
 		close(buf->fd);
 	free(buf);
+}
+
+static void
+maybe_sync_dma_buffer_start(struct client_buffer *buf)
+{
+	struct dma_buf_sync sync = { DMA_BUF_SYNC_START | DMA_BUF_SYNC_WRITE };
+	int ret;
+
+	if (buf->type != BUFFER_TYPE_DMABUF)
+		return;
+
+	do {
+		ret = ioctl(buf->fd, DMA_BUF_IOCTL_SYNC, &sync);
+	} while (ret && (errno == EINTR || errno == EAGAIN));
+}
+
+static void
+maybe_sync_dma_buffer_end(struct client_buffer *buf)
+{
+	struct dma_buf_sync sync = { DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE };
+	int ret;
+
+	if (buf->type != BUFFER_TYPE_DMABUF)
+		return;
+
+	do {
+		ret = ioctl(buf->fd, DMA_BUF_IOCTL_SYNC, &sync);
+	} while (ret && (errno == EINTR || errno == EAGAIN));
 }
 
 /*
@@ -529,6 +561,7 @@ rgba4444_create_buffer(struct client *client,
 	 * with 0xf. */
 	a = is_opaque ? 0x0 : 0xf;
 
+	maybe_sync_dma_buffer_start(buf);
 	for (y = 0; y < src.height; y++) {
 		uint16_t *dst_row =
 			(uint16_t*) buf->data + (args.strides[0] / sizeof(uint16_t)) * y;
@@ -546,6 +579,7 @@ rgba4444_create_buffer(struct client *client,
 				a << (swizzles[idx][3] * 4);
 		}
 	}
+	maybe_sync_dma_buffer_end(buf);
 
 	return buf;
 }
@@ -591,6 +625,7 @@ rgba5551_create_buffer(struct client *client,
 	a = drm_format == DRM_FORMAT_RGBX5551 ||
 		drm_format == DRM_FORMAT_RGBX5551 ? 0x0 : 0x1;
 
+	maybe_sync_dma_buffer_start(buf);
 	for (y = 0; y < src.height; y++) {
 		uint16_t *dst_row =
 			(uint16_t*) buf->data + (args.strides[0] / sizeof(uint16_t)) * y;
@@ -608,6 +643,7 @@ rgba5551_create_buffer(struct client *client,
 				dst_row[x] = b << 11 | g << 6 | r << 1 | a;
 		}
 	}
+	maybe_sync_dma_buffer_end(buf);
 
 	return buf;
 }
@@ -641,6 +677,7 @@ rgb565_create_buffer(struct client *client,
 	if (!buf)
 		return NULL;
 
+	maybe_sync_dma_buffer_start(buf);
 	for (y = 0; y < src.height; y++) {
 		uint16_t *dst_row =
 			(uint16_t*) buf->data + (args.strides[0] / sizeof(uint16_t)) * y;
@@ -657,6 +694,7 @@ rgb565_create_buffer(struct client *client,
 				dst_row[x] = b << 11 | g << 5 | r;
 		}
 	}
+	maybe_sync_dma_buffer_end(buf);
 
 	return buf;
 }
@@ -690,6 +728,7 @@ rgb888_create_buffer(struct client *client,
 	if (!buf)
 		return NULL;
 
+	maybe_sync_dma_buffer_start(buf);
 	for (y = 0; y < src.height; y++) {
 		uint8_t *dst_row = (uint8_t*) buf->data + src.width * 3 * y;
 		uint32_t *src_row = image_header_get_row_u32(&src, y);
@@ -710,6 +749,7 @@ rgb888_create_buffer(struct client *client,
 			}
 		}
 	}
+	maybe_sync_dma_buffer_end(buf);
 
 	return buf;
 }
@@ -799,6 +839,7 @@ rgba8888_create_buffer(struct client *client,
 	 * with 0xff. */
 	a = is_opaque ? 0x00 : 0xff;
 
+	maybe_sync_dma_buffer_start(buf);
 	for (y = 0; y < src.height; y++) {
 		uint32_t *dst_row =
 			(uint32_t*) buf->data + (args.strides[0] / sizeof(uint32_t)) * y;
@@ -816,6 +857,7 @@ rgba8888_create_buffer(struct client *client,
 				a << (swizzles[idx][3] * 8);
 		}
 	}
+	maybe_sync_dma_buffer_end(buf);
 
 	return buf;
 }
@@ -860,6 +902,7 @@ rgba2101010_create_buffer(struct client *client,
 	a = drm_format == DRM_FORMAT_XRGB2101010 ||
 		drm_format == DRM_FORMAT_XRGB2101010 ? 0x0 : 0x3;
 
+	maybe_sync_dma_buffer_start(buf);
 	for (y = 0; y < src.height; y++) {
 		uint32_t *dst_row =
 			(uint32_t*) buf->data + (args.strides[0] / sizeof(uint32_t)) * y;
@@ -877,6 +920,7 @@ rgba2101010_create_buffer(struct client *client,
 				dst_row[x] = a << 30 | b << 20 | g << 10 | r;
 		}
 	}
+	maybe_sync_dma_buffer_end(buf);
 
 	return buf;
 }
@@ -942,6 +986,7 @@ rgba16161616_create_buffer(struct client *client,
 	 * with 0xffff. */
 	a = is_opaque ? 0x0000 : 0xffff;
 
+	maybe_sync_dma_buffer_start(buf);
 	for (y = 0; y < src.height; y++) {
 		uint64_t *dst_row =
 			(uint64_t*) buf->data + (args.strides[0] / sizeof(uint64_t)) * y;
@@ -959,6 +1004,7 @@ rgba16161616_create_buffer(struct client *client,
 				a << (swizzles[idx][3] * 16);
 		}
 	}
+	maybe_sync_dma_buffer_end(buf);
 
 	return buf;
 }
@@ -1049,6 +1095,7 @@ rgba16161616f_create_buffer(struct client *client,
 		binary16_from_binary32(0.0f) :
 		binary16_from_binary32(1.0f);
 
+	maybe_sync_dma_buffer_start(buf);
 	for (y = 0; y < src.height; y++) {
 		uint64_t *dst_row =
 			(uint64_t*) buf->data + (args.strides[0] / sizeof(uint64_t)) * y;
@@ -1069,6 +1116,7 @@ rgba16161616f_create_buffer(struct client *client,
 				a << (swizzles[idx][3] * 16);
 		}
 	}
+	maybe_sync_dma_buffer_end(buf);
 
 	return buf;
 }
@@ -1243,6 +1291,7 @@ y_u_v_create_buffer(struct client *client,
 		break;
 	}
 
+	maybe_sync_dma_buffer_start(buf);
 	for (y = 0; y < src.height; y++) {
 		rgb_row = image_header_get_row_u32(&src, y / 2 *	 2);
 		y_row = y_base + y * args.strides[0];
@@ -1285,6 +1334,7 @@ y_u_v_create_buffer(struct client *client,
 			}
 		}
 	}
+	maybe_sync_dma_buffer_end(buf);
 
 	return buf;
 }
@@ -1357,6 +1407,7 @@ nv12_create_buffer(struct client *client,
 	y_base = buf->data + args.offsets[0];
 	uv_base = (uint16_t *)(buf->data + args.offsets[1]);
 
+	maybe_sync_dma_buffer_start(buf);
 	for (y = 0; y < src.height; y++) {
 		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
 		y_row = y_base + y * args.strides[0];
@@ -1386,6 +1437,7 @@ nv12_create_buffer(struct client *client,
 			}
 		}
 	}
+	maybe_sync_dma_buffer_end(buf);
 
 	return buf;
 }
@@ -1459,6 +1511,7 @@ nv16_create_buffer(struct client *client,
 	y_base = buf->data + args.offsets[0];
 	uv_base = (uint16_t *)(buf->data + args.offsets[1]);
 
+	maybe_sync_dma_buffer_start(buf);
 	for (y = 0; y < src.height; y++) {
 		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
 		y_row = y_base + y * args.strides[0];
@@ -1488,6 +1541,7 @@ nv16_create_buffer(struct client *client,
 			}
 		}
 	}
+	maybe_sync_dma_buffer_end(buf);
 
 	return buf;
 }
@@ -1561,6 +1615,7 @@ nv24_create_buffer(struct client *client,
 	y_base = buf->data + args.offsets[0];
 	uv_base = (uint16_t *)(buf->data + args.offsets[1]);
 
+	maybe_sync_dma_buffer_start(buf);
 	for (y = 0; y < src.height; y++) {
 		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
 		y_row = y_base + y * args.strides[0];
@@ -1581,6 +1636,7 @@ nv24_create_buffer(struct client *client,
 				((uint16_t) cb << (swizzles[idx][0] * 8));
 		}
 	}
+	maybe_sync_dma_buffer_end(buf);
 
 	return buf;
 }
@@ -1653,6 +1709,7 @@ yuyv_create_buffer(struct client *client,
 
 	yuv_base = buf->data;
 
+	maybe_sync_dma_buffer_start(buf);
 	for (y = 0; y < src.height; y++) {
 		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
 		yuv_row = yuv_base + y * (args.strides[0] / sizeof(uint32_t));
@@ -1671,6 +1728,7 @@ yuyv_create_buffer(struct client *client,
 				((uint32_t)y0 << (swizzles[idx][0] * 8));
 		}
 	}
+	maybe_sync_dma_buffer_end(buf);
 
 	return buf;
 }
@@ -1713,6 +1771,7 @@ xyuv8888_create_buffer(struct client *client,
 
 	yuv_base = buf->data;
 
+	maybe_sync_dma_buffer_start(buf);
 	for (y = 0; y < src.height; y++) {
 		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
 		yuv_row = yuv_base + y * (args.strides[0] / sizeof(uint32_t));
@@ -1735,6 +1794,7 @@ xyuv8888_create_buffer(struct client *client,
 				((uint32_t)cr << 0);
 		}
 	}
+	maybe_sync_dma_buffer_end(buf);
 
 	return buf;
 }
@@ -1810,6 +1870,7 @@ p016_create_buffer(struct client *client,
 	y_base = (uint16_t *)(buf->data + args.offsets[0]);
 	uv_base = (uint32_t *)(buf->data + args.offsets[1]);
 
+	maybe_sync_dma_buffer_start(buf);
 	for (y = 0; y < src.height; y++) {
 		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
 		y_row = y_base + y * (args.strides[0] / sizeof(uint16_t));
@@ -1839,6 +1900,7 @@ p016_create_buffer(struct client *client,
 			}
 		}
 	}
+	maybe_sync_dma_buffer_end(buf);
 
 	return buf;
 }
