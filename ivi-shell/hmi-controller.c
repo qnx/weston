@@ -65,7 +65,7 @@
 #include "ivi-hmi-controller-server-protocol.h"
 #include "shared/helpers.h"
 #include "shared/xalloc.h"
-#include "frontend/weston.h"
+#include "compositor/weston.h"
 
 /*****************************************************************************
  *  structure, globals

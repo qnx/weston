@@ -498,7 +498,7 @@ vnc_client_cleanup(struct nvnc_client *client)
 	free(peer);
 	weston_log("VNC Client disconnected\n");
 
-	if (output && wl_list_empty(&output->peers))
+	if (wl_list_empty(&output->peers))
 		weston_output_power_off(&output->base);
 }
 
@@ -539,6 +539,7 @@ vnc_output_update_cursor(struct vnc_output *output)
 	struct weston_buffer *buffer;
 	struct weston_surface *cursor_surface;
 	struct nvnc_fb *fb;
+	int32_t stride;
 	uint8_t *src, *dst;
 	int i;
 
@@ -555,6 +556,8 @@ vnc_output_update_cursor(struct vnc_output *output)
 	cursor_surface = output->cursor_surface;
 	buffer = cursor_surface->buffer_ref.buffer;
 
+	stride = wl_shm_buffer_get_stride(buffer->shm_buffer);
+
 	fb = nvnc_fb_new(buffer->width, buffer->height, DRM_FORMAT_ARGB8888,
 			 buffer->width);
 	assert(fb);
@@ -564,7 +567,7 @@ vnc_output_update_cursor(struct vnc_output *output)
 
 	wl_shm_buffer_begin_access(buffer->shm_buffer);
 	for (i = 0; i < buffer->height; i++)
-		memcpy(dst + i * 4 * buffer->width, src + i * buffer->stride,
+		memcpy(dst + i * 4 * buffer->width, src + i * stride,
 		       4 * buffer->width);
 	wl_shm_buffer_end_access(buffer->shm_buffer);
 
@@ -868,7 +871,6 @@ vnc_output_disable(struct weston_output *base)
 	if (!output->base.enabled)
 		return 0;
 
-	nvnc_remove_display(backend->server, output->display);
 	nvnc_display_unref(output->display);
 	nvnc_fb_pool_unref(output->fb_pool);
 
@@ -930,13 +932,19 @@ vnc_create_output(struct weston_backend *backend, const char *name)
 }
 
 static void
+vnc_shutdown(struct weston_backend *base)
+{
+	struct vnc_backend *backend = container_of(base, struct vnc_backend, base);
+
+	nvnc_close(backend->server);
+}
+
+static void
 vnc_destroy(struct weston_backend *base)
 {
 	struct vnc_backend *backend = container_of(base, struct vnc_backend, base);
 	struct weston_compositor *ec = backend->compositor;
 	struct weston_head *head, *next;
-
-	nvnc_close(backend->server);
 
 	wl_list_remove(&backend->base.link);
 
@@ -996,11 +1004,10 @@ vnc_output_start_repaint_loop(struct weston_output *output)
 }
 
 static int
-vnc_output_repaint(struct weston_output *base)
+vnc_output_repaint(struct weston_output *base, pixman_region32_t *damage)
 {
 	struct vnc_output *output = to_vnc_output(base);
 	struct vnc_backend *backend = output->backend;
-	pixman_region32_t damage;
 
 	assert(output);
 
@@ -1009,15 +1016,9 @@ vnc_output_repaint(struct weston_output *base)
 
 	vnc_output_update_cursor(output);
 
-	pixman_region32_init(&damage);
-
-	weston_output_flush_damage_for_primary_plane(base, &damage);
-
-	if (pixman_region32_not_empty(&damage)) {
-		vnc_update_buffer(output->display, &damage);
+	if (pixman_region32_not_empty(damage)) {
+		vnc_update_buffer(output->display, damage);
 	}
-
-	pixman_region32_fini(&damage);
 
 	/*
 	 * Make sure damage of this (or previous) damage is handled
@@ -1145,6 +1146,7 @@ vnc_backend_create(struct weston_compositor *compositor,
 	wl_list_init(&backend->base.link);
 
 	backend->compositor = compositor;
+	backend->base.shutdown = vnc_shutdown;
 	backend->base.destroy = vnc_destroy;
 	backend->base.create_output = vnc_create_output;
 	backend->vnc_monitor_refresh_rate = config->refresh_rate * 1000;
@@ -1226,57 +1228,40 @@ vnc_backend_create(struct weston_compositor *compositor,
 	nvnc_set_userdata(backend->server, backend, NULL);
 	nvnc_set_name(backend->server, "Weston VNC backend");
 
-	if (!config->disable_tls) {
-		if (!nvnc_has_auth()) {
-			weston_log("Neat VNC built without TLS support\n");
-			goto err_output;
-		}
-		if (!config->server_cert && !config->server_key) {
-			weston_log(
-				"The VNC backend requires a key and a "
-				"certificate for TLS security"
-				" (--vnc-tls-cert/--vnc-tls-key)\n");
-			goto err_output;
-		}
-		if (!config->server_cert) {
-			weston_log(
-				"Missing TLS certificate (--vnc-tls-cert)\n");
-			goto err_output;
-		}
-		if (!config->server_key) {
-			weston_log("Missing TLS key (--vnc-tls-key)\n");
-			goto err_output;
-		}
-
-		ret = nvnc_set_tls_creds(backend->server, config->server_key,
-					 config->server_cert);
-		if (ret) {
-			weston_log("Failed set TLS credentials\n");
-			goto err_output;
-		}
-
-		ret = nvnc_enable_auth(
-			backend->server,
-			NVNC_AUTH_REQUIRE_AUTH | NVNC_AUTH_REQUIRE_ENCRYPTION,
-			vnc_handle_auth, NULL);
-		if (ret) {
-			weston_log("Failed to enable TLS support\n");
-			goto err_output;
-		}
-
-		weston_log("TLS support activated\n");
-	} else {
-		ret = nvnc_enable_auth(backend->server, NVNC_AUTH_REQUIRE_AUTH,
-				       vnc_handle_auth, NULL);
-		if (ret) {
-			weston_log("Failed to enable authentication\n");
-			goto err_output;
-		}
-
-		weston_log(
-			"warning: VNC enabled without Transport Layer "
-			"Security!\n");
+	if (!nvnc_has_auth()) {
+		weston_log("Neat VNC built without TLS support\n");
+		goto err_output;
 	}
+	if (!config->server_cert && !config->server_key) {
+		weston_log("The VNC backend requires a key and a certificate for TLS security"
+			   " (--vnc-tls-cert/--vnc-tls-key)\n");
+		goto err_output;
+	}
+	if (!config->server_cert) {
+		weston_log("Missing TLS certificate (--vnc-tls-cert)\n");
+		goto err_output;
+	}
+	if (!config->server_key) {
+		weston_log("Missing TLS key (--vnc-tls-key)\n");
+		goto err_output;
+	}
+
+	ret = nvnc_set_tls_creds(backend->server, config->server_key,
+				 config->server_cert);
+	if (ret) {
+		weston_log("Failed set TLS credentials\n");
+		goto err_output;
+	}
+
+	ret = nvnc_enable_auth(backend->server, NVNC_AUTH_REQUIRE_AUTH |
+			       NVNC_AUTH_REQUIRE_ENCRYPTION, vnc_handle_auth,
+			       NULL);
+	if (ret) {
+		weston_log("Failed to enable TLS support\n");
+		goto err_output;
+	}
+
+	weston_log("TLS support activated\n");
 
 	ret = weston_plugin_api_register(compositor, WESTON_VNC_OUTPUT_API_NAME,
 					 &api, sizeof(api));

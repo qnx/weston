@@ -428,16 +428,12 @@ panel_launcher_tablet_tool_button_handler(struct widget *widget,
 		panel_launcher_activate(launcher);
 }
 
-static int clock_timer_reset(struct panel_clock *clock);
-
 static void
 clock_func(struct toytimer *tt)
 {
 	struct panel_clock *clock = container_of(tt, struct panel_clock, timer);
 
 	widget_schedule_redraw(clock->widget);
-
-	clock_timer_reset(clock);
 }
 
 static void
@@ -488,7 +484,7 @@ clock_timer_reset(struct panel_clock *clock)
 	clock_gettime(CLOCK_REALTIME, &ts);
 	tm = localtime(&ts.tv_sec);
 
-	its.it_interval.tv_sec = 0;
+	its.it_interval.tv_sec = clock->refresh_timer;
 	its.it_interval.tv_nsec = 0;
 	its.it_value.tv_sec = clock->refresh_timer - tm->tm_sec % clock->refresh_timer;
 	its.it_value.tv_nsec = 10000000; /* 10 ms late to ensure the clock digit has actually changed */
@@ -1593,7 +1589,7 @@ int main(int argc, char *argv[])
 	if (desktop.want_panel)
 		weston_desktop_shell_set_panel_position(desktop.shell, desktop.panel_position);
 	wl_list_for_each(output, &desktop.outputs, link)
-		if (!output->background)
+		if (!output->panel)
 			output_init(output, &desktop);
 
 	grab_surface_create(&desktop);

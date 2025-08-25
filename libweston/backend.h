@@ -52,15 +52,6 @@ struct weston_backend {
 	 */
 	unsigned int supported_presentation_clocks;
 
-	/** True if the output will be repainted in the currently active
-	 *  repaint handler.
-	 *
-	 * This will be set if the same flag for any output of this backend is
-	 * also true. It is used to determine if repaint_begin() and
-	 * repaint_flush()/repaint_cancel() need to be called.
-	 */
-	bool will_repaint;
-
 	/** Prepare for compositor shutdown (optional)
 	 *
 	 * This will be called before weston_compositor_shutdown()
@@ -93,7 +84,7 @@ struct weston_backend {
 	 * Called on successful completion of a repaint sequence; see
 	 * repaint_begin.
 	 */
-	void (*repaint_flush)(struct weston_backend *backend);
+	int (*repaint_flush)(struct weston_backend *backend);
 
 	/** Allocate a new output
 	 *
@@ -133,11 +124,6 @@ struct weston_backend {
 	 */
 	bool (*can_scanout_dmabuf)(struct weston_backend *backend,
 				   struct linux_dmabuf_buffer *buffer);
-
-	/** Identifies a particular backend_type from one
-	 * defined in weston_compositor_backend.
-	 */
-	enum weston_compositor_backend backend_type;
 };
 
 /* weston_head */
@@ -176,10 +162,6 @@ weston_head_set_transform(struct weston_head *head, uint32_t transform);
 void
 weston_head_set_supported_eotf_mask(struct weston_head *head,
 				    uint32_t eotf_mask);
-
-void
-weston_head_set_supported_colorimetry_mask(struct weston_head *head,
-					   uint32_t colorimetry_mask);
 
 /* weston_output */
 
@@ -348,9 +330,5 @@ bool
 weston_output_flush_damage_for_plane(struct weston_output *output,
 				     struct weston_plane *plane,
 				     pixman_region32_t *damage);
-
-void
-weston_output_flush_damage_for_primary_plane(struct weston_output *output,
-					     pixman_region32_t *damage);
 
 #endif

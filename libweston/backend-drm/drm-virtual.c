@@ -202,7 +202,8 @@ drm_virtual_output_submit_frame(struct drm_output *output,
 }
 
 static int
-drm_virtual_output_repaint(struct weston_output *output_base)
+drm_virtual_output_repaint(struct weston_output *output_base,
+			   pixman_region32_t *damage)
 {
 	struct drm_output_state *state = NULL;
 	struct drm_output *output = to_drm_output(output_base);
@@ -211,7 +212,7 @@ drm_virtual_output_repaint(struct weston_output *output_base)
 	struct drm_pending_state *pending_state;
 	struct drm_device *device;
 
-	assert(output->is_virtual);
+	assert(output->virtual);
 
 	device = output->device;
 	pending_state = device->repaint_data;
@@ -236,7 +237,7 @@ drm_virtual_output_repaint(struct weston_output *output_base)
 						   pending_state,
 						   DRM_OUTPUT_STATE_CLEAR_PLANES);
 
-	drm_output_render(state);
+	drm_output_render(state, damage);
 	scanout_state = drm_output_state_get_plane(state, scanout_plane);
 	if (!scanout_state || !scanout_state->fb)
 		goto err;
@@ -267,7 +268,7 @@ drm_virtual_output_destroy(struct weston_output *base)
 {
 	struct drm_output *output = to_drm_output(base);
 
-	assert(output->is_virtual);
+	assert(output->virtual);
 
 	if (output->base.enabled)
 		drm_virtual_output_deinit(&output->base);
@@ -289,7 +290,7 @@ drm_virtual_output_enable(struct weston_output *output_base)
 	struct drm_device *device = output->device;
 	struct drm_backend *b = device->backend;
 
-	assert(output->is_virtual);
+	assert(output->virtual);
 
 	if (output_base->compositor->renderer->type == WESTON_RENDERER_PIXMAN) {
 		weston_log("Not support pixman renderer on Virtual output\n");
@@ -335,19 +336,12 @@ drm_virtual_output_disable(struct weston_output *base)
 {
 	struct drm_output *output = to_drm_output(base);
 
-	assert(output->is_virtual);
+	assert(output->virtual);
 
 	if (output->base.enabled)
 		drm_virtual_output_deinit(&output->base);
 
 	return 0;
-}
-
-static void
-drm_virtual_prepare_repaint(struct weston_output *base)
-{
-       struct drm_output *output = to_drm_output(base);
-       output->device->will_repaint = true;
 }
 
 static struct weston_output *
@@ -370,7 +364,7 @@ drm_virtual_output_create(struct weston_compositor *c, char *name,
 		return NULL;
 	}
 
-	output->is_virtual = true;
+	output->virtual = true;
 	output->virtual_destroy = destroy_func;
 	output->gbm_bo_flags = GBM_BO_USE_LINEAR | GBM_BO_USE_RENDERING;
 
@@ -379,12 +373,10 @@ drm_virtual_output_create(struct weston_compositor *c, char *name,
 	output->base.enable = drm_virtual_output_enable;
 	output->base.destroy = drm_virtual_output_destroy;
 	output->base.disable = drm_virtual_output_disable;
-	output->base.prepare_repaint = drm_virtual_prepare_repaint;
 	output->base.attach_head = NULL;
 
 	output->backend = b;
-	output->base.backend = &b->base;
-	output->state_cur = drm_output_state_alloc(output);
+	output->state_cur = drm_output_state_alloc(output, NULL);
 
 	weston_compositor_add_pending_output(&output->base, c);
 

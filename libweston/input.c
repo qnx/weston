@@ -48,7 +48,6 @@
 #include "shared/os-compatibility.h"
 #include "shared/timespec-util.h"
 #include <libweston/libweston.h>
-#include <libweston/desktop.h>
 #include "backend.h"
 #include "libweston-internal.h"
 #include "relative-pointer-unstable-v1-server-protocol.h"
@@ -576,9 +575,6 @@ weston_pointer_send_motion(struct weston_pointer *pointer,
 		surf_pos = weston_coord_global_to_surface(pointer->focus, pos);
 		pointer->sx = wl_fixed_from_double(surf_pos.c.x);
 		pointer->sy = wl_fixed_from_double(surf_pos.c.y);
-	} else {
-		old_sx = -1000000;
-		old_sy = -1000000;
 	}
 
 	weston_pointer_move(pointer, event);
@@ -3236,9 +3232,12 @@ tablet_tool_cursor_surface_committed(struct weston_surface *es,
 	empty_region(&es->input);
 
 	if (!weston_surface_is_mapped(es)) {
-		weston_surface_map(es);
-		weston_view_move_to_layer(tool->sprite,
-					  &es->compositor->cursor_layer.view_list);
+		weston_layer_entry_insert(
+			&es->compositor->cursor_layer.view_list,
+			&tool->sprite->layer_link);
+		weston_view_update_transform(tool->sprite);
+		es->is_mapped = true;
+		tool->sprite->is_mapped = true;
 	}
 }
 
@@ -3529,9 +3528,11 @@ pointer_cursor_surface_committed(struct weston_surface *es,
 	empty_region(&es->input);
 
 	if (!weston_surface_is_mapped(es)) {
+		weston_layer_entry_insert(&es->compositor->cursor_layer.view_list,
+					  &pointer->sprite->layer_link);
+		weston_view_update_transform(pointer->sprite);
 		weston_surface_map(es);
-		weston_view_move_to_layer(pointer->sprite,
-					  &es->compositor->cursor_layer.view_list);
+		pointer->sprite->is_mapped = true;
 	}
 }
 
@@ -4985,22 +4986,8 @@ init_pointer_constraint(struct wl_resource *pointer_constraints_resource,
 	wl_resource_set_implementation(cr, implementation, constraint,
 				       pointer_constraint_constrain_resource_destroyed);
 
-	if (constraint) {
-		bool is_fullscreen = false;
-		if (weston_surface_is_desktop_surface(surface)) {
-			struct weston_desktop_surface *desktop_surface;
-			desktop_surface = weston_surface_get_desktop_surface(surface);
-			is_fullscreen =  weston_desktop_surface_get_fullscreen(desktop_surface);
-		}
-		if (is_fullscreen && !is_pointer_constraint_enabled(constraint)) {
-			weston_view_update_transform(pointer->focus);
-			weston_pointer_set_focus(pointer, pointer->focus);
-			enable_pointer_constraint(constraint, pointer->focus);
-			maybe_warp_confined_pointer(constraint);
-		} else {
-			maybe_enable_pointer_constraint(constraint);
-		}
-	}
+	if (constraint)
+		maybe_enable_pointer_constraint(constraint);
 }
 
 static void

@@ -65,7 +65,6 @@ struct weston_vnc_backend_config {
 	int refresh_rate;
 	char *server_cert;
 	char *server_key;
-	bool disable_tls;
 };
 
 #ifdef  __cplusplus

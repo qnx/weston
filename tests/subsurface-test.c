@@ -40,7 +40,6 @@ fixture_setup(struct weston_test_harness *harness)
 
 	compositor_setup_defaults(&setup);
 	setup.shell = SHELL_TEST_DESKTOP;
-	setup.refresh = HIGHEST_OUTPUT_REFRESH;
 
 	return weston_test_harness_execute_as_client(harness, &setup);
 }
@@ -728,31 +727,31 @@ create_subsurface_tree(struct client *client, struct wl_surface **surfs,
 
 	case 11:
 		SUB_LINK(10, 2);
-		FALLTHROUGH;
+		/* fallthrough */
 	case 10:
 		SUB_LINK(9, 2);
-		FALLTHROUGH;
+		/* fallthrough */
 	case 9:
 		SUB_LINK(8, 6);
-		FALLTHROUGH;
+		/* fallthrough */
 	case 8:
 		SUB_LINK(7, 6);
-		FALLTHROUGH;
+		/* fallthrough */
 	case 7:
 		SUB_LINK(6, 2);
-		FALLTHROUGH;
+		/* fallthrough */
 	case 6:
 		SUB_LINK(5, 1);
-		FALLTHROUGH;
+		/* fallthrough */
 	case 5:
 		SUB_LINK(4, 3);
-		FALLTHROUGH;
+		/* fallthrough */
 	case 4:
 		SUB_LINK(3, 1);
-		FALLTHROUGH;
+		/* fallthrough */
 	case 3:
 		SUB_LINK(2, 0);
-		FALLTHROUGH;
+		/* fallthrough */
 	case 2:
 		SUB_LINK(1, 0);
 

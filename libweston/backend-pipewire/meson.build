@@ -16,7 +16,6 @@ if not dep_libspa.found()
 endif
 
 deps_pipewire = [
-	dep_egl, # for gl-renderer.h
 	dep_libweston_private,
 	dep_libpipewire,
 	dep_libspa,

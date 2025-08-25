@@ -370,7 +370,8 @@ drm_output_state_get_plane(struct drm_output_state *state_output,
  * in the repaint cycle; see drm_output_state_duplicate.
  */
 struct drm_output_state *
-drm_output_state_alloc(struct drm_output *output)
+drm_output_state_alloc(struct drm_output *output,
+		       struct drm_pending_state *pending_state)
 {
 	struct drm_output_state *state = zalloc(sizeof(*state));
 
@@ -378,7 +379,11 @@ drm_output_state_alloc(struct drm_output *output)
 	state->output = output;
 	state->dpms = WESTON_DPMS_OFF;
 	state->protection = WESTON_HDCP_DISABLE;
-	wl_list_init(&state->link);
+	state->pending_state = pending_state;
+	if (pending_state)
+		wl_list_insert(&pending_state->output_list, &state->link);
+	else
+		wl_list_init(&state->link);
 
 	wl_list_init(&state->plane_list);
 

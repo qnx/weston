@@ -90,7 +90,6 @@ struct desktop_shell {
 	struct wl_listener show_input_panel_listener;
 	struct wl_listener hide_input_panel_listener;
 	struct wl_listener update_input_panel_listener;
-	struct wl_listener session_listener;
 
 	struct weston_layer fullscreen_layer;
 	struct weston_layer panel_layer;

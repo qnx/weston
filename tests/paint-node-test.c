@@ -33,22 +33,37 @@
 #include "weston-test-client-helper.h"
 #include "weston-test-fixture-compositor.h"
 
+struct setup_args {
+	struct fixture_metadata meta;
+	enum weston_renderer_type renderer;
+};
+
+static const struct setup_args my_setup_args[] = {
+	{
+		.renderer = WESTON_RENDERER_PIXMAN,
+		.meta.name = "pixman"
+	},
+	{
+		.renderer = WESTON_RENDERER_GL,
+		.meta.name = "GL"
+	},
+};
+
 static enum test_result_code
-fixture_setup(struct weston_test_harness *harness)
+fixture_setup(struct weston_test_harness *harness, const struct setup_args *arg)
 {
 	struct compositor_setup setup;
 
 	compositor_setup_defaults(&setup);
-	setup.renderer = WESTON_RENDERER_PIXMAN;
+	setup.renderer = arg->renderer;
 	setup.width = 320;
 	setup.height = 240;
 	setup.shell = SHELL_TEST_DESKTOP;
 	setup.logging_scopes = "log,test-harness-plugin";
-	setup.refresh = HIGHEST_OUTPUT_REFRESH;
 
 	return weston_test_harness_execute_as_client(harness, &setup);
 }
-DECLARE_FIXTURE_SETUP(fixture_setup);
+DECLARE_FIXTURE_SETUP_WITH_ARG(fixture_setup, my_setup_args, meta);
 
 static struct buffer *
 surface_commit_color(struct client *client, struct wl_surface *surface,

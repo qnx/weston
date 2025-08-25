@@ -43,7 +43,7 @@
 variables:
   FDO_UPSTREAM_REPO: wayland/weston
   FDO_REPO_SUFFIX: "$BUILD_OS-$FDO_DISTRIBUTION_VERSION/$BUILD_ARCH"
-  FDO_DISTRIBUTION_TAG: '2024-08-14-00-freerdp3.x'
+  FDO_DISTRIBUTION_TAG: '2023-10-05-neatvnc-0.7.0'
 
 
 include:
@@ -58,25 +58,11 @@ include:
     ref: *template_sha
     file: '/templates/ci-fairy.yml'
 
-.default-rules:
-  rules:
-    # do not duplicate pipelines on merge pipelines
-    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"
-      when: never
-    # we need a default case though, so all the rest still run
-    - when: on_success
-
-.merge-rules:
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      when: always
-    - when: never
 
 # Define the build stages. These are used for UI grouping as well as
 # dependencies.
 stages:
   - "Merge request checks"
-  - "Pre Base container"
   - "Base container"
   - "Full build and test"
   - "No-GL build and test"
@@ -89,7 +75,6 @@ stages:
   variables:
     BUILD_OS: debian
     LLVM_VERSION: 11
-    FREERDP_VERSION: 2
     FDO_DISTRIBUTION_VERSION: bullseye
     FDO_DISTRIBUTION_EXEC: 'env FDO_CI_CONCURRENT=${FDO_CI_CONCURRENT} BUILD_ARCH=${BUILD_ARCH} KERNEL_IMAGE=${KERNEL_IMAGE} KERNEL_DEFCONFIG=${KERNEL_DEFCONFIG} LLVM_VERSION=${LLVM_VERSION} FDO_DISTRIBUTION_VERSION=${FDO_DISTRIBUTION_VERSION} bash .gitlab-ci/debian-install.sh'
 
@@ -97,18 +82,22 @@ stages:
   variables:
     BUILD_OS: debian
     LLVM_VERSION: 15
-    FREERDP_VERSION: 3
-    USE_BOOKWORM_BACKPORTS: y
-    # If you upgrade from bookworm, see the use_tls=0 notes in tests/meson.build.
     FDO_DISTRIBUTION_VERSION: bookworm
     FDO_DISTRIBUTION_EXEC: 'env FDO_CI_CONCURRENT=${FDO_CI_CONCURRENT} BUILD_ARCH=${BUILD_ARCH} KERNEL_IMAGE=${KERNEL_IMAGE} KERNEL_DEFCONFIG=${KERNEL_DEFCONFIG} LLVM_VERSION=${LLVM_VERSION} FDO_DISTRIBUTION_VERSION=${FDO_DISTRIBUTION_VERSION} bash .gitlab-ci/debian-install.sh'
 
-# Does not inherit .default-rules as we only want it to run in MR context.
+.ci-rules:
+  rules:
+    - when: on_success
+
+# Does not inherit .ci-rules as we only want it to run in MR context.
 check-commit:
   extends:
     - .fdo.ci-fairy
-    - .merge-rules
   stage: "Merge request checks"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - when: never
   script:
     - ci-fairy check-commits --signed-off-by --junit-xml=results.xml
     - ci-fairy check-merge-request --require-allow-collaboration --junit-xml=results.xml
@@ -145,10 +134,6 @@ check-commit:
     - .os-debian
   variables:
     BUILD_ARCH: "armv7"
-    # Armv7 doesn't have freerdp3 in bookworm-backports so we don't build FreeRDP
-    MESON_DIST_OPTIONS: "-Dbackend-rdp=false"
-    # Inhibit installation of freerdp-dev
-    FREERDP_VERSION: 0
 
 .debian-lts-aarch64:
   extends:
@@ -168,91 +153,66 @@ check-commit:
     KERNEL_DEFCONFIG: "defconfig"
     QEMU_SMP: 8 # built-in QEmu limit
 
-base-container-pre:
-  rules:
-    # this run always in merge request
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      when: always
-    # run always on main to allow docs to publish
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_PATH == "wayland/weston" && $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH'
-      when: always
-    # allow to run manually in a branch
-    - when: manual
-  stage: "Pre Base container"
-  script: echo "exit 0"
-
 # Build our base container image, which contains the core distribution, the
 # toolchain, and all our build dependencies. This will be reused in the build
 # stage.
 x86_64-debian-lts-container_prep:
   extends:
-    - .default-rules
+    - .ci-rules
     - .debian-lts-x86_64
     - .fdo.container-build@debian
   timeout: 30m
-  needs:
-    - job: base-container-pre
   stage: "Base container"
 
 x86_64-debian-container_prep:
   extends:
-    - .default-rules
+    - .ci-rules
     - .debian-x86_64
     - .fdo.container-build@debian
-  needs:
-    - job: base-container-pre
   timeout: 30m
   stage: "Base container"
 
 armv7-debian-lts-container_prep:
   extends:
-    - .default-rules
+    - .ci-rules
     - .debian-lts-armv7
     - .fdo.container-build@debian
   tags:
     - aarch64
   variables:
     FDO_BASE_IMAGE: "arm32v7/debian:$FDO_DISTRIBUTION_VERSION"
-  needs:
-    - job: base-container-pre
   timeout: 30m
   stage: "Base container"
 
 armv7-debian-container_prep:
   extends:
-    - .default-rules
+    - .ci-rules
     - .debian-armv7
     - .fdo.container-build@debian
   tags:
     - aarch64
   variables:
     FDO_BASE_IMAGE: "arm32v7/debian:$FDO_DISTRIBUTION_VERSION"
-  needs:
-    - job: base-container-pre
   timeout: 30m
   stage: "Base container"
 
 aarch64-debian-lts-container_prep:
   extends:
-    - .default-rules
+    - .ci-rules
     - .debian-lts-aarch64
     - .fdo.container-build@debian
   tags:
     - aarch64
-  needs:
-    - job: base-container-pre
   timeout: 30m
   stage: "Base container"
 
 aarch64-debian-container_prep:
   extends:
-    - .default-rules
+    - .ci-rules
     - .debian-aarch64
     - .fdo.container-build@debian
   tags:
     - aarch64
-  needs:
-    - job: base-container-pre
   timeout: 30m
   stage: "Base container"
 
@@ -280,14 +240,14 @@ aarch64-debian-container_prep:
 # backend using the 'vkms' virtual driver under Linux.
 .build-and-test:
   extends:
-  - .default-rules
+  - .ci-rules
   script:
   - cd "$BUILDDIR"
-  - meson --prefix="$PREFIX" --wrap-mode=nofallback -Db_sanitize=address ${MESON_OPTIONS} ${MESON_TOOLCHAIN_OPTIONS} ${MESON_DIST_OPTIONS} ..
+  - meson --prefix="$PREFIX" --wrap-mode=nofallback -Db_sanitize=address ${MESON_OPTIONS} ${MESON_TOOLCHAIN_OPTIONS} ..
   - ninja -k0 -j${FDO_CI_CONCURRENT:-4}
   - ninja install
   - test -n "${QEMU_SMP}" || QEMU_SMP=${FDO_CI_CONCURRENT:-4}
-  - virtme-run --rw --pwd --kimg /weston-virtme/${KERNEL_IMAGE} --kopt quiet --kopt log_buf_len=2M --script-sh ../.gitlab-ci/virtme-scripts/run-weston-tests.sh --qemu-opts -m 4096 -smp ${QEMU_SMP}
+  - virtme-run --rw --pwd --kimg /weston-virtme/${KERNEL_IMAGE} --kopt quiet --kopt log_buf_len=2M --script-dir ../.gitlab-ci/virtme-scripts --qemu-opts -m 4096 -smp ${QEMU_SMP}
   - TEST_RES=$(cat $TESTS_RES_PATH)
   - rm $TESTS_RES_PATH
   - cp -R /weston-virtme ./
@@ -308,10 +268,10 @@ aarch64-debian-container_prep:
 # Same as above, but without running any tests.
 .build-no-test:
   extends:
-  - .default-rules
+  - .ci-rules
   script:
   - cd "$BUILDDIR"
-  - meson --prefix="$PREFIX" --wrap-mode=nofallback ${MESON_OPTIONS} ${MESON_DIST_OPTIONS} ..
+  - meson --prefix="$PREFIX" --wrap-mode=nofallback ${MESON_OPTIONS} ..
   - ninja -k0 -j${FDO_CI_CONCURRENT:-4}
   - ninja install
   - ninja clean
@@ -434,6 +394,8 @@ aarch64-debian-container_prep:
       -Db_coverage=true
       -Dwerror=true
       -Dtest-skip-is-failure=true
+      -Ddeprecated-color-management-static=true
+      -Ddeprecated-color-management-colord=true
   after_script:
   - ninja -C "$BUILDDIR" coverage-html > "$BUILDDIR/meson-logs/ninja-coverage-html.txt"
   - ninja -C "$BUILDDIR" coverage-xml
@@ -565,7 +527,7 @@ aarch64-debian-no-gl-build:
 # invariant across any architecture or OS.
 docs-and-coverage:
   extends:
-    - .default-rules
+    - .ci-rules
     - .debian-x86_64
     - .fdo.suffixed-image@debian
   stage: pages
@@ -591,7 +553,7 @@ docs-and-coverage:
 # Generate the documentation for https://wayland.pages.freedesktop.org/weston/
 # Anything under public/ is published to this URL.
 #
-# Does not inherit .default-rules as it should only run in our default branch for
+# Does not inherit .ci-rules as it should only run in our default branch for
 # the upstream repo.
 pages:
   extends:
@@ -610,6 +572,6 @@ pages:
     paths:
     - public
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_PATH == "wayland/weston" && $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_PATH == "wayland/weston" && $CI_BUILD_REF_NAME == $CI_DEFAULT_BRANCH'
       when: on_success
     - when: never

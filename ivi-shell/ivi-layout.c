@@ -61,7 +61,7 @@
 #include <assert.h>
 #include <stdint.h>
 
-#include "frontend/weston.h"
+#include "compositor/weston.h"
 #include <libweston/libweston.h>
 #include "ivi-shell.h"
 #include "ivi-layout-export.h"
@@ -70,6 +70,7 @@
 
 #include "shared/helpers.h"
 #include "shared/os-compatibility.h"
+#include "shared/signal.h"
 #include "shared/xalloc.h"
 
 #define max(a, b) ((a) > (b) ? (a) : (b))
@@ -1937,7 +1938,7 @@ ivi_layout_input_panel_surface_create(struct weston_surface *wl_surface)
 	ivisurf = surface_create(wl_surface, IVI_INVALID_ID,
 				 IVI_LAYOUT_SURFACE_TYPE_INPUT_PANEL);
 
-	wl_signal_emit_mutable(&layout->surface_notification.created,
+	weston_signal_emit_mutable(&layout->surface_notification.created,
 				   ivisurf);
 
 	return ivisurf;
@@ -1949,7 +1950,7 @@ ivi_layout_input_panel_surface_configure(struct ivi_layout_surface *ivisurf,
 {
 	struct ivi_layout *layout = get_instance();
 
-	wl_signal_emit_mutable(&layout->input_panel_notification.configure_changed,
+	weston_signal_emit_mutable(&layout->input_panel_notification.configure_changed,
 				   ivisurf);
 }
 
@@ -1976,7 +1977,7 @@ ivi_layout_show_input_panel(struct ivi_layout_surface *ivisurf,
 	};
 	layout->text_input.ivisurf = target_ivisurf;
 
-	wl_signal_emit_mutable(&layout->input_panel_notification.show,
+	weston_signal_emit_mutable(&layout->input_panel_notification.show,
 				   &state);
 }
 
@@ -1985,7 +1986,7 @@ ivi_layout_hide_input_panel(struct ivi_layout_surface *ivisurf)
 {
 	struct ivi_layout *layout = get_instance();
 
-	wl_signal_emit_mutable(&layout->input_panel_notification.hide,
+	weston_signal_emit_mutable(&layout->input_panel_notification.hide,
 				   ivisurf);
 }
 
@@ -2001,7 +2002,7 @@ ivi_layout_update_input_panel(struct ivi_layout_surface *ivisurf,
 		.cursor_rectangle = layout->text_input.cursor_rectangle
 	};
 
-	wl_signal_emit_mutable(&layout->input_panel_notification.update,
+	weston_signal_emit_mutable(&layout->input_panel_notification.update,
 				   &state);
 }
 
@@ -2089,7 +2090,7 @@ ivi_layout_ivi_shell_destroy(void)
 	struct ivi_layout *layout = get_instance();
 
 	/* emit callback which is set by ivi-layout api user */
-	wl_signal_emit_mutable(&layout->shell_notification.destroy_signal, NULL);
+	weston_signal_emit_mutable(&layout->shell_notification.destroy_signal, NULL);
 }
 
 static struct ivi_layout_interface ivi_layout_interface;

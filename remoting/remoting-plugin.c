@@ -211,12 +211,10 @@ remoting_gst_pipeline_init(struct remoted_output *output)
 	weston_log("GST pipeline: %s\n", output->gst_pipeline);
 
 	output->pipeline = gst_parse_launch(output->gst_pipeline, &err);
-	if (!output->pipeline || err) {
+	if (!output->pipeline) {
 		weston_log("Could not create gstreamer pipeline. Error: %s\n",
 			   err->message);
 		g_error_free(err);
-		if (output->pipeline)
-			goto err;
 		return -1;
 	}
 

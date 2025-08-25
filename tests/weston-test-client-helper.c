@@ -119,7 +119,7 @@ move_client_internal(struct client *client, int x, int y)
 }
 
 void
-move_client_frame_sync(struct client *client, int x, int y)
+move_client(struct client *client, int x, int y)
 {
 	struct surface *surface = client->surface;
 	int done;
@@ -128,15 +128,6 @@ move_client_frame_sync(struct client *client, int x, int y)
 	frame_callback_set(surface->wl_surface, &done);
 	wl_surface_commit(surface->wl_surface);
 	frame_callback_wait(client, &done);
-}
-
-void
-move_client(struct client *client, int x, int y)
-{
-	struct surface *surface = client->surface;
-
-	move_client_internal(client, x, y);
-	wl_surface_commit(surface->wl_surface);
 }
 
 void
@@ -922,23 +913,6 @@ static const struct wl_registry_listener registry_listener = {
 	handle_global_remove,
 };
 
-/**
- * Expect protocol error
- *
- * @param client A client instance, as created by create_client().
- * @param intf The interface where the error should occur. NULL is also valid,
- * when the error should come from an unknown object.
- * @param code The error code that is expected.
- *
- * To exercise our protocol implementations, tests can use this function when
- * they do something on purpose expecting a protocol error.
- *
- * When tests know that their wl_proxy would get destroyed before they have a
- * chance to call this, they should pass a NULL intf to expect the error from an
- * unknown object. When wl_display.error event comes, it will refer to an object
- * id that has already been marked as deleted in the client's object map, so
- * the protocol error interface will be set to NULL and the object id to 0.
- */
 void
 expect_protocol_error(struct client *client,
 		      const struct wl_interface *intf,
@@ -966,15 +940,10 @@ expect_protocol_error(struct client *client,
 		failed = 1;
 	}
 
-	if (intf && !interface) {
-		testlog("Should get interface '%s' but got error from unknown object\n",
-			intf->name);
-		failed = 1;
-	} else if (!intf && interface) {
-		testlog("Should get error from unknown object but got it from interface '%s'\n",
-			interface->name);
-		failed = 1;
-	} else if (intf && interface && strcmp(intf->name, interface->name) != 0) {
+	/* this should be definitely set */
+	assert(interface);
+
+	if (strcmp(intf->name, interface->name) != 0) {
 		testlog("Should get interface '%s' but got '%s'\n",
 			intf->name, interface->name);
 		failed = 1;
@@ -986,12 +955,8 @@ expect_protocol_error(struct client *client,
 	}
 
 	/* all OK */
-	if (intf)
-		testlog("Got expected protocol error on '%s' (object id: %d) " \
-			"with code %d\n", intf->name, id, errcode);
-	else
-		testlog("Got expected protocol error on unknown object " \
-			"with code %d\n", errcode);
+	testlog("Got expected protocol error on '%s' (object id: %d) "
+		"with code %d\n", interface->name, id, errcode);
 
 	client->errored_ok = true;
 }
@@ -1117,7 +1082,7 @@ create_client_and_test_surface(int x, int y, int width, int height)
 				 width, height);
 	pixman_image_unref(solid);
 
-	move_client_frame_sync(client, x, y);
+	move_client(client, x, y);
 
 	return client;
 }
@@ -1177,6 +1142,17 @@ output_path(void)
 	return path;
 }
 
+char*
+screenshot_output_filename(const char *basename, uint32_t seq)
+{
+	char *filename;
+
+	if (asprintf(&filename, "%s/%s-%02d.png",
+				 output_path(), basename, seq) < 0)
+		return NULL;
+	return filename;
+}
+
 static const char*
 reference_path(void)
 {
@@ -1205,99 +1181,6 @@ image_filename(const char *basename)
 
 	if (asprintf(&filename, "%s/%s.png", reference_path(), basename) < 0)
 		assert(0);
-	return filename;
-}
-
-/** Helper to create filenames for test programs.
- *
- * \param test_program The test program name.
- * \param suffix Arbitrary suffix to append after the test program name.
- * Optional, NULL is valid as well.
- * \param file_ext The file extension (without '.').
- * \return The ICC filename.
- */
-char *
-output_filename_for_test_program(const char *test_program, const char *suffix,
-				 const char *file_ext)
-{
-	char *filename;
-
-	assert(test_program);
-	assert(file_ext);
-
-	if (suffix)
-		str_printf(&filename, "%s/%s-%s.%s", output_path(), test_program,
-						     suffix, file_ext);
-	else
-		str_printf(&filename, "%s/%s.%s", output_path(), test_program,
-						  file_ext);
-
-	assert(filename);
-	return filename;
-}
-
-/** Helper to create filenames for fixtures.
- *
- * \param test_program The test program name.
- * \param harness The test harness, from which we get the fixture number.
- * \param suffix Arbitrary suffix to append after the fixture number. Optional,
- * NULL is valid as well.
- * \param file_ext The file extension (without '.').
- * \return The ICC filename.
- */
-char *
-output_filename_for_fixture(const char *test_program,
-			    struct weston_test_harness *harness,
-			    const char *suffix, const char *file_ext)
-{
-	int fixture_number;
-	char *filename;
-
-	assert(test_program);
-	assert(harness);
-	assert(file_ext);
-
-	fixture_number = get_test_fixture_number_from_harness(harness);
-
-	if (suffix)
-		str_printf(&filename, "%s/%s-f%02d-%s.%s", output_path(), test_program,
-							   fixture_number, suffix, file_ext);
-	else
-		str_printf(&filename, "%s/%s-f%02d.%s", output_path(), test_program,
-							fixture_number, file_ext);
-
-	assert(filename);
-	return filename;
-}
-
-/** Helper to create filenames for test cases.
- *
- * \param suffix Arbitrary suffix to append after the test case name. Optional,
- * NULL is valid as well.
- * \param seq_number To differentiate filenames created from a loop. Simply use
- * 0 if not in a loop.
- * \param file_ext The file extension (without '.').
- * \return The ICC filename.
- *
- * This is only usable from code paths inside TEST(), TEST_P(), PLUGIN_TEST()
- * etc. defined functions.
- */
-char *
-output_filename_for_test_case(const char *suffix, uint32_t seq_number,
-			      const char *file_ext)
-{
-	char *filename;
-
-	assert(file_ext);
-
-	if (suffix)
-		str_printf(&filename, "%s/%s-%s-%02d.%s", output_path(), get_test_name(),
-							  suffix, seq_number, file_ext);
-	else
-		str_printf(&filename, "%s/%s-%02d.%s", output_path(), get_test_name(),
-						       seq_number, file_ext);
-
-	assert(filename);
 	return filename;
 }
 
@@ -1915,18 +1798,25 @@ static void
 write_visual_diff(pixman_image_t *ref_image,
 		  pixman_image_t *shot,
 		  const struct rectangle *clip,
+		  const char *test_name,
 		  int seq_no,
 		  const struct range *fuzz)
 {
 	char *fname;
+	char *ext_test_name;
 	pixman_image_t *diff;
+	int ret;
 
-	fname = output_filename_for_test_case("diff", seq_no, "png");
+	ret = asprintf(&ext_test_name, "%s-diff", test_name);
+	assert(ret >= 0);
+
+	fname = screenshot_output_filename(ext_test_name, seq_no);
 	diff = visualize_image_difference(ref_image, shot, clip, fuzz);
 	write_image_as_png(diff, fname);
 
 	pixman_image_unref(diff);
 	free(fname);
+	free(ext_test_name);
 }
 
 /**
@@ -1966,13 +1856,14 @@ verify_image(pixman_image_t *shot,
 	     const struct rectangle *clip,
 	     int seq_no)
 {
+	const char *test_name = get_test_name();
 	const struct range gl_fuzz = { -3, 4 };
 	pixman_image_t *ref = NULL;
 	char *ref_fname = NULL;
 	char *shot_fname;
 	bool match = false;
 
-	shot_fname = output_filename_for_test_case("shot", seq_no, "png");
+	shot_fname = screenshot_output_filename(test_name, seq_no);
 
 	if (ref_image) {
 		ref_fname = screenshot_reference_filename(ref_image, ref_seq_no);
@@ -1985,7 +1876,8 @@ verify_image(pixman_image_t *shot,
 			ref_fname, shot_fname, match ? "PASS" : "FAIL");
 
 		if (!match) {
-			write_visual_diff(ref, shot, clip, seq_no, &gl_fuzz);
+			write_visual_diff(ref, shot, clip,
+					  test_name, seq_no, &gl_fuzz);
 		}
 
 		pixman_image_unref(ref);

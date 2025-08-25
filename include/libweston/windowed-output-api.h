@@ -35,15 +35,7 @@ extern "C" {
 struct weston_compositor;
 struct weston_output;
 
-#define WESTON_WINDOWED_OUTPUT_API_NAME_X11 "weston_windowed_output_api_x11_v2"
-#define WESTON_WINDOWED_OUTPUT_API_NAME_WAYLAND "weston_windowed_output_api_wayland_v2"
-#define WESTON_WINDOWED_OUTPUT_API_NAME_HEADLESS "weston_windowed_output_api_headless_v2"
-
-enum weston_windowed_output_type {
-	WESTON_WINDOWED_OUTPUT_X11 = 0,
-	WESTON_WINDOWED_OUTPUT_WAYLAND,
-	WESTON_WINDOWED_OUTPUT_HEADLESS,
-};
+#define WESTON_WINDOWED_OUTPUT_API_NAME "weston_windowed_output_api_v2"
 
 struct weston_windowed_output_api {
 	/** Assign a given width and height to an output.
@@ -87,20 +79,13 @@ struct weston_windowed_output_api {
 };
 
 static inline const struct weston_windowed_output_api *
-weston_windowed_output_get_api(struct weston_compositor *compositor,
-			       enum weston_windowed_output_type type)
+weston_windowed_output_get_api(struct weston_compositor *compositor)
 {
-	const char *api_names[] = {
-		WESTON_WINDOWED_OUTPUT_API_NAME_X11,
-		WESTON_WINDOWED_OUTPUT_API_NAME_WAYLAND,
-		WESTON_WINDOWED_OUTPUT_API_NAME_HEADLESS,
-	};
+	const void *api;
+	api = weston_plugin_api_get(compositor, WESTON_WINDOWED_OUTPUT_API_NAME,
+				    sizeof(struct weston_windowed_output_api));
 
-	if (type >= ARRAY_LENGTH(api_names))
-		return NULL;
-
-	return weston_plugin_api_get(compositor, api_names[type],
-				     sizeof(struct weston_windowed_output_api));
+	return (const struct weston_windowed_output_api *)api;
 }
 
 #ifdef  __cplusplus

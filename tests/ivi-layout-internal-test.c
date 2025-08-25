@@ -33,6 +33,7 @@
 #include <stdint.h>
 
 #include <libweston/libweston.h>
+#include "compositor/weston.h"
 #include "ivi-shell/ivi-layout-export.h"
 #include "ivi-shell/ivi-layout-private.h"
 #include "ivi-test.h"
