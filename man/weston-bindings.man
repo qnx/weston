@@ -102,11 +102,6 @@ Activate clicked window
 Change the opacity of a window
 .P
 .RE
-.B mod + \fI<Vertical Scroll>\fB
-.RS 4
-Zoom/magnify the visible desktop
-.P
-.RE
 .B mod + \fI<Left button>\fB
 .RS 4
 Click and drag to move a window
@@ -124,9 +119,9 @@ Rotate the window (if supported)
 .SS DEBUG BINDINGS
 The combination \fBmod + Shift + Space\fR begins a debug binding. Debug
 bindings are completed by pressing an additional key. For example, pressing
-F may toggle texture mesh wireframes with the GL renderer.
-(In fact, most debug effects can be disabled again by repeating the command.)
-Debug bindings are often tied to specific backends. Below are the debug bindings available.
+M may cycle through the GL renderer debug modes. Most debug effects can be
+disabled again by repeating the command. Debug bindings are often tied to
+specific backends. Below are the debug bindings available.
 
 .RS
 - KEY_D :
@@ -145,13 +140,9 @@ Enable/Disable overlay planes.
 .RS 4
 Start VAAPI recorder.
 .RE
-- KEY_S : 
+- KEY_M :
 .RS 4
-Enable fragment debugging for gl-renderer.
-.RE
-- KEY_F :
-.RS 4
-Enable fan debugging for gl-renderer.
+Cycle through gl-renderer debug modes: none, wireframe, batches, damage, opaque.
 .RE
 - KEY_R :
 .RS 4

@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 Collabora, Ltd.
+ * Copyright 2023 Collabora, Ltd.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -23,20 +23,23 @@
  * SOFTWARE.
  */
 
-#pragma once
+#ifndef WESTON_ID_NUMBER_ALLOCATOR_H
+#define WESTON_ID_NUMBER_ALLOCATOR_H
 
-#include <libweston/libweston.h>
-#include <libweston/config-parser.h>
+#include <stdint.h>
 
-bool
-get_backend_from_string(const char *name,
-			enum weston_compositor_backend *backend);
+struct weston_compositor;
 
-bool
-get_renderer_from_string(const char *name,
-			 enum weston_renderer_type *renderer);
+struct weston_idalloc *
+weston_idalloc_create(struct weston_compositor *compositor);
 
-int
-wet_output_set_color_characteristics(struct weston_output *output,
-				     struct weston_config *wc,
-				     struct weston_config_section *section);
+void
+weston_idalloc_destroy(struct weston_idalloc *idalloc);
+
+uint32_t
+weston_idalloc_get_id(struct weston_idalloc *idalloc);
+
+void
+weston_idalloc_put_id(struct weston_idalloc *idalloc, uint32_t id);
+
+#endif /* WESTON_ID_NUMBER_ALLOCATOR_H */

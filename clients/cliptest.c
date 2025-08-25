@@ -23,9 +23,9 @@
  */
 
 /* cliptest:
- *	For debugging the rect_to_quad() and clip_quad() functions. An arbitrary
- *	quad (red) is transformed from global coordinate space to surface
- *	coordinate space and clipped to an axis-aligned rect (blue).
+ *	For debugging the quad clipper. An arbitrary quad (red) is transformed
+ *	from global coordinate space to surface coordinate space and clipped to
+ *	an axis-aligned rect (blue).
  *
  * controls:
  *	surface rect position:  mouse left drag,  keys: w a s d
@@ -69,6 +69,7 @@ struct geometry {
 	float s; /* sin phi */
 	float c; /* cos phi */
 	float phi;
+	bool axis_aligned;
 };
 
 struct weston_surface {
@@ -76,11 +77,6 @@ struct weston_surface {
 
 struct weston_view {
 	struct weston_surface *surface;
-	struct {
-		int enabled;
-		struct weston_matrix matrix;
-	} transform;
-
 	struct geometry *geometry;
 };
 
@@ -111,8 +107,8 @@ weston_coord_global_to_surface(struct weston_view *view, struct weston_coord_glo
 /* Keep this in sync with what is in gl-renderer.c! */
 
 static void
-rect_to_quad(pixman_box32_t *rect, struct weston_view *ev,
-	     struct gl_quad *quad)
+global_to_surface(pixman_box32_t *rect, struct weston_view *ev,
+		  struct clipper_vertex polygon[4])
 {
 	struct weston_coord_global rect_g[4] = {
 		{ .c = weston_coord(rect->x1, rect->y1) },
@@ -123,31 +119,10 @@ rect_to_quad(pixman_box32_t *rect, struct weston_view *ev,
 	struct weston_coord rect_s;
 	int i;
 
-	/* Transform rect to surface space. */
-	quad->vertices.n = 4;
-	for (i = 0; i < quad->vertices.n; i++) {
+	for (i = 0; i < 4; i++) {
 		rect_s = weston_coord_global_to_surface(ev, rect_g[i]).c;
-		quad->vertices.pos[i].x = (float)rect_s.x;
-		quad->vertices.pos[i].y = (float)rect_s.y;
-	}
-
-	quad->axis_aligned = !ev->transform.enabled ||
-		(ev->transform.matrix.type < WESTON_MATRIX_TRANSFORM_ROTATE);
-
-	/* Find axis-aligned bounding box. */
-	if (!quad->axis_aligned) {
-		quad->bbox.x1 = quad->bbox.x2 = quad->vertices.pos[0].x;
-		quad->bbox.y1 = quad->bbox.y2 = quad->vertices.pos[0].y;
-		for (i = 1; i < quad->vertices.n; i++) {
-			quad->bbox.x1 = MIN(quad->bbox.x1,
-					    quad->vertices.pos[i].x);
-			quad->bbox.x2 = MAX(quad->bbox.x2,
-					    quad->vertices.pos[i].x);
-			quad->bbox.y1 = MIN(quad->bbox.y1,
-					    quad->vertices.pos[i].y);
-			quad->bbox.y2 = MAX(quad->bbox.y2,
-					    quad->vertices.pos[i].y);
-		}
+		polygon[i].x = (float)rect_s.x;
+		polygon[i].y = (float)rect_s.y;
 	}
 }
 
@@ -156,9 +131,12 @@ rect_to_quad(pixman_box32_t *rect, struct weston_view *ev,
 static void
 geometry_set_phi(struct geometry *g, float phi)
 {
+	float integer;
+
 	g->phi = phi;
 	g->s = sin(phi);
 	g->c = cos(phi);
+	g->axis_aligned = fabs(modff(g->c, &integer)) < 0.0001f;
 }
 
 static void
@@ -199,7 +177,7 @@ struct cliptest {
 };
 
 static void
-draw_polygon_closed(cairo_t *cr, struct clip_vertex *pos, int n)
+draw_polygon_closed(cairo_t *cr, struct clipper_vertex *pos, int n)
 {
 	int i;
 
@@ -210,7 +188,7 @@ draw_polygon_closed(cairo_t *cr, struct clip_vertex *pos, int n)
 }
 
 static void
-draw_polygon_labels(cairo_t *cr, struct clip_vertex *pos, int n)
+draw_polygon_labels(cairo_t *cr, struct clipper_vertex *pos, int n)
 {
 	char str[16];
 	int i;
@@ -223,7 +201,7 @@ draw_polygon_labels(cairo_t *cr, struct clip_vertex *pos, int n)
 }
 
 static void
-draw_coordinates(cairo_t *cr, double ox, double oy, struct clip_vertex *pos, int n)
+draw_coordinates(cairo_t *cr, double ox, double oy, struct clipper_vertex *pos, int n)
 {
 	char str[64];
 	int i;
@@ -240,7 +218,7 @@ draw_coordinates(cairo_t *cr, double ox, double oy, struct clip_vertex *pos, int
 static void
 draw_box(cairo_t *cr, pixman_box32_t *box, struct weston_view *view)
 {
-	struct clip_vertex pos[4];
+	struct clipper_vertex pos[4];
 
 	if (view) {
 		weston_view_from_global_float(view, box->x1, box->y1, &pos[0].x, &pos[0].y);
@@ -259,7 +237,7 @@ draw_box(cairo_t *cr, pixman_box32_t *box, struct weston_view *view)
 
 static void
 draw_geometry(cairo_t *cr, struct weston_view *view,
-	      struct clip_vertex *v, int n)
+	      struct clipper_vertex *v, int n, struct clipper_quad *quad)
 {
 	struct geometry *g = view->geometry;
 	float cx, cy;
@@ -269,7 +247,7 @@ draw_geometry(cairo_t *cr, struct weston_view *view,
 	cairo_fill(cr);
 	weston_view_from_global_float(view, g->quad.x1 - 4, g->quad.y1 - 4, &cx, &cy);
 	cairo_arc(cr, cx, cy, 1.5, 0.0, 2.0 * M_PI);
-	if (view->transform.enabled == 0)
+	if (!quad->axis_aligned)
 		cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 0.8);
 	cairo_fill(cr);
 
@@ -295,12 +273,13 @@ redraw_handler(struct widget *widget, void *data)
 	struct rectangle allocation;
 	cairo_t *cr;
 	cairo_surface_t *surface;
-	struct gl_quad quad;
-	struct clip_vertex v[8];
+	struct clipper_quad quad;
+	struct clipper_vertex transformed_v[4], v[8];
 	int n;
 
-	rect_to_quad(&g->quad, &cliptest->view, &quad);
-	n = clip_quad(&quad, &g->surf, v);
+	global_to_surface(&g->quad, &cliptest->view, transformed_v);
+	clipper_quad_init(&quad, transformed_v, g->axis_aligned);
+	n = clipper_quad_clip_box32(&quad, &g->surf, v);
 
 	widget_get_allocation(cliptest->widget, &allocation);
 
@@ -334,7 +313,7 @@ redraw_handler(struct widget *widget, void *data)
 		cairo_select_font_face(cr, "sans-serif", CAIRO_FONT_SLANT_NORMAL,
 				       CAIRO_FONT_WEIGHT_BOLD);
 		cairo_set_font_size(cr, 5.0);
-		draw_geometry(cr, &cliptest->view, v, n);
+		draw_geometry(cr, &cliptest->view, v, n, &quad);
 	cairo_pop_group_to_source(cr);
 	cairo_paint(cr);
 
@@ -413,8 +392,6 @@ axis_handler(struct widget *widget, struct input *input, uint32_t time,
 
 	geometry_set_phi(geom, geom->phi +
 				(M_PI / 12.0) * wl_fixed_to_double(value));
-	cliptest->view.transform.enabled = 1;
-	cliptest->view.transform.matrix.type = WESTON_MATRIX_TRANSFORM_ROTATE;
 
 	widget_schedule_redraw(cliptest->widget);
 }
@@ -464,20 +441,12 @@ key_handler(struct window *window, struct input *input, uint32_t time,
 		break;
 	case XKB_KEY_n:
 		geometry_set_phi(g, g->phi + (M_PI / 24.0));
-		cliptest->view.transform.enabled = 1;
-		cliptest->view.transform.matrix.type =
-			WESTON_MATRIX_TRANSFORM_ROTATE;
 		break;
 	case XKB_KEY_m:
 		geometry_set_phi(g, g->phi - (M_PI / 24.0));
-		cliptest->view.transform.enabled = 1;
-		cliptest->view.transform.matrix.type =
-			WESTON_MATRIX_TRANSFORM_ROTATE;
 		break;
 	case XKB_KEY_r:
 		geometry_set_phi(g, 0.0);
-		cliptest->view.transform.enabled = 0;
-		cliptest->view.transform.matrix.type = 0;
 		break;
 	default:
 		return;
@@ -512,8 +481,6 @@ cliptest_create(struct display *display)
 	cliptest = xzalloc(sizeof *cliptest);
 	cliptest->view.surface = &cliptest->surface;
 	cliptest->view.geometry = &cliptest->geometry;
-	cliptest->view.transform.enabled = 0;
-	cliptest->view.transform.matrix.type = 0;
 	geometry_init(&cliptest->geometry);
 	geometry_init(&cliptest->ui.geometry);
 
@@ -567,8 +534,8 @@ benchmark(void)
 	struct weston_surface surface;
 	struct weston_view view;
 	struct geometry geom;
-	struct gl_quad quad;
-	struct clip_vertex v[8];
+	struct clipper_quad quad;
+	struct clipper_vertex transformed_v[4], v[8];
 	int i;
 	double t;
 	const int N = 1000000;
@@ -586,15 +553,14 @@ benchmark(void)
 	geometry_set_phi(&geom, 0.0);
 
 	view.surface = &surface;
-	view.transform.enabled = 1;
-	view.transform.matrix.type = WESTON_MATRIX_TRANSFORM_ROTATE;
 	view.geometry = &geom;
 
 	reset_timer();
 	for (i = 0; i < N; i++) {
 		geometry_set_phi(&geom, (float)i / 360.0f);
-		rect_to_quad(&geom.quad, &view, &quad);
-		clip_quad(&quad, &geom.surf, v);
+		global_to_surface(&geom.quad, &view, transformed_v);
+		clipper_quad_init(&quad, transformed_v, geom.axis_aligned);
+		clipper_quad_clip_box32(&quad, &geom.surf, v);
 	}
 	t = read_timer();
 

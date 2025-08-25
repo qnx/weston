@@ -60,6 +60,7 @@ fixture_setup(struct weston_test_harness *harness, const struct setup_args *arg)
 	setup.height = 240;
 	setup.shell = SHELL_TEST_DESKTOP;
 	setup.logging_scopes = "log,test-harness-plugin";
+	setup.refresh = HIGHEST_OUTPUT_REFRESH;
 
 	return weston_test_harness_execute_as_client(harness, &setup);
 }
@@ -499,6 +500,57 @@ TEST(subsurface_empty_mapping)
 			buffer_destroy(bufs[i]);
 
 	wp_viewporter_destroy(viewporter);
+	wl_subcompositor_destroy(subco);
+	client_destroy(client);
+}
+
+TEST(subsurface_desync_commit)
+{
+	struct client *client;
+	struct wl_subcompositor *subco;
+	struct buffer *bufs[2] = { 0 };
+	struct wl_surface *surf[2] = { 0 };
+	struct wl_subsurface *sub = { 0 };
+	pixman_color_t red;
+	pixman_color_t green;
+	unsigned i;
+	int frame;
+
+	color_rgb888(&red, 255, 0, 0);
+	color_rgb888(&green, 0, 255, 0);
+
+	client = create_client_and_test_surface(100, 50, 100, 100);
+	assert(client);
+	subco = get_subcompositor(client);
+
+	/* make the parent surface red */
+	surf[0] = client->surface->wl_surface;
+	client->surface->wl_surface = NULL; /* we stole it and destroy it */
+	/* make sure the surface was rendered before the subsurface is created */
+	frame_callback_set(surf[0], &frame);
+	bufs[0] = surface_commit_color(client, surf[0], &red, 100, 100);
+	frame_callback_wait(client, &frame);
+
+	/* create an empty subsurface on top */
+	surf[1] = wl_compositor_create_surface(client->wl_compositor);
+	sub = wl_subcompositor_get_subsurface(subco, surf[1], surf[0]);
+	wl_subsurface_set_desync (sub);
+
+	/* wait for the first buffer of the subsurface to be rendered */
+	frame_callback_set(surf[1], &frame);
+	bufs[1] = surface_commit_color(client, surf[1], &green, 100, 100);
+	frame_callback_wait(client, &frame);
+
+	wl_subsurface_destroy(sub);
+
+	for (i = 0; i < ARRAY_LENGTH(surf); i++)
+		if (surf[i])
+			wl_surface_destroy(surf[i]);
+
+	for (i = 0; i < ARRAY_LENGTH(bufs); i++)
+		if (bufs[i])
+			buffer_destroy(bufs[i]);
+
 	wl_subcompositor_destroy(subco);
 	client_destroy(client);
 }

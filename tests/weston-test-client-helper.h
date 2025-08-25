@@ -39,6 +39,7 @@
 #include "weston-test-client-protocol.h"
 #include "viewporter-client-protocol.h"
 #include "weston-output-capture-client-protocol.h"
+#include "xdg-shell-client-protocol.h"
 #include "weston-testsuite-data.h"
 
 struct client {
@@ -231,6 +232,9 @@ void
 move_client(struct client *client, int x, int y);
 
 void
+move_client_frame_sync(struct client *client, int x, int y);
+
+void
 move_client_offscreenable(struct client *client, int x, int y);
 
 #define client_roundtrip(c) do { \
@@ -250,13 +254,23 @@ expect_protocol_error(struct client *client,
 		      const struct wl_interface *intf, uint32_t code);
 
 char *
-screenshot_output_filename(const char *basename, uint32_t seq);
-
-char *
 screenshot_reference_filename(const char *basename, uint32_t seq);
 
 char *
 image_filename(const char *basename);
+
+char *
+output_filename_for_test_program(const char *test_program, const char *suffix,
+				 const char *file_ext);
+
+char *
+output_filename_for_fixture(const char *test_program,
+			    struct weston_test_harness *harness,
+			    const char *suffix, const char *file_ext);
+
+char *
+output_filename_for_test_case(const char *suffix, uint32_t seq_number,
+			      const char *file_ext);
 
 FILE *
 fopen_dump_file(const char *suffix);

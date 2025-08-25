@@ -148,7 +148,7 @@ screenshooter_frame_notify(struct wl_listener *listener, void *data)
 			     0, 0, output->current_mode->width,
 			     output->current_mode->height);
 
-	stride = wl_shm_buffer_get_stride(l->buffer->shm_buffer);
+	stride = l->buffer->stride;
 
 	d = wl_shm_buffer_get_data(l->buffer->shm_buffer);
 	s = pixels + stride * (l->buffer->height - 1);
@@ -252,6 +252,9 @@ static uint32_t *
 output_run(uint32_t *p, uint32_t delta, int run)
 {
 	int i;
+#if !defined(HAVE_BUILTIN_CLZ)
+	int tmp;
+#endif
 
 	while (run > 0) {
 		if (run <= 0xe0) {
@@ -259,7 +262,11 @@ output_run(uint32_t *p, uint32_t delta, int run)
 			break;
 		}
 
+#if defined(HAVE_BUILTIN_CLZ)
 		i = 24 - __builtin_clz(run);
+#else
+		for (i = 0, tmp = u >> 8; tmp; i++, tmp >>= 1);
+#endif
 		*p++ = delta | ((i + 0xe0) << 24);
 		run -= 1 << (7 + i);
 	}

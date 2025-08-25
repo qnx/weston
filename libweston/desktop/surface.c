@@ -1,5 +1,5 @@
 /*
- * Copyright © 2016 Quentin "Sardem FF7" Glidic
+ * Copyright © 2016 Morgane "Sardem FF7" Glidic
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -75,6 +75,7 @@ struct weston_desktop_surface {
 	struct {
 		struct wl_list grab_link;
 	};
+	struct wl_list grabbing_seats;
 };
 
 static void
@@ -174,6 +175,8 @@ weston_desktop_surface_destroy(struct weston_desktop_surface *surface)
 
 	wl_list_for_each_safe(view, next_view, &surface->view_list, link)
 		weston_desktop_view_destroy(view);
+
+	weston_desktop_seat_end_grabs_on_seats(&surface->grabbing_seats);
 
 	free(surface->title);
 	free(surface->app_id);
@@ -304,6 +307,7 @@ weston_desktop_surface_create(struct weston_desktop *desktop,
 	wl_list_init(&surface->children_link);
 	wl_list_init(&surface->view_list);
 	wl_list_init(&surface->grab_link);
+	wl_list_init(&surface->grabbing_seats);
 
 	wl_signal_init(&surface->metadata_signal);
 
@@ -884,6 +888,12 @@ weston_desktop_surface_popup_dismiss(struct weston_desktop_surface *surface)
 	weston_desktop_surface_close(surface);
 }
 
+struct wl_list *
+weston_desktop_surface_get_grab_seat_list(struct weston_desktop_surface *surface)
+{
+	return &surface->grabbing_seats;
+}
+
 WL_EXPORT void
 weston_desktop_surface_foreach_child(struct weston_desktop_surface *surface,
 				     void (* callback)(struct weston_desktop_surface *child,
@@ -892,6 +902,8 @@ weston_desktop_surface_foreach_child(struct weston_desktop_surface *surface,
 {
 	struct weston_desktop_surface *child;
 
-	wl_list_for_each(child, &surface->children_list, children_link)
-		callback(child, user_data);
+	wl_list_for_each(child, &surface->children_list, children_link) {
+		if (weston_desktop_surface_get_user_data(child))
+			callback(child, user_data);
+	}
 }

@@ -1,6 +1,6 @@
 project('weston',
 	'c',
-	version: '13.0.0',
+	version: '14.0.0',
 	default_options: [
 		'warning_level=3',
 		'c_std=gnu99',
@@ -10,7 +10,7 @@ project('weston',
 	license: 'MIT/Expat',
 )
 
-libweston_major = 13
+libweston_major = 14
 
 # libweston_revision is manufactured to follow the autotools build's
 # library file naming, thanks to libtool
@@ -94,6 +94,17 @@ foreach hdr : optional_system_headers
 	endif
 endforeach
 
+optional_builtins = {
+	'builtin_clz': 'return __builtin_clz(1);',
+	'builtin_bswap32': 'return __builtin_bswap32(0);',
+	'builtin_popcount': 'return __builtin_popcount(0);',
+}
+foreach name, check : optional_builtins
+	if cc.links('int main(void) { @0@ }'.format(check), name: name)
+		config_h.set('HAVE_' + name.to_upper(), 1)
+	endif
+endforeach
+
 env_modmap = ''
 
 config_h.set('_GNU_SOURCE', '1')
@@ -145,6 +156,9 @@ dep_libdrm_headers = dep_libdrm.partial_dependency(compile_args: true)
 dep_threads = dependency('threads')
 
 dep_lcms2 = dependency('lcms2', version: '>= 2.9', required: false)
+if dep_lcms2.found()
+	config_h.set('HAVE_LCMS', '1')
+endif
 
 prog_python = import('python').find_installation('python3')
 files_xxd_py = files('tools/xxd.py')
@@ -156,13 +170,22 @@ deps_for_libweston_users = [
 	dep_xkbcommon,
 ]
 
+if get_option('renderer-gl')
+	dep_egl = dependency('egl', required: false)
+	if not dep_egl.found()
+		error('libweston + gl-renderer requires egl which was not found. Or, you can use \'-Drenderer-gl=false\'.')
+	endif
+else
+	dep_egl = dependency('', required: false)
+endif
+
 
 subdir('include')
 subdir('protocol')
 subdir('shared')
 subdir('libweston')
 subdir('xwayland')
-subdir('compositor')
+subdir('frontend')
 subdir('desktop-shell')
 subdir('fullscreen-shell')
 subdir('ivi-shell')
@@ -171,7 +194,9 @@ subdir('remoting')
 subdir('pipewire')
 subdir('clients')
 subdir('wcap')
-subdir('tests')
+if get_option('tests')
+	subdir('tests')
+endif
 subdir('data')
 subdir('man')
 subdir('pam')

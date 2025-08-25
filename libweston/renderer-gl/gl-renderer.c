@@ -31,6 +31,7 @@
 #include <GLES2/gl2ext.h>
 #include <GLES3/gl3.h>
 
+#include <fcntl.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -41,6 +42,8 @@
 #include <assert.h>
 #include <linux/input.h>
 #include <unistd.h>
+
+#include <gbm.h>
 
 #include "linux-sync-file.h"
 #include "timeline.h"
@@ -68,6 +71,15 @@
 #include "shared/xalloc.h"
 
 #define BUFFER_DAMAGE_COUNT 2
+
+enum gl_debug_mode {
+	DEBUG_MODE_NONE = 0,
+	DEBUG_MODE_WIREFRAME,
+	DEBUG_MODE_BATCHES,
+	DEBUG_MODE_DAMAGE,
+	DEBUG_MODE_OPAQUE,
+	DEBUG_MODE_LAST,
+};
 
 enum gl_border_status {
 	BORDER_STATUS_CLEAN = 0,
@@ -106,6 +118,8 @@ struct gl_output_state {
 	struct weston_size fb_size; /**< in pixels, including borders */
 	struct weston_geometry area; /**< composited area in pixels inside fb */
 
+	float y_flip;
+
 	EGLSurface egl_surface;
 	struct gl_border_image borders[4];
 	enum gl_border_status border_status;
@@ -126,6 +140,38 @@ struct gl_output_state {
 };
 
 struct gl_renderer;
+
+struct gl_capture_task {
+	struct weston_capture_task *task;
+	struct wl_event_source *source;
+	struct gl_renderer *gr;
+	struct wl_list link;
+	GLuint pbo;
+	int stride;
+	int height;
+	bool reverse;
+	EGLSyncKHR sync;
+	int fd;
+};
+
+struct dmabuf_allocator {
+	struct gbm_device *gbm_device;
+	bool has_own_device;
+};
+
+struct gl_renderer_dmabuf_memory {
+	struct linux_dmabuf_memory base;
+	struct dmabuf_allocator *allocator;
+	struct gbm_bo *bo;
+};
+
+struct dmabuf_renderbuffer {
+	struct gl_renderbuffer base;
+	struct gl_renderer *gr;
+	/* The wrapped dmabuf memory */
+	struct linux_dmabuf_memory *dmabuf;
+	EGLImageKHR image;
+};
 
 struct dmabuf_format {
 	uint32_t format;
@@ -170,6 +216,7 @@ struct gl_buffer_state {
 	int pitch; /* plane 0 pitch in pixels */
 	GLenum gl_pixel_type;
 	GLenum gl_format[3];
+	enum gl_channel_order gl_channel_order;
 	int offset[3]; /* per-plane pitch in bytes */
 
 	EGLImageKHR images[3];
@@ -231,10 +278,16 @@ static inline const char *
 dump_format(uint32_t format, char out[4])
 {
 #if BYTE_ORDER == BIG_ENDIAN
-	format = __builtin_bswap32(format);
+	format = bswap32(format);
 #endif
 	memcpy(out, &format, 4);
 	return out;
+}
+
+static inline void
+copy_uniform4f(float dst[4], const float src[4])
+{
+	memcpy(dst, src, 4 * sizeof(float));
 }
 
 static inline struct gl_output_state *
@@ -261,6 +314,12 @@ shadow_exists(const struct gl_output_state *go)
 	return go->shadow.fbo != 0;
 }
 
+static bool
+is_y_flipped(const struct gl_output_state *go)
+{
+	return go->y_flip < 0.0f;
+}
+
 struct yuv_format_descriptor yuv_formats[] = {
 	{
 		.format = DRM_FORMAT_YUYV,
@@ -275,6 +334,28 @@ struct yuv_format_descriptor yuv_formats[] = {
 		}}
 	}, {
 		.format = DRM_FORMAT_NV12,
+		.output_planes = 2,
+		.shader_variant = SHADER_VARIANT_Y_UV,
+		{{
+			.format = DRM_FORMAT_R8,
+			.plane_index = 0
+		}, {
+			.format = DRM_FORMAT_GR88,
+			.plane_index = 1
+		}}
+	}, {
+		.format = DRM_FORMAT_NV16,
+		.output_planes = 2,
+		.shader_variant = SHADER_VARIANT_Y_UV,
+		{{
+			.format = DRM_FORMAT_R8,
+			.plane_index = 0
+		}, {
+			.format = DRM_FORMAT_GR88,
+			.plane_index = 1
+		}}
+	}, {
+		.format = DRM_FORMAT_NV24,
 		.output_planes = 2,
 		.shader_variant = SHADER_VARIANT_Y_UV,
 		{{
@@ -474,159 +555,6 @@ timeline_submit_render_sync(struct gl_renderer *gr,
 	wl_list_insert(&go->timeline_render_point_list, &trp->link);
 }
 
-static void
-rect_to_quad(pixman_box32_t *rect, struct weston_view *ev,
-	     struct gl_quad *quad)
-{
-	struct weston_coord_global rect_g[4] = {
-		{ .c = weston_coord(rect->x1, rect->y1) },
-		{ .c = weston_coord(rect->x2, rect->y1) },
-		{ .c = weston_coord(rect->x2, rect->y2) },
-		{ .c = weston_coord(rect->x1, rect->y2) },
-	};
-	struct weston_coord rect_s;
-	int i;
-
-	/* Transform rect to surface space. */
-	quad->vertices.n = 4;
-	for (i = 0; i < quad->vertices.n; i++) {
-		rect_s = weston_coord_global_to_surface(ev, rect_g[i]).c;
-		quad->vertices.pos[i].x = (float)rect_s.x;
-		quad->vertices.pos[i].y = (float)rect_s.y;
-	}
-
-	quad->axis_aligned = !ev->transform.enabled ||
-		(ev->transform.matrix.type < WESTON_MATRIX_TRANSFORM_ROTATE);
-
-	/* Find axis-aligned bounding box. */
-	if (!quad->axis_aligned) {
-		quad->bbox.x1 = quad->bbox.x2 = quad->vertices.pos[0].x;
-		quad->bbox.y1 = quad->bbox.y2 = quad->vertices.pos[0].y;
-		for (i = 1; i < quad->vertices.n; i++) {
-			quad->bbox.x1 = MIN(quad->bbox.x1,
-					    quad->vertices.pos[i].x);
-			quad->bbox.x2 = MAX(quad->bbox.x2,
-					    quad->vertices.pos[i].x);
-			quad->bbox.y1 = MIN(quad->bbox.y1,
-					    quad->vertices.pos[i].y);
-			quad->bbox.y2 = MAX(quad->bbox.y2,
-					    quad->vertices.pos[i].y);
-		}
-	}
-}
-
-static bool
-merge_down(pixman_box32_t *a, pixman_box32_t *b, pixman_box32_t *merge)
-{
-	if (a->x1 == b->x1 && a->x2 == b->x2 && a->y1 == b->y2) {
-		merge->x1 = a->x1;
-		merge->x2 = a->x2;
-		merge->y1 = b->y1;
-		merge->y2 = a->y2;
-		return true;
-	}
-	return false;
-}
-
-static int
-compress_bands(pixman_box32_t *inrects, int nrects, pixman_box32_t **outrects)
-{
-	bool merged = false;
-	pixman_box32_t *out, merge_rect;
-	int i, j, nout;
-
-	if (!nrects) {
-		*outrects = NULL;
-		return 0;
-	}
-
-	/* nrects is an upper bound - we're not too worried about
-	 * allocating a little extra
-	 */
-	out = malloc(sizeof(pixman_box32_t) * nrects);
-	out[0] = inrects[0];
-	nout = 1;
-	for (i = 1; i < nrects; i++) {
-		for (j = 0; j < nout; j++) {
-			merged = merge_down(&inrects[i], &out[j], &merge_rect);
-			if (merged) {
-				out[j] = merge_rect;
-				break;
-			}
-		}
-		if (!merged) {
-			out[nout] = inrects[i];
-			nout++;
-		}
-	}
-	*outrects = out;
-	return nout;
-}
-
-static int
-texture_region(struct weston_paint_node *pnode,
-	       pixman_region32_t *region,
-	       pixman_region32_t *surf_region)
-{
-	struct weston_compositor *ec = pnode->surface->compositor;
-	struct weston_view *ev = pnode->view;
-	struct gl_renderer *gr = get_renderer(ec);
-	struct clip_vertex *v;
-	unsigned int *vtxcnt, nvtx = 0;
-	pixman_box32_t *rects, *surf_rects;
-	pixman_box32_t *raw_rects;
-	int i, j, nrects, nsurf, raw_nrects;
-	bool used_band_compression;
-	struct gl_quad quad;
-
-	raw_rects = pixman_region32_rectangles(region, &raw_nrects);
-	surf_rects = pixman_region32_rectangles(surf_region, &nsurf);
-
-	if (raw_nrects < 4) {
-		used_band_compression = false;
-		nrects = raw_nrects;
-		rects = raw_rects;
-	} else {
-		nrects = compress_bands(raw_rects, raw_nrects, &rects);
-		used_band_compression = true;
-	}
-	/* worst case we can have 8 vertices per rect (ie. clipped into
-	 * an octagon):
-	 */
-	v = wl_array_add(&gr->vertices, nrects * nsurf * 8 * sizeof *v);
-	vtxcnt = wl_array_add(&gr->vtxcnt, nrects * nsurf * sizeof *vtxcnt);
-
-	for (i = 0; i < nrects; i++) {
-		rect_to_quad(&rects[i], ev, &quad);
-		for (j = 0; j < nsurf; j++) {
-			int n;
-
-			/* The transformed quad, after clipping to the surface rect, can
-			 * have as many as eight sides, emitted as a triangle-fan. The
-			 * first vertex in the triangle fan can be chosen arbitrarily,
-			 * since the area is guaranteed to be convex.
-			 *
-			 * If a corner of the transformed quad falls outside of the
-			 * surface rect, instead of emitting one vertex, up to two are
-			 * emitted for two corresponding intersection point(s) between the
-			 * edges.
-			 *
-			 * To do this, we first calculate the (up to eight) points at the
-			 * intersection of the edges of the quad and the surface rect.
-			 */
-			n = clip_quad(&quad, &surf_rects[j], v);
-			if (n >= 3) {
-				v += n;
-				vtxcnt[nvtx++] = n;
-			}
-		}
-	}
-
-	if (used_band_compression)
-		free(rects);
-	return nvtx;
-}
-
 /** Create a texture and a framebuffer object
  *
  * \param fbotex To be initialized.
@@ -649,7 +577,6 @@ gl_fbo_texture_init(struct gl_fbo_texture *fbotex,
 	GLuint shadow_fbo;
 	GLuint shadow_tex;
 
-	glActiveTexture(GL_TEXTURE0);
 	glGenTextures(1, &shadow_tex);
 	glBindTexture(GL_TEXTURE_2D, shadow_tex);
 	glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0,
@@ -692,6 +619,12 @@ static inline struct gl_renderbuffer *
 to_gl_renderbuffer(struct weston_renderbuffer *renderbuffer)
 {
 	return container_of(renderbuffer, struct gl_renderbuffer, base);
+}
+
+static inline struct dmabuf_renderbuffer *
+to_dmabuf_renderbuffer(struct gl_renderbuffer *renderbuffer)
+{
+	return container_of(renderbuffer, struct dmabuf_renderbuffer, base);
 }
 
 static void
@@ -793,97 +726,273 @@ gl_renderer_create_fbo(struct weston_output *output,
 
 static bool
 gl_renderer_do_read_pixels(struct gl_renderer *gr,
+			   struct gl_output_state *go,
 			   const struct pixel_format_info *fmt,
 			   void *pixels, int stride,
 			   const struct weston_geometry *rect)
 {
-	void *read_target;
 	pixman_image_t *tmp = NULL;
+	void *tmp_data = NULL;
+	pixman_image_t *image;
+	pixman_transform_t flip;
 
 	assert(fmt->gl_type != 0);
 	assert(fmt->gl_format != 0);
 
-	glPixelStorei(GL_PACK_ALIGNMENT, 4);
+	if (!is_y_flipped(go)) {
+		glReadPixels(rect->x, rect->y, rect->width, rect->height,
+			     fmt->gl_format, fmt->gl_type, pixels);
+		return true;
+	}
 
 	if (gr->has_pack_reverse) {
 		/* Make glReadPixels() return top row first. */
 		glPixelStorei(GL_PACK_REVERSE_ROW_ORDER_ANGLE, GL_TRUE);
-		read_target = pixels;
-	} else {
-		/*
-		 * glReadPixels() returns bottom row first. We need to
-		 * read into a temporary buffer and y-flip it.
-		 */
-		tmp = pixman_image_create_bits(fmt->pixman_format,
-					       rect->width, rect->height,
-					       NULL, 0);
-		if (!tmp)
-			return false;
+		glReadPixels(rect->x, rect->y, rect->width, rect->height,
+			     fmt->gl_format, fmt->gl_type, pixels);
+		glPixelStorei(GL_PACK_REVERSE_ROW_ORDER_ANGLE, GL_FALSE);
+		return true;
+	}
 
-		read_target = pixman_image_get_data(tmp);
+	/*
+	 * glReadPixels() returns bottom row first. We need to read into a
+	 * temporary buffer and y-flip it.
+	 */
+
+	tmp_data = malloc(stride * rect->height);
+	if (!tmp_data)
+		return false;
+
+	tmp = pixman_image_create_bits(fmt->pixman_format, rect->width,
+				       rect->height, tmp_data, stride);
+	if (!tmp) {
+		free(tmp_data);
+		return false;
 	}
 
 	glReadPixels(rect->x, rect->y, rect->width, rect->height,
-		     fmt->gl_format, fmt->gl_type, read_target);
+		     fmt->gl_format, fmt->gl_type, pixman_image_get_data(tmp));
 
-	if (tmp) {
-		pixman_image_t *image;
-		pixman_transform_t flip;
+	image = pixman_image_create_bits_no_clear(fmt->pixman_format,
+						  rect->width, rect->height,
+						  pixels, stride);
+	abort_oom_if_null(image);
 
-		image = pixman_image_create_bits_no_clear(fmt->pixman_format,
-							  rect->width,
-							  rect->height,
-							  pixels, stride);
-		abort_oom_if_null(image);
+	pixman_transform_init_scale(&flip, pixman_fixed_1,
+				    pixman_fixed_minus_1);
+	pixman_transform_translate(&flip, NULL, 0,
+				   pixman_int_to_fixed(rect->height));
+	pixman_image_set_transform(tmp, &flip);
 
-		pixman_transform_init_scale(&flip, pixman_fixed_1,
-					    pixman_fixed_minus_1);
-		pixman_transform_translate(&flip, NULL,	0,
-					   pixman_int_to_fixed(rect->height));
-		pixman_image_set_transform(tmp, &flip);
+	pixman_image_composite32(PIXMAN_OP_SRC,
+				 tmp,       /* src */
+				 NULL,      /* mask */
+				 image,     /* dest */
+				 0, 0,      /* src x,y */
+				 0, 0,      /* mask x,y */
+				 0, 0,      /* dest x,y */
+				 rect->width, rect->height);
 
-		pixman_image_composite32(PIXMAN_OP_SRC,
-					 tmp,       /* src */
-					 NULL,      /* mask */
-					 image,     /* dest */
-					 0, 0,      /* src x,y */
-					 0, 0,      /* mask x,y */
-					 0, 0,      /* dest x,y */
-					 rect->width, rect->height);
-
-		pixman_image_unref(image);
-		pixman_image_unref(tmp);
-	}
+	pixman_image_unref(image);
+	pixman_image_unref(tmp);
+	free(tmp_data);
 
 	return true;
 }
 
 static bool
-gl_renderer_do_capture(struct gl_renderer *gr, struct weston_buffer *into,
+gl_renderer_do_capture(struct gl_renderer *gr, struct gl_output_state *go,
+		       struct weston_buffer *into,
 		       const struct weston_geometry *rect)
 {
 	struct wl_shm_buffer *shm = into->shm_buffer;
 	const struct pixel_format_info *fmt = into->pixel_format;
-	void *shm_pixels;
-	int32_t stride;
 	bool ret;
 
 	assert(into->type == WESTON_BUFFER_SHM);
 	assert(shm);
 
-	shm_pixels = wl_shm_buffer_get_data(shm);
-
-	stride = wl_shm_buffer_get_stride(shm);
-	if (stride % 4 != 0)
-		return false;
-
 	wl_shm_buffer_begin_access(shm);
 
-	ret = gl_renderer_do_read_pixels(gr, fmt, shm_pixels, stride, rect);
+	ret = gl_renderer_do_read_pixels(gr, go, fmt, wl_shm_buffer_get_data(shm),
+					 into->stride, rect);
 
 	wl_shm_buffer_end_access(shm);
 
 	return ret;
+}
+
+static struct gl_capture_task*
+create_capture_task(struct weston_capture_task *task,
+		    struct gl_renderer *gr,
+		    const struct weston_geometry *rect)
+{
+	struct gl_capture_task *gl_task = xzalloc(sizeof *gl_task);
+
+	gl_task->task = task;
+	gl_task->gr = gr;
+	glGenBuffers(1, &gl_task->pbo);
+	gl_task->stride = (gr->compositor->read_format->bpp / 8) * rect->width;
+	gl_task->height = rect->height;
+	gl_task->reverse = !gr->has_pack_reverse;
+	gl_task->sync = EGL_NO_SYNC_KHR;
+	gl_task->fd = EGL_NO_NATIVE_FENCE_FD_ANDROID;
+
+	return gl_task;
+}
+
+static void
+destroy_capture_task(struct gl_capture_task *gl_task)
+{
+	assert(gl_task);
+
+	wl_event_source_remove(gl_task->source);
+	wl_list_remove(&gl_task->link);
+	glDeleteBuffers(1, &gl_task->pbo);
+
+	if (gl_task->sync != EGL_NO_SYNC_KHR)
+		gl_task->gr->destroy_sync(gl_task->gr->egl_display,
+					  gl_task->sync);
+	if (gl_task->fd != EGL_NO_NATIVE_FENCE_FD_ANDROID)
+		close(gl_task->fd);
+
+	free(gl_task);
+}
+
+static void
+copy_capture(struct gl_capture_task *gl_task)
+{
+	struct weston_buffer *buffer =
+		weston_capture_task_get_buffer(gl_task->task);
+	struct wl_shm_buffer *shm = buffer->shm_buffer;
+	struct gl_renderer *gr = gl_task->gr;
+	uint8_t *src, *dst;
+	int i;
+
+	assert(shm);
+
+	glBindBuffer(GL_PIXEL_PACK_BUFFER, gl_task->pbo);
+	src = gr->map_buffer_range(GL_PIXEL_PACK_BUFFER, 0,
+				   gl_task->stride * gl_task->height,
+				   GL_MAP_READ_BIT);
+	dst = wl_shm_buffer_get_data(shm);
+	wl_shm_buffer_begin_access(shm);
+
+	if (!gl_task->reverse) {
+		memcpy(dst, src, gl_task->stride * gl_task->height);
+	} else {
+		src += (gl_task->height - 1) * gl_task->stride;
+		for (i = 0; i < gl_task->height; i++) {
+			memcpy(dst, src, gl_task->stride);
+			dst += gl_task->stride;
+			src -= gl_task->stride;
+		}
+	}
+
+	wl_shm_buffer_end_access(shm);
+	gr->unmap_buffer(GL_PIXEL_PACK_BUFFER);
+	glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+}
+
+static int
+async_capture_handler(void *data)
+{
+	struct gl_capture_task *gl_task = (struct gl_capture_task *) data;
+
+	assert(gl_task);
+
+	copy_capture(gl_task);
+	weston_capture_task_retire_complete(gl_task->task);
+	destroy_capture_task(gl_task);
+
+	return 0;
+}
+
+static int
+async_capture_handler_fd(int fd, uint32_t mask, void *data)
+{
+	struct gl_capture_task *gl_task = (struct gl_capture_task *) data;
+
+	assert(gl_task);
+	assert(fd == gl_task->fd);
+
+	if (mask & WL_EVENT_READABLE) {
+		copy_capture(gl_task);
+		weston_capture_task_retire_complete(gl_task->task);
+	} else {
+		weston_capture_task_retire_failed(gl_task->task,
+						  "GL: capture failed");
+	}
+	destroy_capture_task(gl_task);
+
+	return 0;
+}
+
+static void
+gl_renderer_do_read_pixels_async(struct gl_renderer *gr,
+				 struct gl_output_state *go,
+				 struct weston_output *output,
+				 struct weston_capture_task *task,
+				 const struct weston_geometry *rect)
+{
+	struct weston_buffer *buffer = weston_capture_task_get_buffer(task);
+	const struct pixel_format_info *fmt = buffer->pixel_format;
+	struct gl_capture_task *gl_task;
+	struct wl_event_loop *loop;
+	int refresh_mhz, refresh_msec;
+
+	assert(gr->has_pbo);
+	assert(output->current_mode->refresh > 0);
+	assert(buffer->type == WESTON_BUFFER_SHM);
+	assert(fmt->gl_type != 0);
+	assert(fmt->gl_format != 0);
+
+	if (gr->has_pack_reverse && is_y_flipped(go))
+		glPixelStorei(GL_PACK_REVERSE_ROW_ORDER_ANGLE, GL_TRUE);
+
+	gl_task = create_capture_task(task, gr, rect);
+
+	glBindBuffer(GL_PIXEL_PACK_BUFFER, gl_task->pbo);
+	glBufferData(GL_PIXEL_PACK_BUFFER, gl_task->stride * gl_task->height,
+		     NULL, gr->pbo_usage);
+	glReadPixels(rect->x, rect->y, rect->width, rect->height,
+		     fmt->gl_format, fmt->gl_type, 0);
+	glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+
+	loop = wl_display_get_event_loop(gr->compositor->wl_display);
+	gl_task->sync = create_render_sync(gr);
+
+	/* Make sure the read back request is flushed. Doing so right between
+	 * fence sync object creation and native fence fd duplication ensures
+	 * the fd is created as stated by EGL_ANDROID_native_fence_sync: "the
+	 * next Flush() operation performed by the current client API causes a
+	 * new native fence object to be created". */
+	glFlush();
+
+	if (gl_task->sync != EGL_NO_SYNC_KHR)
+		gl_task->fd = gr->dup_native_fence_fd(gr->egl_display,
+						      gl_task->sync);
+
+	if (gl_task->fd != EGL_NO_NATIVE_FENCE_FD_ANDROID) {
+		gl_task->source = wl_event_loop_add_fd(loop, gl_task->fd,
+						       WL_EVENT_READABLE,
+						       async_capture_handler_fd,
+						       gl_task);
+	} else {
+		/* We guess here an async read back doesn't take more than 5
+		 * frames on most platforms. */
+		gl_task->source = wl_event_loop_add_timer(loop,
+							  async_capture_handler,
+							  gl_task);
+		refresh_mhz = output->current_mode->refresh;
+		refresh_msec = millihz_to_nsec(refresh_mhz) / 1000000;
+		wl_event_source_timer_update(gl_task->source, 5 * refresh_msec);
+	}
+
+	wl_list_insert(&gr->pending_capture_list, &gl_task->link);
+
+	if (gr->has_pack_reverse && is_y_flipped(go))
+		glPixelStorei(GL_PACK_REVERSE_ROW_ORDER_ANGLE, GL_FALSE);
 }
 
 static void
@@ -901,7 +1010,8 @@ gl_renderer_do_capture_tasks(struct gl_renderer *gr,
 		format = output->compositor->read_format;
 		rect = go->area;
 		/* Because glReadPixels has bottom-left origin */
-		rect.y = go->fb_size.height - go->area.y - go->area.height;
+		if (is_y_flipped(go))
+			rect.y = go->fb_size.height - go->area.y - go->area.height;
 		break;
 	case WESTON_OUTPUT_CAPTURE_SOURCE_FULL_FRAMEBUFFER:
 		format = output->compositor->read_format;
@@ -929,7 +1039,17 @@ gl_renderer_do_capture_tasks(struct gl_renderer *gr,
 			continue;
 		}
 
-		if (gl_renderer_do_capture(gr, buffer, &rect))
+		if (buffer->stride % 4 != 0) {
+			weston_capture_task_retire_failed(ct, "GL: buffer stride not multiple of 4");
+			continue;
+		}
+
+		if (gr->has_pbo) {
+			gl_renderer_do_read_pixels_async(gr, go, output, ct, &rect);
+			continue;
+		}
+
+		if (gl_renderer_do_capture(gr, go, buffer, &rect))
 			weston_capture_task_retire_complete(ct);
 		else
 			weston_capture_task_retire_failed(ct, "GL: capture failed");
@@ -947,112 +1067,6 @@ gl_renderer_send_shader_error(struct weston_paint_node *pnode)
 	wl_client_post_implementation_error(wl_resource_get_client(resource),
 		"Weston GL-renderer shader failed for wl_surface@%u",
 		wl_resource_get_id(resource));
-}
-
-static void
-triangle_fan_debug(struct gl_renderer *gr,
-		   const struct gl_shader_config *sconf,
-		   struct weston_output *output,
-		   int first, int count)
-{
-	int i;
-	/* There can be at most eight vertices for a given view. */
-	GLushort buffer[(8 - 1 + 8 - 2) * 2];
-	GLushort *index;
-	GLsizei nelems;
-	static int color_idx = 0;
-	struct gl_shader_config alt;
-	const GLfloat *col;
-	struct weston_color_transform *ctransf;
-	static const GLfloat color[][4] = {
-			{ 1.0, 0.0, 0.0, 1.0 },
-			{ 0.0, 1.0, 0.0, 1.0 },
-			{ 0.0, 0.0, 1.0, 1.0 },
-			{ 1.0, 1.0, 1.0, 1.0 },
-	};
-
-	col = color[color_idx++ % ARRAY_LENGTH(color)];
-	alt = (struct gl_shader_config) {
-		.req = {
-			.variant = SHADER_VARIANT_SOLID,
-			.input_is_premult = true,
-		},
-		.projection = sconf->projection,
-		.view_alpha = 1.0f,
-		.unicolor = { col[0], col[1], col[2], col[3] },
-	};
-
-	ctransf = output->color_outcome->from_sRGB_to_blend;
-	if (!gl_shader_config_set_color_transform(&alt, ctransf)) {
-		weston_log("GL-renderer: %s failed to generate a color transformation.\n",
-			   __func__);
-		return;
-	}
-
-	gl_renderer_use_program(gr, &alt);
-
-	nelems = (count - 1 + count - 2) * 2;
-	assert((unsigned long)nelems <= ARRAY_LENGTH(buffer));
-
-	index = buffer;
-
-	for (i = 1; i < count; i++) {
-		*index++ = first;
-		*index++ = first + i;
-	}
-
-	for (i = 2; i < count; i++) {
-		*index++ = first + i - 1;
-		*index++ = first + i;
-	}
-
-	glDrawElements(GL_LINES, nelems, GL_UNSIGNED_SHORT, buffer);
-
-	gl_renderer_use_program(gr, sconf);
-}
-
-static void
-repaint_region(struct gl_renderer *gr,
-	       struct weston_paint_node *pnode,
-	       pixman_region32_t *region,
-	       pixman_region32_t *surf_region,
-	       const struct gl_shader_config *sconf)
-{
-	struct weston_output *output = pnode->output;
-	GLfloat *v;
-	unsigned int *vtxcnt;
-	int i, first, nfans;
-
-	/* The final region to be painted is the intersection of
-	 * 'region' and 'surf_region'. However, 'region' is in the global
-	 * coordinates, and 'surf_region' is in the surface-local
-	 * coordinates. texture_region() will iterate over all pairs of
-	 * rectangles from both regions, compute the intersection
-	 * polygon for each pair, and store it as a triangle fan if
-	 * it has a non-zero area (at least 3 vertices, actually).
-	 */
-	nfans = texture_region(pnode, region, surf_region);
-
-	v = gr->vertices.data;
-	vtxcnt = gr->vtxcnt.data;
-
-	/* position: */
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof *v, v);
-
-	if (!gl_renderer_use_program(gr, sconf)) {
-		gl_renderer_send_shader_error(pnode);
-		/* continue drawing with the fallback shader */
-	}
-
-	for (i = 0, first = 0; i < nfans; i++) {
-		glDrawArrays(GL_TRIANGLE_FAN, first, vtxcnt[i]);
-		if (gr->fan_debug)
-			triangle_fan_debug(gr, sconf, output, first, vtxcnt[i]);
-		first += vtxcnt[i];
-	}
-
-	gr->vertices.size = 0;
-	gr->vtxcnt.size = 0;
 }
 
 static int
@@ -1145,10 +1159,12 @@ ensure_surface_buffer_is_ready(struct gl_renderer *gr,
 }
 
 static void
-censor_override(struct gl_shader_config *sconf,
-		struct weston_output *output)
+prepare_placeholder(struct gl_shader_config *sconf,
+		    struct weston_paint_node *pnode)
 {
 	struct weston_color_transform *ctransf;
+	struct weston_output *output = pnode->output;
+	struct gl_renderer *gr = get_renderer(output->compositor);
 	struct gl_shader_config alt = {
 		.req = {
 			.variant = SHADER_VARIANT_SOLID,
@@ -1156,56 +1172,20 @@ censor_override(struct gl_shader_config *sconf,
 		},
 		.projection = sconf->projection,
 		.view_alpha = sconf->view_alpha,
-		.unicolor = { 0.40, 0.0, 0.0, 1.0 },
+		.unicolor = { pnode->solid.r,
+			      pnode->solid.g,
+			      pnode->solid.b,
+			      pnode->solid.a,
+		},
 	};
-
 	ctransf = output->color_outcome->from_sRGB_to_blend;
-	if (!gl_shader_config_set_color_transform(&alt, ctransf)) {
+	if (!gl_shader_config_set_color_transform(gr, &alt, ctransf)) {
 		weston_log("GL-renderer: %s failed to generate a color transformation.\n",
 			   __func__);
 	}
 
 	*sconf = alt;
 }
-
- /* Checks if a view needs to be censored on an output
-  * Checks for 2 types of censor requirements
-  * - recording_censor: Censor protected view when a
-  *   protected view is captured.
-  * - unprotected_censor: Censor regions of protected views
-  *   when displayed on an output which has lower protection capability.
-  * If censoring is needed, smashes the GL shader config.
-  */
-static void
-maybe_censor_override(struct gl_shader_config *sconf,
-		      struct weston_paint_node *pnode)
-{
-	struct weston_output *output = pnode->output;
-	struct weston_surface *surface = pnode->surface;
-	struct gl_surface_state *gs = get_surface_state(surface);
-	struct weston_buffer *buffer = gs->buffer_ref.buffer;
-	bool recording_censor =
-		(output->disable_planes > 0) &&
-		(surface->desired_protection > WESTON_HDCP_DISABLE);
-
-	bool unprotected_censor =
-		(surface->desired_protection > output->current_protection);
-
-	if (buffer->direct_display) {
-		censor_override(sconf, output);
-		return;
-	}
-
-	/* When not in enforced mode, the client is notified of the protection */
-	/* change, so content censoring is not required */
-	if (surface->protection_mode !=
-	    WESTON_SURFACE_PROTECTION_MODE_ENFORCED)
-		return;
-
-	if (recording_censor || unprotected_censor)
-		censor_override(sconf, output);
-}
-
 static void
 gl_shader_config_set_input_textures(struct gl_shader_config *sconf,
 				    struct gl_surface_state *gs)
@@ -1214,16 +1194,16 @@ gl_shader_config_set_input_textures(struct gl_shader_config *sconf,
 	int i;
 
 	sconf->req.variant = gb->shader_variant;
+	sconf->req.color_channel_order = gb->gl_channel_order;
 	sconf->req.input_is_premult =
 		gl_shader_texture_variant_can_be_premult(gb->shader_variant);
 
-	for (i = 0; i < 4; i++)
-		sconf->unicolor[i] = gb->color[i];
+	copy_uniform4f(sconf->unicolor, gb->color);
 
-	assert(gb->num_textures <= GL_SHADER_INPUT_TEX_MAX);
+	assert(gb->num_textures <= SHADER_INPUT_TEX_MAX);
 	for (i = 0; i < gb->num_textures; i++)
 		sconf->input_tex[i] = gb->textures[i];
-	for (; i < GL_SHADER_INPUT_TEX_MAX; i++)
+	for (; i < SHADER_INPUT_TEX_MAX; i++)
 		sconf->input_tex[i] = 0;
 }
 
@@ -1232,6 +1212,7 @@ gl_shader_config_init_for_paint_node(struct gl_shader_config *sconf,
 				     struct weston_paint_node *pnode,
 				     GLint filter)
 {
+	struct gl_renderer *gr = get_renderer(pnode->surface->compositor);
 	struct gl_surface_state *gs = get_surface_state(pnode->surface);
 	struct gl_output_state *go = get_output_state(pnode->output);
 	struct weston_buffer *buffer = gs->buffer_ref.buffer;
@@ -1257,18 +1238,354 @@ gl_shader_config_init_for_paint_node(struct gl_shader_config *sconf,
 	} else {
 		weston_matrix_scale(&sconf->surface_to_buffer,
 				    1.0f / buffer->width,
-				    -1.0f / buffer->height, 1);
+				    go->y_flip / buffer->height, 1);
 		weston_matrix_translate(&sconf->surface_to_buffer, 0, 1, 0);
 	}
 
 	gl_shader_config_set_input_textures(sconf, gs);
 
-	if (!gl_shader_config_set_color_transform(sconf, pnode->surf_xform.transform)) {
+	if (!gl_shader_config_set_color_transform(gr, sconf, pnode->surf_xform.transform)) {
 		weston_log("GL-renderer: failed to generate a color transformation.\n");
 		return false;
 	}
 
 	return true;
+}
+
+/* A Pixman region is implemented as a "y-x-banded" array of rectangles sorted
+ * first vertically and then horizontally. This means that if 2 rectangles with
+ * different y coordinates share a group of scanlines, both rectangles will be
+ * split into 2 more rectangles with sharing edges. While Pixman coalesces
+ * rectangles in horizontal bands whenever possible, this function merges
+ * vertical bands.
+ */
+static int
+compress_bands(pixman_box32_t *inrects, int nrects, pixman_box32_t **outrects)
+{
+	pixman_box32_t *out;
+	int i, j, nout;
+
+	assert(nrects > 0);
+
+	/* nrects is an upper bound - we're not too worried about
+	 * allocating a little extra
+	 */
+	out = malloc(sizeof(pixman_box32_t) * nrects);
+	out[0] = inrects[0];
+	nout = 1;
+	for (i = 1; i < nrects; i++) {
+		for (j = 0; j < nout; j++) {
+			if (inrects[i].x1 == out[j].x1 &&
+			    inrects[i].x2 == out[j].x2 &&
+			    inrects[i].y1 == out[j].y2) {
+				out[j].y2 = inrects[i].y2;
+				goto merged;
+			}
+		}
+		out[nout] = inrects[i];
+		nout++;
+	merged: ;
+	}
+	*outrects = out;
+	return nout;
+}
+
+static void
+global_to_surface(pixman_box32_t *rect, struct weston_view *ev,
+		  struct clipper_vertex polygon[4])
+{
+	struct weston_coord_global rect_g[4] = {
+		{ .c = weston_coord(rect->x1, rect->y1) },
+		{ .c = weston_coord(rect->x2, rect->y1) },
+		{ .c = weston_coord(rect->x2, rect->y2) },
+		{ .c = weston_coord(rect->x1, rect->y2) },
+	};
+	struct weston_coord rect_s;
+	int i;
+
+	for (i = 0; i < 4; i++) {
+		rect_s = weston_coord_global_to_surface(ev, rect_g[i]).c;
+		polygon[i].x = (float)rect_s.x;
+		polygon[i].y = (float)rect_s.y;
+	}
+}
+
+/* Transform damage 'region' in global coordinates to damage 'quads' in surface
+ * coordinates. 'quads' and 'nquads' are output arguments set if 'quads' is
+ * NULL, no transformation happens otherwise. Caller must free 'quads' if
+ * set. Caller must ensure 'region' is not empty.
+ */
+static void
+transform_damage(const struct weston_paint_node *pnode,
+		 pixman_region32_t *region,
+		 struct clipper_quad **quads,
+		 int *nquads)
+{
+	pixman_box32_t *rects;
+	int nrects, i;
+	bool compress, axis_aligned;
+	struct clipper_quad *quads_alloc;
+	struct clipper_vertex polygon[4];
+	struct weston_view *view;
+
+	if (*quads)
+		return;
+
+	rects = pixman_region32_rectangles(region, &nrects);
+	compress = nrects >= 4;
+	if (compress)
+		nrects = compress_bands(rects, nrects, &rects);
+
+	assert(nrects > 0);
+	*quads = quads_alloc = malloc(nrects * sizeof *quads_alloc);
+	*nquads = nrects;
+
+	/* All the damage rects are axis-aligned in global space. This implies
+	 * that all the horizontal and vertical edges are respectively parallel
+	 * to each other. Because affine transformations preserve parallelism we
+	 * can safely assume that if the node's output matrix is affine and
+	 * stores standard output transforms (translations, flips and rotations
+	 * by 90°), then all the transformed quads are axis-aligned in surface
+	 * space. */
+	view = pnode->view;
+	axis_aligned = pnode->valid_transform;
+	for (i = 0; i < nrects; i++) {
+		global_to_surface(&rects[i], view, polygon);
+		clipper_quad_init(&quads_alloc[i], polygon, axis_aligned);
+	}
+
+	if (compress)
+		free(rects);
+}
+
+/* Set barycentric coordinates of a sub-mesh of 'count' vertices. 8 barycentric
+ * coordinates (32 bytes too) are stored unconditionally into
+ * 'barycentric_stream'.
+ */
+static void
+store_wireframes(size_t count,
+		 uint32_t *barycentric_stream)
+{
+	const uint32_t x = 0xff0000, y = 0x00ff00, z = 0x0000ff;
+	static const uint32_t barycentrics[][8] = {
+		{}, {}, {},
+		{ x, z, y, 0, 0, 0, 0, 0 },
+		{ x, z, x, y, 0, 0, 0, 0 },
+		{ x, z, y, x, y, 0, 0, 0 },
+		{ x, z, y, z, x, y, 0, 0 },
+		{ x, z, y, x, z, x, y, 0 },
+		{ x, z, y, x, y, z, x, y },
+	};
+	int i;
+
+	assert(count < ARRAY_LENGTH(barycentrics));
+
+	for (i = 0; i < 8; i++)
+		barycentric_stream[i] = barycentrics[count][i];
+}
+
+/* Triangulate a sub-mesh of 'count' vertices as an indexed triangle strip.
+ * 'bias' is added to each index. In order to chain sub-meshes, the last index
+ * is followed by 2 indices creating 4 degenerate triangles. 'count' must be
+ * less than or equal to 8. 16 indices (32 bytes) are stored unconditionally
+ * into 'indices'. The return value is the index count, including the 2 chaining
+ * indices.
+ */
+static int
+store_indices(size_t count,
+	      uint16_t bias,
+	      uint16_t *indices)
+ {
+	/* Look-up table of triangle strips with last entry storing the index
+	 * count. Padded to 16 elements for compilers to emit packed adds. */
+	static const uint16_t strips[][16] = {
+		{}, {}, {},
+		{ 0, 2, 1, 1, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  5 },
+		{ 0, 3, 1, 2, 2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0,  6 },
+		{ 0, 4, 1, 3, 2, 2, 5, 0, 0, 0, 0, 0, 0, 0, 0,  7 },
+		{ 0, 5, 1, 4, 2, 3, 3, 6, 0, 0, 0, 0, 0, 0, 0,  8 },
+		{ 0, 6, 1, 5, 2, 4, 3, 3, 7, 0, 0, 0, 0, 0, 0,  9 },
+		{ 0, 7, 1, 6, 2, 5, 3, 4, 4, 8, 0, 0, 0, 0, 0, 10 },
+	};
+	int i;
+
+	assert(count < ARRAY_LENGTH(strips));
+
+	for (i = 0; i < 16; i++)
+		indices[i] = strips[count][i] + bias;
+
+	return strips[count][15];
+}
+
+static void
+set_debug_mode(struct gl_renderer *gr,
+	       struct gl_shader_config *sconf,
+	       const uint32_t *barycentrics,
+	       bool opaque)
+{
+	/* Debug mode tints indexed by gl_debug_mode enumeration. While tints
+	 * are meant to be premultiplied, debug modes can have invalid colors in
+	 * order to create visual effects. */
+	static const float tints[DEBUG_MODE_LAST][4] = {
+		{},                           /* DEBUG_MODE_NONE */
+		{ 0.0f, 0.0f, 0.0f, 0.3f },   /* DEBUG_MODE_WIREFRAME */
+		{},                           /* DEBUG_MODE_BATCHES */
+		{ 0.4f, -0.4f, -0.4f, 0.0f }, /* DEBUG_MODE_DAMAGE */
+		{ -0.4f, -0.4f, 0.7f, 0.0f }, /* DEBUG_MODE_OPAQUE */
+	};
+	static const float batch_tints[][4] = {
+		{ 0.9f, 0.0f, 0.0f, 0.9f },
+		{ 0.0f, 0.9f, 0.0f, 0.9f },
+		{ 0.0f, 0.0f, 0.9f, 0.9f },
+		{ 0.9f, 0.9f, 0.0f, 0.9f },
+		{ 0.9f, 0.0f, 0.9f, 0.9f },
+		{ 0.0f, 0.9f, 0.9f, 0.9f },
+		{ 0.9f, 0.9f, 0.9f, 0.9f },
+	};
+	int i;
+
+	switch (gr->debug_mode) {
+	case DEBUG_MODE_WIREFRAME:
+		/* Wireframe rendering is based on Celes & Abraham's "Fast and
+		 * versatile texture-based wireframe rendering", 2011. */
+		sconf->req.wireframe = true;
+		sconf->wireframe_tex = gr->wireframe_tex;
+		glEnableVertexAttribArray(SHADER_ATTRIB_LOC_BARYCENTRIC);
+		glVertexAttribPointer(SHADER_ATTRIB_LOC_BARYCENTRIC, 4,
+				      GL_UNSIGNED_BYTE, GL_TRUE, 0,
+				      barycentrics);
+		FALLTHROUGH;
+
+	case DEBUG_MODE_DAMAGE:
+		sconf->req.tint = true;
+		copy_uniform4f(sconf->tint, tints[gr->debug_mode]);
+		break;
+
+	case DEBUG_MODE_OPAQUE:
+		sconf->req.tint = opaque;
+		copy_uniform4f(sconf->tint, tints[gr->debug_mode]);
+		break;
+
+	case DEBUG_MODE_BATCHES:
+		sconf->req.tint = true;
+		i = gr->nbatches++ % ARRAY_LENGTH(batch_tints);
+		copy_uniform4f(sconf->tint, batch_tints[i]);
+		break;
+
+	default:
+		unreachable("Invalid debug mode");
+	}
+}
+
+static void
+draw_mesh(struct gl_renderer *gr,
+	  struct weston_paint_node *pnode,
+	  struct gl_shader_config *sconf,
+	  const struct clipper_vertex *positions,
+	  const uint32_t *barycentrics,
+	  const uint16_t *indices,
+	  int nidx,
+	  bool opaque)
+{
+	assert(nidx > 0);
+
+	if (gr->debug_mode)
+		set_debug_mode(gr, sconf, barycentrics, opaque);
+
+	if (!gl_renderer_use_program(gr, sconf))
+		gl_renderer_send_shader_error(pnode); /* Use fallback shader. */
+
+	glVertexAttribPointer(SHADER_ATTRIB_LOC_POSITION, 2, GL_FLOAT, GL_FALSE,
+			      0, positions);
+	glDrawElements(GL_TRIANGLE_STRIP, nidx, GL_UNSIGNED_SHORT, indices);
+
+	if (gr->debug_mode == DEBUG_MODE_WIREFRAME)
+		glDisableVertexAttribArray(SHADER_ATTRIB_LOC_BARYCENTRIC);
+}
+
+static void
+repaint_region(struct gl_renderer *gr,
+	       struct weston_paint_node *pnode,
+	       struct clipper_quad *quads,
+	       int nquads,
+	       pixman_region32_t *region,
+	       struct gl_shader_config *sconf,
+	       bool opaque)
+{
+	pixman_box32_t *rects;
+	struct clipper_vertex *positions;
+	uint32_t *barycentrics = NULL;
+	uint16_t *indices;
+	int i, j, n, nrects, positions_size, barycentrics_size, indices_size;
+	int nvtx = 0, nidx = 0;
+	bool wireframe = gr->debug_mode == DEBUG_MODE_WIREFRAME;
+
+	/* Build-time sub-mesh constants. Clipping emits 8 vertices max.
+	 * store_indices() store at most 10 indices. */
+	const int nvtx_max = 8;
+	const int nidx_max = 10;
+
+	rects = pixman_region32_rectangles(region, &nrects);
+	assert((nrects > 0) && (nquads > 0));
+
+	/* Worst case allocation sizes per sub-mesh. */
+	n = nquads * nrects;
+	positions_size = n * nvtx_max * sizeof *positions;
+	barycentrics_size = ROUND_UP_N(n * nvtx_max * sizeof *barycentrics, 32);
+	indices_size = ROUND_UP_N(n * nidx_max * sizeof *indices, 32);
+
+	positions = wl_array_add(&gr->position_stream, positions_size);
+	indices = wl_array_add(&gr->indices, indices_size);
+	if (wireframe)
+		barycentrics = wl_array_add(&gr->barycentric_stream,
+					    barycentrics_size);
+
+	/* A node's damage mesh is created by clipping damage quads to surface
+	 * rects and by chaining the resulting sub-meshes into an indexed
+	 * triangle strip. Damage quads are transformed to surface space in a
+	 * prior pass for clipping to take place there. A surface rect is always
+	 * axis-aligned in surface space. In the common (and fast) case, a
+	 * damage quad is axis-aligned and clipping generates an axis-aligned
+	 * rectangle. When a damage quad isn't axis-aligned, clipping generates
+	 * a convex [3,8]-gon. No vertices are generated if the intersection is
+	 * empty.
+	 *
+	 *   0 -------- 1        Clipped vertices are emitted using quads'
+	 *   !     _.-'/ '.      clockwise winding order. Sub-meshes are then
+	 *   ! _.-'   /    '.    triangulated by zigzagging between the first
+	 *   5       /       2   and last emitted vertices, ending up with a
+	 *    '.    /    _.-'!   counter-clockwise winding order.
+	 *      '. / _.-'    !
+	 *        4 -------- 3   Triangle strip: 0, 5, 1, 4, 2, 3.
+	 */
+	for (i = 0; i < nquads; i++) {
+		for (j = 0; j < nrects; j++) {
+			n = clipper_quad_clip_box32(&quads[i], &rects[j],
+						    &positions[nvtx]);
+			nidx += store_indices(n, nvtx, &indices[nidx]);
+			if (wireframe)
+				store_wireframes(n, &barycentrics[nvtx]);
+			nvtx += n;
+
+			/* Highly unlikely flush to prevent index wraparound.
+			 * Subtracting 2 removes the last chaining indices. */
+			if ((nvtx + nvtx_max) > UINT16_MAX) {
+				draw_mesh(gr, pnode, sconf, positions,
+					  barycentrics, indices, nidx - 2,
+					  opaque);
+				nvtx = nidx = 0;
+			}
+		}
+	}
+
+	if (nvtx)
+		draw_mesh(gr, pnode, sconf, positions, barycentrics, indices,
+			  nidx - 2, opaque);
+
+	gr->position_stream.size = 0;
+	gr->indices.size = 0;
+	if (wireframe)
+		gr->barycentric_stream.size = 0;
 }
 
 static void
@@ -1287,6 +1604,8 @@ draw_paint_node(struct weston_paint_node *pnode,
 	pixman_region32_t surface_blend;
 	GLint filter;
 	struct gl_shader_config sconf;
+	struct clipper_quad *quads = NULL;
+	int nquads;
 
 	if (gb->shader_variant == SHADER_VARIANT_NONE &&
 	    !buffer->direct_display)
@@ -1298,7 +1617,7 @@ draw_paint_node(struct weston_paint_node *pnode,
 	if (!pixman_region32_not_empty(&repaint))
 		goto out;
 
-	if (ensure_surface_buffer_is_ready(gr, gs) < 0)
+	if (!pnode->draw_solid && ensure_surface_buffer_is_ready(gr, gs) < 0)
 		goto out;
 
 	if (pnode->needs_filtering)
@@ -1309,6 +1628,21 @@ draw_paint_node(struct weston_paint_node *pnode,
 	if (!gl_shader_config_init_for_paint_node(&sconf, pnode, filter))
 		goto out;
 
+	/* XXX: Should we be using ev->transform.opaque here? */
+	if (pnode->is_fully_opaque)
+		pixman_region32_init_rect(&surface_opaque, 0, 0,
+					  pnode->surface->width,
+					  pnode->surface->height);
+	else {
+		pixman_region32_init(&surface_opaque);
+		pixman_region32_copy(&surface_opaque, &pnode->surface->opaque);
+	}
+
+	if (pnode->view->geometry.scissor_enabled)
+		pixman_region32_intersect(&surface_opaque,
+					  &surface_opaque,
+					  &pnode->view->geometry.scissor);
+
 	/* blended region is whole surface minus opaque region: */
 	pixman_region32_init_rect(&surface_blend, 0, 0,
 				  pnode->surface->width, pnode->surface->height);
@@ -1316,18 +1650,10 @@ draw_paint_node(struct weston_paint_node *pnode,
 		pixman_region32_intersect(&surface_blend, &surface_blend,
 					  &pnode->view->geometry.scissor);
 	pixman_region32_subtract(&surface_blend, &surface_blend,
-				 &pnode->surface->opaque);
+				 &surface_opaque);
 
-	/* XXX: Should we be using ev->transform.opaque here? */
-	pixman_region32_init(&surface_opaque);
-	if (pnode->view->geometry.scissor_enabled)
-		pixman_region32_intersect(&surface_opaque,
-					  &pnode->surface->opaque,
-					  &pnode->view->geometry.scissor);
-	else
-		pixman_region32_copy(&surface_opaque, &pnode->surface->opaque);
-
-	maybe_censor_override(&sconf, pnode);
+	if (pnode->draw_solid)
+		prepare_placeholder(&sconf, pnode);
 
 	if (pixman_region32_not_empty(&surface_opaque)) {
 		struct gl_shader_config alt = sconf;
@@ -1346,15 +1672,22 @@ draw_paint_node(struct weston_paint_node *pnode,
 		else
 			glDisable(GL_BLEND);
 
-		repaint_region(gr, pnode, &repaint, &surface_opaque, &alt);
+		transform_damage(pnode, &repaint, &quads, &nquads);
+		repaint_region(gr, pnode, quads, nquads, &surface_opaque, &alt,
+			       true);
 		gs->used_in_output_repaint = true;
 	}
 
 	if (pixman_region32_not_empty(&surface_blend)) {
 		glEnable(GL_BLEND);
-		repaint_region(gr, pnode, &repaint, &surface_blend, &sconf);
+		transform_damage(pnode, &repaint, &quads, &nquads);
+		repaint_region(gr, pnode, quads, nquads, &surface_blend, &sconf,
+			       false);
 		gs->used_in_output_repaint = true;
 	}
+
+	if (quads)
+		free(quads);
 
 	pixman_region32_fini(&surface_blend);
 	pixman_region32_fini(&surface_opaque);
@@ -1366,18 +1699,22 @@ out:
 static void
 repaint_views(struct weston_output *output, pixman_region32_t *damage)
 {
+	struct gl_renderer *gr = get_renderer(output->compositor);
 	struct weston_paint_node *pnode;
 
+	gr->nbatches = 0;
+
 	glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(SHADER_ATTRIB_LOC_POSITION);
 
 	wl_list_for_each_reverse(pnode, &output->paint_node_z_order_list,
 				 z_order_link) {
-		if (pnode->plane == &output->primary_plane)
+		if (pnode->plane == &output->primary_plane ||
+		    pnode->need_hole)
 			draw_paint_node(pnode, damage);
 	}
 
-	glDisableVertexAttribArray(0);
+	glDisableVertexAttribArray(SHADER_ATTRIB_LOC_POSITION);
 }
 
 static int
@@ -1395,7 +1732,6 @@ update_buffer_release_fences(struct weston_compositor *compositor,
 
 	wl_list_for_each_reverse(pnode, &output->paint_node_z_order_list,
 				 z_order_link) {
-		struct weston_view *view = pnode->view;
 		struct gl_surface_state *gs;
 		struct weston_buffer_release *buffer_release;
 		int fence_fd;
@@ -1403,7 +1739,10 @@ update_buffer_release_fences(struct weston_compositor *compositor,
 		if (pnode->plane != &output->primary_plane)
 			continue;
 
-		gs = get_surface_state(view->surface);
+		if (pnode->draw_solid)
+			continue;
+
+		gs = get_surface_state(pnode->surface);
 		buffer_release = gs->buffer_release_ref.buffer_release;
 
 		if (!gs->used_in_output_repaint || !buffer_release)
@@ -1449,6 +1788,58 @@ update_buffer_release_fences(struct weston_compositor *compositor,
 	}
 }
 
+/* Update the wireframe texture. The texture is either created, deleted or
+ * resized depending on the wireframe debugging state and the area.
+ */
+static void
+update_wireframe_tex(struct gl_renderer *gr,
+		     const struct weston_geometry *area)
+{
+	int new_size, i;
+	uint8_t *buffer;
+
+	if (gr->debug_mode != DEBUG_MODE_WIREFRAME) {
+		if (gr->wireframe_size) {
+			glDeleteTextures(1, &gr->wireframe_tex);
+			gr->wireframe_size = 0;
+		}
+		return;
+	}
+
+	/* Texture size at mip level 0 should be at least as large as the area
+	 * in order to correctly anti-alias triangles covering it entirely. */
+	glGetIntegerv(GL_MAX_TEXTURE_SIZE, &new_size);
+	new_size = MIN(round_up_pow2_32(MAX(area->width, area->height)),
+		       round_down_pow2_32(new_size));
+	if (new_size <= gr->wireframe_size)
+		return;
+
+	glActiveTexture(GL_TEXTURE0 + TEX_UNIT_WIREFRAME);
+	if (gr->wireframe_size == 0) {
+		glGenTextures(1, &gr->wireframe_tex);
+		glBindTexture(GL_TEXTURE_2D, gr->wireframe_tex);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
+				GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,
+				GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+				GL_LINEAR_MIPMAP_LINEAR);
+	} else {
+		glBindTexture(GL_TEXTURE_2D, gr->wireframe_tex);
+	}
+	gr->wireframe_size = new_size;
+
+	/* Generate mip chain with a wireframe thickness of 1.0. */
+	buffer = xzalloc(new_size);
+	buffer[0] = 0xff;
+	for (i = 0; new_size; i++, new_size >>= 1)
+		glTexImage2D(GL_TEXTURE_2D, i, GL_LUMINANCE, new_size, 1, 0,
+			     GL_LUMINANCE, GL_UNSIGNED_BYTE, buffer);
+	free(buffer);
+
+	glActiveTexture(GL_TEXTURE0);
+}
+
 static void
 draw_output_border_texture(struct gl_renderer *gr,
 			   struct gl_output_state *go,
@@ -1481,14 +1872,10 @@ draw_output_border_texture(struct gl_renderer *gr,
 		glBindTexture(GL_TEXTURE_2D, img->tex);
 	}
 
-	if (go->border_status & (1 << side)) {
-		glPixelStorei(GL_UNPACK_ROW_LENGTH_EXT, 0);
-		glPixelStorei(GL_UNPACK_SKIP_PIXELS_EXT, 0);
-		glPixelStorei(GL_UNPACK_SKIP_ROWS_EXT, 0);
+	if (go->border_status & (1 << side))
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_BGRA_EXT,
 			     img->tex_width, img->height, 0,
 			     GL_BGRA_EXT, GL_UNSIGNED_BYTE, img->data);
-	}
 
 	sconf->input_tex_filter = GL_NEAREST;
 	sconf->input_tex[0] = img->tex;
@@ -1501,15 +1888,17 @@ draw_output_border_texture(struct gl_renderer *gr,
 		0.0f, 1.0f,
 	};
 
-	GLfloat verts[] = {
+	GLfloat position[] = {
 		x, y,
 		x + width, y,
 		x + width, y + height,
 		x, y + height
 	};
 
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, verts);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, texcoord);
+	glVertexAttribPointer(SHADER_ATTRIB_LOC_POSITION, 2, GL_FLOAT, GL_FALSE,
+			      0, position);
+	glVertexAttribPointer(SHADER_ATTRIB_LOC_TEXCOORD, 2, GL_FLOAT, GL_FALSE,
+			      0, texcoord);
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, indices);
 }
 
@@ -1587,7 +1976,7 @@ draw_output_borders(struct weston_output *output,
 		return; /* Clean. Nothing to do. */
 
 	ctransf = output->color_outcome->from_sRGB_to_output;
-	if (!gl_shader_config_set_color_transform(&sconf, ctransf)) {
+	if (!gl_shader_config_set_color_transform(gr, &sconf, ctransf)) {
 		weston_log("GL-renderer: %s failed to generate a color transformation.\n", __func__);
 		return;
 	}
@@ -1599,11 +1988,10 @@ draw_output_borders(struct weston_output *output,
 	weston_matrix_translate(&sconf.projection,
 				-fb->width / 2.0, -fb->height / 2.0, 0);
 	weston_matrix_scale(&sconf.projection,
-			    2.0 / fb->width, -2.0 / fb->height, 1);
+			    2.0 / fb->width, go->y_flip * 2.0 / fb->height, 1);
 
-	glActiveTexture(GL_TEXTURE0);
-	glEnableVertexAttribArray(0);
-	glEnableVertexAttribArray(1);
+	glEnableVertexAttribArray(SHADER_ATTRIB_LOC_POSITION);
+	glEnableVertexAttribArray(SHADER_ATTRIB_LOC_TEXCOORD);
 
 	for (side = 0; side < 4; side++) {
 		struct weston_geometry g;
@@ -1616,8 +2004,8 @@ draw_output_borders(struct weston_output *output,
 					   g.x, g.y, g.width, g.height);
 	}
 
-	glDisableVertexAttribArray(1);
-	glDisableVertexAttribArray(0);
+	glDisableVertexAttribArray(SHADER_ATTRIB_LOC_TEXCOORD);
+	glDisableVertexAttribArray(SHADER_ATTRIB_LOC_POSITION);
 }
 
 static void
@@ -1720,14 +2108,14 @@ output_get_dummy_renderbuffer(struct weston_output *output)
  *
  * @param output The output whose co-ordinate space we are after
  * @param global_region The affected region in global co-ordinate space
- * @param[out] rects Y-inverted quads in {x,y,w,h} order; caller must free
+ * @param[out] rects quads in {x,y,w,h} order; caller must free
  * @param[out] nrects Number of quads (4x number of co-ordinates)
  */
 static void
-pixman_region_to_egl_y_invert(struct weston_output *output,
-			      struct pixman_region32 *global_region,
-			      EGLint **rects,
-			      EGLint *nrects)
+pixman_region_to_egl(struct weston_output *output,
+		     struct pixman_region32 *global_region,
+		     EGLint **rects,
+		     EGLint *nrects)
 {
 	struct gl_output_state *go = get_output_state(output);
 	pixman_region32_t transformed;
@@ -1751,15 +2139,17 @@ pixman_region_to_egl_y_invert(struct weston_output *output,
 					 &transformed);
 	}
 
-	/* Convert from a Pixman region into {x,y,w,h} quads, flipping in the
-	 * Y axis to account for GL's lower-left-origin co-ordinate space. */
+	/* Convert from a Pixman region into {x,y,w,h} quads, potentially
+	 * flipping in the Y axis to account for GL's lower-left-origin
+	 * coordinate space if the output uses the GL coordinate space. */
 	box = pixman_region32_rectangles(&transformed, nrects);
 	*rects = malloc(*nrects * 4 * sizeof(EGLint));
 
 	d = *rects;
 	for (i = 0; i < *nrects; ++i) {
 		*d++ = box[i].x1;
-		*d++ = go->fb_size.height - box[i].y2;
+		*d++ = is_y_flipped(go) ?
+		       go->fb_size.height - box[i].y2 : box[i].y1;
 		*d++ = box[i].x2 - box[i].x1;
 		*d++ = box[i].y2 - box[i].y1;
 	}
@@ -1779,10 +2169,10 @@ blit_shadow_to_output(struct weston_output *output,
 		},
 		.projection = {
 			.d = { /* transpose */
-				 2.0f,  0.0f, 0.0f, 0.0f,
-				 0.0f,  2.0f, 0.0f, 0.0f,
-				 0.0f,  0.0f, 1.0f, 0.0f,
-				-1.0f, -1.0f, 0.0f, 1.0f
+				 2.0f,	0.0f,              0.0f, 0.0f,
+				 0.0f,  go->y_flip * 2.0f, 0.0f, 0.0f,
+				 0.0f,  0.0f,              1.0f, 0.0f,
+				-1.0f, -go->y_flip,        0.0f, 1.0f
 			},
 			.type = WESTON_MATRIX_TRANSFORM_SCALE |
 				WESTON_MATRIX_TRANSFORM_TRANSLATE,
@@ -1799,10 +2189,11 @@ blit_shadow_to_output(struct weston_output *output,
 	int n_rects;
 	int i;
 	pixman_region32_t translated_damage;
-	GLfloat verts[4 * 2];
+	struct { GLfloat x, y; } position[4];
+	struct { GLfloat s, t; } texcoord[4];
 
 	ctransf = output->color_outcome->from_blend_to_output;
-	if (!gl_shader_config_set_color_transform(&sconf, ctransf)) {
+	if (!gl_shader_config_set_color_transform(gr, &sconf, ctransf)) {
 		weston_log("GL-renderer: %s failed to generate a color transformation.\n", __func__);
 		return;
 	}
@@ -1819,32 +2210,46 @@ blit_shadow_to_output(struct weston_output *output,
 	weston_region_global_to_output(&translated_damage, output,
 				       &translated_damage);
 
-	glEnableVertexAttribArray(0);
-	glEnableVertexAttribArray(1);
+	glEnableVertexAttribArray(SHADER_ATTRIB_LOC_POSITION);
+	glEnableVertexAttribArray(SHADER_ATTRIB_LOC_TEXCOORD);
 
 	rects = pixman_region32_rectangles(&translated_damage, &n_rects);
 	for (i = 0; i < n_rects; i++) {
+		const GLfloat x1 = rects[i].x1 / width;
+		const GLfloat x2 = rects[i].x2 / width;
+		const GLfloat y1 = rects[i].y1 / height;
+		const GLfloat y2 = rects[i].y2 / height;
+		const GLfloat y1_flipped = 1.0f - y1;
+		const GLfloat y2_flipped = 1.0f - y2;
 
-		verts[0] = rects[i].x1 / width;
-		verts[1] = (height - rects[i].y1) / height;
-		verts[2] = rects[i].x2 / width;
-		verts[3] = (height - rects[i].y1) / height;
+		position[0].x = x1;
+		position[0].y = y1;
+		position[1].x = x2;
+		position[1].y = y1;
+		position[2].x = x2;
+		position[2].y = y2;
+		position[3].x = x1;
+		position[3].y = y2;
 
-		verts[4] = rects[i].x2 / width;
-		verts[5] = (height - rects[i].y2) / height;
-		verts[6] = rects[i].x1 / width;
-		verts[7] = (height - rects[i].y2) / height;
+		texcoord[0].s = x1;
+		texcoord[0].t = is_y_flipped(go) ?  y1_flipped : y1;
+		texcoord[1].s = x2;
+		texcoord[1].t = is_y_flipped(go) ?  y1_flipped : y1;
+		texcoord[2].s = x2;
+		texcoord[2].t = is_y_flipped(go) ?  y2_flipped : y2;
+		texcoord[3].s = x1;
+		texcoord[3].t = is_y_flipped(go) ?  y2_flipped : y2;
 
-		/* position: */
-		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, verts);
-		/* texcoord: */
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, verts);
+		glVertexAttribPointer(SHADER_ATTRIB_LOC_POSITION, 2, GL_FLOAT,
+				      GL_FALSE, 0, position);
 
+		glVertexAttribPointer(SHADER_ATTRIB_LOC_TEXCOORD, 2, GL_FLOAT,
+				      GL_FALSE, 0, texcoord);
 		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	}
 
-	glDisableVertexAttribArray(1);
-	glDisableVertexAttribArray(0);
+	glDisableVertexAttribArray(SHADER_ATTRIB_LOC_TEXCOORD);
+	glDisableVertexAttribArray(SHADER_ATTRIB_LOC_POSITION);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 	pixman_region32_fini(&translated_damage);
@@ -1868,8 +2273,8 @@ gl_renderer_repaint_output(struct weston_output *output,
 	struct gl_renderer *gr = get_renderer(compositor);
 	static int errored;
 	struct weston_paint_node *pnode;
-	const int32_t area_inv_y =
-		go->fb_size.height - go->area.y - go->area.height;
+	const int32_t area_y =
+		is_y_flipped(go) ? go->fb_size.height - go->area.height - go->area.y : go->area.y;
 	struct gl_renderbuffer *rb;
 
 	assert(output->from_blend_to_output_by_backend ||
@@ -1898,7 +2303,7 @@ gl_renderer_repaint_output(struct weston_output *output,
 				 z_order_link) {
 		if (pnode->plane == &output->primary_plane) {
 			struct gl_surface_state *gs =
-				get_surface_state(pnode->view->surface);
+				get_surface_state(pnode->surface);
 			gs->used_in_output_repaint = false;
 		}
 	}
@@ -1912,7 +2317,7 @@ gl_renderer_repaint_output(struct weston_output *output,
 				-(go->area.height / 2.0), 0);
 	weston_matrix_scale(&go->output_matrix,
 			    2.0 / go->area.width,
-			    -2.0 / go->area.height, 1);
+			    go->y_flip * 2.0 / go->area.height, 1);
 
 	/* If using shadow, redirect all drawing to it first. */
 	if (shadow_exists(go)) {
@@ -1920,34 +2325,43 @@ gl_renderer_repaint_output(struct weston_output *output,
 		glViewport(0, 0, go->area.width, go->area.height);
 	} else {
 		glBindFramebuffer(GL_FRAMEBUFFER, rb->fbo);
-		glViewport(go->area.x, area_inv_y,
+		glViewport(go->area.x, area_y,
 			   go->area.width, go->area.height);
 	}
 
-	/* In fan debug mode, redraw everything to make sure that we clear any
-	 * fans left over from previous draws on this buffer.
-	 * This precludes the use of EGL_EXT_swap_buffers_with_damage and
-	 * EGL_KHR_partial_update, since we damage the whole area. */
-	if (gr->fan_debug) {
+	if (gr->wireframe_dirty) {
+		update_wireframe_tex(gr, &go->area);
+		gr->wireframe_dirty = false;
+	}
+
+	/* Some of the debug modes need an entire repaint to make sure that we
+	 * clear any debug left over on this buffer. This precludes the use of
+	 * EGL_EXT_swap_buffers_with_damage and EGL_KHR_partial_update, since we
+	 * damage the whole area. */
+	if (gr->debug_clear) {
 		pixman_region32_t undamaged;
+		pixman_region32_t *damaged =
+			shadow_exists(go) ? output_damage : &rb->base.damage;
+		int debug_mode = gr->debug_mode;
+
 		pixman_region32_init(&undamaged);
-		pixman_region32_subtract(&undamaged, &output->region,
-					 output_damage);
-		gr->fan_debug = false;
+		pixman_region32_subtract(&undamaged, &output->region, damaged);
+		gr->debug_mode = DEBUG_MODE_NONE;
 		repaint_views(output, &undamaged);
-		gr->fan_debug = true;
+		gr->debug_mode = debug_mode;
 		pixman_region32_fini(&undamaged);
 	}
 
-	if (gr->has_egl_partial_update && !gr->fan_debug) {
+	if (gr->has_egl_partial_update &&
+	    go->egl_surface != EGL_NO_SURFACE &&
+	    !gr->debug_clear) {
 		int n_egl_rects;
 		EGLint *egl_rects;
 
 		/* For partial_update, we need to pass the region which has
-		 * changed since we last rendered into this specific buffer;
-		 * this is total_damage. */
-		pixman_region_to_egl_y_invert(output, &rb->base.damage,
-					      &egl_rects, &n_egl_rects);
+		 * changed since we last rendered into this specific buffer. */
+		pixman_region_to_egl(output, &rb->base.damage,
+				     &egl_rects, &n_egl_rects);
 		gr->set_damage_region(gr->egl_display, go->egl_surface,
 				      egl_rects, n_egl_rects);
 		free(egl_rects);
@@ -1961,9 +2375,10 @@ gl_renderer_repaint_output(struct weston_output *output,
 			repaint_views(output, output_damage);
 
 		glBindFramebuffer(GL_FRAMEBUFFER, rb->fbo);
-		glViewport(go->area.x, area_inv_y,
+		glViewport(go->area.x, area_y,
 			   go->area.width, go->area.height);
-		blit_shadow_to_output(output, &rb->base.damage);
+		blit_shadow_to_output(output, gr->debug_clear ?
+				      &output->region : &rb->base.damage);
 	} else {
 		repaint_views(output, &rb->base.damage);
 	}
@@ -1985,15 +2400,15 @@ gl_renderer_repaint_output(struct weston_output *output,
 	if (go->egl_surface != EGL_NO_SURFACE) {
 		EGLBoolean ret;
 
-		if (gr->swap_buffers_with_damage && !gr->fan_debug) {
+		if (gr->swap_buffers_with_damage && !gr->debug_clear) {
 			int n_egl_rects;
 			EGLint *egl_rects;
 
 			/* For swap_buffers_with_damage, we need to pass the region
 			 * which has changed since the previous SwapBuffers on this
 			 * surface - this is output_damage. */
-			pixman_region_to_egl_y_invert(output, output_damage,
-						      &egl_rects, &n_egl_rects);
+			pixman_region_to_egl(output, output_damage,
+					     &egl_rects, &n_egl_rects);
 			ret = gr->swap_buffers_with_damage(gr->egl_display,
 							   go->egl_surface,
 							   egl_rects, n_egl_rects);
@@ -2024,30 +2439,35 @@ gl_renderer_repaint_output(struct weston_output *output,
 
 	if (rb->pixels) {
 		uint32_t *pixels = rb->pixels;
-		int stride = go->fb_size.width;
-		pixman_box32_t *extents = &rb->base.damage.extents;
+		int width = go->fb_size.width;
+		int stride = width * (compositor->read_format->bpp >> 3);
+		pixman_box32_t extents;
 		struct weston_geometry rect = {
 			.x = go->area.x,
 			.width = go->area.width,
 		};
 
-		if (gr->fan_debug) {
-			rect.y = go->fb_size.height - go->area.y - go->area.height;
+		extents = weston_matrix_transform_rect(&output->matrix,
+						       rb->base.damage.extents);
+
+		if (gr->debug_clear) {
+			rect.y = go->area.y;
 			rect.height = go->area.height;
 		} else {
-			rect.y = go->fb_size.height - go->area.y - extents->y2;
-			rect.height = extents->y2 - extents->y1;
-			pixels += rect.width * (extents->y1 - (int)output->pos.c.y);
+			rect.y = go->area.y + extents.y1;
+			rect.height = extents.y2 - extents.y1;
+			pixels += rect.width * extents.y1;
 		}
 
-		if (gr->gl_version >= gr_gl_version(3, 0) && ! gr->fan_debug) {
-			glPixelStorei(GL_PACK_ROW_LENGTH, stride);
-			rect.width = extents->x2 - extents->x1;
-			rect.x += extents->x1 - (int)output->pos.c.x;
-			pixels += extents->x1 - (int)output->pos.c.x;
+		if (gr->gl_version >= gr_gl_version(3, 0) && !gr->debug_clear) {
+			glPixelStorei(GL_PACK_ROW_LENGTH, width);
+			rect.width = extents.x2 - extents.x1;
+			rect.x += extents.x1;
+			pixels += extents.x1;
 		}
 
-		gl_renderer_do_read_pixels(gr, compositor->read_format, pixels, stride, &rect);
+		gl_renderer_do_read_pixels(gr, go, compositor->read_format,
+					   pixels, stride, &rect);
 
 		if (gr->gl_version >= gr_gl_version(3, 0))
 			glPixelStorei(GL_PACK_ROW_LENGTH, 0);
@@ -2065,7 +2485,6 @@ gl_renderer_read_pixels(struct weston_output *output,
 			uint32_t width, uint32_t height)
 {
 	struct gl_output_state *go = get_output_state(output);
-	struct gl_renderer *gr = get_renderer(output->compositor);
 
 	x += go->area.x;
 	y += go->fb_size.height - go->area.y - go->area.height;
@@ -2076,11 +2495,10 @@ gl_renderer_read_pixels(struct weston_output *output,
 	if (use_output(output) < 0)
 		return -1;
 
-	if (gr->has_pack_reverse)
-		glPixelStorei(GL_PACK_REVERSE_ROW_ORDER_ANGLE, GL_FALSE);
 	glPixelStorei(GL_PACK_ALIGNMENT, 1);
 	glReadPixels(x, y, width, height, format->gl_format,
 		     format->gl_type, pixels);
+	glPixelStorei(GL_PACK_ALIGNMENT, 4);
 
 	return 0;
 }
@@ -2103,16 +2521,14 @@ gl_format_from_internal(GLenum internal_format)
 }
 
 static void
-gl_renderer_flush_damage(struct weston_surface *surface,
-			 struct weston_buffer *buffer,
-			 struct weston_output *output)
+gl_renderer_flush_damage(struct weston_paint_node *pnode)
 {
+	struct weston_surface *surface = pnode->surface;
 	const struct weston_testsuite_quirks *quirks =
 		&surface->compositor->test_data.test_quirks;
+	struct weston_buffer *buffer = surface->buffer_ref.buffer;
 	struct gl_surface_state *gs = get_surface_state(surface);
 	struct gl_buffer_state *gb = gs->buffer;
-	struct weston_paint_node *pnode;
-	bool texture_used;
 	pixman_box32_t *rectangles;
 	uint8_t *data;
 	int i, j, n;
@@ -2129,29 +2545,13 @@ gl_renderer_flush_damage(struct weston_surface *surface,
 	pixman_region32_union(&gb->texture_damage,
 			      &gb->texture_damage, &surface->damage);
 
+	if (pnode->plane != &pnode->output->primary_plane)
+		return;
+
 	/* This can happen if a SHM wl_buffer gets destroyed before we flush
 	 * damage, because wayland-server just nukes the wl_shm_buffer from
 	 * underneath us */
 	if (!buffer->shm_buffer)
-		return;
-
-	/* Avoid upload, if the texture won't be used this time.
-	 * We still accumulate the damage in texture_damage, and
-	 * hold the reference to the buffer, in case the surface
-	 * migrates back to the primary plane.
-	 *
-	 * When called from gl_renderer_surface_copy_content()
-	 * or gl_renderer_create_surface(), output is NULL.
-	 * In that case, always upload.
-	 */
-	texture_used = false;
-	wl_list_for_each(pnode, &surface->paint_node_list, surface_link) {
-		if (!output || pnode->plane == &output->primary_plane) {
-			texture_used = true;
-			break;
-		}
-	}
-	if (!texture_used)
 		return;
 
 	if (!pixman_region32_not_empty(&gb->texture_damage) &&
@@ -2160,11 +2560,7 @@ gl_renderer_flush_damage(struct weston_surface *surface,
 
 	data = wl_shm_buffer_get_data(buffer->shm_buffer);
 
-	glActiveTexture(GL_TEXTURE0);
-
 	if (gb->needs_full_upload || quirks->gl_force_full_upload) {
-		glPixelStorei(GL_UNPACK_SKIP_PIXELS_EXT, 0);
-		glPixelStorei(GL_UNPACK_SKIP_ROWS_EXT, 0);
 		wl_shm_buffer_begin_access(buffer->shm_buffer);
 
 		for (j = 0; j < gb->num_textures; j++) {
@@ -2216,6 +2612,10 @@ gl_renderer_flush_damage(struct weston_surface *surface,
 	wl_shm_buffer_end_access(buffer->shm_buffer);
 
 done:
+	glPixelStorei(GL_UNPACK_ROW_LENGTH_EXT, 0);
+	glPixelStorei(GL_UNPACK_SKIP_PIXELS_EXT, 0);
+	glPixelStorei(GL_UNPACK_SKIP_ROWS_EXT, 0);
+
 	pixman_region32_fini(&gb->texture_damage);
 	pixman_region32_init(&gb->texture_damage);
 	gb->needs_full_upload = false;
@@ -2261,8 +2661,6 @@ ensure_textures(struct gl_buffer_state *gb, GLenum target, int num_textures)
 
 	assert(gb->num_textures == 0);
 
-	glActiveTexture(GL_TEXTURE0);
-
 	for (i = 0; i < num_textures; i++) {
 		glGenTextures(1, &gb->textures[i]);
 		glBindTexture(target, gb->textures[i]);
@@ -2273,14 +2671,13 @@ ensure_textures(struct gl_buffer_state *gb, GLenum target, int num_textures)
 	glBindTexture(target, 0);
 }
 
-static bool
+static void
 gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 {
 	struct weston_compositor *ec = es->compositor;
 	struct gl_renderer *gr = get_renderer(ec);
 	struct gl_surface_state *gs = get_surface_state(es);
 	struct gl_buffer_state *gb;
-	struct wl_shm_buffer *shm_buffer = buffer->shm_buffer;
 	struct weston_buffer *old_buffer = gs->buffer_ref.buffer;
 	GLenum gl_format[3] = {0, 0, 0};
 	GLenum gl_pixel_type;
@@ -2318,7 +2715,7 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 		 */
 		if (!bpp)
 			bpp = pixel_format_get_info(yuv->plane[0].format)->bpp;
-		pitch = wl_shm_buffer_get_stride(shm_buffer) / (bpp / 8);
+		pitch = buffer->stride / (bpp / 8);
 
 		/* well, they all are so far ... */
 		gl_pixel_type = GL_UNSIGNED_BYTE;
@@ -2359,7 +2756,7 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 			shader_variant = SHADER_VARIANT_RGBA;
 
 		assert(bpp > 0 && !(bpp & 7));
-		pitch = wl_shm_buffer_get_stride(shm_buffer) / (bpp / 8);
+		pitch = buffer->stride / (bpp / 8);
 
 		gl_format[0] = buffer->pixel_format->gl_format;
 		gl_pixel_type = buffer->pixel_format->gl_type;
@@ -2401,16 +2798,14 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 	    buffer->pixel_format == old_buffer->pixel_format) {
 		gs->buffer->pitch = pitch;
 		memcpy(gs->buffer->offset, offset, sizeof(offset));
-		return true;
+		return;
 	}
 
 	if (gs->buffer)
 		destroy_buffer_state(gs->buffer);
 	gs->buffer = NULL;
 
-	gb = zalloc(sizeof(*gb));
-	if (!gb)
-		return false;
+	gb = xzalloc(sizeof(*gb));
 	gb->gr = gr;
 
 	wl_list_init(&gb->destroy_listener.link);
@@ -2420,6 +2815,7 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 	gb->shader_variant = shader_variant;
 	ARRAY_COPY(gb->offset, offset);
 	ARRAY_COPY(gb->gl_format, gl_format);
+	gb->gl_channel_order = buffer->pixel_format->gl_channel_order;
 	gb->gl_pixel_type = gl_pixel_type;
 	gb->needs_full_upload = true;
 
@@ -2427,8 +2823,6 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 	gs->surface = es;
 
 	ensure_textures(gb, GL_TEXTURE_2D, num_planes);
-
-	return true;
 }
 
 static bool
@@ -2549,30 +2943,6 @@ err_free:
 	return false;
 }
 
-static bool
-gl_renderer_attach_egl(struct weston_surface *es, struct weston_buffer *buffer)
-{
-	struct weston_compositor *ec = es->compositor;
-	struct gl_renderer *gr = get_renderer(ec);
-	struct gl_surface_state *gs = get_surface_state(es);
-	struct gl_buffer_state *gb = buffer->renderer_private;
-	GLenum target;
-	int i;
-
-	assert(gb);
-
-	gs->buffer = gb;
-
-	target = gl_shader_texture_variant_get_target(gb->shader_variant);
-	for (i = 0; i < gb->num_images; i++) {
-		glActiveTexture(GL_TEXTURE0 + i);
-		glBindTexture(target, gb->textures[i]);
-		gr->image_target_texture_2d(target, gb->images[i]);
-	}
-
-	return true;
-}
-
 static void
 gl_renderer_destroy_dmabuf(struct linux_dmabuf_buffer *dmabuf)
 {
@@ -2608,7 +2978,7 @@ import_simple_dmabuf(struct gl_renderer *gr,
 	attribs[atti++] = EGL_IMAGE_PRESERVED_KHR;
 	attribs[atti++] = EGL_TRUE;
 
-	if (attributes->modifier[0] != DRM_FORMAT_MOD_INVALID) {
+	if (attributes->modifier != DRM_FORMAT_MOD_INVALID) {
 		if (!gr->has_dmabuf_import_modifiers)
 			return NULL;
 		has_modifier = true;
@@ -2625,9 +2995,9 @@ import_simple_dmabuf(struct gl_renderer *gr,
 		attribs[atti++] = attributes->stride[0];
 		if (has_modifier) {
 			attribs[atti++] = EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT;
-			attribs[atti++] = attributes->modifier[0] & 0xFFFFFFFF;
+			attribs[atti++] = attributes->modifier & 0xFFFFFFFF;
 			attribs[atti++] = EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT;
-			attribs[atti++] = attributes->modifier[0] >> 32;
+			attribs[atti++] = attributes->modifier >> 32;
 		}
 	}
 
@@ -2640,9 +3010,9 @@ import_simple_dmabuf(struct gl_renderer *gr,
 		attribs[atti++] = attributes->stride[1];
 		if (has_modifier) {
 			attribs[atti++] = EGL_DMA_BUF_PLANE1_MODIFIER_LO_EXT;
-			attribs[atti++] = attributes->modifier[1] & 0xFFFFFFFF;
+			attribs[atti++] = attributes->modifier & 0xFFFFFFFF;
 			attribs[atti++] = EGL_DMA_BUF_PLANE1_MODIFIER_HI_EXT;
-			attribs[atti++] = attributes->modifier[1] >> 32;
+			attribs[atti++] = attributes->modifier >> 32;
 		}
 	}
 
@@ -2655,9 +3025,9 @@ import_simple_dmabuf(struct gl_renderer *gr,
 		attribs[atti++] = attributes->stride[2];
 		if (has_modifier) {
 			attribs[atti++] = EGL_DMA_BUF_PLANE2_MODIFIER_LO_EXT;
-			attribs[atti++] = attributes->modifier[2] & 0xFFFFFFFF;
+			attribs[atti++] = attributes->modifier & 0xFFFFFFFF;
 			attribs[atti++] = EGL_DMA_BUF_PLANE2_MODIFIER_HI_EXT;
-			attribs[atti++] = attributes->modifier[2] >> 32;
+			attribs[atti++] = attributes->modifier >> 32;
 		}
 	}
 
@@ -2670,9 +3040,9 @@ import_simple_dmabuf(struct gl_renderer *gr,
 			attribs[atti++] = EGL_DMA_BUF_PLANE3_PITCH_EXT;
 			attribs[atti++] = attributes->stride[3];
 			attribs[atti++] = EGL_DMA_BUF_PLANE3_MODIFIER_LO_EXT;
-			attribs[atti++] = attributes->modifier[3] & 0xFFFFFFFF;
+			attribs[atti++] = attributes->modifier & 0xFFFFFFFF;
 			attribs[atti++] = EGL_DMA_BUF_PLANE3_MODIFIER_HI_EXT;
-			attribs[atti++] = attributes->modifier[3] >> 32;
+			attribs[atti++] = attributes->modifier >> 32;
 		}
 	}
 
@@ -2702,7 +3072,7 @@ import_dmabuf_single_plane(struct gl_renderer *gr,
 	plane.fd[0] = attributes->fd[descriptor->plane_index];
 	plane.offset[0] = attributes->offset[descriptor->plane_index];
 	plane.stride[0] = attributes->stride[descriptor->plane_index];
-	plane.modifier[0] = attributes->modifier[descriptor->plane_index];
+	plane.modifier = attributes->modifier;
 
 	image = import_simple_dmabuf(gr, &plane);
 	if (image == EGL_NO_IMAGE_KHR) {
@@ -2836,7 +3206,7 @@ choose_texture_target(struct gl_renderer *gr,
 		int i;
 
 		for (i = 0; i < format->num_modifiers; ++i) {
-			if (format->modifiers[i] == attributes->modifier[0]) {
+			if (format->modifiers[i] == attributes->modifier) {
 				if (format->external_only[i])
 					return GL_TEXTURE_EXTERNAL_OES;
 				else
@@ -3011,21 +3381,13 @@ gl_renderer_import_dmabuf(struct weston_compositor *ec,
 {
 	struct gl_renderer *gr = get_renderer(ec);
 	struct gl_buffer_state *gb;
-	int i;
 
 	assert(gr->has_dmabuf_import);
 
-	for (i = 0; i < dmabuf->attributes.n_planes; i++) {
-		/* return if EGL doesn't support import modifiers */
-		if (dmabuf->attributes.modifier[i] != DRM_FORMAT_MOD_INVALID)
-			if (!gr->has_dmabuf_import_modifiers)
-				return false;
-
-		/* return if modifiers passed are unequal */
-		if (dmabuf->attributes.modifier[i] !=
-		    dmabuf->attributes.modifier[0])
+	/* return if EGL doesn't support import modifiers */
+	if (dmabuf->attributes.modifier != DRM_FORMAT_MOD_INVALID)
+		if (!gr->has_dmabuf_import_modifiers)
 			return false;
-	}
 
 	/* reject all flags we do not recognize or handle */
 	if (dmabuf->attributes.flags & ~ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_Y_INVERT)
@@ -3067,54 +3429,34 @@ ensure_renderer_gl_buffer_state(struct weston_surface *surface,
 }
 
 static void
-attach_direct_display_censor_placeholder(struct weston_surface *surface,
-					 struct weston_buffer *buffer)
+attach_direct_display_placeholder(struct weston_paint_node *pnode)
 {
+	struct weston_surface *surface = pnode->surface;
+	struct weston_buffer *buffer = surface->buffer_ref.buffer;
 	struct gl_buffer_state *gb;
 
 	gb = ensure_renderer_gl_buffer_state(surface, buffer);
 
 	/* uses the same color as the content-protection placeholder */
-	gb->color[0] = 0.40f;
-	gb->color[1] = 0.0f;
-	gb->color[2] = 0.0f;
-	gb->color[3] = 1.0f;
+	gb->color[0] = pnode->solid.r;
+	gb->color[1] = pnode->solid.g;
+	gb->color[2] = pnode->solid.b;
+	gb->color[3] = pnode->solid.a;
 
 	gb->shader_variant = SHADER_VARIANT_SOLID;
 }
 
-
-static bool
-gl_renderer_attach_dmabuf(struct weston_surface *surface,
+static void
+gl_renderer_attach_buffer(struct weston_surface *surface,
 			  struct weston_buffer *buffer)
 {
 	struct gl_renderer *gr = get_renderer(surface->compositor);
 	struct gl_surface_state *gs = get_surface_state(surface);
 	struct gl_buffer_state *gb;
-	struct linux_dmabuf_buffer *dmabuf = buffer->dmabuf;
 	GLenum target;
 	int i;
 
-	if (buffer->direct_display) {
-		attach_direct_display_censor_placeholder(surface, buffer);
-		return true;
-	}
-
-	/* Thanks to linux-dmabuf being totally independent of libweston,
-	 * the first time a dmabuf is attached, the gl_buffer_state will
-	 * only be set as userdata on the dmabuf, not on the weston_buffer.
-	 * When this happens, steal it away into the weston_buffer. */
-	if (!buffer->renderer_private) {
-		gb = linux_dmabuf_buffer_get_user_data(dmabuf);
-		assert(gb);
-		linux_dmabuf_buffer_set_user_data(dmabuf, NULL, NULL);
-		buffer->renderer_private = gb;
-		gb->destroy_listener.notify = handle_buffer_destroy;
-		wl_signal_add(&buffer->destroy_signal, &gb->destroy_listener);
-	}
-
 	assert(buffer->renderer_private);
-	assert(linux_dmabuf_buffer_get_user_data(dmabuf) == NULL);
 	gb = buffer->renderer_private;
 
 	gs->buffer = gb;
@@ -3125,8 +3467,7 @@ gl_renderer_attach_dmabuf(struct weston_surface *surface,
 		glBindTexture(target, gb->textures[i]);
 		gr->image_target_texture_2d(target, gb->images[i]);
 	}
-
-	return true;
+	glActiveTexture(GL_TEXTURE0);
 }
 
 static const struct weston_drm_format_array *
@@ -3204,7 +3545,7 @@ out:
 	return ret;
 }
 
-static bool
+static void
 gl_renderer_attach_solid(struct weston_surface *surface,
 			 struct weston_buffer *buffer)
 {
@@ -3218,18 +3559,15 @@ gl_renderer_attach_solid(struct weston_surface *surface,
 	gb->color[3] = buffer->solid.a;
 
 	gb->shader_variant = SHADER_VARIANT_SOLID;
-
-	return true;
 }
 
 static void
-gl_renderer_attach(struct weston_surface *es, struct weston_buffer *buffer)
+gl_renderer_attach(struct weston_paint_node *pnode)
 {
+	struct weston_surface *es = pnode->surface;
+	struct weston_buffer *buffer = es->buffer_ref.buffer;
 	struct gl_surface_state *gs = get_surface_state(es);
-	bool ret = false;
 
-	/* If get_surface_state called gl_renderer_create_surface, it did
-	 * attach the buffer */
 	if (gs->buffer_ref.buffer == buffer)
 		return;
 
@@ -3252,30 +3590,30 @@ gl_renderer_attach(struct weston_surface *es, struct weston_buffer *buffer)
 	if (!buffer)
 		goto out;
 
-	switch (buffer->type) {
-	case WESTON_BUFFER_SHM:
-		ret = gl_renderer_attach_shm(es, buffer);
-		break;
-	case WESTON_BUFFER_DMABUF:
-		ret = gl_renderer_attach_dmabuf(es, buffer);
-		break;
-	case WESTON_BUFFER_RENDERER_OPAQUE:
-		ret = gl_renderer_attach_egl(es, buffer);
-		break;
-	case WESTON_BUFFER_SOLID:
-		ret = gl_renderer_attach_solid(es, buffer);
-		break;
-	default:
-		break;
+	if (pnode->is_direct) {
+		attach_direct_display_placeholder(pnode);
+		goto success;
 	}
 
-	if (!ret) {
+	switch (buffer->type) {
+	case WESTON_BUFFER_SHM:
+		gl_renderer_attach_shm(es, buffer);
+		break;
+	case WESTON_BUFFER_DMABUF:
+	case WESTON_BUFFER_RENDERER_OPAQUE:
+		gl_renderer_attach_buffer(es, buffer);
+		break;
+	case WESTON_BUFFER_SOLID:
+		gl_renderer_attach_solid(es, buffer);
+		break;
+	default:
 		weston_log("unhandled buffer type!\n");
 		weston_buffer_send_server_error(buffer,
 			"disconnecting due to unhandled buffer type");
 		goto out;
 	}
 
+success:
 	weston_buffer_reference(&gs->buffer_ref, buffer,
 				BUFFER_MAY_BE_ACCESSED);
 	weston_buffer_release_reference(&gs->buffer_release_ref,
@@ -3287,6 +3625,27 @@ out:
 	weston_buffer_reference(&gs->buffer_ref, NULL,
 				BUFFER_WILL_NOT_BE_ACCESSED);
 	weston_buffer_release_reference(&gs->buffer_release_ref, NULL);
+}
+
+static void
+gl_renderer_buffer_init(struct weston_compositor *etc,
+			struct weston_buffer *buffer)
+{
+	struct gl_buffer_state *gb;
+
+	if (buffer->type != WESTON_BUFFER_DMABUF)
+		return;
+
+	/* Thanks to linux-dmabuf being totally independent of libweston,
+	 * the gl_buffer_state willonly be set as userdata on the dmabuf,
+	 * not on the weston_buffer. Steal it away into the weston_buffer. */
+	assert(!buffer->renderer_private);
+	gb = linux_dmabuf_buffer_get_user_data(buffer->dmabuf);
+	assert(gb);
+	linux_dmabuf_buffer_set_user_data(buffer->dmabuf, NULL, NULL);
+	buffer->renderer_private = gb;
+	gb->destroy_listener.notify = handle_buffer_destroy;
+	wl_signal_add(&buffer->destroy_signal, &gb->destroy_listener);
 }
 
 static uint32_t
@@ -3335,19 +3694,23 @@ gl_renderer_surface_copy_content(struct weston_surface *surface,
 		.input_tex_filter = GL_NEAREST,
 	};
 	const pixman_format_code_t format = PIXMAN_a8b8g8r8;
-	const size_t bytespp = 4; /* PIXMAN_a8b8g8r8 */
 	const GLenum gl_format = GL_RGBA; /* PIXMAN_a8b8g8r8 little-endian */
 	struct gl_renderer *gr = get_renderer(surface->compositor);
-	struct gl_surface_state *gs = get_surface_state(surface);
-	struct gl_buffer_state *gb = gs->buffer;
-	struct weston_buffer *buffer = gs->buffer_ref.buffer;
+	struct gl_surface_state *gs;
+	struct gl_buffer_state *gb;
+	struct weston_buffer *buffer;
 	int cw, ch;
 	GLuint fbo;
 	GLuint tex;
 	GLenum status;
 	int ret = -1;
 
+	gs = get_surface_state(surface);
+	gb = gs->buffer;
+	buffer = gs->buffer_ref.buffer;
 	assert(buffer);
+	if (buffer->direct_display)
+		return -1;
 
 	cw = buffer->width;
 	ch = buffer->height;
@@ -3357,8 +3720,6 @@ gl_renderer_surface_copy_content(struct weston_surface *surface,
 		*(uint32_t *)target = pack_color(format, gb->color);
 		return 0;
 	case WESTON_BUFFER_SHM:
-		gl_renderer_flush_damage(surface, buffer, NULL);
-		/* fall through */
 	case WESTON_BUFFER_DMABUF:
 	case WESTON_BUFFER_RENDERER_OPAQUE:
 		break;
@@ -3366,7 +3727,6 @@ gl_renderer_surface_copy_content(struct weston_surface *surface,
 
 	gl_shader_config_set_input_textures(&sconf, gs);
 
-	glActiveTexture(GL_TEXTURE0);
 	glGenTextures(1, &tex);
 	glBindTexture(GL_TEXTURE_2D, tex);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, cw, ch,
@@ -3396,22 +3756,16 @@ gl_renderer_surface_copy_content(struct weston_surface *surface,
 	if (!gl_renderer_use_program(gr, &sconf))
 		goto out;
 
-	/* position: */
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, verts);
-	glEnableVertexAttribArray(0);
-
-	/* texcoord: */
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, verts);
-	glEnableVertexAttribArray(1);
-
+	glEnableVertexAttribArray(SHADER_ATTRIB_LOC_POSITION);
+	glEnableVertexAttribArray(SHADER_ATTRIB_LOC_TEXCOORD);
+	glVertexAttribPointer(SHADER_ATTRIB_LOC_POSITION, 2, GL_FLOAT, GL_FALSE,
+			      0, verts);
+	glVertexAttribPointer(SHADER_ATTRIB_LOC_TEXCOORD, 2, GL_FLOAT, GL_FALSE,
+			      0, verts);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	glDisableVertexAttribArray(SHADER_ATTRIB_LOC_TEXCOORD);
+	glDisableVertexAttribArray(SHADER_ATTRIB_LOC_POSITION);
 
-	glDisableVertexAttribArray(1);
-	glDisableVertexAttribArray(0);
-
-	if (gr->has_pack_reverse)
-		glPixelStorei(GL_PACK_REVERSE_ROW_ORDER_ANGLE, GL_FALSE);
-	glPixelStorei(GL_PACK_ALIGNMENT, bytespp);
 	glReadPixels(src_x, src_y, width, height, gl_format,
 		     GL_UNSIGNED_BYTE, target);
 	ret = 0;
@@ -3497,15 +3851,6 @@ gl_renderer_create_surface(struct weston_surface *surface)
 		surface_state_handle_renderer_destroy;
 	wl_signal_add(&gr->destroy_signal,
 		      &gs->renderer_destroy_listener);
-
-	if (surface->buffer_ref.buffer) {
-		gl_renderer_attach(surface, surface->buffer_ref.buffer);
-		if (surface->buffer_ref.buffer->type == WESTON_BUFFER_SHM) {
-			gl_renderer_flush_damage(surface,
-						 surface->buffer_ref.buffer,
-						 NULL);
-		}
-	}
 
 	return 0;
 }
@@ -3605,14 +3950,19 @@ gl_renderer_output_set_border(struct weston_output *output,
 }
 
 static void
+gl_renderer_remove_renderbuffer(struct gl_renderbuffer *renderbuffer)
+{
+	wl_list_remove(&renderbuffer->link);
+	weston_renderbuffer_unref(&renderbuffer->base);
+}
+
+static void
 gl_renderer_remove_renderbuffers(struct gl_output_state *go)
 {
 	struct gl_renderbuffer *renderbuffer, *tmp;
 
-	wl_list_for_each_safe(renderbuffer, tmp, &go->renderbuffer_list, link) {
-		wl_list_remove(&renderbuffer->link);
-		weston_renderbuffer_unref(&renderbuffer->base);
-	}
+	wl_list_for_each_safe(renderbuffer, tmp, &go->renderbuffer_list, link)
+		gl_renderer_remove_renderbuffer(renderbuffer);
 }
 
 static bool
@@ -3620,6 +3970,7 @@ gl_renderer_resize_output(struct weston_output *output,
 			  const struct weston_size *fb_size,
 			  const struct weston_geometry *area)
 {
+	struct gl_renderer *gr = get_renderer(output->compositor);
 	struct gl_output_state *go = get_output_state(output);
 	const struct pixel_format_info *shfmt = go->shadow_format;
 	bool ret;
@@ -3630,6 +3981,7 @@ gl_renderer_resize_output(struct weston_output *output,
 
 	go->fb_size = *fb_size;
 	go->area = *area;
+	gr->wireframe_dirty = true;
 
 	weston_output_update_capture_info(output,
 					  WESTON_OUTPUT_CAPTURE_SOURCE_FRAMEBUFFER,
@@ -3703,6 +4055,7 @@ gl_renderer_output_create(struct weston_output *output,
 		return -1;
 
 	go->egl_surface = surface;
+	go->y_flip = surface == EGL_NO_SURFACE ? 1.0f : -1.0f;
 
 	if (gr->has_disjoint_timer_query)
 		gr->gen_queries(1, &go->render_query);
@@ -3776,6 +4129,177 @@ gl_renderer_output_fbo_create(struct weston_output *output,
 }
 
 static void
+gl_renderer_dmabuf_renderbuffer_destroy(struct weston_renderbuffer *renderbuffer)
+{
+	struct gl_renderbuffer *gl_renderbuffer = to_gl_renderbuffer(renderbuffer);
+	struct dmabuf_renderbuffer *dmabuf_renderbuffer = to_dmabuf_renderbuffer(gl_renderbuffer);
+	struct gl_renderer *gr = dmabuf_renderbuffer->gr;
+
+	glDeleteFramebuffers(1, &gl_renderbuffer->fbo);
+	glDeleteRenderbuffers(1, &gl_renderbuffer->rb);
+	pixman_region32_fini(&gl_renderbuffer->base.damage);
+
+	gr->destroy_image(gr->egl_display, dmabuf_renderbuffer->image);
+
+	/* Destroy the owned dmabuf */
+	dmabuf_renderbuffer->dmabuf->destroy(dmabuf_renderbuffer->dmabuf);
+
+	free(dmabuf_renderbuffer);
+}
+
+static struct weston_renderbuffer *
+gl_renderer_create_renderbuffer_dmabuf(struct weston_output *output,
+				       struct linux_dmabuf_memory *dmabuf)
+{
+	struct gl_renderer *gr = get_renderer(output->compositor);
+	struct gl_output_state *go = get_output_state(output);
+	struct dmabuf_attributes *attributes = dmabuf->attributes;
+	struct dmabuf_renderbuffer *rb;
+	struct gl_renderbuffer *renderbuffer;
+	int fb_status;
+
+	rb = xzalloc(sizeof(*rb));
+	renderbuffer = &rb->base;
+
+	rb->image = import_simple_dmabuf(gr, attributes);
+	if (rb->image == EGL_NO_IMAGE_KHR) {
+		weston_log("Failed to import dmabuf renderbuffer\n");
+		free(rb);
+		return NULL;
+	}
+
+	glGenFramebuffers(1, &renderbuffer->fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, renderbuffer->fbo);
+
+	glGenRenderbuffers(1, &renderbuffer->rb);
+	glBindRenderbuffer(GL_RENDERBUFFER, renderbuffer->rb);
+	gr->image_target_renderbuffer_storage(GL_RENDERBUFFER, rb->image);
+	if (glGetError() == GL_INVALID_OPERATION) {
+		weston_log("Failed to create renderbuffer\n");
+		glBindRenderbuffer(GL_RENDERBUFFER, 0);
+		glDeleteRenderbuffers(1, &renderbuffer->rb);
+		gr->destroy_image(gr->egl_display, rb->image);
+		free(rb);
+		return NULL;
+	}
+
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+				  GL_RENDERBUFFER, renderbuffer->rb);
+
+	fb_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindRenderbuffer(GL_RENDERBUFFER, 0);
+	if (fb_status != GL_FRAMEBUFFER_COMPLETE) {
+		weston_log("failed to bind renderbuffer to fbo\n");
+		glDeleteFramebuffers(1, &renderbuffer->fbo);
+		glDeleteRenderbuffers(1, &renderbuffer->rb);
+		gr->destroy_image(gr->egl_display, rb->image);
+		free(rb);
+		return NULL;
+	}
+
+	rb->gr = gr;
+	rb->dmabuf = dmabuf;
+
+	pixman_region32_init(&rb->base.base.damage);
+	/*
+	 * One reference is kept on the renderbuffer_list,
+	 * the other is returned to the calling backend.
+	 */
+	rb->base.base.refcount = 2;
+	rb->base.base.destroy = gl_renderer_dmabuf_renderbuffer_destroy;
+	wl_list_insert(&go->renderbuffer_list, &rb->base.link);
+
+	return &rb->base.base;
+}
+
+static void
+gl_renderer_remove_renderbuffer_dmabuf(struct weston_output *output,
+				       struct weston_renderbuffer *renderbuffer)
+{
+	struct gl_renderbuffer *gl_renderbuffer = to_gl_renderbuffer(renderbuffer);
+
+	gl_renderer_remove_renderbuffer(gl_renderbuffer);
+}
+
+static void
+gl_renderer_dmabuf_destroy(struct linux_dmabuf_memory *dmabuf)
+{
+	struct gl_renderer_dmabuf_memory *gl_renderer_dmabuf;
+	struct dmabuf_attributes *attributes;
+	int i;
+
+	gl_renderer_dmabuf = (struct gl_renderer_dmabuf_memory *)dmabuf;
+
+	attributes = dmabuf->attributes;
+	for (i = 0; i < attributes->n_planes; ++i)
+		close(attributes->fd[i]);
+	free(dmabuf->attributes);
+
+	gbm_bo_destroy(gl_renderer_dmabuf->bo);
+	free(gl_renderer_dmabuf);
+}
+
+static struct linux_dmabuf_memory *
+gl_renderer_dmabuf_alloc(struct weston_renderer *renderer,
+			 unsigned int width, unsigned int height,
+			 uint32_t format,
+			 const uint64_t *modifiers, const unsigned int count)
+{
+	struct gl_renderer *gr = (struct gl_renderer *)renderer;
+	struct dmabuf_allocator *allocator = gr->allocator;
+	struct gl_renderer_dmabuf_memory *gl_renderer_dmabuf;
+	struct linux_dmabuf_memory *dmabuf;
+	struct dmabuf_attributes *attributes;
+	struct gbm_bo *bo;
+	int i;
+
+	if (!allocator)
+		return NULL;
+
+#ifdef HAVE_GBM_BO_CREATE_WITH_MODIFIERS2
+	bo = gbm_bo_create_with_modifiers2(allocator->gbm_device,
+					   width, height, format,
+					   modifiers, count,
+					   GBM_BO_USE_RENDERING);
+#else
+	bo = gbm_bo_create_with_modifiers(allocator->gbm_device,
+					  width, height, format,
+					  modifiers, count);
+#endif
+	if (!bo)
+		bo = gbm_bo_create(allocator->gbm_device,
+				   width, height, format,
+				   GBM_BO_USE_RENDERING | GBM_BO_USE_LINEAR);
+	if (!bo) {
+		weston_log("failed to create gbm_bo\n");
+		return NULL;
+	}
+
+	gl_renderer_dmabuf = xzalloc(sizeof(*gl_renderer_dmabuf));
+	gl_renderer_dmabuf->bo = bo;
+	gl_renderer_dmabuf->allocator = allocator;
+
+	attributes = xzalloc(sizeof(*attributes));
+	attributes->width = width;
+	attributes->height = height;
+	attributes->format = format;
+	attributes->n_planes = gbm_bo_get_plane_count(bo);
+	for (i = 0; i < attributes->n_planes; ++i) {
+		attributes->fd[i] = gbm_bo_get_fd(bo);
+		attributes->stride[i] = gbm_bo_get_stride_for_plane(bo, i);
+		attributes->offset[i] = gbm_bo_get_offset(bo, i);
+	}
+	attributes->modifier = gbm_bo_get_modifier(bo);
+
+	dmabuf = &gl_renderer_dmabuf->base;
+	dmabuf->attributes = attributes;
+	dmabuf->destroy = gl_renderer_dmabuf_destroy;
+
+	return dmabuf;
+}
+
+static void
 gl_renderer_output_destroy(struct weston_output *output)
 {
 	struct gl_renderer *gr = get_renderer(output->compositor);
@@ -3826,19 +4350,63 @@ gl_renderer_create_fence_fd(struct weston_output *output)
 }
 
 static void
+gl_renderer_allocator_destroy(struct dmabuf_allocator *allocator)
+{
+	if (!allocator)
+		return;
+
+	if (allocator->gbm_device && allocator->has_own_device)
+		gbm_device_destroy(allocator->gbm_device);
+
+	free(allocator);
+}
+
+static struct dmabuf_allocator *
+gl_renderer_allocator_create(struct gl_renderer *gr,
+			     const struct gl_renderer_display_options * options)
+{
+	struct dmabuf_allocator *allocator;
+	struct gbm_device *gbm = NULL;
+	bool has_own_device = false;
+
+	if (options->egl_platform == EGL_PLATFORM_GBM_KHR)
+		gbm = options->egl_native_display;
+	if (!gbm && gr->drm_device) {
+		int fd = open(gr->drm_device, O_RDWR);
+		gbm = gbm_create_device(fd);
+		has_own_device = true;
+	}
+	if (!gbm)
+		return NULL;
+
+	allocator = xzalloc(sizeof(*allocator));
+	allocator->gbm_device = gbm;
+	allocator->has_own_device = has_own_device;
+
+	return allocator;
+}
+
+static void
 gl_renderer_destroy(struct weston_compositor *ec)
 {
 	struct gl_renderer *gr = get_renderer(ec);
 	struct dmabuf_format *format, *next_format;
+	struct gl_capture_task *gl_task, *tmp;
 
 	wl_signal_emit(&gr->destroy_signal, gr);
 
 	if (gr->has_bind_display)
 		gr->unbind_display(gr->egl_display, ec->wl_display);
 
+	wl_list_for_each_safe(gl_task, tmp, &gr->pending_capture_list, link)
+		destroy_capture_task(gl_task);
+
 	gl_renderer_shader_list_destroy(gr);
 	if (gr->fallback_shader)
 		gl_shader_destroy(gr, gr->fallback_shader);
+
+	if (gr->wireframe_size)
+		glDeleteTextures(1, &gr->wireframe_tex);
 
 	/* Work around crash in egl_dri2.c's dri2_make_current() - when does this apply? */
 	eglMakeCurrent(gr->egl_display,
@@ -3850,16 +4418,17 @@ gl_renderer_destroy(struct weston_compositor *ec)
 
 	weston_drm_format_array_fini(&gr->supported_formats);
 
+	gl_renderer_allocator_destroy(gr->allocator);
+
 	eglTerminate(gr->egl_display);
 	eglReleaseThread();
 
-	wl_array_release(&gr->vertices);
-	wl_array_release(&gr->vtxcnt);
+	wl_array_release(&gr->position_stream);
+	wl_array_release(&gr->barycentric_stream);
+	wl_array_release(&gr->indices);
 
-	if (gr->fragment_binding)
-		weston_binding_destroy(gr->fragment_binding);
-	if (gr->fan_binding)
-		weston_binding_destroy(gr->fan_binding);
+	if (gr->debug_mode_binding)
+		weston_binding_destroy(gr->debug_mode_binding);
 
 	weston_log_scope_destroy(gr->shader_scope);
 	weston_log_scope_destroy(gr->renderer_scope);
@@ -3934,10 +4503,15 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	gr->base.destroy = gl_renderer_destroy;
 	gr->base.surface_copy_content = gl_renderer_surface_copy_content;
 	gr->base.fill_buffer_info = gl_renderer_fill_buffer_info;
+	gr->base.buffer_init = gl_renderer_buffer_init;
 	gr->base.type = WESTON_RENDERER_GL;
 
 	if (gl_renderer_setup_egl_display(gr, options->egl_native_display) < 0)
 		goto fail;
+
+	gr->allocator = gl_renderer_allocator_create(gr, options);
+	if (!gr->allocator)
+		weston_log("failed to initialize allocator\n");
 
 	weston_drm_format_array_init(&gr->supported_formats);
 
@@ -3974,9 +4548,14 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	if (gr->has_native_fence_sync && gr->has_wait_sync)
 		ec->capabilities |= WESTON_CAP_EXPLICIT_SYNC;
 
+	if (gr->allocator)
+		gr->base.dmabuf_alloc = gl_renderer_dmabuf_alloc;
+
 	if (gr->has_dmabuf_import) {
 		gr->base.import_dmabuf = gl_renderer_import_dmabuf;
 		gr->base.get_supported_formats = gl_renderer_get_supported_formats;
+		gr->base.create_renderbuffer_dmabuf = gl_renderer_create_renderbuffer_dmabuf;
+		gr->base.remove_renderbuffer_dmabuf = gl_renderer_remove_renderbuffer_dmabuf;
 		ret = populate_supported_formats(ec, &gr->supported_formats);
 		if (ret < 0)
 			goto fail_terminate;
@@ -3999,10 +4578,20 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	if (gl_renderer_setup(ec) < 0)
 		goto fail_with_error;
 
+	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XBGR8888);
+	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR8888);
+	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_RGBX8888);
+	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_RGBA8888);
+	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_BGRX8888);
+	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_BGRA8888);
+	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_RGB888);
+	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_BGR888);
 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_RGB565);
 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_YUV420);
 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_YUV444);
 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_NV12);
+	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_NV16);
+	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_NV24);
 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_YUYV);
 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_XYUV8888);
 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_ABGR8888);
@@ -4049,29 +4638,22 @@ fail:
 }
 
 static void
-fragment_debug_binding(struct weston_keyboard *keyboard,
-		       const struct timespec *time,
-		       uint32_t key, void *data)
-{
-	struct weston_compositor *ec = data;
-	struct gl_renderer *gr = get_renderer(ec);
-	struct weston_output *output;
-
-	gr->fragment_shader_debug = !gr->fragment_shader_debug;
-
-	wl_list_for_each(output, &ec->output_list, link)
-		weston_output_damage(output);
-}
-
-static void
-fan_debug_repaint_binding(struct weston_keyboard *keyboard,
-			  const struct timespec *time,
-			  uint32_t key, void *data)
+debug_mode_binding(struct weston_keyboard *keyboard,
+		   const struct timespec *time,
+		   uint32_t key, void *data)
 {
 	struct weston_compositor *compositor = data;
 	struct gl_renderer *gr = get_renderer(compositor);
+	int mode;
 
-	gr->fan_debug = !gr->fan_debug;
+	mode = (gr->debug_mode + 1) % DEBUG_MODE_LAST;
+	gr->debug_mode = mode;
+	gr->debug_clear = mode == DEBUG_MODE_WIREFRAME ||
+		mode == DEBUG_MODE_BATCHES ||
+		mode == DEBUG_MODE_DAMAGE ||
+		mode == DEBUG_MODE_OPAQUE;
+	gr->wireframe_dirty = mode == DEBUG_MODE_WIREFRAME;
+
 	weston_compositor_damage_all(compositor);
 }
 
@@ -4170,6 +4752,9 @@ gl_renderer_setup(struct weston_compositor *ec)
 	gr->image_target_texture_2d =
 		(void *) eglGetProcAddress("glEGLImageTargetTexture2DOES");
 
+	gr->image_target_renderbuffer_storage =
+		(void *)eglGetProcAddress("glEGLImageTargetRenderbufferStorageOES");
+
 	extensions = (const char *) glGetString(GL_EXTENSIONS);
 	if (!extensions) {
 		weston_log("Retrieving GL extension string failed.\n");
@@ -4217,11 +4802,43 @@ gl_renderer_setup(struct weston_compositor *ec)
 	    weston_check_egl_extension(extensions, "GL_OES_rgb8_rgba8"))
 		gr->has_rgb8_rgba8 = true;
 
+	if (gr->gl_version >= gr_gl_version(3, 0)) {
+		gr->map_buffer_range = (void *) eglGetProcAddress("glMapBufferRange");
+		gr->unmap_buffer = (void *) eglGetProcAddress("glUnmapBuffer");
+		assert(gr->map_buffer_range);
+		assert(gr->unmap_buffer);
+		gr->pbo_usage = GL_STREAM_READ;
+		gr->has_pbo = true;
+	} else if (gr->gl_version >= gr_gl_version(2, 0) &&
+		   weston_check_egl_extension(extensions, "GL_NV_pixel_buffer_object") &&
+		   weston_check_egl_extension(extensions, "GL_EXT_map_buffer_range") &&
+		   weston_check_egl_extension(extensions, "GL_OES_mapbuffer")) {
+		gr->map_buffer_range = (void *) eglGetProcAddress("glMapBufferRangeEXT");
+		gr->unmap_buffer = (void *) eglGetProcAddress("glUnmapBufferOES");
+		assert(gr->map_buffer_range);
+		assert(gr->unmap_buffer);
+		/* Reading isn't exposed to BufferData() on ES 2.0 and
+		 * NV_pixel_buffer_object mentions that "glMapBufferOES does not
+		 * allow reading from the mapped pointer". EXT_map_buffer_range
+		 * (which depends on OES_mapbuffer) adds read access support to
+		 * MapBufferRangeEXT() without extending BufferData() so we
+		 * create a PBO with a write usage hint that ends up being
+		 * mapped with a read access. Even though that sounds incorrect,
+		 * EXT_map_buffer_range provides examples doing so. Mesa
+		 * actually ignores PBOs' usage hint assuming read access. */
+		gr->pbo_usage = GL_STREAM_DRAW;
+		gr->has_pbo = true;
+	}
+
+	wl_list_init(&gr->pending_capture_list);
+
 	if (gr->gl_version >= gr_gl_version(3, 0) &&
 	    weston_check_egl_extension(extensions, "GL_OES_texture_float_linear") &&
 	    weston_check_egl_extension(extensions, "GL_EXT_color_buffer_half_float") &&
 		weston_check_egl_extension(extensions, "GL_OES_texture_3D")) {
 		gr->gl_supports_color_transforms = true;
+		gr->tex_image_3d = (void *) eglGetProcAddress("glTexImage3D");
+		assert(gr->tex_image_3d);
 	}
 
 	if (weston_check_egl_extension(extensions, "GL_EXT_disjoint_timer_query")) {
@@ -4271,14 +4888,9 @@ gl_renderer_setup(struct weston_compositor *ec)
 		return -1;
 	}
 
-	gr->fragment_binding =
-		weston_compositor_add_debug_binding(ec, KEY_S,
-						    fragment_debug_binding,
-						    ec);
-	gr->fan_binding =
-		weston_compositor_add_debug_binding(ec, KEY_F,
-						    fan_debug_repaint_binding,
-						    ec);
+	gr->debug_mode_binding =
+		weston_compositor_add_debug_binding(ec, KEY_M,
+						    debug_mode_binding, ec);
 
 	weston_log("GL ES %d.%d - renderer features:\n",
 		   gr_gl_version_major(gr->gl_version),
@@ -4287,6 +4899,8 @@ gl_renderer_setup(struct weston_compositor *ec)
 			    ec->read_format->drm_format_name);
 	weston_log_continue(STAMP_SPACE "glReadPixels supports y-flip: %s\n",
 			    yesno(gr->has_pack_reverse));
+	weston_log_continue(STAMP_SPACE "glReadPixels supports PBO: %s\n",
+			    yesno(gr->has_pbo));
 	weston_log_continue(STAMP_SPACE "wl_shm 10 bpc formats: %s\n",
 			    yesno(gr->has_texture_type_2_10_10_10_rev));
 	weston_log_continue(STAMP_SPACE "wl_shm 16 bpc formats: %s\n",

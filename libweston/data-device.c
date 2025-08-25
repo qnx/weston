@@ -201,7 +201,7 @@ data_offer_set_actions(struct wl_client *client,
 
 	if (preferred_action &&
 	    (!(preferred_action & dnd_actions) ||
-	     __builtin_popcount(preferred_action) > 1)) {
+	     bitcount32(preferred_action) > 1)) {
 		wl_resource_post_error(offer->resource,
 				       WL_DATA_OFFER_ERROR_INVALID_ACTION,
 				       "invalid action %x", preferred_action);
@@ -421,18 +421,16 @@ drag_surface_configure(struct weston_drag *drag,
 			(pointer == NULL && touch != NULL));
 
 	if (!weston_surface_is_mapped(es) && weston_surface_has_content(es)) {
+		weston_surface_map(es);
+		pixman_region32_clear(&es->pending.input);
+
 		if (pointer && pointer->sprite &&
 			weston_view_is_mapped(pointer->sprite))
 			list = &pointer->sprite->layer_link;
 		else
 			list = &es->compositor->cursor_layer.view_list;
 
-		weston_layer_entry_remove(&drag->icon->layer_link);
-		weston_layer_entry_insert(list, &drag->icon->layer_link);
-		weston_view_update_transform(drag->icon);
-		pixman_region32_clear(&es->pending.input);
-		weston_surface_map(es);
-		drag->icon->is_mapped = true;
+		weston_view_move_to_layer(drag->icon, list);
 	}
 
 	drag->offset = weston_coord_surface_add(drag->offset, new_origin);

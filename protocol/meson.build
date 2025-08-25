@@ -1,7 +1,7 @@
 dep_scanner = dependency('wayland-scanner', native: true)
 prog_scanner = find_program(dep_scanner.get_variable(pkgconfig: 'wayland_scanner'))
 
-dep_wp = dependency('wayland-protocols', version: '>= 1.31',
+dep_wp = dependency('wayland-protocols', version: '>= 1.33',
 	fallback: ['wayland-protocols', 'wayland_protocols'])
 dir_wp_base = dep_wp.get_variable(pkgconfig: 'pkgdatadir', internal: 'pkgdatadir')
 
@@ -16,6 +16,7 @@ install_data(
 )
 
 generated_protocols = [
+	[ 'color-management-v1', 'internal' ],
 	[ 'fullscreen-shell', 'unstable', 'v1' ],
 	[ 'fractional-scale', 'staging', 'v1' ],
 	[ 'input-method', 'unstable', 'v1' ],

@@ -60,6 +60,7 @@
 #include "libinput-seat.h"
 #include "backend.h"
 #include "libweston-internal.h"
+#include "drm-kms-enums.h"
 
 #ifndef GBM_BO_USE_CURSOR
 #define GBM_BO_USE_CURSOR GBM_BO_USE_CURSOR_64X64
@@ -149,126 +150,6 @@ struct drm_property_info {
 };
 
 /**
- * List of properties attached to DRM planes
- */
-enum wdrm_plane_property {
-	WDRM_PLANE_TYPE = 0,
-	WDRM_PLANE_SRC_X,
-	WDRM_PLANE_SRC_Y,
-	WDRM_PLANE_SRC_W,
-	WDRM_PLANE_SRC_H,
-	WDRM_PLANE_CRTC_X,
-	WDRM_PLANE_CRTC_Y,
-	WDRM_PLANE_CRTC_W,
-	WDRM_PLANE_CRTC_H,
-	WDRM_PLANE_FB_ID,
-	WDRM_PLANE_CRTC_ID,
-	WDRM_PLANE_IN_FORMATS,
-	WDRM_PLANE_IN_FENCE_FD,
-	WDRM_PLANE_FB_DAMAGE_CLIPS,
-	WDRM_PLANE_ZPOS,
-	WDRM_PLANE_ROTATION,
-	WDRM_PLANE_ALPHA,
-	WDRM_PLANE__COUNT
-};
-
-/**
- * Possible values for the WDRM_PLANE_TYPE property.
- */
-enum wdrm_plane_type {
-	WDRM_PLANE_TYPE_PRIMARY = 0,
-	WDRM_PLANE_TYPE_CURSOR,
-	WDRM_PLANE_TYPE_OVERLAY,
-	WDRM_PLANE_TYPE__COUNT
-};
-
-/**
- * Possible values for the WDRM_PLANE_ROTATION property.
- */
-enum wdrm_plane_rotation {
-	WDRM_PLANE_ROTATION_0 = 0,
-	WDRM_PLANE_ROTATION_90,
-	WDRM_PLANE_ROTATION_180,
-	WDRM_PLANE_ROTATION_270,
-	WDRM_PLANE_ROTATION_REFLECT_X,
-	WDRM_PLANE_ROTATION_REFLECT_Y,
-	WDRM_PLANE_ROTATION__COUNT,
-};
-
-/**
- * List of properties attached to a DRM connector
- */
-enum wdrm_connector_property {
-	WDRM_CONNECTOR_EDID = 0,
-	WDRM_CONNECTOR_DPMS,
-	WDRM_CONNECTOR_CRTC_ID,
-	WDRM_CONNECTOR_WRITEBACK_PIXEL_FORMATS,
-	WDRM_CONNECTOR_WRITEBACK_FB_ID,
-	WDRM_CONNECTOR_WRITEBACK_OUT_FENCE_PTR,
-	WDRM_CONNECTOR_NON_DESKTOP,
-	WDRM_CONNECTOR_CONTENT_PROTECTION,
-	WDRM_CONNECTOR_HDCP_CONTENT_TYPE,
-	WDRM_CONNECTOR_PANEL_ORIENTATION,
-	WDRM_CONNECTOR_HDR_OUTPUT_METADATA,
-	WDRM_CONNECTOR_MAX_BPC,
-	WDRM_CONNECTOR_CONTENT_TYPE,
-	WDRM_CONNECTOR__COUNT
-};
-
-enum wdrm_content_protection_state {
-	WDRM_CONTENT_PROTECTION_UNDESIRED = 0,
-	WDRM_CONTENT_PROTECTION_DESIRED,
-	WDRM_CONTENT_PROTECTION_ENABLED,
-	WDRM_CONTENT_PROTECTION__COUNT
-};
-
-enum wdrm_hdcp_content_type {
-	WDRM_HDCP_CONTENT_TYPE0 = 0,
-	WDRM_HDCP_CONTENT_TYPE1,
-	WDRM_HDCP_CONTENT_TYPE__COUNT
-};
-
-enum wdrm_dpms_state {
-	WDRM_DPMS_STATE_OFF = 0,
-	WDRM_DPMS_STATE_ON,
-	WDRM_DPMS_STATE_STANDBY, /* unused */
-	WDRM_DPMS_STATE_SUSPEND, /* unused */
-	WDRM_DPMS_STATE__COUNT
-};
-
-enum wdrm_panel_orientation {
-	WDRM_PANEL_ORIENTATION_NORMAL = 0,
-	WDRM_PANEL_ORIENTATION_UPSIDE_DOWN,
-	WDRM_PANEL_ORIENTATION_LEFT_SIDE_UP,
-	WDRM_PANEL_ORIENTATION_RIGHT_SIDE_UP,
-	WDRM_PANEL_ORIENTATION__COUNT
-};
-
-enum wdrm_content_type {
-	WDRM_CONTENT_TYPE_NO_DATA = 0,
-	WDRM_CONTENT_TYPE_GRAPHICS,
-	WDRM_CONTENT_TYPE_PHOTO,
-	WDRM_CONTENT_TYPE_CINEMA,
-	WDRM_CONTENT_TYPE_GAME,
-	WDRM_CONTENT_TYPE__COUNT
-};
-
-/**
- * List of properties attached to DRM CRTCs
- */
-enum wdrm_crtc_property {
-	WDRM_CRTC_MODE_ID = 0,
-	WDRM_CRTC_ACTIVE,
-	WDRM_CRTC_CTM,
-	WDRM_CRTC_DEGAMMA_LUT,
-	WDRM_CRTC_DEGAMMA_LUT_SIZE,
-	WDRM_CRTC_GAMMA_LUT,
-	WDRM_CRTC_GAMMA_LUT_SIZE,
-	WDRM_CRTC_VRR_ENABLED,
-	WDRM_CRTC__COUNT
-};
-
-/**
  * Reasons why placing a view on a plane failed. Needed by the dma-buf feedback.
  */
 enum try_view_on_plane_failure_reasons {
@@ -322,6 +203,8 @@ struct drm_device {
 	/* drm_writeback::link */
 	struct wl_list writeback_connector_list;
 
+	bool will_repaint;
+
 	bool state_invalid;
 
 	bool atomic_modeset;
@@ -373,6 +256,9 @@ struct drm_backend {
 	struct udev_input input;
 
 	uint32_t pageflip_timeout;
+
+	/* True, if underlay planes exist. */
+	bool has_underlay;
 
 	struct weston_log_scope *debug;
 };
@@ -531,6 +417,8 @@ struct drm_plane {
 	uint32_t crtc_id;
 
 	struct drm_property_info props[WDRM_PLANE__COUNT];
+	/* True if the plane's zpos_max < primary plane's zpos_min. */
+	bool is_underlay;
 
 	/* The last state submitted to the kernel for this plane. */
 	struct drm_plane_state *state_cur;
@@ -616,6 +504,9 @@ struct drm_head {
 
 	/* drm_output::disable_head */
 	struct wl_list disable_head_link;
+
+	void *display_data;             /**< EDID or DisplayID blob */
+	size_t display_data_len;        /**< bytes */
 };
 
 struct drm_crtc {
@@ -664,6 +555,7 @@ struct drm_output {
 	uint64_t ackd_color_outcome_serial;
 
 	unsigned max_bpc;
+	enum wdrm_colorspace connector_colorspace;
 
 	bool deprecated_gamma_is_set;
 	bool legacy_gamma_not_supported;
@@ -689,7 +581,7 @@ struct drm_output {
 
 	struct wl_event_source *pageflip_timer;
 
-	bool virtual;
+	bool is_virtual;
 	void (*virtual_destroy)(struct weston_output *base);
 
 	submit_frame_cb virtual_submit_frame;
@@ -764,7 +656,7 @@ drm_output_get_plane_type_name(struct drm_plane *p)
 	case WDRM_PLANE_TYPE_CURSOR:
 		return "cursor";
 	case WDRM_PLANE_TYPE_OVERLAY:
-		return "overlay";
+		return p->is_underlay ? "underlay" : "overlay";
 	default:
 		assert(0);
 		break;
@@ -775,7 +667,10 @@ struct drm_crtc *
 drm_crtc_find(struct drm_device *device, uint32_t crtc_id);
 
 struct drm_head *
-drm_head_find_by_connector(struct drm_backend *backend, uint32_t connector_id);
+drm_head_find_by_connector(struct drm_backend *backend, struct drm_device *device, uint32_t connector_id);
+
+void
+drm_free_display_info(struct di_info **display_info);
 
 uint64_t
 drm_rotation_from_output_transform(struct drm_plane *plane,
@@ -883,6 +778,9 @@ drm_output_set_cursor_view(struct drm_output *output, struct weston_view *ev);
 int
 drm_output_ensure_hdr_output_metadata_blob(struct drm_output *output);
 
+enum wdrm_colorspace
+wdrm_colorspace_from_output(struct weston_output *output);
+
 #ifdef BUILD_DRM_GBM
 extern struct drm_fb *
 drm_fb_get_from_paint_node(struct drm_output_state *state,
@@ -924,8 +822,8 @@ enum drm_output_state_duplicate_mode {
 };
 
 struct drm_output_state *
-drm_output_state_alloc(struct drm_output *output,
-		       struct drm_pending_state *pending_state);
+drm_output_state_alloc(struct drm_output *output);
+
 struct drm_output_state *
 drm_output_state_duplicate(struct drm_output_state *src,
 			   struct drm_pending_state *pending_state,
@@ -965,7 +863,7 @@ bool
 drm_plane_is_available(struct drm_plane *plane, struct drm_output *output);
 
 void
-drm_output_render(struct drm_output_state *state, pixman_region32_t *damage);
+drm_output_render(struct drm_output_state *state);
 
 int
 parse_gbm_format(const char *s, const struct pixel_format_info *default_format,

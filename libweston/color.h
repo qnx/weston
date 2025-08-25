@@ -31,6 +31,88 @@
 #include <stdint.h>
 #include <libweston/libweston.h>
 
+#include "backend-drm/drm-kms-enums.h"
+
+enum weston_hdr_metadata_type1_groups {
+	/** weston_hdr_metadata_type1::primary is set */
+	WESTON_HDR_METADATA_TYPE1_GROUP_PRIMARIES	= 0x01,
+
+	/** weston_hdr_metadata_type1::white is set */
+	WESTON_HDR_METADATA_TYPE1_GROUP_WHITE		= 0x02,
+
+	/** weston_hdr_metadata_type1::maxDML is set */
+	WESTON_HDR_METADATA_TYPE1_GROUP_MAXDML		= 0x04,
+
+	/** weston_hdr_metadata_type1::minDML is set */
+	WESTON_HDR_METADATA_TYPE1_GROUP_MINDML		= 0x08,
+
+	/** weston_hdr_metadata_type1::maxCLL is set */
+	WESTON_HDR_METADATA_TYPE1_GROUP_MAXCLL		= 0x10,
+
+	/** weston_hdr_metadata_type1::maxFALL is set */
+	WESTON_HDR_METADATA_TYPE1_GROUP_MAXFALL		= 0x20,
+
+	/** all valid bits */
+	WESTON_HDR_METADATA_TYPE1_GROUP_ALL_MASK	= 0x3f
+};
+
+/** HDR static metadata type 1
+ *
+ * The fields are defined by CTA-861-G except here they use float encoding.
+ *
+ * In Weston used only with HDR display modes.
+ */
+struct weston_hdr_metadata_type1 {
+	/** Which fields are valid
+	 *
+	 * A bitmask of values from enum weston_hdr_metadata_type1_groups.
+	 */
+	uint32_t group_mask;
+
+	/* EOTF is tracked externally with enum weston_eotf_mode */
+
+	/** Chromaticities of the primaries, in any order */
+	struct weston_CIExy primary[3];
+
+	/** White point chromaticity */
+	struct weston_CIExy white;
+
+	/** Maximum display mastering luminance, 1 - 65535 cd/m² */
+	float maxDML;
+
+	/** Minimum display mastering luminance, 0.0001 - 6.5535 cd/m² */
+	float minDML;
+
+	/** Maximum content light level, 1 - 65535 cd/m² */
+	float maxCLL;
+
+	/** Maximum frame-average light level, 1 - 65535 cd/m² */
+	float maxFALL;
+};
+
+/** Output properties derived from its color characteristics and profile
+ *
+ * These are constructed by a color manager.
+ *
+ * A weston_output_color_outcome owns (a reference to) everything it contains.
+ *
+ * \ingroup output
+ * \internal
+ */
+struct weston_output_color_outcome {
+	/** sRGB to output color space transformation */
+	struct weston_color_transform *from_sRGB_to_output;
+
+	/** sRGB to blending color space transformation */
+	struct weston_color_transform *from_sRGB_to_blend;
+
+	/** Blending to output color space transformation */
+	struct weston_color_transform *from_blend_to_output;
+
+	/** HDR Static Metadata Type 1 for WESTON_EOTF_MODE_ST2084 */
+	struct weston_hdr_metadata_type1 hdr_meta;
+};
+
 /**
  * Represents a color profile description (an ICC color profile)
  *
@@ -40,6 +122,33 @@ struct weston_color_profile {
 	struct weston_color_manager *cm;
 	int ref_count;
 	char *description;
+
+	/* Unique id to be used by the CM&HDR protocol extension. */
+	uint32_t id;
+};
+
+/** Parameters that define a parametric color profile */
+struct weston_color_profile_params {
+	/* Primary color volume; always set. */
+	struct weston_color_gamut primaries;
+
+	/* Primary color volume by enumeration; optional, may be NULL. */
+	const struct weston_color_primaries_info *primaries_info;
+
+	/* Encoding transfer characteristic by enumeration; always set. */
+	const struct weston_color_tf_info *tf_info;
+
+	/* Transfer characteristic's parameters; depends on tf_info. */
+	float tf_params[10];
+
+	/* Target color volume; always set. */
+	struct weston_color_gamut target_primaries;
+
+	/* Luminance parameters cd/m²; negative when not set */
+
+	float min_luminance, max_luminance;
+	float maxCLL;
+	float maxFALL;
 };
 
 /** Type or formula for a curve */
@@ -49,6 +158,50 @@ enum weston_color_curve_type {
 
 	/** Three-channel, one-dimensional look-up table */
 	WESTON_COLOR_CURVE_TYPE_LUT_3x1D,
+
+	/** Transfer function named LINPOW
+	 *
+	 * y = (a * x + b) ^ g | x >= d
+	 * y = c * x           | 0 <= x < d
+	 *
+	 * We gave it the name LINPOW because the first operation with the input
+	 * x is a linear one, and then the result is raised to g.
+	 *
+	 * As all parametric curves, this one should be represented using struct
+	 * weston_color_curve_parametric. For each color channel RGB we may have
+	 * different params, see weston_color_curve_parametric::params.
+	 *
+	 * For LINPOW, the params g, a, b, c, and d are respectively
+	 * params[channel][0], ... , params[channel][4].
+	 *
+	 * The input for all color channels may be clamped to [0.0, 1.0]. In
+	 * such case, weston_color_curve_parametric::clamped_input is true.
+	 * If the input is not clamped and LINPOW needs to evaluate a negative
+	 * input value, it uses mirroring (i.e. -f(-x)).
+	 */
+	WESTON_COLOR_CURVE_TYPE_LINPOW,
+
+	/** Transfer function named POWLIN
+	 *
+	 * y = (a * (x ^ g)) + b | x >= d
+	 * y = c * x             | 0 <= x < d
+	 *
+	 * We gave it the name POWLIN because the first operation with the input
+	 * x is an exponential one, and then the result is multiplied by a.
+	 *
+	 * As all parametric curves, this one should be represented using struct
+	 * weston_color_curve_parametric. For each color channel RGB we may have
+	 * different params, see weston_color_curve_parametric::params.
+	 *
+	 * For POWLIN, the params g, a, b, c, and d are respectively
+	 * params[channel][0], ... , params[channel][4].
+	 *
+	 * The input for all color channels may be clamped to [0.0, 1.0]. In
+	 * such case, weston_color_curve_parametric::clamped_input is true.
+	 * If the input is not clamped and POWLIN needs to evaluate a negative
+	 * input value, it uses mirroring (i.e. -f(-x)).
+	 */
+	WESTON_COLOR_CURVE_TYPE_POWLIN,
 };
 
 /** LUT_3x1D parameters */
@@ -77,6 +230,17 @@ struct weston_color_curve_lut_3x1d {
 	unsigned optimal_len;
 };
 
+/** Parametric color curve parameters */
+struct weston_color_curve_parametric {
+	/* For each color channel we may have different curves. For each of
+	 * them, we can have up to 10 params, depending on the curve type. The
+	 * channels are in RGB order. */
+	float params[3][10];
+
+	/* The input of the curve should be clamped from 0.0 to 1.0? */
+	bool clamped_input;
+};
+
 /**
  * A scalar function for color encoding and decoding
  *
@@ -96,6 +260,7 @@ struct weston_color_curve {
 	union {
 		/* identity: no parameters */
 		struct weston_color_curve_lut_3x1d lut_3x1d;
+		struct weston_color_curve_parametric parametric;
 	} u;
 };
 
@@ -196,6 +361,7 @@ struct weston_color_mapping {
 struct weston_color_transform {
 	struct weston_color_manager *cm;
 	int ref_count;
+	uint32_t id; /* For debug */
 
 	/* for renderer or backend to attach their own cached objects */
 	struct wl_signal destroy_signal;
@@ -240,6 +406,8 @@ struct weston_surface_color_transform {
 	bool identity_pipeline;
 };
 
+struct cm_image_desc_info;
+
 struct weston_color_manager {
 	/** Identifies this CMS component */
 	const char *name;
@@ -249,6 +417,38 @@ struct weston_color_manager {
 
 	/** Supports the Wayland CM&HDR protocol extension? */
 	bool supports_client_protocol;
+
+	/**
+	 * Supported color features from Wayland CM&HDR protocol extension.
+	 *
+	 * If v (v being enum weston_color_feature v) is a supported color
+	 * feature, the bit v of this will be set to 1.
+	 */
+	uint32_t supported_color_features;
+
+	/**
+	 * Supported rendering intents from Wayland CM&HDR protocol extension.
+	 *
+	 * If v (v being enum weston_render_intent v) is a supported rendering
+	 * intent, the bit v of this will be set to 1.
+	 */
+	uint32_t supported_rendering_intents;
+
+	/**
+	 * Supported primaries named from Wayland CM&HDR protocol extension.
+	 *
+	 * If v (v being enum weston_color_primaries v) is a supported
+	 * primaries named, the bit v of this will be set to 1.
+	 */
+	uint32_t supported_primaries_named;
+
+	/**
+	 * Supported tf named from Wayland CM&HDR protocol extension.
+	 *
+	 * If v (v being enum weston_transfer_function v) is a supported
+	 * tf named, the bit v of this will be set to 1.
+	 */
+	uint32_t supported_tf_named;
 
 	/** Initialize color manager */
 	bool
@@ -262,13 +462,13 @@ struct weston_color_manager {
 	void
 	(*destroy_color_profile)(struct weston_color_profile *cprof);
 
-	/** Gets a reference to the stock sRGB color profile
+	/** Gets a new reference to the stock sRGB color profile
 	 *
 	 * \param cm The color manager.
-	 * \return A reference to the stock sRGB profile, never returns NULL.
+	 * \return A new reference to the stock sRGB profile, never returns NULL.
 	 */
 	struct weston_color_profile *
-	(*get_stock_sRGB_color_profile)(struct weston_color_manager *cm);
+	(*ref_stock_sRGB_color_profile)(struct weston_color_manager *cm);
 
 	/** Create a color profile from ICC data
 	 *
@@ -294,6 +494,46 @@ struct weston_color_manager {
 				      const char *name_part,
 				      struct weston_color_profile **cprof_out,
 				      char **errmsg);
+
+	/** Create a color profile from parameters
+	 *
+	 * \param cm The color manager.
+	 * \param params The struct weston_color_profile_params with the params.
+	 * \param name_part A string to be used in describing the profile.
+	 * \param cprof_out On success, the created object is returned here.
+	 * On failure, untouched.
+	 * \param errmsg On success, untouched. On failure, a pointer to a
+	 * string describing the error is stored here. The string must be
+	 * free()'d.
+	 * \return True on success, false on failure.
+	 *
+	 * This may return a new reference to an existing color profile if
+	 * that profile is identical to the one that would be created, apart
+	 * from name_part.
+	 */
+	bool
+	(*get_color_profile_from_params)(struct weston_color_manager *cm,
+					 const struct weston_color_profile_params *params,
+					 const char *name_part,
+					 struct weston_color_profile **cprof_out,
+					 char **errmsg);
+
+	/** Send image description to clients.
+	 *
+	 * \param cm_image_desc_info The image description info object
+	 * \param cprof_base The color profile that backs the image description
+	 * \return True on success, false on failure
+	 *
+	 * This should be used only by the CM&HDR protocol extension
+	 * implementation.
+	 *
+	 * The color manager implementing this function should use the helpers
+	 * from color-management.c (weston_cm_send_primaries(), etc) to send the
+	 * information to clients.
+	 */
+	bool
+	(*send_image_desc_info)(struct cm_image_desc_info *cm_image_desc_info,
+				struct weston_color_profile *cprof_base);
 
 	/** Destroy a color transform after refcount fell to zero */
 	void
@@ -372,6 +612,29 @@ weston_eotf_mode_to_str(enum weston_eotf_mode e);
 
 char *
 weston_eotf_mask_to_str(uint32_t eotf_mask);
+
+struct weston_colorimetry_mode_info {
+	/** Primary key: the colorimetry mode */
+	enum weston_colorimetry_mode mode;
+
+	/** Its name as a string for logging. */
+	const char *name;
+
+	/** wdrm equivalent, or WDRM_COLORSPACE__COUNT if none */
+	enum wdrm_colorspace wdrm;
+};
+
+const struct weston_colorimetry_mode_info *
+weston_colorimetry_mode_info_get(enum weston_colorimetry_mode c);
+
+const struct weston_colorimetry_mode_info *
+weston_colorimetry_mode_info_get_by_wdrm(enum wdrm_colorspace cs);
+
+const char *
+weston_colorimetry_mode_to_str(enum weston_colorimetry_mode c);
+
+char *
+weston_colorimetry_mask_to_str(uint32_t colorimetry_mask);
 
 void
 weston_output_color_outcome_destroy(struct weston_output_color_outcome **pco);

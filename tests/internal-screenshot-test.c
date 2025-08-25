@@ -43,6 +43,7 @@ fixture_setup(struct weston_test_harness *harness)
 	setup.width = 320;
 	setup.height = 240;
 	setup.shell = SHELL_DESKTOP;
+	setup.refresh = HIGHEST_OUTPUT_REFRESH;
 
 	weston_ini_setup (&setup,
 			  cfgln("[shell]"),
@@ -156,7 +157,7 @@ TEST(internal_screenshot)
 	testlog("Screenshot %s reference image in clipped area\n", match? "matches" : "doesn't match");
 	if (!match) {
 		diffimg = visualize_image_difference(screenshot->image, reference_good, &clip, NULL);
-		fname = screenshot_output_filename("internal-screenshot-error", 0);
+		fname = output_filename_for_test_case("error", 0, "png");
 		write_image_as_png(diffimg, fname);
 		pixman_image_unref(diffimg);
 		free(fname);
@@ -165,7 +166,7 @@ TEST(internal_screenshot)
 
 	/* Test dumping of non-matching images */
 	if (!match || dump_all_images) {
-		fname = screenshot_output_filename("internal-screenshot", 0);
+		fname = output_filename_for_test_case(NULL, 0, "png");
 		write_image_as_png(screenshot->image, fname);
 		free(fname);
 	}

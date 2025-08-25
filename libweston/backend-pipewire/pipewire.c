@@ -54,6 +54,7 @@
 #include "shared/xalloc.h"
 #include <libweston/libweston.h>
 #include <libweston/backend-pipewire.h>
+#include <libweston/linux-dmabuf.h>
 #include <libweston/weston-log.h>
 #include "pixel-formats.h"
 #include "pixman-renderer.h"
@@ -87,6 +88,7 @@ struct pipewire_output {
 	struct pw_stream *stream;
 	struct spa_hook stream_listener;
 
+	struct wl_list fence_list;
 	const struct pixel_format_info *pixel_format;
 
 	struct wl_event_source *finish_frame_timer;
@@ -100,6 +102,8 @@ struct pipewire_head {
 
 struct pipewire_frame_data {
 	struct weston_renderbuffer *renderbuffer;
+	struct pipewire_memfd *memfd;
+	struct pipewire_dmabuf *dmabuf;
 };
 
 /* Pipewire default configuration for heads */
@@ -201,41 +205,82 @@ spa_video_format_from_drm_fourcc(uint32_t fourcc)
 	}
 }
 
+static bool
+pipewire_backend_has_dmabuf_allocator(struct pipewire_backend *backend)
+{
+	struct weston_renderer *renderer = backend->compositor->renderer;
+
+	return renderer->dmabuf_alloc != NULL;
+}
+
+static struct spa_pod *
+spa_pod_build_format(struct spa_pod_builder *builder,
+		     int width, int height, int framerate,
+		     uint32_t format, uint64_t *modifier)
+{
+	struct spa_pod_frame f;
+
+	spa_pod_builder_push_object(builder, &f,
+				    SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat);
+	spa_pod_builder_add(builder,
+			    SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_video), 0);
+	spa_pod_builder_add(builder,
+			    SPA_FORMAT_mediaSubtype, SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw), 0);
+
+	spa_pod_builder_add(builder,
+			    SPA_FORMAT_VIDEO_format,
+			    SPA_POD_Id(spa_video_format_from_drm_fourcc(format)), 0);
+	if (modifier) {
+		spa_pod_builder_prop(builder,
+				     SPA_FORMAT_VIDEO_modifier, SPA_POD_PROP_FLAG_MANDATORY);
+		spa_pod_builder_long(builder, *modifier);
+	}
+
+	spa_pod_builder_prop(builder, SPA_FORMAT_VIDEO_size, 0);
+	spa_pod_builder_rectangle(builder, width, height);
+
+	spa_pod_builder_add(builder,
+			    SPA_FORMAT_VIDEO_framerate,
+			    SPA_POD_Fraction(&SPA_FRACTION(0, 1)), 0);
+	spa_pod_builder_add(builder,
+			    SPA_FORMAT_VIDEO_maxFramerate,
+			    SPA_POD_CHOICE_RANGE_Fraction(
+				    &SPA_FRACTION(framerate,1),
+				    &SPA_FRACTION(1,1),
+				    &SPA_FRACTION(framerate,1)), 0);
+
+	return spa_pod_builder_pop(builder, &f);
+}
+
 static int
 pipewire_output_connect(struct pipewire_output *output)
 {
 	uint8_t buffer[1024];
 	struct spa_pod_builder builder =
 		SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
-	const struct spa_pod *params[1];
-	int framerate;
-	int width;
-	int height;
-	enum spa_video_format format;
+	const struct spa_pod *params[2];
+	int i = 0;
 	int ret;
 
-	framerate = output->base.current_mode->refresh / 1000;
-	width = output->base.width;
-	height = output->base.height;
+	if (pipewire_backend_has_dmabuf_allocator(output->backend)) {
+		/* TODO: Add support for modifier discovery and negotiation. */
+		uint64_t modifier[] = { DRM_FORMAT_MOD_LINEAR };
+		params[i++] = spa_pod_build_format(&builder,
+						   output->base.width, output->base.height,
+						   output->base.current_mode->refresh / 1000,
+						   output->pixel_format->format,
+						   modifier);
+	}
 
-	format = spa_video_format_from_drm_fourcc(output->pixel_format->format);
-
-	params[0] = spa_pod_builder_add_object(&builder,
-		SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat,
-		SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_video),
-		SPA_FORMAT_mediaSubtype, SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw),
-		SPA_FORMAT_VIDEO_format, SPA_POD_Id(format),
-		SPA_FORMAT_VIDEO_size, SPA_POD_Rectangle(&SPA_RECTANGLE(width, height)),
-		SPA_FORMAT_VIDEO_framerate, SPA_POD_Fraction(&SPA_FRACTION (0, 1)),
-		SPA_FORMAT_VIDEO_maxFramerate,
-		SPA_POD_CHOICE_RANGE_Fraction(&SPA_FRACTION(framerate, 1),
-			&SPA_FRACTION(1, 1),
-			&SPA_FRACTION(framerate, 1)));
+	params[i++] = spa_pod_build_format(&builder,
+					   output->base.width, output->base.height,
+					   output->base.current_mode->refresh / 1000,
+					   output->pixel_format->format, NULL);
 
 	ret = pw_stream_connect(output->stream, PW_DIRECTION_OUTPUT, PW_ID_ANY,
 				PW_STREAM_FLAG_DRIVER |
-				PW_STREAM_FLAG_MAP_BUFFERS,
-				params, 1);
+				PW_STREAM_FLAG_ALLOC_BUFFERS,
+				params, i);
 	if (ret != 0) {
 		weston_log("Failed to connect PipeWire stream: %s",
 			   spa_strerror(ret));
@@ -249,13 +294,6 @@ static int
 finish_frame_handler(void *data)
 {
 	struct pipewire_output *output = data;
-
-	/*
-	 * Skip weston_output_finish_frame() if the repaint state machine was
-	 * reset, e.g. by calling weston_compositor_sleep().
-	 */
-	if (output->base.repaint_status != REPAINT_AWAITING_COMPLETION)
-		return 1;
 
 	weston_output_finish_frame_from_timer(&output->base);
 
@@ -434,6 +472,51 @@ pipewire_output_stream_state_changed(void *data, enum pw_stream_state old,
 	}
 }
 
+struct pipewire_dmabuf {
+	struct linux_dmabuf_memory *linux_dmabuf_memory;
+	unsigned int size;
+};
+
+static struct pipewire_dmabuf *
+pipewire_output_create_dmabuf(struct pipewire_output *output)
+{
+	struct pipewire_backend *b = output->backend;
+	struct weston_renderer *renderer = b->compositor->renderer;
+	struct linux_dmabuf_memory *linux_dmabuf_memory;
+	struct pipewire_dmabuf *dmabuf;
+	const struct pixel_format_info *format;
+	unsigned int width;
+	unsigned int height;
+	uint64_t modifier[] = { DRM_FORMAT_MOD_LINEAR };
+
+	format = output->pixel_format;
+	width = output->base.width;
+	height = output->base.height;
+
+	linux_dmabuf_memory = renderer->dmabuf_alloc(renderer, width, height,
+						     format->format,
+						     modifier,
+						     ARRAY_LENGTH(modifier));
+	if (!linux_dmabuf_memory) {
+		weston_log("Failed to allocate DMABUF (%ux%u %s)\n",
+			   width, height, format->drm_format_name);
+		return NULL;
+	}
+
+	dmabuf = xzalloc(sizeof(*dmabuf));
+	dmabuf->linux_dmabuf_memory = linux_dmabuf_memory;
+	dmabuf->size = linux_dmabuf_memory->attributes->stride[0] * height;
+
+	return dmabuf;
+}
+
+static void
+pipewire_destroy_dmabuf(struct pipewire_output *output,
+			struct pipewire_dmabuf *dmabuf)
+{
+	free(dmabuf);
+}
+
 static void
 pipewire_output_stream_param_changed(void *data, uint32_t id,
 				     const struct spa_pod *format)
@@ -444,6 +527,7 @@ pipewire_output_stream_param_changed(void *data, uint32_t id,
 		SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
 	const struct spa_pod *params[2];
 	struct spa_video_info video_info;
+	uint32_t buffertype;
 	int32_t width;
 	int32_t height;
 	int32_t stride;
@@ -461,24 +545,45 @@ pipewire_output_stream_param_changed(void *data, uint32_t id,
 
 	spa_format_video_raw_parse(format, &video_info.info.raw);
 
-	pipewire_output_debug(output, "param changed: %dx%d@(%d/%d) (%s)",
+	width = video_info.info.raw.size.width;
+	height = video_info.info.raw.size.height;
+
+	/* Default to MemFd */
+	buffertype = SPA_DATA_MemFd;
+	stride = width * output->pixel_format->bpp / 8;
+	size = height * stride;
+
+	/* Use DmaBuf if requested and supported */
+	if (spa_pod_find_prop(format, NULL, SPA_FORMAT_VIDEO_modifier)) {
+		struct pipewire_dmabuf *dmabuf;
+
+		dmabuf = pipewire_output_create_dmabuf(output);
+		if (dmabuf) {
+			buffertype = SPA_DATA_DmaBuf;
+			stride = dmabuf->linux_dmabuf_memory->attributes->stride[0];
+			size = dmabuf->size;
+
+			dmabuf->linux_dmabuf_memory->destroy(dmabuf->linux_dmabuf_memory);
+			pipewire_destroy_dmabuf(output, dmabuf);
+		}
+	}
+
+	pipewire_output_debug(output, "param changed: %dx%d@(%d/%d) (%s) (%s)",
 			      video_info.info.raw.size.width,
 			      video_info.info.raw.size.height,
 			      video_info.info.raw.max_framerate.num,
 			      video_info.info.raw.max_framerate.denom,
 			      spa_debug_type_find_short_name(spa_type_video_format,
-				      video_info.info.raw.format));
-
-	width = video_info.info.raw.size.width;
-	height = video_info.info.raw.size.height;
-	stride = width * output->pixel_format->bpp / 8;
-	size = height * stride;
+				      video_info.info.raw.format),
+			      spa_debug_type_find_short_name(spa_type_data_type,
+				      buffertype));
 
 	params[0] = spa_pod_builder_add_object(&builder,
 		SPA_TYPE_OBJECT_ParamBuffers, SPA_PARAM_Buffers,
 		SPA_PARAM_BUFFERS_size, SPA_POD_Int(size),
 		SPA_PARAM_BUFFERS_stride, SPA_POD_Int(stride),
-		SPA_PARAM_BUFFERS_buffers, SPA_POD_CHOICE_RANGE_Int(4, 2, 8));
+		SPA_PARAM_BUFFERS_buffers, SPA_POD_CHOICE_RANGE_Int(4, 2, 8),
+		SPA_PARAM_BUFFERS_dataType, SPA_POD_CHOICE_FLAGS_Int(1u << buffertype));
 
 	params[1] = spa_pod_builder_add_object(&builder,
 		SPA_TYPE_OBJECT_ParamMeta, SPA_PARAM_Meta,
@@ -525,6 +630,12 @@ pipewire_output_stream_add_buffer_gl(struct pipewire_output *output,
 	unsigned int width;
 	unsigned int height;
 	void *ptr;
+	struct pipewire_frame_data *frame_data = buffer->user_data;
+	struct pipewire_dmabuf *dmabuf = frame_data->dmabuf;
+
+	if (dmabuf)
+		return renderer->create_renderbuffer_dmabuf(&output->base,
+							    dmabuf->linux_dmabuf_memory);
 
 	format = output->pixel_format;
 	width = output->base.width;
@@ -535,17 +646,128 @@ pipewire_output_stream_add_buffer_gl(struct pipewire_output *output,
 					format, width, height, ptr);
 }
 
+struct pipewire_memfd {
+	int fd;
+	unsigned int size;
+};
+
+static struct pipewire_memfd *
+pipewire_output_create_memfd(struct pipewire_output *output)
+{
+	struct pipewire_memfd *memfd;
+	const struct pixel_format_info *format;
+	unsigned int width;
+	unsigned int height;
+	unsigned int stride;
+	size_t size;
+	int fd;
+
+	memfd = xzalloc(sizeof *memfd);
+
+	format = output->pixel_format;
+	width = output->base.width;
+	height = output->base.height;
+	stride = width * format->bpp / 8;
+	size = height * stride;
+
+	fd = memfd_create("weston-pipewire", MFD_CLOEXEC);
+	if (fd == -1)
+		return NULL;
+	if (ftruncate(fd, size) == -1)
+		return NULL;
+
+	memfd->fd = fd;
+	memfd->size = size;
+
+	return memfd;
+}
+
+static void
+pipewire_destroy_memfd(struct pipewire_output *output,
+			struct pipewire_memfd *memfd)
+{
+	close(memfd->fd);
+	free(memfd);
+}
+
+static void
+pipewire_output_setup_memfd(struct pipewire_output *output,
+			    struct pw_buffer *buffer,
+			    struct pipewire_memfd *memfd)
+{
+	struct spa_buffer *buf = buffer->buffer;
+	struct spa_data *d = buf->datas;
+
+	d[0].type = SPA_DATA_MemFd;
+	d[0].flags = SPA_DATA_FLAG_READWRITE;
+	d[0].fd = memfd->fd;
+	d[0].mapoffset = 0;
+	d[0].maxsize = memfd->size;
+	d[0].data = mmap(NULL, d[0].maxsize,
+			 PROT_READ|PROT_WRITE, MAP_SHARED,
+			 d[0].fd, d[0].mapoffset);
+	buf->n_datas = 1;
+}
+
+static void
+pipewire_output_setup_dmabuf(struct pipewire_output *output,
+			     struct pw_buffer *buffer,
+			     struct pipewire_dmabuf *dmabuf)
+{
+	struct spa_buffer *buf = buffer->buffer;
+	struct spa_data *d = buf->datas;
+	struct linux_dmabuf_memory *linux_dmabuf_memory = dmabuf->linux_dmabuf_memory;
+
+	d[0].type = SPA_DATA_DmaBuf;
+	d[0].flags = SPA_DATA_FLAG_READWRITE;
+	d[0].fd = linux_dmabuf_memory->attributes->fd[0];
+	d[0].mapoffset = 0;
+	d[0].maxsize = dmabuf->size;
+	d[0].data = NULL;
+	d[0].chunk->offset = linux_dmabuf_memory->attributes->offset[0];
+	d[0].chunk->stride = linux_dmabuf_memory->attributes->stride[0];
+	d[0].chunk->size = dmabuf->size;
+	buffer->buffer->n_datas = 1;
+}
+
 static void
 pipewire_output_stream_add_buffer(void *data, struct pw_buffer *buffer)
 {
 	struct pipewire_output *output = data;
 	struct weston_renderer *renderer = output->base.compositor->renderer;
+	struct spa_buffer *buf = buffer->buffer;
+	struct spa_data *d = buf->datas;
+	unsigned int buffertype = d[0].type;
 	struct pipewire_frame_data *frame_data;
 
 	pipewire_output_debug(output, "add buffer: %p", buffer);
 
 	frame_data = xzalloc(sizeof *frame_data);
 	buffer->user_data = frame_data;
+
+	if (buffertype & (1u << SPA_DATA_DmaBuf)) {
+		struct pipewire_dmabuf *dmabuf;
+
+		dmabuf = pipewire_output_create_dmabuf(output);
+		if (!dmabuf) {
+			pw_stream_set_error(output->stream, -ENOMEM,
+					    "failed to allocate DMABUF buffer");
+			return;
+		}
+		pipewire_output_setup_dmabuf(output, buffer, dmabuf);
+		frame_data->dmabuf = dmabuf;
+	} else if (buffertype & (1u << SPA_DATA_MemFd)) {
+		struct pipewire_memfd *memfd;
+
+		memfd = pipewire_output_create_memfd(output);
+		if (!memfd) {
+			pw_stream_set_error(output->stream, -ENOMEM,
+					    "failed to allocate MemFd buffer");
+			return;
+		}
+		pipewire_output_setup_memfd(output, buffer, memfd);
+		frame_data->memfd = memfd;
+	}
 
 	switch (renderer->type) {
 	case WESTON_RENDERER_PIXMAN:
@@ -559,15 +781,44 @@ pipewire_output_stream_add_buffer(void *data, struct pw_buffer *buffer)
 	}
 }
 
+struct pipewire_fence_data {
+	struct pipewire_output *output;
+	struct pw_buffer *buffer;
+	int fence_sync_fd;
+	struct wl_event_source *fence_sync_event_source;
+	struct wl_list link;
+};
+
 static void
 pipewire_output_stream_remove_buffer(void *data, struct pw_buffer *buffer)
 {
 	struct pipewire_output *output = data;
 	struct pipewire_frame_data *frame_data = buffer->user_data;
+	struct spa_buffer *buf = buffer->buffer;
+	struct spa_data *d = buf->datas;
+	struct pipewire_fence_data *fence_data;
 
 	pipewire_output_debug(output, "remove buffer: %p", buffer);
 
-	weston_renderbuffer_unref(frame_data->renderbuffer);
+	if (frame_data->dmabuf) {
+		struct weston_compositor *ec = output->base.compositor;
+		const struct weston_renderer *renderer = ec->renderer;
+
+		renderer->remove_renderbuffer_dmabuf(&output->base,
+						     frame_data->renderbuffer);
+		pipewire_destroy_dmabuf(output, frame_data->dmabuf);
+	}
+	if (frame_data->memfd) {
+		munmap(d[0].data, d[0].maxsize);
+		pipewire_destroy_memfd(output, frame_data->memfd);
+	}
+
+	if (frame_data->renderbuffer)
+		weston_renderbuffer_unref(frame_data->renderbuffer);
+	wl_list_for_each(fence_data, &output->fence_list, link) {
+		if (fence_data->buffer == buffer)
+			fence_data->buffer = NULL;
+	}
 	free(frame_data);
 }
 
@@ -601,6 +852,8 @@ pipewire_create_output(struct weston_backend *backend, const char *name)
 
 	output->backend = b;
 	output->pixel_format = b->pixel_format;
+
+	wl_list_init(&output->fence_list);
 
 	props = pw_properties_new(NULL, NULL);
 	pw_properties_setf(props, PW_KEY_NODE_NAME, "weston.%s", name);
@@ -690,6 +943,8 @@ static void
 pipewire_submit_buffer(struct pipewire_output *output,
 		       struct pw_buffer *buffer)
 {
+	struct pipewire_frame_data *frame_data = buffer->user_data;
+	struct pipewire_dmabuf *dmabuf = frame_data->dmabuf;
 	struct spa_buffer *spa_buffer;
 	struct spa_meta_header *h;
 	const struct pixel_format_info *pixel_format;
@@ -697,7 +952,10 @@ pipewire_submit_buffer(struct pipewire_output *output,
 	size_t size;
 
 	pixel_format = output->pixel_format;
-	stride = output->base.width * pixel_format->bpp / 8;
+	if (dmabuf)
+		stride = dmabuf->linux_dmabuf_memory->attributes->stride[0];
+	else
+		stride = output->base.width * pixel_format->bpp / 8;
 	size = output->base.height * stride;
 
 	spa_buffer = buffer->buffer;
@@ -725,19 +983,76 @@ pipewire_submit_buffer(struct pipewire_output *output,
 }
 
 static int
-pipewire_output_repaint(struct weston_output *base, pixman_region32_t *damage)
+pipewire_output_fence_sync_handler(int fd, uint32_t mask, void *data)
+{
+	struct pipewire_fence_data *fence_data = data;
+
+	if (fence_data->buffer)
+		pipewire_submit_buffer(fence_data->output, fence_data->buffer);
+
+	wl_event_source_remove(fence_data->fence_sync_event_source);
+	close(fence_data->fence_sync_fd);
+	wl_list_remove(&fence_data->link);
+	free(fence_data);
+
+	return 0;
+}
+
+static int
+pipewire_schedule_submit_buffer(struct pipewire_output *output,
+				struct pw_buffer *buffer)
+{
+	struct weston_compositor *ec = output->base.compositor;
+	struct weston_renderer *renderer = ec->renderer;
+	struct pipewire_fence_data *fence_data;
+	struct wl_event_loop *loop;
+	int fence_sync_fd;
+
+	fence_sync_fd = renderer->gl->create_fence_fd(&output->base);
+	if (fence_sync_fd == -1)
+		return -1;
+
+	fence_data = zalloc(sizeof *fence_data);
+	if (!fence_data) {
+		close(fence_sync_fd);
+		return -1;
+	}
+	wl_list_insert(&output->fence_list, &fence_data->link);
+
+	loop = wl_display_get_event_loop(output->backend->compositor->wl_display);
+
+	fence_data->output = output;
+	fence_data->buffer = buffer;
+	fence_data->fence_sync_fd = fence_sync_fd;
+	fence_data->fence_sync_event_source =
+		wl_event_loop_add_fd(loop, fence_data->fence_sync_fd,
+				     WL_EVENT_READABLE,
+				     pipewire_output_fence_sync_handler,
+				     fence_data);
+
+	return 0;
+}
+
+static int
+pipewire_output_repaint(struct weston_output *base)
 {
 	struct pipewire_output *output = to_pipewire_output(base);
 	struct weston_compositor *ec = output->base.compositor;
 	struct pw_buffer *buffer;
 	struct pipewire_frame_data *frame_data;
+	pixman_region32_t damage;
+	bool submit_scheduled = false;
 
 	assert(output);
+
+	pixman_region32_init(&damage);
 
 	if (pw_stream_get_state(output->stream, NULL) != PW_STREAM_STATE_STREAMING)
 		goto out;
 
-	if (!pixman_region32_not_empty(damage))
+	weston_output_flush_damage_for_primary_plane(base, &damage);
+
+	if (!pixman_region32_not_empty(&damage))
 		goto out;
 
 	buffer = pw_stream_dequeue_buffer(output->stream);
@@ -748,11 +1063,21 @@ pipewire_output_repaint(struct weston_output *base, pixman_region32_t *damage)
 	pipewire_output_debug(output, "dequeued buffer: %p", buffer);
 
 	frame_data = buffer->user_data;
-	ec->renderer->repaint_output(&output->base, damage, frame_data->renderbuffer);
+	if (frame_data->renderbuffer)
+		ec->renderer->repaint_output(&output->base, &damage, frame_data->renderbuffer);
+	else
+		output->base.full_repaint_needed = true;
 
-	pipewire_submit_buffer(output, buffer);
+	if (buffer->buffer->datas[0].type == SPA_DATA_DmaBuf) {
+		if (pipewire_schedule_submit_buffer(output, buffer) == 0)
+			submit_scheduled = true;
+	}
+	if (!submit_scheduled)
+		pipewire_submit_buffer(output, buffer);
 
 out:
+
+	pixman_region32_fini(&damage);
 
 	weston_output_arm_frame_timer(base, output->finish_frame_timer);
 
@@ -804,7 +1129,8 @@ pipewire_switch_mode(struct weston_output *base, struct weston_mode *target_mode
 
 	base->current_mode->flags &= ~WL_OUTPUT_MODE_CURRENT;
 
-	base->current_mode = base->native_mode = local_mode;
+	base->current_mode = local_mode;
+	weston_output_copy_native_mode(base, local_mode);
 	base->current_mode->flags |= WL_OUTPUT_MODE_CURRENT;
 
 	fb_size.width = target_mode->width;
@@ -847,8 +1173,8 @@ pipewire_output_set_size(struct weston_output *base, int width, int height)
 	current_mode = pipewire_ensure_matching_mode(&output->base, &init_mode);
 	current_mode->flags = WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED;
 
-	output->base.current_mode = output->base.native_mode = current_mode;
-
+	output->base.current_mode = current_mode;
+	weston_output_copy_native_mode(base, current_mode);
 	output->base.start_repaint_loop = pipewire_output_start_repaint_loop;
 	output->base.repaint = pipewire_output_repaint;
 	output->base.assign_planes = NULL;

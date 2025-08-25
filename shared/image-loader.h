@@ -28,7 +28,26 @@
 
 #include <pixman.h>
 
-pixman_image_t *
-load_image(const char *filename);
+enum weston_image_load_flags {
+        WESTON_IMAGE_LOAD_IMAGE = 0x1,
+        WESTON_IMAGE_LOAD_ICC = 0x2,
+};
+
+struct icc_profile_data {
+        int fd;
+        uint32_t length;
+        uint32_t offset;
+};
+
+struct weston_image {
+        pixman_image_t *pixman_image;
+        struct icc_profile_data *icc_profile_data;
+};
+
+struct weston_image *
+weston_image_load(const char *filename, uint32_t image_load_flags);
+
+void
+weston_image_destroy(struct weston_image *image);
 
 #endif

@@ -1,4 +1,7 @@
-if not get_option('color-management-lcms')
+build_color_lcms = get_option('color-management-lcms')
+config_h.set10('BUILD_COLOR_LCMS', build_color_lcms)
+
+if not build_color_lcms
 	subdir_done()
 endif
 
@@ -13,6 +16,7 @@ config_h.set10('HAVE_CMS_GET_TONE_CURVE_SEGMENT',
 	       has_function_cmsGetToneCurveSegment)
 
 srcs_color_lcms = [
+	color_management_v1_server_protocol_h,
 	'color-lcms.c',
 	'color-profile.c',
 	'color-transform.c',
@@ -25,6 +29,7 @@ deps_color_lcms = [
 	dep_libm,
 	dep_libweston_private,
 	dep_lcms2,
+	dep_libshared,
 ]
 
 plugin_color_lcms = shared_library(

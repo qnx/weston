@@ -88,6 +88,7 @@ struct display {
 	struct wl_list output_list; /* struct output::link */
 
 	PFNEGLSWAPBUFFERSWITHDAMAGEEXTPROC swap_buffers_with_damage;
+	PFNEGLQUERYSUPPORTEDCOMPRESSIONRATESEXTPROC query_compression_rates;
 };
 
 struct geometry {
@@ -118,7 +119,8 @@ struct window {
 	struct xdg_surface *xdg_surface;
 	struct xdg_toplevel *xdg_toplevel;
 	EGLSurface egl_surface;
-	int fullscreen, maximized, opaque, buffer_bpp, frame_sync, delay;
+	int fullscreen, maximized, opaque, buffer_bpp, interval, delay;
+	int compression_rate, present_opaque;
 	struct wp_tearing_control_v1 *tear_control;
 	struct wp_viewport *viewport;
 	struct wp_fractional_scale_v1 *fractional_scale_obj;
@@ -163,6 +165,27 @@ static const char *frag_shader_text =
 
 static int running = 1;
 
+
+static int
+enum_to_compression_rate(EGLint value)
+{
+	switch (value) {
+	case EGL_SURFACE_COMPRESSION_FIXED_RATE_1BPC_EXT: return 1;
+	case EGL_SURFACE_COMPRESSION_FIXED_RATE_2BPC_EXT: return 2;
+	case EGL_SURFACE_COMPRESSION_FIXED_RATE_3BPC_EXT: return 3;
+	case EGL_SURFACE_COMPRESSION_FIXED_RATE_4BPC_EXT: return 4;
+	case EGL_SURFACE_COMPRESSION_FIXED_RATE_5BPC_EXT: return 5;
+	case EGL_SURFACE_COMPRESSION_FIXED_RATE_6BPC_EXT: return 6;
+	case EGL_SURFACE_COMPRESSION_FIXED_RATE_7BPC_EXT: return 7;
+	case EGL_SURFACE_COMPRESSION_FIXED_RATE_8BPC_EXT: return 8;
+	case EGL_SURFACE_COMPRESSION_FIXED_RATE_9BPC_EXT: return 9;
+	case EGL_SURFACE_COMPRESSION_FIXED_RATE_10BPC_EXT: return 10;
+	case EGL_SURFACE_COMPRESSION_FIXED_RATE_11BPC_EXT: return 11;
+	case EGL_SURFACE_COMPRESSION_FIXED_RATE_12BPC_EXT: return 12;
+	default: return 0;
+	}
+}
+
 static void
 init_egl(struct display *display, struct window *window)
 {
@@ -198,8 +221,9 @@ init_egl(struct display *display, struct window *window)
 	EGLint major, minor, n, count, i;
 	EGLConfig *configs;
 	EGLBoolean ret;
+	int r, g, b, a;
 
-	if (window->opaque || window->buffer_bpp == 16)
+	if (window->opaque)
 		config_attribs[9] = 0;
 
 	display->egl.dpy =
@@ -241,6 +265,16 @@ init_egl(struct display *display, struct window *window)
 		exit(EXIT_FAILURE);
 	}
 
+	eglGetConfigAttrib(display->egl.dpy,
+			   display->egl.conf, EGL_RED_SIZE, &r);
+	eglGetConfigAttrib(display->egl.dpy,
+			   display->egl.conf, EGL_GREEN_SIZE, &g);
+	eglGetConfigAttrib(display->egl.dpy,
+			   display->egl.conf, EGL_BLUE_SIZE, &b);
+	eglGetConfigAttrib(display->egl.dpy,
+			   display->egl.conf, EGL_ALPHA_SIZE, &a);
+	printf("Using config: r%dg%db%da%d\n", r, g, b, a);
+
 	display->egl.ctx = eglCreateContext(display->egl.dpy,
 					    display->egl.conf,
 					    EGL_NO_CONTEXT, context_attribs);
@@ -262,9 +296,23 @@ init_egl(struct display *display, struct window *window)
 		}
 	}
 
+	if (window->present_opaque &&
+	    (!extensions ||
+	     !weston_check_egl_extension(extensions, "EGL_EXT_present_opaque"))) {
+		fprintf(stderr, "missing required EGL_EXT_present_opaque extension\n");
+		exit(1);
+	}
+
 	if (display->swap_buffers_with_damage)
 		printf("has EGL_EXT_buffer_age and %s\n", swap_damage_ext_to_entrypoint[i].extension);
 
+	if (extensions &&
+	    weston_check_egl_extension(extensions, "EGL_EXT_surface_compression")) {
+		display->query_compression_rates =
+			(PFNEGLQUERYSUPPORTEDCOMPRESSIONRATESEXTPROC)
+			eglGetProcAddress("eglQuerySupportedCompressionRatesEXT");
+		printf("has EGL_EXT_surface_compression\n");
+	}
 }
 
 static void
@@ -430,9 +478,50 @@ init_gl(struct window *window)
 	GLuint program;
 	GLint status;
 	EGLBoolean ret;
+	EGLint attribs[5] = { EGL_NONE };
+	uint32_t num_attribs = 0;
 
 	if (window->needs_buffer_geometry_update)
 		update_buffer_geometry(window);
+
+	if (window->present_opaque) {
+		attribs[num_attribs++] = EGL_PRESENT_OPAQUE_EXT;
+		attribs[num_attribs++] = EGL_TRUE;
+	}
+
+	if (window->compression_rate != 0) {
+		EGLint rates[16], num_rates;
+
+		if (!window->display->query_compression_rates) {
+			fprintf(stderr, "Fixed-rate compression is not supported\n");
+			exit(1);
+		}
+
+		attribs[num_attribs++] = EGL_SURFACE_COMPRESSION_EXT;
+
+		if (window->compression_rate < 0) {
+			/* Use default compression rate if user specified -1 */
+			attribs[num_attribs++] = EGL_SURFACE_COMPRESSION_FIXED_RATE_DEFAULT_EXT;
+		} else if (window->compression_rate > 0) {
+			bool supported = false;
+
+			window->display->query_compression_rates(window->display->egl.dpy,
+								 window->display->egl.conf,
+								 NULL, rates, 16, &num_rates);
+			for (int i = 0; i < num_rates; ++i) {
+				if (enum_to_compression_rate(rates[i]) == window->compression_rate) {
+					attribs[num_attribs++] = rates[i];
+					supported = true;
+					break;
+				}
+			}
+
+			if (!supported) {
+				printf("Compression rate (%i bpc) is not supported\n", window->compression_rate);
+				exit(1);
+			}
+		}
+	}
 
 	window->native = wl_egl_window_create(window->surface,
 					      window->buffer_size.width,
@@ -440,14 +529,19 @@ init_gl(struct window *window)
 	window->egl_surface =
 		weston_platform_create_egl_surface(window->display->egl.dpy,
 						   window->display->egl.conf,
-						   window->native, NULL);
+						   window->native, attribs);
+
+	if (!window->egl_surface) {
+		fprintf(stderr, "Failed to create EGLSurface, error 0x%x\n",
+			eglGetError());
+		exit(1);
+	}
 
 	ret = eglMakeCurrent(window->display->egl.dpy, window->egl_surface,
 			     window->egl_surface, window->display->egl.ctx);
 	assert(ret == EGL_TRUE);
 
-	if (!window->frame_sync)
-		eglSwapInterval(window->display->egl.dpy, 0);
+	eglSwapInterval(window->display->egl.dpy, window->interval);
 
 	frag = create_shader(window, frag_shader_text, GL_FRAGMENT_SHADER);
 	vert = create_shader(window, vert_shader_text, GL_VERTEX_SHADER);
@@ -1292,12 +1386,16 @@ usage(int error_code)
 		"  -f\tRun in fullscreen mode\n"
 		"  -r\tUse fixed width/height ratio when run in fullscreen mode\n"
 		"  -m\tRun in maximized mode\n"
-		"  -o\tCreate an opaque surface\n"
+		"  -o\tCreate an opaque surface (without alpha)\n"
 		"  -s\tUse a 16 bpp EGL config\n"
 		"  -b\tDon't sync to compositor redraw (eglSwapInterval 0)\n"
 		"  -t\tEnable tearing via the tearing_control protocol\n"
 		"  -T\tEnable and disable tearing every 5 seconds\n"
 		"  -v\tDraw a moving vertical bar instead of a triangle\n"
+		"  -i <interval> \tSet eglSwapInterval to interval\n"
+		"  -p\tPresent surface opaquely, regardless of alpha\n"
+		"  -c <bpc>\tCompress the texture to given bitrate;\n"
+		"          \tDefault fixed-rate value is used if -1 is specified.\n"
 		"  -h\tThis help text\n\n");
 
 	exit(error_code);
@@ -1320,7 +1418,7 @@ main(int argc, char **argv)
 	window.buffer_transform = WL_OUTPUT_TRANSFORM_NORMAL;
 	window.needs_buffer_geometry_update = false;
 	window.buffer_bpp = 0;
-	window.frame_sync = 1;
+	window.interval = 1;
 	window.delay = 0;
 	window.fullscreen_ratio = false;
 
@@ -1341,7 +1439,7 @@ main(int argc, char **argv)
 		else if (strcmp("-s", argv[i]) == 0)
 			window.buffer_bpp = 16;
 		else if (strcmp("-b", argv[i]) == 0)
-			window.frame_sync = 0;
+			window.interval = 0;
 		else if (strcmp("-t", argv[i]) == 0) {
 			window.tearing = true;
 		} else if (strcmp("-T", argv[i]) == 0) {
@@ -1349,6 +1447,12 @@ main(int argc, char **argv)
 			window.toggled_tearing = true;
 		} else if (strcmp("-v", argv[i]) == 0)
 			window.vertical_bar = true;
+		else if (strcmp("-i", argv[i]) == 0)
+			window.interval = atoi(argv[++i]);
+		else if (strcmp("-p", argv[i]) == 0)
+			window.present_opaque = 1;
+		else if (strcmp("-c", argv[i]) == 0 && i+1 < argc)
+			window.compression_rate = atoi(argv[++i]);
 		else if (strcmp("-h", argv[i]) == 0)
 			usage(EXIT_SUCCESS);
 		else

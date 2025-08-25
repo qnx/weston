@@ -46,11 +46,19 @@
 /* enum gl_shader_color_curve */
 #define SHADER_COLOR_CURVE_IDENTITY 0
 #define SHADER_COLOR_CURVE_LUT_3x1D 1
+#define SHADER_COLOR_CURVE_LINPOW 2
+#define SHADER_COLOR_CURVE_POWLIN 3
 
 /* enum gl_shader_color_mapping */
 #define SHADER_COLOR_MAPPING_IDENTITY 0
 #define SHADER_COLOR_MAPPING_3DLUT 1
 #define SHADER_COLOR_MAPPING_MATRIX 2
+
+/* enum gl_channel_order */
+#define SHADER_CHANNEL_ORDER_RGBA 0
+#define SHADER_CHANNEL_ORDER_BGRA 1
+#define SHADER_CHANNEL_ORDER_ARGB 2
+#define SHADER_CHANNEL_ORDER_ABGR 3
 
 #if DEF_VARIANT == SHADER_VARIANT_EXTERNAL
 #extension GL_OES_EGL_image_external : require
@@ -73,12 +81,14 @@ precision HIGHPRECISION float;
  * snippet.
  */
 compile_const int c_variant = DEF_VARIANT;
-compile_const bool c_input_is_premult = DEF_INPUT_IS_PREMULT;
-compile_const bool c_green_tint = DEF_GREEN_TINT;
 compile_const int c_color_pre_curve = DEF_COLOR_PRE_CURVE;
 compile_const int c_color_mapping = DEF_COLOR_MAPPING;
 compile_const int c_color_post_curve = DEF_COLOR_POST_CURVE;
+compile_const int c_color_channel_order = DEF_COLOR_CHANNEL_ORDER;
 
+compile_const bool c_input_is_premult = DEF_INPUT_IS_PREMULT;
+compile_const bool c_tint = DEF_TINT;
+compile_const bool c_wireframe = DEF_WIREFRAME;
 compile_const bool c_need_color_pipeline =
 	c_color_pre_curve != SHADER_COLOR_CURVE_IDENTITY ||
 	c_color_mapping != SHADER_COLOR_MAPPING_IDENTITY ||
@@ -92,12 +102,11 @@ yuva2rgba(vec4 yuva)
 
 	/* ITU-R BT.601 & BT.709 quantization (limited range) */
 
-	/* Y = 255/219 * (x - 16/256) */
-	Y = 1.16438356 * (yuva.x - 0.0625);
+	Y = 255.0/219.0 * (yuva.x - 16.0/255.0);
 
-	/* Remove offset 128/256, but the 255/224 multiplier comes later */
-	su = yuva.y - 0.5;
-	sv = yuva.z - 0.5;
+	/* Remove offset 128/255, but the 255/224 multiplier comes later */
+	su = yuva.y - 128.0/255.0;
+	sv = yuva.z - 128.0/255.0;
 
 	/*
 	 * ITU-R BT.601 encoding coefficients (inverse), with the
@@ -120,14 +129,28 @@ uniform sampler2D tex;
 #endif
 
 varying HIGHPRECISION vec2 v_texcoord;
+varying HIGHPRECISION vec4 v_color;
+varying HIGHPRECISION vec3 v_barycentric;
+
 uniform sampler2D tex1;
 uniform sampler2D tex2;
+uniform sampler2D tex_wireframe;
 uniform float view_alpha;
 uniform vec4 unicolor;
+uniform vec4 tint;
+
+#define MAX_CURVE_PARAMS 10
+#define MAX_CURVESET_PARAMS (MAX_CURVE_PARAMS * 3)
+
 uniform HIGHPRECISION sampler2D color_pre_curve_lut_2d;
 uniform HIGHPRECISION vec2 color_pre_curve_lut_scale_offset;
+uniform HIGHPRECISION float color_pre_curve_params[MAX_CURVESET_PARAMS];
+uniform bool color_pre_curve_clamped_input;
+
 uniform HIGHPRECISION sampler2D color_post_curve_lut_2d;
 uniform HIGHPRECISION vec2 color_post_curve_lut_scale_offset;
+uniform HIGHPRECISION float color_post_curve_params[MAX_CURVESET_PARAMS];
+uniform bool color_post_curve_clamped_input;
 
 #if DEF_COLOR_MAPPING == SHADER_COLOR_MAPPING_3DLUT
 uniform HIGHPRECISION sampler3D color_mapping_lut_3d;
@@ -145,13 +168,27 @@ sample_input_texture()
 	if (c_variant == SHADER_VARIANT_SOLID)
 		return unicolor;
 
-	if (c_variant == SHADER_VARIANT_RGBA ||
-	    c_variant == SHADER_VARIANT_EXTERNAL) {
+	if (c_variant == SHADER_VARIANT_EXTERNAL)
 		return texture2D(tex, v_texcoord);
-	}
 
-	if (c_variant == SHADER_VARIANT_RGBX)
-		return vec4(texture2D(tex, v_texcoord).rgb, 1.0);
+	if (c_variant == SHADER_VARIANT_RGBA ||
+	    c_variant == SHADER_VARIANT_RGBX) {
+		vec4 color;
+
+		if (c_color_channel_order == SHADER_CHANNEL_ORDER_BGRA)
+			color = texture2D(tex, v_texcoord).bgra;
+		else if (c_color_channel_order == SHADER_CHANNEL_ORDER_ARGB)
+			color = texture2D(tex, v_texcoord).gbar;
+		else if (c_color_channel_order == SHADER_CHANNEL_ORDER_ABGR)
+			color = texture2D(tex, v_texcoord).abgr;
+		else
+			color = texture2D(tex, v_texcoord);
+
+		if (c_variant == SHADER_VARIANT_RGBX)
+			color.a = 1.0;
+
+		return color;
+	}
 
 	/* Requires conversion to RGBA */
 
@@ -180,6 +217,9 @@ sample_input_texture()
 }
 
 /*
+ * Sample a 1D LUT which is a single row of a 2D texture. The 2D texture has
+ * four rows so that the centers of texels have precise y-coordinates.
+ *
  * Texture coordinates go from 0.0 to 1.0 corresponding to texture edges.
  * When we do LUT look-ups with linear filtering, the correct range to sample
  * from is not from edge to edge, but center of first texel to center of last
@@ -188,9 +228,21 @@ sample_input_texture()
  * The scale and offset are precomputed to achieve this mapping.
  */
 float
-lut_texcoord(float x, vec2 scale_offset)
+sample_lut_1d(HIGHPRECISION sampler2D lut, vec2 scale_offset,
+	      float x, compile_const int row)
 {
-	return x * scale_offset.s + scale_offset.t;
+	float tx = x * scale_offset.s + scale_offset.t;
+	float ty = (float(row) + 0.5) / 4.0;
+
+	return texture2D(lut, vec2(tx, ty)).x;
+}
+
+vec3
+sample_lut_3x1d(HIGHPRECISION sampler2D lut, vec2 scale_offset, vec3 color)
+{
+	return vec3(sample_lut_1d(lut, scale_offset, color.r, 0),
+		    sample_lut_1d(lut, scale_offset, color.g, 1),
+		    sample_lut_1d(lut, scale_offset, color.b, 2));
 }
 
 vec3
@@ -199,31 +251,115 @@ lut_texcoord(vec3 pos, vec2 scale_offset)
 	return pos * scale_offset.s + scale_offset.t;
 }
 
-/*
- * Sample a 1D LUT which is a single row of a 2D texture. The 2D texture has
- * four rows so that the centers of texels have precise y-coordinates.
- */
 float
-sample_color_pre_curve_lut_2d(float x, compile_const int row)
+linpow(float x, float g, float a, float b, float c, float d)
 {
-	float tx = lut_texcoord(x, color_pre_curve_lut_scale_offset);
+	/* See WESTON_COLOR_CURVE_TYPE_LINPOW for details about LINPOW. */
 
-	return texture2D(color_pre_curve_lut_2d,
-			 vec2(tx, (float(row) + 0.5) / 4.0)).x;
+	if (x >= d)
+		return pow((a * x) + b, g);
+
+	return c * x;
+}
+
+float
+sample_linpow(float params[MAX_CURVESET_PARAMS], bool must_clamp,
+	      float x, compile_const int color_channel)
+{
+	float g, a, b, c, d;
+
+	/*
+	 * For each color channel we have MAX_CURVE_PARAMS parameters.
+	 * The parameters for the three curves are stored in RGB order.
+	 */
+	g = params[0 + color_channel * MAX_CURVE_PARAMS];
+	a = params[1 + color_channel * MAX_CURVE_PARAMS];
+	b = params[2 + color_channel * MAX_CURVE_PARAMS];
+	c = params[3 + color_channel * MAX_CURVE_PARAMS];
+	d = params[4 + color_channel * MAX_CURVE_PARAMS];
+
+	if (must_clamp)
+		x = clamp(x, 0.0, 1.0);
+
+	/* We use mirroring for negative input values. */
+	if (x < 0.0)
+		return -linpow(-x, g, a, b, c, d);
+
+	return linpow(x, g, a, b, c, d);
+}
+
+vec3
+sample_linpow_vec3(float params[MAX_CURVESET_PARAMS], bool must_clamp,
+		   vec3 color)
+{
+	return vec3(sample_linpow(params, must_clamp, color.r, 0),
+		    sample_linpow(params, must_clamp, color.g, 1),
+		    sample_linpow(params, must_clamp, color.b, 2));
+}
+
+float
+powlin(float x, float g, float a, float b, float c, float d)
+{
+	/* See WESTON_COLOR_CURVE_TYPE_POWLIN for details about POWLIN. */
+
+	if (x >= d)
+		return a * pow(x, g) + b;
+
+	return c * x;
+}
+
+float
+sample_powlin(float params[MAX_CURVESET_PARAMS], bool must_clamp,
+	      float x, compile_const int color_channel)
+{
+	float g, a, b, c, d;
+
+	/*
+	 * For each color channel we have MAX_CURVE_PARAMS parameters.
+	 * The parameters for the three curves are stored in RGB order.
+	 */
+	g = params[0 + color_channel * MAX_CURVE_PARAMS];
+	a = params[1 + color_channel * MAX_CURVE_PARAMS];
+	b = params[2 + color_channel * MAX_CURVE_PARAMS];
+	c = params[3 + color_channel * MAX_CURVE_PARAMS];
+	d = params[4 + color_channel * MAX_CURVE_PARAMS];
+
+	if (must_clamp)
+		x = clamp(x, 0.0, 1.0);
+
+	/* We use mirroring for negative input values. */
+	if (x < 0.0)
+		return -powlin(-x, g, a, b, c, d);
+
+	return powlin(x, g, a, b, c, d);
+}
+
+vec3
+sample_powlin_vec3(float params[MAX_CURVESET_PARAMS], bool must_clamp,
+		   vec3 color)
+{
+	return vec3(sample_powlin(params, must_clamp, color.r, 0),
+		    sample_powlin(params, must_clamp, color.g, 1),
+		    sample_powlin(params, must_clamp, color.b, 2));
 }
 
 vec3
 color_pre_curve(vec3 color)
 {
-	vec3 ret;
-
 	if (c_color_pre_curve == SHADER_COLOR_CURVE_IDENTITY) {
 		return color;
 	} else if (c_color_pre_curve == SHADER_COLOR_CURVE_LUT_3x1D) {
-		ret.r = sample_color_pre_curve_lut_2d(color.r, 0);
-		ret.g = sample_color_pre_curve_lut_2d(color.g, 1);
-		ret.b = sample_color_pre_curve_lut_2d(color.b, 2);
-		return ret;
+		return sample_lut_3x1d(color_pre_curve_lut_2d,
+				       color_pre_curve_lut_scale_offset,
+				       color);
+	} else if (c_color_pre_curve == SHADER_COLOR_CURVE_LINPOW) {
+		return sample_linpow_vec3(color_pre_curve_params,
+					  color_pre_curve_clamped_input,
+					  color);
+	} else if (c_color_pre_curve == SHADER_COLOR_CURVE_POWLIN) {
+		return sample_powlin_vec3(color_pre_curve_params,
+					  color_pre_curve_clamped_input,
+					  color);
 	} else {
 		/* Never reached, bad c_color_pre_curve. */
 		return vec3(1.0, 0.3, 1.0);
@@ -254,27 +390,23 @@ color_mapping(vec3 color)
 		return vec3(1.0, 0.3, 1.0);
 }
 
-float
-sample_color_post_curve_lut_2d(float x, compile_const int row)
-{
-	float tx = lut_texcoord(x, color_post_curve_lut_scale_offset);
-
-	return texture2D(color_post_curve_lut_2d,
-			 vec2(tx, (float(row) + 0.5) / 4.0)).x;
-}
-
 vec3
 color_post_curve(vec3 color)
 {
-	vec3 ret;
-
 	if (c_color_post_curve == SHADER_COLOR_CURVE_IDENTITY) {
 		return color;
 	} else if (c_color_post_curve == SHADER_COLOR_CURVE_LUT_3x1D) {
-		ret.r = sample_color_post_curve_lut_2d(color.r, 0);
-		ret.g = sample_color_post_curve_lut_2d(color.g, 1);
-		ret.b = sample_color_post_curve_lut_2d(color.b, 2);
-		return ret;
+		return sample_lut_3x1d(color_post_curve_lut_2d,
+				       color_post_curve_lut_scale_offset,
+				       color);
+	} else if (c_color_post_curve == SHADER_COLOR_CURVE_LINPOW) {
+		return sample_linpow_vec3(color_post_curve_params,
+					  color_post_curve_clamped_input,
+					  color);
+	} else if (c_color_post_curve == SHADER_COLOR_CURVE_POWLIN) {
+		return sample_powlin_vec3(color_post_curve_params,
+					  color_post_curve_clamped_input,
+					  color);
 	} else {
 		/* Never reached, bad c_color_post_curve. */
 		return vec3(1.0, 0.3, 1.0);
@@ -299,6 +431,16 @@ color_pipeline(vec4 color)
 	return color;
 }
 
+vec4
+wireframe()
+{
+	float edge1 = texture2D(tex_wireframe, vec2(v_barycentric.x, 0.5)).r;
+	float edge2 = texture2D(tex_wireframe, vec2(v_barycentric.y, 0.5)).r;
+	float edge3 = texture2D(tex_wireframe, vec2(v_barycentric.z, 0.5)).r;
+
+	return vec4(clamp(edge1 + edge2 + edge3, 0.0, 1.0));
+}
+
 void
 main()
 {
@@ -316,8 +458,13 @@ main()
 
 	color *= view_alpha;
 
-	if (c_green_tint)
-		color = vec4(0.0, 0.3, 0.0, 0.2) + color * 0.8;
+	if (c_tint)
+		color = color * vec4(1.0 - tint.a) + tint;
+
+	if (c_wireframe) {
+		vec4 src = wireframe();
+		color = color * vec4(1.0 - src.a) + src;
+	}
 
 	gl_FragColor = color;
 }

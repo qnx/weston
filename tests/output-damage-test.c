@@ -103,6 +103,7 @@ fixture_setup(struct weston_test_harness *harness, const struct setup_args *arg)
 	setup.scale = arg->scale;
 	setup.transform = arg->transform;
 	setup.shell = SHELL_TEST_DESKTOP;
+	setup.refresh = HIGHEST_OUTPUT_REFRESH;
 
 	/*
 	 * The test here works by swapping the whole wl_surface into a
@@ -213,7 +214,7 @@ TEST(output_damage)
 	}
 
 	client->surface->buffer = buf[0];
-	move_client(client, 19, 19);
+	move_client_frame_sync(client, 19, 19);
 
 	/*
 	 * Each time we commit a buffer with a different color, the damage box

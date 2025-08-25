@@ -38,6 +38,7 @@ fixture_setup(struct weston_test_harness *harness)
 	setup.backend = WESTON_BACKEND_DRM;
 	setup.renderer = WESTON_RENDERER_PIXMAN;
 	setup.shell = SHELL_TEST_DESKTOP;
+	setup.logging_scopes = "log,drm-backend";
 
 	weston_ini_setup(&setup,
 			 cfgln("[shell]"),
@@ -139,7 +140,7 @@ TEST(drm_writeback_screenshot) {
 	testlog("Screenshot %s reference image\n", match? "equal to" : "different from");
 	if (!match) {
 		diffimg = visualize_image_difference(screenshot->image, reference, &clip, NULL);
-		fname = screenshot_output_filename("drm-writeback-screenshot-error", 0);
+		fname = output_filename_for_test_case("error", 0, "png");
 		write_image_as_png(diffimg, fname);
 		pixman_image_unref(diffimg);
 		free(fname);

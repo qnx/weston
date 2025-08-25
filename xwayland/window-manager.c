@@ -1442,6 +1442,7 @@ weston_wm_window_set_pending_state(struct weston_wm_window *window)
 	pixman_region32_fini(&window->surface->pending.input);
 	pixman_region32_init_rect(&window->surface->pending.input,
 				  input_x, input_y, input_w, input_h);
+	window->surface->pending.status |= WESTON_SURFACE_DIRTY_INPUT;
 
 	xwayland_interface->set_window_geometry(window->shsurf,
 						input_x, input_y,
@@ -2986,6 +2987,25 @@ is_wm_window(struct weston_surface *surface)
 	return get_wm_window(surface) != NULL;
 }
 
+static const char *
+get_xwayland_window_name(struct weston_surface *surface, enum window_atom_type atype)
+{
+	struct weston_wm_window *window = get_wm_window(surface);
+
+	switch (atype) {
+	case WM_NAME:
+		return window->name;
+	break;
+	case WM_CLASS:
+		return window->class;
+	break;
+	default:
+		break;
+	}
+
+	return NULL;
+}
+
 static void
 weston_wm_window_configure(void *data)
 {
@@ -3354,4 +3374,5 @@ xserver_map_shell_surface(struct weston_wm_window *window,
 const struct weston_xwayland_surface_api surface_api = {
 	is_wm_window,
 	send_position,
+	get_xwayland_window_name,
 };

@@ -60,7 +60,10 @@ and some of their permutations.
 The formats supported with GL-renderer depend on the EGL and OpenGL ES 2 or 3
 implementations. The names are case-insensitive. This setting applies only to
 .RB "outputs in SDR mode, see " eotf-mode " in " weston.ini (5).
-
+If the hardware platform supports hardware planes placed under the DRM primary plane
+type (underlays), specifying
+.BR argb8888
+would be needed for Weston to display content lifted into such hardware planes.
 .RB "If not specified, " xrgb8888 " is used. See also " gbm-format " in"
 .BR output " section."
 .TP
@@ -146,17 +149,12 @@ Set the DRM KMS framebuffer format for this specific output. If not set,
 If using the Pixman-renderer, use shadow framebuffers. Defaults to
 .BR true .
 .TP
-\fBsame-as\fR=\fIname\fR
+\fBclone-of\fR=\fIname\fR
 Make this output (connector) a clone of another. The argument
 .IR name " is the "
 .BR name " value of another output section. The
 referred to output section must exist. When this key is present in an
 output section, all other keys have no effect on the configuration.
-
-NOTE: cms-colord plugin does not work correctly with this option. The plugin
-chooses an arbitrary monitor to load the color profile for, but the
-profile is applied equally to all cloned monitors regardless of their
-properties.
 .TP
 \fBforce-on\fR=\fItrue\fR
 Force the output to be enabled even if the connector is disconnected.
@@ -169,7 +167,7 @@ detailed mode line specified.
 \fBmax-bpc\fR=\fIN\fR
 .RB "Set \(dq" "max bpc" "\(dq KMS property to value"
 .IR N ,
-silenty clamped to the hardware driver supported range. This artificially
+silently clamped to the hardware driver supported range. This artificially
 limits the driver chosen link bits-per-channel which may be useful for working
 around sink hardware (e.g. monitor) limitations. The default is 16 which is
 practically unlimited. If you need to work around hardware issues, try a lower
