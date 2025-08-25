@@ -196,6 +196,7 @@ compositor_setup_defaults_(struct compositor_setup *setup,
 		.width = 320,
 		.height = 240,
 		.scale = 1,
+		.refresh = 0,
 		.transform = WL_OUTPUT_TRANSFORM_NORMAL,
 		.config_file = NULL,
 		.extra_module = NULL,
@@ -239,6 +240,7 @@ shell_to_str(enum shell_type t)
 		[SHELL_DESKTOP] = "desktop",
 		[SHELL_FULLSCREEN] = "fullscreen",
 		[SHELL_IVI] = "ivi",
+		[SHELL_KIOSK] = "kiosk",
 	};
 	assert(t >= 0 && t < ARRAY_LENGTH(names));
 	return names[t];
@@ -318,6 +320,12 @@ execute_compositor(const struct compositor_setup *setup,
 	if (setup->transform != WL_OUTPUT_TRANSFORM_NORMAL) {
 		str_printf(&tmp, "--transform=%s",
 			   transform_to_str(setup->transform));
+		prog_args_take(&args, tmp);
+	}
+
+	if (setup->refresh >= 0 &&
+	    setup->backend == WESTON_BACKEND_HEADLESS) {
+		str_printf(&tmp, "--refresh-rate=%d", setup->refresh);
 		prog_args_take(&args, tmp);
 	}
 

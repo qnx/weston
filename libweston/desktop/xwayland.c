@@ -2,7 +2,7 @@
  * Copyright © 2010-2012 Intel Corporation
  * Copyright © 2011-2012 Collabora, Ltd.
  * Copyright © 2013 Raspberry Pi Foundation
- * Copyright © 2016 Quentin "Sardem FF7" Glidic
+ * Copyright © 2016 Morgane "Sardem FF7" Glidic
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -129,10 +129,9 @@ weston_desktop_xwayland_surface_change_state(struct weston_desktop_xwayland_surf
 
 			surface->view =
 				weston_desktop_surface_create_view(surface->surface);
-			weston_layer_entry_insert(&surface->xwayland->layer.view_list,
-						  &surface->view->layer_link);
-			surface->view->is_mapped = true;
 			weston_surface_map(wsurface);
+			weston_view_move_to_layer(surface->view,
+						  &surface->xwayland->layer.view_list);
 		}
 
 		/* If the surface state was updated by the shell during this

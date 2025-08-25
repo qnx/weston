@@ -429,17 +429,23 @@ x11_output_start_repaint_loop(struct weston_output *output)
 }
 
 static int
-x11_output_repaint_gl(struct weston_output *output_base,
-		      pixman_region32_t *damage)
+x11_output_repaint_gl(struct weston_output *output_base)
 {
 	struct x11_output *output = to_x11_output(output_base);
 	struct weston_compositor *ec;
+	pixman_region32_t damage;
 
 	assert(output);
 
 	ec = output->base.compositor;
 
-	ec->renderer->repaint_output(output_base, damage, NULL);
+	pixman_region32_init(&damage);
+
+	weston_output_flush_damage_for_primary_plane(output_base, &damage);
+
+	ec->renderer->repaint_output(output_base, &damage, NULL);
+
+	pixman_region32_fini(&damage);
 
 	weston_output_arm_frame_timer(output_base, output->finish_frame_timer);
 	return 0;
@@ -498,8 +504,7 @@ set_clip_for_output(struct weston_output *output_base, pixman_region32_t *region
 
 
 static int
-x11_output_repaint_shm(struct weston_output *output_base,
-		       pixman_region32_t *damage)
+x11_output_repaint_shm(struct weston_output *output_base)
 {
 	struct x11_output *output = to_x11_output(output_base);
 	const struct weston_renderer *renderer;
@@ -508,6 +513,7 @@ x11_output_repaint_shm(struct weston_output *output_base,
 	struct x11_backend *b;
 	xcb_void_cookie_t cookie;
 	xcb_generic_error_t *err;
+	pixman_region32_t damage;
 
 	assert(output);
 
@@ -517,9 +523,16 @@ x11_output_repaint_shm(struct weston_output *output_base,
 
 	image = renderer->pixman->renderbuffer_get_image(output->renderbuffer);
 
-	ec->renderer->repaint_output(output_base, damage, output->renderbuffer);
+	pixman_region32_init(&damage);
 
-	set_clip_for_output(output_base, damage);
+	weston_output_flush_damage_for_primary_plane(output_base, &damage);
+
+	ec->renderer->repaint_output(output_base, &damage, output->renderbuffer);
+
+	set_clip_for_output(output_base, &damage);
+
+	pixman_region32_fini(&damage);
+
 	cookie = xcb_shm_put_image_checked(b->conn, output->window, output->gc,
 					pixman_image_get_width(image),
 					pixman_image_get_height(image),
@@ -604,27 +617,27 @@ x11_output_set_icon(struct x11_backend *b,
 {
 	uint32_t *icon;
 	int32_t width, height;
-	pixman_image_t *image;
+	struct weston_image *image;
 
-	image = load_image(filename);
+	image = weston_image_load(filename, WESTON_IMAGE_LOAD_IMAGE);
 	if (!image)
 		return;
-	width = pixman_image_get_width(image);
-	height = pixman_image_get_height(image);
+	width = pixman_image_get_width(image->pixman_image);
+	height = pixman_image_get_height(image->pixman_image);
 	icon = malloc(width * height * 4 + 8);
 	if (!icon) {
-		pixman_image_unref(image);
+		weston_image_destroy(image);
 		return;
 	}
 
 	icon[0] = width;
 	icon[1] = height;
-	memcpy(icon + 2, pixman_image_get_data(image), width * height * 4);
+	memcpy(icon + 2, pixman_image_get_data(image->pixman_image), width * height * 4);
 	xcb_change_property(b->conn, XCB_PROP_MODE_REPLACE, output->window,
 			    b->atom.net_wm_icon, b->atom.cardinal, 32,
 			    width * height + 2, icon);
 	free(icon);
-	pixman_image_unref(image);
+	weston_image_destroy(image);
 }
 
 static void
@@ -1134,7 +1147,7 @@ x11_output_set_size(struct weston_output *base, int width, int height)
 	assert(!output->base.current_mode);
 
 	/* Make sure we have scale set. */
-	assert(output->base.scale);
+	assert(output->base.current_scale);
 
 	if (width < WINDOW_MIN_WIDTH) {
 		weston_log("Invalid width \"%d\" for output %s\n",
@@ -1155,8 +1168,8 @@ x11_output_set_size(struct weston_output *base, int width, int height)
 			height * scrn->height_in_millimeters / scrn->height_in_pixels);
 	}
 
-	output_width = width * output->base.scale;
-	output_height = height * output->base.scale;
+	output_width = width * output->base.current_scale;
+	output_height = height * output->base.current_scale;
 
 	output->mode.flags =
 		WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED;
@@ -1165,12 +1178,12 @@ x11_output_set_size(struct weston_output *base, int width, int height)
 	output->mode.height = output_height;
 	output->mode.refresh = 60000;
 	output->native = output->mode;
-	output->scale = output->base.scale;
+	output->scale = output->base.current_scale;
 	wl_list_insert(&output->base.mode_list, &output->mode.link);
 
 	output->base.current_mode = &output->mode;
-	output->base.native_mode = &output->native;
-	output->base.native_scale = output->base.scale;
+	weston_output_copy_native_mode(&output->base, &output->mode);
+	output->base.native_scale = output->base.current_scale;
 
 	return 0;
 }
@@ -1961,19 +1974,14 @@ x11_backend_create(struct weston_compositor *compositor,
 				     x11_backend_handle_event, b);
 	wl_event_source_check(b->xcb_source);
 
-	if (compositor->renderer->import_dmabuf) {
-		if (linux_dmabuf_setup(compositor) < 0)
-			weston_log("Error: initializing dmabuf "
-				   "support failed.\n");
-	}
-
 	if (compositor->capabilities & WESTON_CAP_EXPLICIT_SYNC) {
 		if (linux_explicit_synchronization_setup(compositor) < 0)
 			weston_log("Error: initializing explicit "
 				   " synchronization support failed.\n");
 	}
 
-	ret = weston_plugin_api_register(compositor, WESTON_WINDOWED_OUTPUT_API_NAME,
+	ret = weston_plugin_api_register(compositor,
+					 WESTON_WINDOWED_OUTPUT_API_NAME_X11,
 					 &api, sizeof(api));
 
 	if (ret < 0) {

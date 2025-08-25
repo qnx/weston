@@ -1,5 +1,5 @@
 /*
- * Copyright © 2016 Quentin "Sardem FF7" Glidic
+ * Copyright © 2016 Morgane "Sardem FF7" Glidic
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -226,6 +226,12 @@ weston_desktop_surface_popup_ungrab(struct weston_desktop_surface *popup,
 				    struct weston_desktop_seat *seat);
 void
 weston_desktop_surface_popup_dismiss(struct weston_desktop_surface *surface);
+
+struct wl_list *
+weston_desktop_surface_get_grab_seat_list(struct weston_desktop_surface *surface);
+
+void
+weston_desktop_seat_end_grabs_on_seats(struct wl_list *list);
 
 struct weston_desktop_surface *
 weston_desktop_seat_popup_grab_get_topmost_surface(struct weston_desktop_seat *seat);

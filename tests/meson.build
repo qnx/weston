@@ -36,6 +36,8 @@ lib_test_client = static_library(
 		weston_output_capture_protocol_c,
 		viewporter_client_protocol_h,
 		viewporter_protocol_c,
+		xdg_shell_client_protocol_h,
+		xdg_shell_protocol_c,
 		'color_util.h',
 		'color_util.c',
 	],
@@ -152,7 +154,6 @@ tests = [
 		'name': 'color-metadata-errors',
 		'dep_objs': dep_libexec_weston,
 	},
-	{	'name': 'color-manager', },
 	{
 		'name': 'constraints',
 		'sources': [
@@ -179,6 +180,14 @@ tests = [
 			input_timestamps_unstable_v1_protocol_c,
 		],
 	},
+	{
+		'name': 'kiosk-shell',
+		'sources': [
+			'kiosk-shell-test.c',
+			xdg_shell_client_protocol_h,
+			xdg_shell_protocol_c,
+		],
+        },
 	{
 		'name': 'linux-explicit-synchronization',
 		'sources': [
@@ -311,6 +320,14 @@ if get_option('color-management-lcms')
 			'link_with': plugin_color_lcms,
 			'dep_objs': [ dep_lcms_util ]
 		},
+		{	'name': 'color-management',
+			'sources': [
+				'color-management-test.c',
+				color_management_v1_client_protocol_h,
+				color_management_v1_protocol_c,
+			],
+			'dep_objs': [ dep_lcms_util ]
+		},
 		{	'name': 'color-metadata-parsing' },
 		{
 			'name': 'lcms-util',
@@ -420,9 +437,14 @@ configure_file(output: 'test-config.h', configuration: test_config_h)
 
 test_env = {}
 
-# there are some leaks in fontconfig we can't fix; 
+# there are some leaks in fontconfig we can't fix;
+# use_tls=0 is a workaround for LeakSanitizer crashing after successful
+# program exit when it scans for leaks. Due to use_tls=0 even more
+# suppressions had to be added.
+# TODO XXX: Try to revert the addition of use_tls=0 when our CI image
+# upgrades from Debian Bookworm to something more recent.
 if get_option('b_sanitize') in ['address', 'address,undefined' ]
-  test_env += { 'LSAN_OPTIONS': 'suppressions=@0@'.format(dir_gitlab_ci / 'leak-sanitizer.supp') }
+  test_env += { 'LSAN_OPTIONS': 'use_tls=0:suppressions=@0@'.format(dir_gitlab_ci / 'leak-sanitizer.supp') }
 endif
 
 foreach t : tests

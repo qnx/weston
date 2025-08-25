@@ -31,7 +31,7 @@
 
 #include "kiosk-shell.h"
 #include "kiosk-shell-grab.h"
-#include "compositor/weston.h"
+#include "frontend/weston.h"
 #include "libweston/libweston.h"
 #include "shared/helpers.h"
 #include <libweston/shell-utils.h>
@@ -112,6 +112,25 @@ transform_handler(struct wl_listener *listener, void *data)
 			   shsurf->view->geometry.pos_offset.y);
 }
 
+static const char *
+xwayland_get_xwayland_name(struct kiosk_shell_surface *shsurf, enum window_atom_type type)
+{
+	const struct weston_xwayland_surface_api *api;
+	struct weston_surface *surface;
+
+	api = shsurf->shell->xwayland_surface_api;
+	if (!api) {
+		api = weston_xwayland_surface_get_api(shsurf->shell->compositor);
+		shsurf->shell->xwayland_surface_api = api;
+	}
+
+	surface = weston_desktop_surface_get_surface(shsurf->desktop_surface);
+	if (!api || !api->is_xwayland_surface(surface))
+		return NULL;
+
+	return api->get_xwayland_window_name(surface, type);
+}
+
 /*
  * kiosk_shell_surface
  */
@@ -162,8 +181,61 @@ kiosk_shell_surface_get_parent_root(struct kiosk_shell_surface *shsurf)
 }
 
 static bool
-kiosk_shell_output_has_app_id(struct kiosk_shell_output *shoutput,
-			      const char *app_id);
+kiosk_shell_output_has_app_id(char *config_app_ids, const char *app_id);
+
+static struct weston_output *
+kiosk_shell_surface_find_best_output_for_xwayland(struct kiosk_shell_surface *shsurf)
+{
+	struct kiosk_shell_output *shoutput;
+	const char *wm_name;
+	const char *wm_class;
+
+	wm_name = xwayland_get_xwayland_name(shsurf, WM_NAME);
+	wm_class = xwayland_get_xwayland_name(shsurf, WM_CLASS);
+
+	if (wm_name && wm_class) {
+		bool found_wm_name = false;
+		bool found_wm_class = false;
+
+		wl_list_for_each(shoutput, &shsurf->shell->output_list, link) {
+			if (kiosk_shell_output_has_app_id(shoutput->x11_wm_name_app_ids,
+							  wm_name))
+				found_wm_name = true;
+
+			if (kiosk_shell_output_has_app_id(shoutput->x11_wm_class_app_ids,
+							  wm_class))
+				found_wm_class = true;
+
+			if (found_wm_name && found_wm_class) {
+				shsurf->appid_output_assigned = true;
+				return shoutput->output;
+			}
+		}
+	}
+
+	/* fallback to search for each entry */
+	if (wm_name) {
+		wl_list_for_each(shoutput, &shsurf->shell->output_list, link) {
+			if (kiosk_shell_output_has_app_id(shoutput->x11_wm_name_app_ids,
+							  wm_name)) {
+				shsurf->appid_output_assigned = true;
+				return shoutput->output;
+			}
+		}
+	}
+
+	if (wm_class) {
+		wl_list_for_each(shoutput, &shsurf->shell->output_list, link) {
+			if (kiosk_shell_output_has_app_id(shoutput->x11_wm_class_app_ids,
+							  wm_class)) {
+				shsurf->appid_output_assigned = true;
+				return shoutput->output;
+			}
+		}
+	}
+
+	return NULL;
+}
 
 static struct weston_output *
 kiosk_shell_surface_find_best_output(struct kiosk_shell_surface *shsurf)
@@ -181,12 +253,16 @@ kiosk_shell_surface_find_best_output(struct kiosk_shell_surface *shsurf)
 	app_id = weston_desktop_surface_get_app_id(shsurf->desktop_surface);
 	if (app_id) {
 		wl_list_for_each(shoutput, &shsurf->shell->output_list, link) {
-			if (kiosk_shell_output_has_app_id(shoutput, app_id)) {
+			if (kiosk_shell_output_has_app_id(shoutput->app_ids, app_id)) {
 				shsurf->appid_output_assigned = true;
 				return shoutput->output;
 			}
 		}
 	}
+
+	output = kiosk_shell_surface_find_best_output_for_xwayland(shsurf);
+	if (output)
+		return output;
 
 	/* Group all related windows in the same output. */
 	root = kiosk_shell_surface_get_parent_root(shsurf);
@@ -669,27 +745,28 @@ kiosk_shell_output_destroy(struct kiosk_shell_output *shoutput)
 	wl_list_remove(&shoutput->link);
 
 	free(shoutput->app_ids);
+	free(shoutput->x11_wm_name_app_ids);
+	free(shoutput->x11_wm_class_app_ids);
 
 	free(shoutput);
 }
 
 static bool
-kiosk_shell_output_has_app_id(struct kiosk_shell_output *shoutput,
-			      const char *app_id)
+kiosk_shell_output_has_app_id(char *config_app_ids, const char *app_id)
 {
 	char *cur;
 	size_t app_id_len;
 
-	if (!shoutput->app_ids)
+	if (!config_app_ids)
 		return false;
 
-	cur = shoutput->app_ids;
+	cur = config_app_ids;
 	app_id_len = strlen(app_id);
 
 	while ((cur = strstr(cur, app_id))) {
 		/* Check whether we have found a complete match of app_id. */
 		if ((cur[app_id_len] == ',' || cur[app_id_len] == '\0') &&
-		    (cur == shoutput->app_ids || cur[-1] == ','))
+		    (cur == config_app_ids || cur[-1] == ','))
 			return true;
 		cur++;
 	}
@@ -705,10 +782,16 @@ kiosk_shell_output_configure(struct kiosk_shell_output *shoutput)
 		weston_config_get_section(wc, "output", "name", shoutput->output->name);
 
 	assert(shoutput->app_ids == NULL);
+	assert(shoutput->x11_wm_name_app_ids == NULL);
+	assert(shoutput->x11_wm_class_app_ids == NULL);
 
 	if (section) {
 		weston_config_section_get_string(section, "app-ids",
 						 &shoutput->app_ids, NULL);
+		weston_config_section_get_string(section, "x11-wm-name",
+						 &shoutput->x11_wm_name_app_ids, NULL);
+		weston_config_section_get_string(section, "x11-wm-class",
+						 &shoutput->x11_wm_class_app_ids, NULL);
 	}
 }
 
@@ -880,8 +963,9 @@ desktop_surface_removed(struct weston_desktop_surface *desktop_surface,
 						     WESTON_ACTIVATE_FLAG_NONE);
 		} else {
 			kiosk_seat->focused_surface = NULL;
-			kiosk_shell_output_set_active_surface_tree(shoutput,
-								   NULL);
+			if (shoutput)
+				kiosk_shell_output_set_active_surface_tree(shoutput,
+									   NULL);
 		}
 	}
 
@@ -961,7 +1045,6 @@ desktop_surface_committed(struct weston_desktop_surface *desktop_surface,
 						      shsurf->output);
 		struct kiosk_shell_seat *kiosk_seat;
 
-		shsurf->view->is_mapped = true;
 		weston_surface_map(surface);
 
 		kiosk_seat = get_kiosk_shell_seat(seat);
@@ -1341,6 +1424,7 @@ kiosk_shell_destroy(struct wl_listener *listener, void *data)
 	wl_list_remove(&shell->output_moved_listener.link);
 	wl_list_remove(&shell->seat_created_listener.link);
 	wl_list_remove(&shell->transform_listener.link);
+	wl_list_remove(&shell->session_listener.link);
 
 	wl_list_for_each_safe(shoutput, tmp, &shell->output_list, link) {
 		kiosk_shell_output_destroy(shoutput);
@@ -1360,6 +1444,31 @@ kiosk_shell_destroy(struct wl_listener *listener, void *data)
 	weston_desktop_destroy(shell->desktop);
 
 	free(shell);
+}
+
+static void
+kiosk_shell_notify_session(struct wl_listener *listener, void *data)
+{
+	struct kiosk_shell *shell =
+		container_of(listener, struct kiosk_shell, session_listener);
+	struct kiosk_shell_seat *k_seat;
+	struct weston_compositor *compositor = data;
+	struct weston_seat *seat = get_kiosk_shell_first_seat(shell);
+
+
+	if (!compositor->session_active || !seat)
+		return;
+
+	k_seat = get_kiosk_shell_seat(seat);
+	if (k_seat->focused_surface) {
+		struct kiosk_shell_surface *current_focus =
+			get_kiosk_shell_surface(k_seat->focused_surface);
+
+		weston_view_activate_input(current_focus->view,
+					   k_seat->seat,
+					   WESTON_ACTIVATE_FLAG_NONE);
+	}
+
 }
 
 WL_EXPORT int
@@ -1427,6 +1536,8 @@ wet_shell_init(struct weston_compositor *ec,
 	shell->output_moved_listener.notify = kiosk_shell_handle_output_moved;
 	wl_signal_add(&ec->output_moved_signal, &shell->output_moved_listener);
 
+	shell->session_listener.notify = kiosk_shell_notify_session;
+	wl_signal_add(&ec->session_signal, &shell->session_listener);
 	screenshooter_create(ec);
 
 	kiosk_shell_add_bindings(shell);

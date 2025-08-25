@@ -33,6 +33,12 @@ export PATH=$HOME/.local/bin:$PATH
 # Breathe (a bridge between Doxygen and Sphinx), and we use the Read the Docs
 # theme for the final presentation.
 pip3 install $PIP_ARGS sphinx==4.2.0
+pip3 install $PIP_ARGS sphinxcontrib-applehelp==1.0.4
+pip3 install $PIP_ARGS sphinxcontrib-devhelp==1.0.2
+pip3 install $PIP_ARGS sphinxcontrib-htmlhelp==2.0.0
+pip3 install $PIP_ARGS sphinxcontrib-jsmath==1.0.1
+pip3 install $PIP_ARGS sphinxcontrib-qthelp==1.0.3
+pip3 install $PIP_ARGS sphinxcontrib-serializinghtml==1.1.5
 pip3 install $PIP_ARGS breathe==4.31.0
 pip3 install $PIP_ARGS sphinx_rtd_theme==1.0.0
 
@@ -58,6 +64,7 @@ pip3 install $PIP_ARGS sphinx_rtd_theme==1.0.0
 # The fork pulls in this support from the original GitHub PR, rebased on top of
 # a newer upstream version which fixes AArch64 support.
 if [[ -n "$KERNEL_DEFCONFIG" ]]; then
+	# 6.3 is (still) used as >= 6.5 drm-writeback test will timeout
 	git clone --depth=1 --branch=v6.3 https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git linux
 	cd linux
 
@@ -96,9 +103,8 @@ if [[ -n "$KERNEL_DEFCONFIG" ]]; then
 	mv linux/.config /weston-virtme/.config
 	rm -rf linux
 
-	git clone https://github.com/fooishbar/virtme
+	git clone --depth=1 --branch=v1.25 --recurse-submodules https://github.com/arighi/virtme-ng.git virtme
 	cd virtme
-	git checkout -b snapshot 036fc0c8b3ee0881a035abc47ab4f152546a4408
 	./setup.py install
 	cd ..
 fi
@@ -117,7 +123,7 @@ rm -rf wayland
 # Keep this version in sync with our dependency in meson.build. If you wish to
 # raise a MR against custom protocol, please change this reference to clone
 # your relevant tree, and make sure you bump $FDO_DISTRIBUTION_TAG.
-git clone --branch 1.31 --depth=1 https://gitlab.freedesktop.org/wayland/wayland-protocols
+git clone --branch 1.33 --depth=1 https://gitlab.freedesktop.org/wayland/wayland-protocols
 cd wayland-protocols
 git show -s HEAD
 meson build --wrap-mode=nofallback
@@ -195,3 +201,12 @@ meson build --wrap-mode=nofallback
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf libdisplay-info
+
+# Build and install lcms2, which we use to support color-management.
+git clone --branch master https://github.com/mm2/Little-CMS.git lcms2
+cd lcms2
+git checkout -b snapshot lcms2.16
+meson build --wrap-mode=nofallback
+ninja ${NINJAFLAGS} -C build install
+cd ..
+rm  -rf lcms2

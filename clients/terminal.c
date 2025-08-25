@@ -868,8 +868,8 @@ resize_handler(struct widget *widget,
 		terminal->pace_pipe = -1;
 	}
 	m = 2 * terminal->margin;
-	columns = (width - m) / (int32_t) terminal->average_width;
-	rows = (height - m) / (int32_t) terminal->extents.height;
+	columns = (int32_t) round((width - m) / terminal->average_width);
+	rows = (int32_t) round((height - m) / terminal->extents.height);
 
 	if (!window_is_fullscreen(terminal->window) &&
 	    !window_is_maximized(terminal->window)) {
@@ -1711,7 +1711,7 @@ handle_non_csi_escape(struct terminal *terminal, char code)
 		break;
 	case 'E':    /* NEL - Newline */
 		terminal->column = 0;
-		// fallthrough
+		FALLTHROUGH;
 	case 'D':    /* IND - Linefeed */
 		terminal->row += 1;
 		if (terminal->row > terminal->margin_bottom) {
@@ -1893,7 +1893,7 @@ handle_special_char(struct terminal *terminal, char c)
 		if (terminal->mode & MODE_LF_NEWLINE) {
 			terminal->column = 0;
 		}
-		/* fallthrough */
+		FALLTHROUGH;
 	case '\v':
 	case '\f':
 		terminal->row++;

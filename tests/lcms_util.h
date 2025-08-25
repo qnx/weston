@@ -29,6 +29,30 @@
 
 #include "color_util.h"
 
+struct lcms_pipeline {
+	/**
+	 * Color space name
+	 */
+	const char *color_space;
+	/**
+	 * Chromaticities for output profile
+	 * White point is assumed to be D65.
+	 */
+	cmsCIExyYTRIPLE prim_output;
+	/**
+	 * tone curve enum
+	 */
+	enum transfer_fn pre_fn;
+	/**
+	 * Transform matrix from sRGB to target chromaticities in prim_output
+	 */
+	struct lcmsMAT3 mat;
+	/**
+	 * tone curve enum
+	 */
+	enum transfer_fn post_fn;
+};
+
 cmsToneCurve *
 build_MPE_curve(cmsContext ctx, enum transfer_fn fn);
 
@@ -37,3 +61,14 @@ build_MPE_curve_stage(cmsContext context_id, enum transfer_fn fn);
 
 cmsBool
 SetTextTags(cmsHPROFILE hProfile, const wchar_t* Description);
+
+cmsHPROFILE
+build_lcms_matrix_shaper_profile_output(cmsContext context_id,
+                                        const struct lcms_pipeline *pipeline,
+					const double vcgt_exponents[COLOR_CHAN_NUM]);
+
+cmsHPROFILE
+build_lcms_clut_profile_output(cmsContext context_id,
+                               const struct lcms_pipeline *pipeline,
+			       const double vcgt_exponents[COLOR_CHAN_NUM],
+			       int clut_dim_size, float clut_roundtrip_tolerance);

@@ -33,6 +33,26 @@
 
 #include "color.h"
 #include "shared/helpers.h"
+#include "shared/os-compatibility.h"
+
+/*
+ * Because cmsHPROFILE is a typedef of void*, it happily and implicitly
+ * casts to and from any pointer at all. In order to bring some type
+ * safety, wrap it.
+ */
+struct lcmsProfilePtr {
+	cmsHPROFILE p;
+};
+
+/* Cast an array of lcmsProfilePtr into array of cmsHPROFILE */
+static inline cmsHPROFILE *
+from_lcmsProfilePtr_array(struct lcmsProfilePtr *arr)
+{
+	static_assert(sizeof(struct lcmsProfilePtr) == sizeof(cmsHPROFILE),
+		      "arrays of cmsHPROFILE wrapper are castable");
+
+	return &arr[0].p;
+}
 
 struct weston_color_manager_lcms {
 	struct weston_color_manager base;
@@ -47,7 +67,7 @@ struct weston_color_manager_lcms {
 };
 
 static inline struct weston_color_manager_lcms *
-get_cmlcms(struct weston_color_manager *cm_base)
+to_cmlcms(struct weston_color_manager *cm_base)
 {
 	return container_of(cm_base, struct weston_color_manager_lcms, base);
 }
@@ -56,42 +76,50 @@ struct cmlcms_md5_sum {
 	uint8_t bytes[16];
 };
 
-struct cmlcms_color_profile {
-	struct weston_color_profile base;
-
-	/* struct weston_color_manager_lcms::color_profile_list */
-	struct wl_list link;
-
-	cmsHPROFILE profile;
-	struct cmlcms_md5_sum md5sum;
-
+struct cmlcms_output_profile_extract {
 	/** The curves to decode an electrical signal
 	 *
 	 * For ICC profiles, if the profile type is matrix-shaper, then eotf
-	 * contains the TRC, otherwise eotf contains an approximated EOTF if the
-	 * profile is used for output.
-	 * The field may be populated on demand.
+	 * contains the TRC, otherwise eotf contains an approximated EOTF.
 	 */
-	cmsToneCurve *eotf[3];
+	struct lcmsProfilePtr eotf;
 
-	/**
-	 * If the profile does support being an output profile and it is used as an
-	 * output then this field represents a concatenation of inverse EOTF + VCGT,
-	 * if the tag exists and it can not be null.
-	 * VCGT is part of monitor calibration which means: even though we must
-	 * apply VCGT in the compositor, we pretend that it happens inside the
-	 * monitor. This is how the classic color management and ICC profiles work.
-	 * The ICC profile (ignoring the VCGT tag) characterizes the output which
-	 * is VCGT + monitor behavior. The field is null only if the profile is not
-	 * usable as an output profile. The field is set when cmlcms_color_profile
-	 * is created.
-	 */
-	cmsToneCurve *output_inv_eotf_vcgt[3];
+	/** The inverse of above */
+	struct lcmsProfilePtr inv_eotf;
 
 	/**
 	 * VCGT tag cached from output profile, it could be null if not exist
 	 */
-	cmsToneCurve *vcgt[3];
+	struct lcmsProfilePtr vcgt;
+};
+
+/**
+ * Profile type, based on what was used to create it.
+ */
+enum cmlcms_profile_type {
+	CMLCMS_PROFILE_TYPE_ICC = 0, /* created with ICC profile. */
+	CMLCMS_PROFILE_TYPE_PARAMS,  /* created with color parameters. */
+};
+
+struct cmlcms_color_profile {
+	struct weston_color_profile base;
+	enum cmlcms_profile_type type;
+
+	/* struct weston_color_manager_lcms::color_profile_list */
+	struct wl_list link;
+
+	/* Only for CMLCMS_PROFILE_TYPE_ICC */
+	struct {
+		struct lcmsProfilePtr profile;
+		struct cmlcms_md5_sum md5sum;
+		struct ro_anonymous_file *prof_rofile;
+	} icc;
+
+	/* Only for CMLCMS_PROFILE_TYPE_PARAMS */
+	struct weston_color_profile_params *params;
+
+	/* Populated only when profile used as output profile */
+	struct cmlcms_output_profile_extract extract;
 };
 
 /**
@@ -122,13 +150,13 @@ const char *
 cmlcms_category_name(enum cmlcms_category cat);
 
 static inline struct cmlcms_color_profile *
-get_cprof(struct weston_color_profile *cprof_base)
+to_cmlcms_cprof(struct weston_color_profile *cprof_base)
 {
 	return container_of(cprof_base, struct cmlcms_color_profile, base);
 }
 
 struct weston_color_profile *
-cmlcms_get_stock_sRGB_color_profile(struct weston_color_manager *cm_base);
+cmlcms_ref_stock_sRGB_color_profile(struct weston_color_manager *cm_base);
 
 bool
 cmlcms_get_color_profile_from_icc(struct weston_color_manager *cm,
@@ -138,6 +166,17 @@ cmlcms_get_color_profile_from_icc(struct weston_color_manager *cm,
 				  struct weston_color_profile **cprof_out,
 				  char **errmsg);
 
+bool
+cmlcms_get_color_profile_from_params(struct weston_color_manager *cm_base,
+				     const struct weston_color_profile_params *params,
+				     const char *name_part,
+				     struct weston_color_profile **cprof_out,
+				     char **errmsg);
+
+bool
+cmlcms_send_image_desc_info(struct cm_image_desc_info *cm_image_desc_info,
+			    struct weston_color_profile *cprof_base);
+
 void
 cmlcms_destroy_color_profile(struct weston_color_profile *cprof_base);
 
@@ -146,7 +185,7 @@ struct cmlcms_color_transform_search_param {
 	enum cmlcms_category category;
 	struct cmlcms_color_profile *input_profile;
 	struct cmlcms_color_profile *output_profile;
-	cmsUInt32Number intent_output;	/* selected intent from output profile */
+	const struct weston_render_intent_info *render_intent;
 };
 
 struct cmlcms_color_transform {
@@ -157,12 +196,14 @@ struct cmlcms_color_transform {
 
 	struct cmlcms_color_transform_search_param search_key;
 
-	/*
-	 * Cached data in case weston_color_transform needs them.
-	 * Pre-curve and post-curve refer to the weston_color_transform
-	 * pipeline elements and have no semantic meaning. They both are a
-	 * result of optimizing an arbitrary LittleCMS pipeline, not
-	 * e.g. EOTF or VCGT per se.
+	/**
+	 * Cached data used when we can't translate the curves into parametric
+	 * ones that we implement in the renderer. So when we need to fallback
+	 * to LUT's, we use this data to compute them.
+	 *
+	 * These curves are a result of optimizing an arbitrary LittleCMS
+	 * pipeline, so they have no semantic meaning (that means that they are
+	 * not e.g. an EOTF).
 	 */
 	cmsToneCurve *pre_curve[3];
 	cmsToneCurve *post_curve[3];
@@ -200,7 +241,7 @@ struct cmlcms_color_transform {
 };
 
 static inline struct cmlcms_color_transform *
-get_xform(struct weston_color_transform *xform_base)
+to_cmlcms_xform(struct weston_color_transform *xform_base)
 {
 	return container_of(xform_base, struct cmlcms_color_transform, base);
 }
@@ -231,12 +272,10 @@ char *
 cmlcms_color_profile_print(const struct cmlcms_color_profile *cprof);
 
 bool
-retrieve_eotf_and_output_inv_eotf(cmsContext lcms_ctx,
-				  cmsHPROFILE hProfile,
-				  cmsToneCurve *output_eotf[3],
-				  cmsToneCurve *output_inv_eotf_vcgt[3],
-				  cmsToneCurve *vcgt[3],
-				  unsigned int num_points);
+ensure_output_profile_extract(struct cmlcms_color_profile *cprof,
+			      cmsContext lcms_ctx,
+			      unsigned int num_points,
+			      const char **err_msg);
 
 unsigned int
 cmlcms_reasonable_1D_points(void);

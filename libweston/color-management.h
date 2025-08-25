@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Collabora, Ltd.
+ * Copyright 2023 Collabora, Ltd.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -23,33 +23,36 @@
  * SOFTWARE.
  */
 
-#include "config.h"
+#ifndef WESTON_COLOR_MANAGEMENT_H
+#define WESTON_COLOR_MANAGEMENT_H
 
-#include "weston-test-client-helper.h"
-#include "weston-test-fixture-compositor.h"
+#include "color-properties.h"
 
-static enum test_result_code
-fixture_setup(struct weston_test_harness *harness)
-{
-	struct compositor_setup setup;
+struct cm_image_desc_info;
 
-	compositor_setup_defaults(&setup);
-	setup.renderer = WESTON_RENDERER_GL;
-	setup.shell = SHELL_TEST_DESKTOP;
+int
+weston_compositor_enable_color_management_protocol(struct weston_compositor *compositor);
 
-	weston_ini_setup(&setup,
-			 cfgln("[core]"),
-			 cfgln("color-management=true"));
+void
+weston_output_send_image_description_changed(struct weston_output *output);
 
-	return weston_test_harness_execute_as_client(harness, &setup);
-}
-DECLARE_FIXTURE_SETUP(fixture_setup);
+void
+weston_surface_send_preferred_image_description_changed(struct weston_surface *surface);
 
-TEST(color_lcms_loads)
-{
-	struct client *client;
+void
+weston_cm_send_icc_file(struct cm_image_desc_info *cm_image_desc_info,
+                        int32_t fd, uint32_t len);
 
-	client = create_client();
-	client_roundtrip(client);
-	client_destroy(client);
-}
+void
+weston_cm_send_primaries_named(struct cm_image_desc_info *cm_image_desc_info,
+			       const struct weston_color_primaries_info *primaries_info);
+
+void
+weston_cm_send_primaries(struct cm_image_desc_info *cm_image_desc_info,
+                         const struct weston_color_gamut *color_gamut);
+
+void
+weston_cm_send_tf_named(struct cm_image_desc_info *cm_image_desc_info,
+                        const struct weston_color_tf_info *tf_info);
+
+#endif /* WESTON_COLOR_MANAGEMENT_H */

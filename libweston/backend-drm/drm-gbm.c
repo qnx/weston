@@ -82,18 +82,17 @@ drm_backend_create_gl_renderer(struct drm_backend *b)
 	const struct pixel_format_info *format[3] = {
 		b->format,
 		fallback_format_for(b->format),
-		NULL,
 	};
 	struct gl_renderer_display_options options = {
 		.egl_platform = EGL_PLATFORM_GBM_KHR,
 		.egl_native_display = b->gbm,
 		.egl_surface_type = EGL_WINDOW_BIT,
 		.formats = format,
-		.formats_count = 2,
+		.formats_count = 1,
 	};
 
 	if (format[1])
-		options.formats_count = 3;
+		options.formats_count = 2;
 
 	return weston_compositor_init_renderer(b->compositor,
 					       WESTON_RENDERER_GL,
@@ -312,8 +311,10 @@ drm_output_render_gl(struct drm_output_state *state, pixman_region32_t *damage)
 		return NULL;
 	}
 
-	/* The renderer always produces an opaque image. */
-	ret = drm_fb_get_from_bo(bo, device, true, BUFFER_GBM_SURFACE);
+	/* Output transparent/opaque image according to the format required by
+	 * the client. */
+	ret = drm_fb_get_from_bo(bo, device, !output->format->opaque_substitute,
+	                         BUFFER_GBM_SURFACE);
 	if (!ret) {
 		weston_log("failed to get drm_fb for bo\n");
 		gbm_surface_release_buffer(output->gbm_surface, bo);

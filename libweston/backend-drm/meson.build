@@ -4,14 +4,17 @@ endif
 
 dep_libdisplay_info = dependency(
 	'libdisplay-info',
-	version: ['>= 0.1.1', '< 0.2.0'],
+	version: ['>= 0.1.1', '< 0.3.0'],
 	fallback: ['display-info', 'di_dep'],
 	default_options: [
 		'werror=false',
 	],
-	required: false,
+	required: true,
+	not_found_message: 'Required by DRM-backend.',
 )
-config_h.set10('HAVE_LIBDISPLAY_INFO', dep_libdisplay_info.found())
+if dep_libdisplay_info.version().version_compare('>= 0.2.0')
+	config_h.set('HAVE_LIBDISPLAY_INFO_HIGH_LEVEL_COLORIMETRY', '1')
+endif
 
 lib_backlight = static_library(
 	'backlight',
@@ -58,7 +61,6 @@ deps_drm = [
 ]
 
 if get_option('renderer-gl')
-	dep_gbm = dependency('gbm', required: false, version: '>= 21.1.1')
 	if not dep_gbm.found()
 		error('drm-backend with GL renderer requires gbm which was not found. Or, you can use \'-Drenderer-gl=false\'.')
 	endif

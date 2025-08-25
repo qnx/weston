@@ -42,6 +42,10 @@
 #include "pixel-formats.h"
 #include "presentation-time-server-protocol.h"
 
+#ifndef DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP
+#define DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP 0x15
+#endif
+
 struct drm_property_enum_info plane_type_enums[] = {
 	[WDRM_PLANE_TYPE_PRIMARY] = {
 		.name = "Primary",
@@ -154,6 +158,25 @@ struct drm_property_enum_info content_type_enums[] = {
 	[WDRM_CONTENT_TYPE_GAME] = { .name = "Game", },
 };
 
+struct drm_property_enum_info colorspace_enums[] = {
+	[WDRM_COLORSPACE_DEFAULT] = { .name = "Default", },
+	[WDRM_COLORSPACE_SMPTE_170M_YCC] = { .name = "SMPTE_170M_YCC", },
+	[WDRM_COLORSPACE_BT709_YCC] = { .name = "BT709_YCC", },
+	[WDRM_COLORSPACE_XVYCC_601] = { .name = "XVYCC_601", },
+	[WDRM_COLORSPACE_XVYCC_709] = { .name = "XVYCC_709", },
+	[WDRM_COLORSPACE_SYCC_601] = { .name = "SYCC_601", },
+	[WDRM_COLORSPACE_OPYCC_601] = { .name = "opYCC_601", },
+	[WDRM_COLORSPACE_OPRGB] = { .name = "opRGB", },
+	[WDRM_COLORSPACE_BT2020_CYCC] = { .name = "BT2020_CYCC", },
+	[WDRM_COLORSPACE_BT2020_RGB] = { .name = "BT2020_RGB", },
+	[WDRM_COLORSPACE_BT2020_YCC] = { .name = "BT2020_YCC", },
+	[WDRM_COLORSPACE_DCI_P3_RGB_D65] = { .name = "DCI-P3_RGB_D65", },
+	[WDRM_COLORSPACE_DCI_P3_RGB_THEATER] = { .name = "DCI-P3_RGB_Theater", },
+	[WDRM_COLORSPACE_RGB_WIDE_FIXED] = { .name = "RGB_WIDE_FIXED", },
+	[WDRM_COLORSPACE_RGB_WIDE_FLOAT] = { .name = "RGB_WIDE_FLOAT", },
+	[WDRM_COLORSPACE_BT601_YCC] = { .name = "BT601_YCC", },
+};
+
 const struct drm_property_info connector_props[] = {
 	[WDRM_CONNECTOR_EDID] = { .name = "EDID" },
 	[WDRM_CONNECTOR_DPMS] = {
@@ -189,6 +212,11 @@ const struct drm_property_info connector_props[] = {
 		.name = "content type",
 		.enum_values = content_type_enums,
 		.num_enum_values = WDRM_CONTENT_TYPE__COUNT,
+	},
+	[WDRM_CONNECTOR_COLORSPACE] = {
+		.name = "Colorspace",
+		.enum_values = colorspace_enums,
+		.num_enum_values = WDRM_COLORSPACE__COUNT,
 	},
 };
 
@@ -1099,6 +1127,7 @@ drm_connector_set_max_bpc(struct drm_connector *connector,
 	const struct drm_property_info *info;
 	struct drm_head *head;
 	struct drm_backend *backend = output->device->backend;
+	struct drm_device *device = output->device;
 	uint64_t max_bpc;
 	uint64_t a, b;
 
@@ -1107,7 +1136,7 @@ drm_connector_set_max_bpc(struct drm_connector *connector,
 
 	if (output->max_bpc == 0) {
 		/* A value of 0 means that the current max_bpc must be programmed. */
-		head = drm_head_find_by_connector(backend, connector->connector_id);
+		head = drm_head_find_by_connector(backend, device, connector->connector_id);
 		max_bpc = head->inherited_max_bpc;
 	} else {
 		info = &connector->props[WDRM_CONNECTOR_MAX_BPC];
@@ -1140,6 +1169,32 @@ drm_connector_set_content_type(struct drm_connector *connector,
 	prop_val = enum_info[content_type].value;
 	return connector_add_prop(req, connector,
 				  WDRM_CONNECTOR_CONTENT_TYPE, prop_val);
+}
+
+static int
+drm_connector_set_colorspace(struct drm_connector *connector,
+			     enum wdrm_colorspace colorspace,
+			     drmModeAtomicReq *req)
+{
+	const struct drm_property_info *info;
+	const struct drm_property_enum_info *enum_info;
+
+	assert(colorspace >= 0);
+	assert(colorspace < WDRM_COLORSPACE__COUNT);
+
+	if (!drm_connector_has_prop(connector, WDRM_CONNECTOR_COLORSPACE)) {
+		if (colorspace == WDRM_COLORSPACE_DEFAULT)
+			return 0;
+
+		return -1;
+	}
+
+	info = &connector->props[WDRM_CONNECTOR_COLORSPACE];
+	enum_info = &info->enum_values[colorspace];
+	assert(enum_info->valid);
+
+	return connector_add_prop(req, connector,
+				  WDRM_CONNECTOR_COLORSPACE, enum_info->value);
 }
 
 static int
@@ -1251,6 +1306,8 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
 		}
 
 		ret |= drm_connector_set_max_bpc(&head->connector, output, req);
+		ret |= drm_connector_set_colorspace(&head->connector,
+						    output->connector_colorspace, req);
 	}
 
 	if (ret != 0) {
@@ -1331,7 +1388,7 @@ drm_pending_state_clear_tearing(struct drm_pending_state *pending_state)
 	struct drm_output_state *output_state;
 
 	wl_list_for_each(output_state, &pending_state->output_list, link) {
-		if (output_state->output->virtual)
+		if (output_state->output->is_virtual)
 			continue;
 		output_state->tear = false;
 	}
@@ -1457,7 +1514,7 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
 	}
 
 	wl_list_for_each(output_state, &pending_state->output_list, link) {
-		if (output_state->output->virtual)
+		if (output_state->output->is_virtual)
 			continue;
 		if (mode == DRM_STATE_APPLY_SYNC)
 			assert(output_state->dpms == WESTON_DPMS_OFF);
@@ -1591,7 +1648,7 @@ drm_pending_state_apply(struct drm_pending_state *pending_state)
 		struct drm_output *output = output_state->output;
 		int ret;
 
-		if (output->virtual) {
+		if (output->is_virtual) {
 			drm_output_assign_state(output_state,
 						DRM_STATE_APPLY_ASYNC);
 			continue;
@@ -1603,7 +1660,7 @@ drm_pending_state_apply(struct drm_pending_state *pending_state)
 				   output->base.name);
 			weston_output_repaint_failed(&output->base);
 			drm_output_state_free(output->state_cur);
-			output->state_cur = drm_output_state_alloc(output, NULL);
+			output->state_cur = drm_output_state_alloc(output);
 			device->state_invalid = true;
 			if (b->compositor->renderer->type == WESTON_RENDERER_GL) {
 				drm_output_fini_egl(output);
@@ -1838,19 +1895,11 @@ init_kms_caps(struct drm_device *device)
 
 	drmSetClientCap(device->drm.fd, DRM_CLIENT_CAP_WRITEBACK_CONNECTORS, 1);
 
-#if 0
-	/* FIXME: DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP isn't merged into mainline so
-	 * we can't really use it at this point. Until then, make it so we
-	 * don't support it. After it gets merged, we can flip this back such
-	 * that we don't need to revert the entire tearing work, and we can
-	 * still get it all back, when the capability is actually available in
-	 * the kernel. */
 	ret = drmGetCap(device->drm.fd, DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP, &cap);
-	if (ret != 0)
-		cap = 0;
-#endif
-	device->tearing_supported = 0;
-	weston_log("DRM: does not support async page flipping\n");
+	if (ret == 0)
+		device->tearing_supported = cap;
+	weston_log("DRM: %s Atomic async page flip\n",
+		    device->tearing_supported ? "supports" : "does not support");
 
 	/*
 	 * KMS support for hardware planes cannot properly synchronize

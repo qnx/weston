@@ -104,6 +104,8 @@ struct wet_layoutput;
 
 struct wet_head_tracker {
 	struct wl_listener head_destroy_listener;
+	struct wl_listener resized_listener;
+	struct wet_compositor *wet;
 };
 
 /** User data for each weston_output */
@@ -170,6 +172,7 @@ struct wet_compositor {
 	bool use_color_manager;
 	bool drm_backend_loaded;
 	struct wl_listener screenshot_auth;
+	struct wl_listener output_created_listener;
 	enum require_outputs require_outputs;
 };
 
@@ -596,6 +599,25 @@ log_uname(void)
 						usys.version, usys.machine);
 }
 
+static void
+warn_possible_tty(void)
+{
+	int ret = isatty(fileno(weston_logfile));
+
+	if (ret > 0) {
+		/* isatty returns also if fd is pts */
+		char *tty_name = ttyname(fileno(weston_logfile));
+
+		if (tty_name && !strncmp(tty_name, "/dev/tty", 8)) {
+			weston_log("WARNING: Weston was started from %s. "
+				   "Messages will be dropped if not written to "
+				   "a file.\n", tty_name);
+			weston_log_continue(STAMP_SPACE "Use --log for capturing"
+					" Weston logs to a file.\n");
+		}
+	}
+}
+
 static struct wet_output_config *
 wet_init_parsed_options(struct weston_compositor *ec)
 {
@@ -699,11 +721,11 @@ usage(int error_code)
 	FILE *out = error_code == EXIT_SUCCESS ? stdout : stderr;
 
 	fprintf(out,
-		"Usage: weston [OPTIONS]\n\n"
+		"Usage: weston [OPTIONS] [-- program [arguments]]\n\n"
 		"This is weston version " VERSION ", the Wayland reference compositor.\n"
 		"Weston supports multiple backends, and depending on which backend is in use\n"
-		"different options will be accepted.\n\n"
-
+		"different options will be accepted. When '--' is used, Weston executes\n"
+		"program when it starts. Weston terminates when the program exits.\n\n"
 
 		"Core options:\n\n"
 		"  --version\t\tPrint weston version\n"
@@ -778,10 +800,12 @@ usage(int error_code)
 		"  --height=HEIGHT\tHeight of memory surface\n"
 		"  --scale=SCALE\t\tScale factor of output\n"
 		"  --transform=TR\tThe output transformation, TR is one of:\n"
-		"\tnormal 90 180 270 flipped flipped-90 flipped-180 flipped-270\n"
+		"\tnormal rotate-90 rotate-180 rotate-270 flipped flipped-rotate-90 flipped-rotate-180\n"
+		"\tflipped-rotate-270\n"
 		"  --use-pixman\t\tUse the pixman (CPU) renderer (deprecated alias for --renderer=pixman)\n"
 		"  --use-gl\t\tUse the GL renderer (deprecated alias for --renderer=gl)\n"
 		"  --no-outputs\t\tDo not create any virtual outputs\n"
+		"  --refresh-rate=RATE\tThe output refresh rate (in mHz)\n"
 		"\n");
 #endif
 
@@ -802,7 +826,7 @@ usage(int error_code)
 		"  --external-listener-fd=FD\tUse socket as listener connection\n"
 		"  --address=ADDR\tThe address to bind\n"
 		"  --port=PORT\t\tThe port to listen on\n"
-		"  --no-clients-resize\tThe RDP peers will be forced to the size of the desktop\n"
+		"  --no-resizeable\tThe RDP peers will be forced to the size of the desktop\n"
 		"  --rdp4-key=FILE\tThe file containing the key for RDP4 encryption\n"
 		"  --rdp-tls-cert=FILE\tThe file containing the certificate for TLS encryption\n"
 		"  --rdp-tls-key=FILE\tThe file containing the private key for TLS encryption\n"
@@ -817,6 +841,7 @@ usage(int error_code)
 		"  --port=PORT\t\tThe port to listen on\n"
 		"  --vnc-tls-cert=FILE\tThe file containing the certificate for TLS encryption\n"
 		"  --vnc-tls-key=FILE\tThe file containing the private key for TLS encryption\n"
+		"  --disable-transport-layer-security\t\tDisable Transport Layer Security (not recommended)\n"
 		"\n");
 #endif
 
@@ -1374,8 +1399,7 @@ wet_output_set_scale(struct weston_output *output,
 {
 	int32_t scale = default_scale;
 
-	if (section)
-		weston_config_section_get_int(section, "scale", &scale, default_scale);
+	weston_config_section_get_int(section, "scale", &scale, default_scale);
 
 	if (parsed_scale)
 		scale = parsed_scale;
@@ -1395,11 +1419,7 @@ wet_output_set_transform(struct weston_output *output,
 	char *t = NULL;
 	uint32_t transform = default_transform;
 
-	if (section) {
-		weston_config_section_get_string(section,
-						 "transform", &t, NULL);
-	}
-
+	weston_config_section_get_string(section, "transform", &t, NULL);
 	if (t) {
 		if (weston_parse_transform(t, &transform) < 0) {
 			weston_log("Invalid transform \"%s\" for output %s\n",
@@ -1430,11 +1450,7 @@ wet_output_set_color_profile(struct weston_output *output,
 	if (!compositor->use_color_manager)
 		return 0;
 
-	if (section) {
-		weston_config_section_get_string(section, "icc_profile",
-						 &icc_file, NULL);
-	}
-
+	weston_config_section_get_string(section, "icc_profile", &icc_file, NULL);
 	if (icc_file) {
 		cprof = weston_compositor_load_icc_file(output->compositor,
 							icc_file);
@@ -1459,9 +1475,10 @@ wet_output_set_color_profile(struct weston_output *output,
 	return ok ? 0 : -1;
 }
 
-static int
+WESTON_EXPORT_FOR_TESTS int
 wet_output_set_eotf_mode(struct weston_output *output,
-			 struct weston_config_section *section)
+			 struct weston_config_section *section,
+			 bool have_color_manager)
 {
 	static const struct {
 		const char *name;
@@ -1472,18 +1489,11 @@ wet_output_set_eotf_mode(struct weston_output *output,
 		{ "st2084",	WESTON_EOTF_MODE_ST2084 },
 		{ "hlg",	WESTON_EOTF_MODE_HLG },
 	};
-	struct wet_compositor *compositor;
 	enum weston_eotf_mode eotf_mode = WESTON_EOTF_MODE_SDR;
 	char *str = NULL;
 	unsigned i;
 
-	compositor = to_wet_compositor(output->compositor);
-
-	if (section) {
-		weston_config_section_get_string(section, "eotf-mode",
-						 &str, NULL);
-	}
-
+	weston_config_section_get_string(section, "eotf-mode", &str, NULL);
 	if (!str) {
 		/* The default SDR mode is always supported. */
 		assert(weston_output_get_supported_eotf_modes(output) & eotf_mode);
@@ -1501,6 +1511,7 @@ wet_output_set_eotf_mode(struct weston_output *output,
 		for (i = 0; i < ARRAY_LENGTH(modes); i++)
 			weston_log_continue(" %s", modes[i].name);
 		weston_log_continue("\n");
+		free(str);
 		return -1;
 	}
 	eotf_mode = modes[i].eotf_mode;
@@ -1508,16 +1519,11 @@ wet_output_set_eotf_mode(struct weston_output *output,
 	if ((weston_output_get_supported_eotf_modes(output) & eotf_mode) == 0) {
 		weston_log("Error: output '%s' does not support EOTF mode %s.\n",
 			   output->name, str);
-#if !HAVE_LIBDISPLAY_INFO
-		weston_log_continue(STAMP_SPACE "Weston was built without libdisplay-info, "
-				    "so HDR capabilities cannot be detected.\n");
-#endif
 		free(str);
 		return -1;
 	}
 
-	if (eotf_mode != WESTON_EOTF_MODE_SDR &&
-	    !compositor->use_color_manager) {
+	if (eotf_mode != WESTON_EOTF_MODE_SDR && !have_color_manager) {
 		weston_log("Error: EOTF mode %s on output '%s' requires color-management=true in weston.ini\n",
 			   str, output->name);
 		free(str);
@@ -1525,6 +1531,71 @@ wet_output_set_eotf_mode(struct weston_output *output,
 	}
 
 	weston_output_set_eotf_mode(output, eotf_mode);
+
+	free(str);
+	return 0;
+}
+
+WESTON_EXPORT_FOR_TESTS int
+wet_output_set_colorimetry_mode(struct weston_output *output,
+				struct weston_config_section *section,
+				bool have_color_manager)
+{
+	static const struct {
+		const char *name;
+		enum weston_colorimetry_mode cmode;
+	} modes[] = {
+		{ "default",	WESTON_COLORIMETRY_MODE_DEFAULT },
+		{ "bt2020cycc",	WESTON_COLORIMETRY_MODE_BT2020_CYCC },
+		{ "bt2020ycc",	WESTON_COLORIMETRY_MODE_BT2020_YCC },
+		{ "bt2020rgb",	WESTON_COLORIMETRY_MODE_BT2020_RGB },
+		{ "p3d65",	WESTON_COLORIMETRY_MODE_P3D65 },
+		{ "p3dci",	WESTON_COLORIMETRY_MODE_P3DCI },
+		{ "ictcp",	WESTON_COLORIMETRY_MODE_ICTCP },
+	};
+	enum weston_colorimetry_mode cmode = WESTON_COLORIMETRY_MODE_DEFAULT;
+	char *str = NULL;
+	unsigned i;
+
+	weston_config_section_get_string(section, "colorimetry-mode", &str, NULL);
+	if (!str) {
+		/* The default RGB mode is always supported. */
+		assert(weston_output_get_supported_colorimetry_modes(output) & cmode);
+		weston_output_set_colorimetry_mode(output, cmode);
+		return 0;
+	}
+
+	for (i = 0; i < ARRAY_LENGTH(modes); i++)
+		if (strcmp(str, modes[i].name) == 0)
+			break;
+
+	if (i == ARRAY_LENGTH(modes)) {
+		weston_log("Error in config for output '%s': '%s' is not a valid colorimetry mode. Try one of:",
+			   output->name, str);
+		for (i = 0; i < ARRAY_LENGTH(modes); i++)
+			weston_log_continue(" %s", modes[i].name);
+		weston_log_continue("\n");
+		free(str);
+		return -1;
+	}
+	cmode = modes[i].cmode;
+
+	if ((weston_output_get_supported_colorimetry_modes(output) & cmode) == 0) {
+		weston_log("Error: output '%s' does not support colorimetry mode %s.\n",
+			   output->name, str);
+		free(str);
+		return -1;
+	}
+
+	if (cmode != WESTON_COLORIMETRY_MODE_DEFAULT &&
+	    !have_color_manager) {
+		weston_log("Error: Colorimetry mode %s on output '%s' requires color-management=true in weston.ini\n",
+			   str, output->name);
+		free(str);
+		return -1;
+	}
+
+	weston_output_set_colorimetry_mode(output, cmode);
 
 	free(str);
 	return 0;
@@ -1686,11 +1757,137 @@ allow_content_protection(struct weston_output *output,
 {
 	bool allow_hdcp = true;
 
-	if (section)
-		weston_config_section_get_bool(section, "allow_hdcp",
-					       &allow_hdcp, true);
-
+	weston_config_section_get_bool(section, "allow_hdcp", &allow_hdcp, true);
 	weston_output_allow_protection(output, allow_hdcp);
+}
+
+static int
+wet_config_find_output_mirror(struct weston_output *output,
+				 struct wet_compositor *wet,
+				 char **mirror_key_value,
+				 char **mirror_output_name,
+				 struct weston_config_section **section)
+{
+	const char *section_name;
+	int ret = 0;
+
+	while (weston_config_next_section(wet->config, section, &section_name)) {
+		char *output_name = NULL;
+		char *mirror_of_key = NULL;
+
+		/* ignore sections we're not interested in */
+		if (strcmp(section_name, "output"))
+			continue;
+
+		weston_config_section_get_string(*section, "mirror-of",
+						 &mirror_of_key, NULL);
+
+		/* ignore outputs which do not have the mirror of key */
+		if (!mirror_of_key)
+			continue;
+
+		*mirror_key_value = mirror_of_key;
+		weston_config_section_get_string(*section, "name",
+						 &output_name, NULL);
+
+		if (output_name) {
+			*mirror_output_name = output_name;
+			goto out;
+		}
+
+		free(output_name);
+	}
+
+	ret = -1;
+out:
+	return ret;
+}
+
+static struct weston_head *
+wet_head_find_by_name(struct wet_compositor *wet, const char *name)
+{
+	struct weston_head *it = NULL;
+	struct weston_head *head_found = NULL;
+
+	while ((it = weston_compositor_iterate_heads(wet->compositor, it))) {
+		if (!strcmp(it->name, name)) {
+			head_found = it;
+			break;
+		}
+	}
+
+	return head_found;
+}
+
+
+static struct wet_backend *
+wet_get_backend_from_head(struct wet_compositor *wet, struct weston_head *head)
+{
+	struct wet_backend *b = NULL;
+	wl_list_for_each(b, &wet->backend_list, compositor_link)
+		if (b->backend == head->backend)
+			return b;
+
+	return NULL;
+}
+
+static struct weston_head *
+wet_config_find_head_to_mirror(struct weston_output *output,
+			       struct wet_compositor *wet)
+{
+	struct weston_head *head = NULL;
+	struct weston_config_section *section = NULL;
+
+	do {
+		char *mof_name = NULL;
+		char *remote_output_name = NULL;
+
+		/* do we have a mirror-of key at all? */
+		if (wet_config_find_output_mirror(output, wet, &mof_name,
+						  &remote_output_name,
+						  &section))
+			break;
+
+		assert(mof_name);
+
+		/* do we have a matching output between signal event and the
+		 * output to mirror ? */
+		if (strcmp(mof_name, output->name)) {
+			free(mof_name);
+			free(remote_output_name);
+			continue;
+		}
+
+		/* grab the output name of this 'remote_output_name' */
+		head = wet_head_find_by_name(wet, remote_output_name);
+
+		free(mof_name);
+		free(remote_output_name);
+	} while (!head);
+
+	return head;
+}
+
+static bool
+wet_config_head_has_mirror_of_entry(struct wet_compositor *wet, char *head_name)
+{
+	struct weston_config_section *section;
+
+	section = weston_config_get_section(wet->config, "output", "name", head_name);
+
+	if (section) {
+		char *mirror_of_key;
+
+		weston_config_section_get_string(section, "mirror-of",
+						 &mirror_of_key, NULL);
+
+		if (mirror_of_key) {
+			free(mirror_of_key);
+			return true;
+		}
+	}
+
+	return false;
 }
 
 static void
@@ -1724,10 +1921,11 @@ parse_simple_mode(struct weston_output *output,
 
 static int
 wet_configure_windowed_output_from_config(struct weston_output *output,
-					  struct wet_output_config *defaults)
+					  struct wet_output_config *defaults,
+					  enum weston_windowed_output_type type)
 {
 	const struct weston_windowed_output_api *api =
-		weston_windowed_output_get_api(output->compositor);
+		weston_windowed_output_get_api(output->compositor, type);
 
 	struct weston_config *wc = wet_get_config(output->compositor);
 	struct weston_config_section *section = NULL;
@@ -1786,6 +1984,9 @@ static void
 wet_head_tracker_destroy(struct wet_head_tracker *track)
 {
 	wl_list_remove(&track->head_destroy_listener.link);
+	if (track->resized_listener.notify)
+		wl_list_remove(&track->resized_listener.link);
+
 	free(track);
 }
 
@@ -1880,10 +2081,25 @@ weston_output_lazy_align(struct weston_output *output)
 
 static void
 simple_head_enable(struct wet_compositor *wet, struct wet_backend *wb,
-		   struct weston_head *head)
+		   struct weston_head *head, struct weston_head *head_to_mirror,
+		   wet_head_additional_setup wet_head_pre_enable,
+		   wet_head_additional_setup wet_head_post_enable)
 {
 	struct weston_output *output;
+	enum weston_compositor_backend backend_type;
 	int ret = 0;
+
+	backend_type = weston_get_backend_type(head->backend);
+
+	/* remote type of outputs: RDP/VNC/PipeWire that mirror out
+	 * a native one will be handled automatically with the help
+	 * of compositor outputs signals */
+	if ((backend_type == WESTON_BACKEND_RDP ||
+	     backend_type == WESTON_BACKEND_VNC ||
+	     backend_type == WESTON_BACKEND_PIPEWIRE) &&
+	     wet_config_head_has_mirror_of_entry(wet, head->name) &&
+	     !head_to_mirror)
+		return;
 
 	output = weston_compositor_create_output(wet->compositor, head,
 						 head->name);
@@ -1895,7 +2111,10 @@ simple_head_enable(struct wet_compositor *wet, struct wet_backend *wb,
 		return;
 	}
 
-	weston_output_lazy_align(output);
+	if (wet_head_pre_enable && head_to_mirror)
+		wet_head_pre_enable(head, head_to_mirror);
+	else
+		weston_output_lazy_align(output);
 
 	if (wb->simple_output_configure)
 		ret = wb->simple_output_configure(output);
@@ -1916,6 +2135,9 @@ simple_head_enable(struct wet_compositor *wet, struct wet_backend *wb,
 
 		return;
 	}
+
+	if (wet_head_post_enable && head)
+		wet_head_post_enable(head, head_to_mirror);
 
 	wet_head_tracker_create(wet, head);
 
@@ -1969,7 +2191,7 @@ simple_heads_changed(struct wl_listener *listener, void *arg)
 		non_desktop = weston_head_is_non_desktop(head);
 
 		if (connected && !enabled && !non_desktop) {
-			simple_head_enable(wet, wb, head);
+			simple_head_enable(wet, wb, head, NULL, NULL, NULL);
 		} else if (!connected && enabled) {
 			simple_head_disable(head);
 		} else if (enabled && changed) {
@@ -2272,7 +2494,9 @@ drm_backend_output_configure(struct weston_output *output,
 
 	allow_content_protection(output, section);
 
-	if (wet_output_set_eotf_mode(output, section) < 0)
+	if (wet_output_set_eotf_mode(output, section, wet->use_color_manager) < 0)
+		return -1;
+	if (wet_output_set_colorimetry_mode(output, section, wet->use_color_manager) < 0)
 		return -1;
 
 	if (wet_output_set_color_characteristics(output,
@@ -2284,8 +2508,8 @@ drm_backend_output_configure(struct weston_output *output,
 
 /* Find the output section to use for configuring the output with the
  * named head. If an output section with the given name contains
- * a "same-as" key, ignore all other settings in the output section and
- * instead find an output section named by the "same-as". Do this
+ * a "clone-of" key, ignore all other settings in the output section and
+ * instead find an output section named by the "clone-of". Do this
  * recursively.
  */
 static struct weston_config_section *
@@ -2293,33 +2517,33 @@ drm_config_find_controlling_output_section(struct weston_config *config,
 					   const char *head_name)
 {
 	struct weston_config_section *section;
-	char *same_as;
+	char *clone_of;
 	int depth = 0;
 
-	same_as = strdup(head_name);
+	clone_of = strdup(head_name);
 	do {
 		section = weston_config_get_section(config, "output",
-						    "name", same_as);
+						    "name", clone_of);
 		if (!section && depth > 0)
 			weston_log("Configuration error: "
 				   "output section referred to with "
-				   "'same-as=%s' not found.\n", same_as);
+				   "'clone-of=%s' not found.\n", clone_of);
 
-		free(same_as);
+		free(clone_of);
 
 		if (!section)
 			return NULL;
 
 		if (++depth > 10) {
 			weston_log("Configuration error: "
-				   "'same-as' nested too deep for output '%s'.\n",
+				   "'clone-of' nested too deep for output '%s'.\n",
 				   head_name);
 			return NULL;
 		}
 
-		weston_config_section_get_string(section, "same-as",
-						 &same_as, NULL);
-	} while (same_as);
+		weston_config_section_get_string(section, "clone-of",
+						 &clone_of, NULL);
+	} while (clone_of);
 
 	return section;
 }
@@ -2365,12 +2589,140 @@ static void
 wet_output_handle_destroy(struct wl_listener *listener, void *data)
 {
 	struct wet_output *output;
+	struct wet_compositor *wet;
+	struct weston_head *head = NULL;
 
 	output = wl_container_of(listener, output, output_destroy_listener);
 	assert(output->output == data);
 
+	wet = output->layoutput->compositor;
+	head = wet_config_find_head_to_mirror(output->output, wet);
+	if (head && !wet->compositor->shutting_down) {
+		simple_head_disable(head);
+	}
+
+
 	output->output = NULL;
 	wl_list_remove(&output->output_destroy_listener.link);
+}
+
+static void
+wet_output_overlap_pre_enable(struct weston_head *head,
+			      struct weston_head *head_to_mirror)
+{
+	head->output->mirror_of = head_to_mirror->output;
+	weston_output_set_position(head->output, head_to_mirror->output->pos);
+}
+
+static void
+wet_output_compute_output_from_mirror(struct weston_output *output,
+				      struct weston_output *mirror,
+				      struct weston_mode *mode,
+				      int *scale)
+{
+	assert(output->native_mode_copy.width);
+	assert(output->native_mode_copy.height);
+
+	mode->width = output->native_mode_copy.width /
+			mirror->current_scale;
+
+	mode->height = output->native_mode_copy.height /
+			mirror->current_scale;
+
+	mode->refresh = output->native_mode_copy.refresh;
+	*scale = output->current_scale;
+}
+
+/*
+ * "A" is being a mirror-of output "B" then:
+ *
+ * - "A" defaults to scale=1, but the [output] section may define another
+ *   scale, or the remote backend may provide the scale from the client.
+ * - The resolution of "A" is determined from the desktop area of "B" and the
+ *   output scale of "A".
+ */
+static void
+wet_output_overlap_post_enable(struct weston_head *head,
+			       struct weston_head *head_to_mirror)
+{
+	struct weston_mode mode;
+	int scale = 1;
+
+	wet_output_compute_output_from_mirror(head_to_mirror->output,
+					      head->output, &mode, &scale);
+
+	weston_log("Setting modeline to output '%s' to %dx%d, scale: %d\n",
+			head->name, mode.width, mode.height, scale);
+
+	weston_output_mode_set_native(head->output, &mode, scale);
+}
+
+static void
+simple_heads_output_sharing_resize(struct wl_listener *listener, void *data)
+{
+	struct weston_head *head = data;
+	struct weston_head *head_to_mirror = NULL;
+	struct weston_output *output;
+	struct wet_head_tracker *head_track =
+		container_of(listener, struct wet_head_tracker, resized_listener);
+	struct wet_compositor *wet = head_track->wet;
+	struct weston_mode mode;
+	int scale = 1;
+
+	output = weston_head_get_output(head);
+	head_to_mirror = wet_config_find_head_to_mirror(output, wet);
+	if (!head_to_mirror)
+		return;
+
+	weston_output_set_position(head_to_mirror->output, output->pos);
+
+	wet_output_compute_output_from_mirror(head->output,
+					      head_to_mirror->output,
+					      &mode, &scale);
+	weston_output_mode_set_native(head_to_mirror->output, &mode, scale);
+}
+
+static void
+wet_output_handle_create(struct wl_listener *listener, void *data)
+{
+	struct wet_compositor *wet =
+		container_of(listener, struct wet_compositor, output_created_listener);
+	struct weston_output *output = data;
+	struct weston_head *head = NULL;
+	struct weston_head *head_to_mirror =
+		weston_output_get_first_head(output);
+	struct wet_head_tracker *head_track;
+
+	struct wet_backend *wb;
+
+	/* just ignore events from other remote backends */
+	switch (weston_get_backend_type(output->backend)) {
+	case WESTON_BACKEND_RDP:
+	case WESTON_BACKEND_VNC:
+	case WESTON_BACKEND_PIPEWIRE:
+		return;
+	default:
+		break;
+	}
+
+	head = wet_config_find_head_to_mirror(output, wet);
+	if (!head)
+		return;
+
+	wb = wet_get_backend_from_head(wet, head);
+	assert(wb);
+
+	simple_head_enable(wet, wb, head, head_to_mirror,
+			   wet_output_overlap_pre_enable,
+			   wet_output_overlap_post_enable);
+	weston_head_reset_device_changed(head);
+
+	head_track = wet_head_tracker_from_head(head);
+	head_track->wet = wet;
+	head_track->resized_listener.notify = simple_heads_output_sharing_resize;
+
+	wl_signal_add(&wet->compositor->output_resized_signal,
+		      &head_track->resized_listener);
 }
 
 static struct wet_output *
@@ -2847,8 +3199,11 @@ remoted_output_init(struct weston_compositor *c,
 		return;
 
 	weston_config_section_get_string(section, "mode", &modeline, "off");
-	if (strcmp(modeline, "off") == 0)
+	if (strcmp(modeline, "off") == 0) {
+		weston_log("Would not create a remoted output \"%s\". "
+				"mode option has not been set or it is set to off.\n", output->name);
 		goto err;
+	}
 
 	output = api->create_output(c, output_name);
 	if (!output) {
@@ -2980,8 +3335,11 @@ pipewire_output_init(struct weston_compositor *c,
 		return;
 
 	weston_config_section_get_string(section, "mode", &modeline, "off");
-	if (strcmp(modeline, "off") == 0)
+	if (strcmp(modeline, "off") == 0) {
+		weston_log("Would not create a pipewire output \"%s\". "
+				"mode option has not been set or it is set to off.\n", output->name);
 		goto err;
+	}
 
 	output = api->create_output(c, output_name);
 	if (!output) {
@@ -3148,6 +3506,8 @@ load_drm_backend(struct weston_compositor *c, int *argc, char **argv,
 	config.base.struct_size = sizeof(struct weston_drm_backend_config);
 	config.configure_device = configure_input_device;
 
+	warn_possible_tty();
+
 	wb = wet_compositor_load_backend(c, WESTON_BACKEND_DRM, &config.base,
 					 drm_heads_changed, NULL);
 
@@ -3173,17 +3533,21 @@ headless_backend_output_configure(struct weston_output *output)
 		.scale = 1,
 		.transform = WL_OUTPUT_TRANSFORM_NORMAL
 	};
-	struct weston_config *wc = wet_get_config(output->compositor);
+	struct wet_compositor *wet = to_wet_compositor(output->compositor);
+	struct weston_config *wc = wet->config;
 	struct weston_config_section *section;
 
 	section = weston_config_get_section(wc, "output", "name", output->name);
-	if (wet_output_set_eotf_mode(output, section) < 0)
+	if (wet_output_set_eotf_mode(output, section, wet->use_color_manager) < 0)
+		return -1;
+	if (wet_output_set_colorimetry_mode(output, section, wet->use_color_manager) < 0)
 		return -1;
 
 	if (wet_output_set_color_characteristics(output, wc, section) < 0)
 		return -1;
 
-	return wet_configure_windowed_output_from_config(output, &defaults);
+	return wet_configure_windowed_output_from_config(output, &defaults,
+							 WESTON_WINDOWED_OUTPUT_HEADLESS);
 }
 
 static int
@@ -3220,7 +3584,9 @@ load_headless_backend(struct weston_compositor *c,
 		{ WESTON_OPTION_BOOLEAN, "use-gl", 0, &force_gl },
 		{ WESTON_OPTION_STRING, "transform", 0, &transform },
 		{ WESTON_OPTION_BOOLEAN, "no-outputs", 0, &no_outputs },
+		{ WESTON_OPTION_INTEGER, "refresh-rate", 0, &config.refresh },
 	};
+	config.refresh = -1;
 
 	parse_options(options, ARRAY_LENGTH(options), argc, argv);
 
@@ -3256,7 +3622,7 @@ load_headless_backend(struct weston_compositor *c,
 		return -1;
 
 	if (!no_outputs) {
-		api = weston_windowed_output_get_api(c);
+		api = weston_windowed_output_get_api(c, WESTON_WINDOWED_OUTPUT_HEADLESS);
 
 		if (!api) {
 			weston_log("Cannot use weston_windowed_output_api.\n");
@@ -3298,11 +3664,9 @@ pipewire_backend_output_configure(struct weston_output *output)
 	parse_simple_mode(output, section, &width, &height, &defaults,
 			  parsed_options);
 
-	if (section)
-		weston_config_section_get_string(section, "gbm-format",
-						 &gbm_format, NULL);
+	weston_config_section_get_string(section, "gbm-format", &gbm_format, NULL);
 
-	weston_output_set_scale(output, 1);
+	wet_output_set_scale(output, section, 1, 0);
 	weston_output_set_transform(output, WL_OUTPUT_TRANSFORM_NORMAL);
 
 	api->set_gbm_format(output, gbm_format);
@@ -3380,91 +3744,70 @@ weston_rdp_backend_config_init(struct weston_rdp_backend_config *config)
 	config->server_key = NULL;
 	config->env_socket = 0;
 	config->external_listener_fd = -1;
-	config->no_clients_resize = 0;
+	config->resizeable = true;
 	config->force_no_compression = 0;
 	config->remotefx_codec = true;
 	config->refresh_rate = RDP_DEFAULT_FREQ;
 }
 
-static void
-rdp_handle_layout(struct weston_compositor *ec, struct wet_backend *wb)
+static int
+rdp_backend_output_configure(struct weston_output *output)
 {
-	struct wet_compositor *wc = to_wet_compositor(ec);
-	struct wet_output_config *parsed_options = wc->parsed_options;
-	const struct weston_rdp_output_api *api = weston_rdp_output_get_api(ec);
+	struct wet_compositor *compositor = to_wet_compositor(output->compositor);
+	const struct weston_rdp_output_api *api =
+		weston_rdp_output_get_api(compositor->compositor);
+	struct wet_output_config *parsed_options = compositor->parsed_options;
 	struct weston_rdp_monitor config;
-	struct weston_head *head = NULL;
 	int width;
 	int height;
-	int scale = 1;
-
-	while ((head = wet_backend_iterate_heads(wc, wb, head))) {
-		struct weston_coord_global pos;
-		struct weston_output *output = head->output;
-		struct weston_mode new_mode = {};
-
-		assert(output);
-
-		api->head_get_monitor(head, &config);
-
-		width = config.width;
-		height = config.height;
-		scale = config.desktop_scale / 100;
-
-		/* If these are invalid, the backend is expecting
-		 * us to provide defaults.
-		 */
-		width = width ? width : parsed_options->width;
-		height = height ? height : parsed_options->height;
-		scale = scale ? scale : parsed_options->scale;
-
-		/* Fallback to 640 x 480 if we have nothing to use */
-		width = width ? width : 640;
-		height = height ? height : 480;
-		scale = scale ? scale : 1;
-
-		new_mode.width = width;
-		new_mode.height = height;
-		api->output_set_mode(output, &new_mode);
-
-		weston_output_set_scale(output, scale);
-		weston_output_set_transform(output,
-					    WL_OUTPUT_TRANSFORM_NORMAL);
-		pos.c = weston_coord(config.x, config.y);
-		weston_output_move(output, pos);
-	}
-}
-
-static void
-rdp_heads_changed(struct wl_listener *listener, void *arg)
-{
-	struct weston_compositor *compositor = arg;
-	struct wet_compositor *wet = to_wet_compositor(compositor);
-	struct wet_backend *wb = container_of(listener, struct wet_backend,
-					      heads_changed_listener);
 	struct weston_head *head = NULL;
+	int scale = 1;
+	struct weston_mode new_mode = {};
+	struct weston_config_section *section = NULL;
 
-	while ((head = wet_backend_iterate_heads(wet, wb, head))) {
-		if (head->output)
-			continue;
-
-		struct weston_output *out;
-
-		out = weston_compositor_create_output(compositor,
-						      head, head->name);
-
-		wet_head_tracker_create(wet, head);
-		weston_output_attach_head(out, head);
+	head = weston_output_get_first_head(output);
+	if (!head) {
+		weston_log("RDP backend: Failed to get proper head for output %s\n", output->name);
+		return -1;
 	}
 
-	rdp_handle_layout(compositor, wb);
+	section = weston_config_get_section(wet_get_config(output->compositor),
+					    "output", "name", output->name);
 
-	while ((head = wet_backend_iterate_heads(wet, wb, head))) {
-		if (!head->output->enabled)
-			weston_output_enable(head->output);
+	api->head_get_monitor(head, &config);
 
-		weston_head_reset_device_changed(head);
+	width = config.width;
+	height = config.height;
+	scale = config.desktop_scale / 100;
+
+	/* If these are invalid, the backend is expecting
+	 * us to provide defaults.
+	 */
+	width = width ? width : parsed_options->width;
+	height = height ? height : parsed_options->height;
+	scale = scale ? scale : parsed_options->scale;
+
+	/* Fallback to 640 x 480 if we have nothing to use */
+	width = width ? width : 640;
+	height = height ? height : 480;
+	scale = scale ? scale : 1;
+
+	new_mode.width = width;
+	new_mode.height = height;
+
+	if (output->mirror_of) {
+		api->disable_output_resize(output);
+		weston_log("Use of mirror_of disables resizing for output %s\n", output->name);
 	}
+
+	api->output_set_mode(output, &new_mode);
+
+	wet_output_set_scale(output, section, scale, 0);
+	weston_output_set_transform(output, WL_OUTPUT_TRANSFORM_NORMAL);
+
+	weston_log("rdp_backend_output_configure.. Done\n");
+
+	return 0;
 }
 
 static int
@@ -3477,6 +3820,7 @@ load_rdp_backend(struct weston_compositor *c,
 	struct wet_backend *wb;
 	bool no_remotefx_codec = false;
 	struct wet_output_config *parsed_options = wet_init_parsed_options(c);
+	bool no_resizeable = false;
 
 	if (!parsed_options)
 		return -1;
@@ -3490,7 +3834,7 @@ load_rdp_backend(struct weston_compositor *c,
 		{ WESTON_OPTION_INTEGER, "height", 0, &parsed_options->height },
 		{ WESTON_OPTION_STRING,  "address", 0, &config.bind_address },
 		{ WESTON_OPTION_INTEGER, "port", 0, &config.port },
-		{ WESTON_OPTION_BOOLEAN, "no-clients-resize", 0, &config.no_clients_resize },
+		{ WESTON_OPTION_BOOLEAN, "no-resizeable", false, &no_resizeable },
 		{ WESTON_OPTION_STRING,  "rdp4-key", 0, &config.rdp_key },
 		{ WESTON_OPTION_STRING,  "rdp-tls-cert", 0, &config.server_cert },
 		{ WESTON_OPTION_STRING,  "rdp-tls-key", 0, &config.server_key },
@@ -3501,6 +3845,7 @@ load_rdp_backend(struct weston_compositor *c,
 
 	parse_options(rdp_options, ARRAY_LENGTH(rdp_options), argc, argv);
 	config.remotefx_codec = !no_remotefx_codec;
+	config.resizeable = !no_resizeable;
 	config.renderer = renderer;
 
 	section = weston_config_get_section(wc, "rdp", NULL, NULL);
@@ -3514,7 +3859,8 @@ load_rdp_backend(struct weston_compositor *c,
 					 &config.server_key, config.server_key);
 
 	wb = wet_compositor_load_backend(c, WESTON_BACKEND_RDP, &config.base,
-					 rdp_heads_changed, NULL);
+					 simple_heads_changed,
+					 rdp_backend_output_configure);
 
 	free(config.bind_address);
 	free(config.rdp_key);
@@ -3557,7 +3903,13 @@ vnc_backend_output_configure(struct weston_output *output)
 
 	weston_config_section_get_bool(section, "resizeable", &resizeable, true);
 
-	weston_output_set_scale(output, 1);
+	if (output->mirror_of && resizeable) {
+		resizeable = false;
+		weston_log("Use of mirror_of disables resizing for output %s\n", output->name);
+
+	}
+
+	wet_output_set_scale(output, section, 1, 0);
 	weston_output_set_transform(output, WL_OUTPUT_TRANSFORM_NORMAL);
 
 	if (api->output_set_size(output, width, height, resizeable) < 0) {
@@ -3605,6 +3957,7 @@ load_vnc_backend(struct weston_compositor *c,
 		{ WESTON_OPTION_INTEGER, "port", 0, &config.port },
 		{ WESTON_OPTION_STRING,  "vnc-tls-cert", 0, &config.server_cert },
 		{ WESTON_OPTION_STRING,  "vnc-tls-key", 0, &config.server_key },
+		{ WESTON_OPTION_BOOLEAN, "disable-transport-layer-security", 0, &config.disable_tls },
 	};
 
 	parse_options(vnc_options, ARRAY_LENGTH(vnc_options), argc, argv);
@@ -3645,7 +3998,8 @@ x11_backend_output_configure(struct weston_output *output)
 		.transform = WL_OUTPUT_TRANSFORM_NORMAL
 	};
 
-	return wet_configure_windowed_output_from_config(output, &defaults);
+	return wet_configure_windowed_output_from_config(output, &defaults,
+							 WESTON_WINDOWED_OUTPUT_X11);
 }
 
 static int
@@ -3704,7 +4058,7 @@ load_x11_backend(struct weston_compositor *c,
 	if (!wb)
 		return -1;
 
-	api = weston_windowed_output_get_api(c);
+	api = weston_windowed_output_get_api(c, WESTON_WINDOWED_OUTPUT_X11);
 
 	if (!api) {
 		weston_log("Cannot use weston_windowed_output_api.\n");
@@ -3764,7 +4118,8 @@ wayland_backend_output_configure(struct weston_output *output)
 		.transform = WL_OUTPUT_TRANSFORM_NORMAL
 	};
 
-	return wet_configure_windowed_output_from_config(output, &defaults);
+	return wet_configure_windowed_output_from_config(output, &defaults,
+							 WESTON_WINDOWED_OUTPUT_WAYLAND);
 }
 
 static int
@@ -3836,7 +4191,7 @@ load_wayland_backend(struct weston_compositor *c,
 	if (!wb)
 		return -1;
 
-	api = weston_windowed_output_get_api(c);
+	api = weston_windowed_output_get_api(c, WESTON_WINDOWED_OUTPUT_WAYLAND);
 
 	if (api == NULL) {
 		/* We will just assume if load_backend() finished cleanly and
@@ -4164,6 +4519,15 @@ load_backends(struct weston_compositor *ec, const char *backends,
 	return 0;
 }
 
+static void
+wet_handle_mirror_outputs(struct wet_compositor *wet)
+{
+       wet->output_created_listener.notify = wet_output_handle_create;
+
+       wl_signal_add(&wet->compositor->output_created_signal,
+                     &wet->output_created_listener);
+}
+
 static char *
 copy_command_line(int argc, char * const argv[])
 {
@@ -4196,6 +4560,37 @@ wet_xwayland_destroy(struct weston_compositor *comp, void *wet_xwl)
 {
 }
 #endif
+
+static int
+execute_command(struct wet_compositor *wet, int argc, char **argv) {
+	/* alloca allocates in the stack rather than in the heap
+	 * and we thus do not need to free this pointer.
+	 */
+	char **exec_args = alloca(sizeof(char*) * (argc + 1));
+	int i;
+	pid_t tmp_pid = -1;
+
+	wet->autolaunch_watch = true;
+
+	tmp_pid = fork();
+	if (tmp_pid == -1) {
+		weston_log("Failed to fork command line command process: %s\n", strerror(errno));
+		return -1;
+	} else if (tmp_pid == 0) {
+		for (i = 0; i < argc; i++)
+			exec_args[i] = argv[i + 1];
+		exec_args[i] = NULL;
+
+		cleanup_for_child_process();
+		execvp(exec_args[0], exec_args);
+		/* execvp shouldn't return */
+		fprintf(stderr, "Failed to execute command line command: %s\n", strerror(errno));
+		_exit(1);
+	}
+
+	wet->autolaunch_pid = tmp_pid;
+	return 0;
+}
 
 static int
 execute_autolaunch(struct wet_compositor *wet, struct weston_config *config)
@@ -4590,6 +4985,8 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 	if (weston_compositor_backends_loaded(wet.compositor) < 0)
 		goto out;
 
+	wet_handle_mirror_outputs(&wet);
+
 	if (test_data && !check_compositor_capabilities(wet.compositor,
 				test_data->test_quirks.required_capabilities)) {
 		ret = WET_MAIN_RET_MISSING_CAPS;
@@ -4679,15 +5076,28 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 		}
 	}
 
-	for (i = 1; i < argc; i++)
-		weston_log("fatal: unhandled option: %s\n", argv[i]);
-	if (argc > 1)
-		goto out;
+	if (argc > 1 && strcmp(argv[1], "--") == 0) {
+		/* remove the '--' entry and move up the rest */
+		for (i = 1; i < argc; i++)
+			argv[i] = argv[i + 1];
+		argv[i] = NULL;
+		argc -= 1;
+	} else {
+		for (i = 1; i < argc; i++)
+			weston_log("fatal: unhandled option: %s\n", argv[i]);
+		if (argc > 1)
+			goto out;
+	}
 
 	weston_compositor_wake(wet.compositor);
 
-	if (execute_autolaunch(&wet, config) < 0)
-		goto out;
+	if (argc > 1) {
+		if (execute_command(&wet, argc, argv) < 0)
+			goto out;
+	} else {
+		if (execute_autolaunch(&wet, config) < 0)
+			goto out;
+	}
 
 	wl_display_run(display);
 
@@ -4711,6 +5121,8 @@ out:
 	if (wet_xwl)
 		wet_xwayland_destroy(wet.compositor, wet_xwl);
 
+	if (wet.output_created_listener.notify)
+		wl_list_remove(&wet.output_created_listener.link);
 	weston_compositor_destroy(wet.compositor);
 	wet_compositor_destroy_layout(&wet);
 	weston_log_scope_destroy(protocol_scope);

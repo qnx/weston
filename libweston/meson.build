@@ -5,7 +5,8 @@ deps_libweston = [
 	dep_libdl,
 	dep_libdrm,
 	dep_xkbcommon,
-	dep_matrix_c
+	dep_matrix_c,
+	dep_egl,
 ]
 srcs_libweston = [
 	git_version_h,
@@ -14,11 +15,15 @@ srcs_libweston = [
 	'bindings.c',
 	'clipboard.c',
 	'color.c',
+	'color-properties.c',
+	'color-management.c',
 	'color-noop.c',
+	'color-profile-param-builder.c',
 	'compositor.c',
 	'content-protection.c',
 	'data-device.c',
 	'drm-formats.c',
+	'id-number-allocator.c',
 	'input.c',
 	'linux-dmabuf.c',
 	'linux-explicit-synchronization.c',
@@ -37,6 +42,8 @@ srcs_libweston = [
 	'weston-log-flight-rec.c',
 	'weston-log.c',
 	'weston-direct-display.c',
+	color_management_v1_protocol_c,
+	color_management_v1_server_protocol_h,
 	linux_dmabuf_unstable_v1_protocol_c,
 	linux_dmabuf_unstable_v1_server_protocol_h,
 	linux_explicit_synchronization_unstable_v1_protocol_c,
@@ -80,15 +87,7 @@ srcs_libweston = [
 subdir('desktop')
 subdir('shell-utils')
 
-if get_option('renderer-gl')
-	dep_egl = dependency('egl', required: false)
-	if not dep_egl.found()
-		error('libweston + gl-renderer requires egl which was not found. Or, you can use \'-Drenderer-gl=false\'.')
-	endif
-	deps_libweston += dep_egl
-else
-	dep_egl = dependency('', required: false)
-endif
+dep_gbm = dependency('gbm', required: false, version: '>= 21.1.1')
 
 if get_option('backend-vnc')
 	dep_pam = dependency('pam', required: false)

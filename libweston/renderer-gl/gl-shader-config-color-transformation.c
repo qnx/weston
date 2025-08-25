@@ -41,9 +41,17 @@
 
 struct gl_renderer_color_curve {
 	enum gl_shader_color_curve type;
-	GLuint tex;
-	float scale;
-	float offset;
+	union {
+		struct {
+			GLuint tex;
+			float scale;
+			float offset;
+		} lut_3x1d;
+		struct {
+			GLfloat params[3][10];
+			GLboolean clamped_input;
+		} parametric;
+	} u;
 };
 
 struct gl_renderer_color_mapping {
@@ -69,8 +77,15 @@ struct gl_renderer_color_transform {
 static void
 gl_renderer_color_curve_fini(struct gl_renderer_color_curve *gl_curve)
 {
-	if (gl_curve->tex)
-		glDeleteTextures(1, &gl_curve->tex);
+	switch (gl_curve->type) {
+	case SHADER_COLOR_CURVE_IDENTITY:
+	case SHADER_COLOR_CURVE_LINPOW:
+	case SHADER_COLOR_CURVE_POWLIN:
+		break;
+	case SHADER_COLOR_CURVE_LUT_3x1D:
+		glDeleteTextures(1, &gl_curve->u.lut_3x1d.tex);
+		break;
+	};
 }
 
 static void
@@ -132,8 +147,40 @@ gl_renderer_color_transform_get(struct weston_color_transform *xform)
 			    destroy_listener);
 }
 
+static void
+gl_color_curve_parametric(struct gl_renderer_color_curve *gl_curve,
+			  const struct weston_color_curve *curve)
+{
+	const struct weston_color_curve_parametric *parametric = &curve->u.parametric;
+
+	ARRAY_COPY(gl_curve->u.parametric.params, parametric->params);
+
+	gl_curve->u.parametric.clamped_input = parametric->clamped_input;
+}
+
 static bool
-gl_color_curve_lut_3x1d(struct gl_renderer_color_curve *gl_curve,
+gl_color_curve_linpow(struct gl_renderer_color_curve *gl_curve,
+		      const struct weston_color_curve *curve)
+{
+	gl_curve->type = SHADER_COLOR_CURVE_LINPOW;
+	gl_color_curve_parametric(gl_curve, curve);
+
+	return true;
+}
+
+static bool
+gl_color_curve_powlin(struct gl_renderer_color_curve *gl_curve,
+		      const struct weston_color_curve *curve)
+{
+	gl_curve->type = SHADER_COLOR_CURVE_POWLIN;
+	gl_color_curve_parametric(gl_curve, curve);
+
+	return true;
+}
+
+static bool
+gl_color_curve_lut_3x1d(struct gl_renderer *gr,
+			struct gl_renderer_color_curve *gl_curve,
 			const struct weston_color_curve *curve,
 			struct weston_color_transform *xform)
 {
@@ -154,17 +201,12 @@ gl_color_curve_lut_3x1d(struct gl_renderer_color_curve *gl_curve,
 
 	curve->u.lut_3x1d.fill_in(xform, lut, lut_len);
 
-	glActiveTexture(GL_TEXTURE0);
 	glGenTextures(1, &tex);
 	glBindTexture(GL_TEXTURE_2D, tex);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glPixelStorei(GL_UNPACK_ALIGNMENT, sizeof (float));
-	glPixelStorei(GL_UNPACK_ROW_LENGTH_EXT, 0);
-	glPixelStorei(GL_UNPACK_SKIP_PIXELS_EXT, 0);
-	glPixelStorei(GL_UNPACK_SKIP_ROWS_EXT, 0);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, lut_len, nr_rows, 0,
 		     GL_RED_EXT, GL_FLOAT, lut);
 
@@ -172,15 +214,16 @@ gl_color_curve_lut_3x1d(struct gl_renderer_color_curve *gl_curve,
 	free(lut);
 
 	gl_curve->type = SHADER_COLOR_CURVE_LUT_3x1D;
-	gl_curve->tex = tex;
-	gl_curve->scale = (float)(lut_len - 1) / lut_len;
-	gl_curve->offset = 0.5f / lut_len;
+	gl_curve->u.lut_3x1d.tex = tex;
+	gl_curve->u.lut_3x1d.scale = (float)(lut_len - 1) / lut_len;
+	gl_curve->u.lut_3x1d.offset = 0.5f / lut_len;
 
 	return true;
 }
 
 static bool
-gl_3d_lut(struct gl_renderer_color_transform *gl_xform,
+gl_3d_lut(struct gl_renderer *gr,
+	  struct gl_renderer_color_transform *gl_xform,
 	  struct weston_color_transform *xform)
 {
 
@@ -194,7 +237,6 @@ gl_3d_lut(struct gl_renderer_color_transform *gl_xform,
 
 	xform->mapping.u.lut3d.fill_in(xform, lut, dim_size);
 
-	glActiveTexture(GL_TEXTURE0);
 	glGenTextures(1, &tex3d);
 	glBindTexture(GL_TEXTURE_3D, tex3d);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -202,11 +244,8 @@ gl_3d_lut(struct gl_renderer_color_transform *gl_xform,
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glPixelStorei(GL_UNPACK_SKIP_PIXELS_EXT, 0);
-	glPixelStorei(GL_UNPACK_SKIP_ROWS_EXT, 0);
-	glPixelStorei(GL_UNPACK_ROW_LENGTH_EXT, 0);
-	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB32F, dim_size, dim_size, dim_size, 0,
-		     GL_RGB, GL_FLOAT, lut);
+	gr->tex_image_3d(GL_TEXTURE_3D, 0, GL_RGB32F, dim_size, dim_size, dim_size, 0,
+			 GL_RGB, GL_FLOAT, lut);
 
 	glBindTexture(GL_TEXTURE_3D, 0);
 	gl_xform->mapping.type = SHADER_COLOR_MAPPING_3DLUT;
@@ -221,18 +260,13 @@ gl_3d_lut(struct gl_renderer_color_transform *gl_xform,
 
 
 static const struct gl_renderer_color_transform *
-gl_renderer_color_transform_from(struct weston_color_transform *xform)
+gl_renderer_color_transform_from(struct gl_renderer *gr,
+				 struct weston_color_transform *xform)
 {
 	static const struct gl_renderer_color_transform no_op_gl_xform = {
 		.pre_curve.type = SHADER_COLOR_CURVE_IDENTITY,
-		.pre_curve.tex = 0,
-		.pre_curve.scale = 0.0f,
-		.pre_curve.offset = 0.0f,
 		.mapping.type = SHADER_COLOR_MAPPING_IDENTITY,
 		.post_curve.type = SHADER_COLOR_CURVE_IDENTITY,
-		.post_curve.tex = 0,
-		.post_curve.scale = 0.0f,
-		.post_curve.offset = 0.0f,
 	};
 	struct gl_renderer_color_transform *gl_xform;
 	bool ok = false;
@@ -258,22 +292,30 @@ gl_renderer_color_transform_from(struct weston_color_transform *xform)
 		ok = true;
 		break;
 	case WESTON_COLOR_CURVE_TYPE_LUT_3x1D:
-		ok = gl_color_curve_lut_3x1d(&gl_xform->pre_curve,
+		ok = gl_color_curve_lut_3x1d(gr, &gl_xform->pre_curve,
 					     &xform->pre_curve, xform);
 		break;
+	case WESTON_COLOR_CURVE_TYPE_LINPOW:
+		ok = gl_color_curve_linpow(&gl_xform->pre_curve,
+					   &xform->pre_curve);
+		break;
+	case WESTON_COLOR_CURVE_TYPE_POWLIN:
+		ok = gl_color_curve_powlin(&gl_xform->pre_curve,
+					   &xform->pre_curve);
+		break;
 	}
-
 	if (!ok) {
 		gl_renderer_color_transform_destroy(gl_xform);
 		return NULL;
 	}
+
 	switch (xform->mapping.type) {
 	case WESTON_COLOR_MAPPING_TYPE_IDENTITY:
 		gl_xform->mapping = no_op_gl_xform.mapping;
 		ok = true;
 		break;
 	case WESTON_COLOR_MAPPING_TYPE_3D_LUT:
-		ok = gl_3d_lut(gl_xform, xform);
+		ok = gl_3d_lut(gr, gl_xform, xform);
 		break;
 	case WESTON_COLOR_MAPPING_TYPE_MATRIX:
 		gl_xform->mapping.type = SHADER_COLOR_MAPPING_MATRIX;
@@ -285,14 +327,23 @@ gl_renderer_color_transform_from(struct weston_color_transform *xform)
 		gl_renderer_color_transform_destroy(gl_xform);
 		return NULL;
 	}
+
 	switch (xform->post_curve.type) {
 	case WESTON_COLOR_CURVE_TYPE_IDENTITY:
 		gl_xform->post_curve = no_op_gl_xform.post_curve;
 		ok = true;
 		break;
 	case WESTON_COLOR_CURVE_TYPE_LUT_3x1D:
-		ok = gl_color_curve_lut_3x1d(&gl_xform->post_curve,
+		ok = gl_color_curve_lut_3x1d(gr, &gl_xform->post_curve,
 					     &xform->post_curve, xform);
+		break;
+	case WESTON_COLOR_CURVE_TYPE_LINPOW:
+		ok = gl_color_curve_linpow(&gl_xform->post_curve,
+					   &xform->post_curve);
+		break;
+	case WESTON_COLOR_CURVE_TYPE_POWLIN:
+		ok = gl_color_curve_powlin(&gl_xform->post_curve,
+					   &xform->post_curve);
 		break;
 	}
 	if (!ok) {
@@ -304,25 +355,54 @@ gl_renderer_color_transform_from(struct weston_color_transform *xform)
 }
 
 bool
-gl_shader_config_set_color_transform(struct gl_shader_config *sconf,
+gl_shader_config_set_color_transform(struct gl_renderer *gr,
+				     struct gl_shader_config *sconf,
 				     struct weston_color_transform *xform)
 {
 	const struct gl_renderer_color_transform *gl_xform;
 	bool ret = false;
 
-	gl_xform = gl_renderer_color_transform_from(xform);
+	gl_xform = gl_renderer_color_transform_from(gr, xform);
 	if (!gl_xform)
 		return false;
 
 	sconf->req.color_pre_curve = gl_xform->pre_curve.type;
-	sconf->color_pre_curve_lut_tex = gl_xform->pre_curve.tex;
-	sconf->color_pre_curve_lut_scale_offset[0] = gl_xform->pre_curve.scale;
-	sconf->color_pre_curve_lut_scale_offset[1] = gl_xform->pre_curve.offset;
+	switch (gl_xform->pre_curve.type) {
+	case SHADER_COLOR_CURVE_IDENTITY:
+		break;
+	case SHADER_COLOR_CURVE_LUT_3x1D:
+		sconf->color_pre_curve.lut_3x1d.tex = gl_xform->pre_curve.u.lut_3x1d.tex;
+		sconf->color_pre_curve.lut_3x1d.scale_offset[0] = gl_xform->pre_curve.u.lut_3x1d.scale;
+		sconf->color_pre_curve.lut_3x1d.scale_offset[1] = gl_xform->pre_curve.u.lut_3x1d.offset;
+		break;
+	case SHADER_COLOR_CURVE_LINPOW:
+	case SHADER_COLOR_CURVE_POWLIN:
+		memcpy(sconf->color_pre_curve.parametric.params,
+		       gl_xform->pre_curve.u.parametric.params,
+		       sizeof(sconf->color_pre_curve.parametric.params));
+		sconf->color_pre_curve.parametric.clamped_input =
+			gl_xform->pre_curve.u.parametric.clamped_input;
+		break;
+	}
 
 	sconf->req.color_post_curve = gl_xform->post_curve.type;
-	sconf->color_post_curve_lut_tex = gl_xform->post_curve.tex;
-	sconf->color_post_curve_lut_scale_offset[0] = gl_xform->post_curve.scale;
-	sconf->color_post_curve_lut_scale_offset[1] = gl_xform->post_curve.offset;
+	switch (gl_xform->post_curve.type) {
+	case SHADER_COLOR_CURVE_IDENTITY:
+		break;
+	case SHADER_COLOR_CURVE_LUT_3x1D:
+		sconf->color_post_curve.lut_3x1d.tex = gl_xform->post_curve.u.lut_3x1d.tex;
+		sconf->color_post_curve.lut_3x1d.scale_offset[0] = gl_xform->post_curve.u.lut_3x1d.scale;
+		sconf->color_post_curve.lut_3x1d.scale_offset[1] = gl_xform->post_curve.u.lut_3x1d.offset;
+		break;
+	case SHADER_COLOR_CURVE_LINPOW:
+	case SHADER_COLOR_CURVE_POWLIN:
+		memcpy(&sconf->color_post_curve.parametric.params,
+		       &gl_xform->post_curve.u.parametric.params,
+		       sizeof(sconf->color_post_curve.parametric.params));
+		sconf->color_post_curve.parametric.clamped_input =
+			gl_xform->post_curve.u.parametric.clamped_input;
+		break;
+	}
 
 	sconf->req.color_mapping = gl_xform->mapping.type;
 	switch (gl_xform->mapping.type) {

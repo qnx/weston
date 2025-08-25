@@ -26,6 +26,19 @@
  * SOFTWARE.
  */
 
+/*
+ * GL renderer best practices:
+ *
+ * 1. Texture units
+ *    1. Fixed allocation using the gl_tex_unit enumeration.
+ *    2. Any functions changing the active unit must restore it to 0 before
+ *       return so that other functions can assume a default value.
+ *
+ * 1. Pixel storage modes
+ *    1. Any functions changing modes must restore them to their default values
+ *       before return so that other functions can assume default values.
+ */
+
 #ifndef GL_RENDERER_INTERNAL_H
 #define GL_RENDERER_INTERNAL_H
 
@@ -37,6 +50,9 @@
 #include <GLES2/gl2ext.h>
 #include "shared/weston-egl-ext.h"  /* for PFN* stuff */
 #include "shared/helpers.h"
+
+/* Max number of images per buffer. */
+#define SHADER_INPUT_TEX_MAX 3
 
 /* Keep the following in sync with vertex.glsl. */
 enum gl_shader_texcoord_input {
@@ -61,6 +77,8 @@ enum gl_shader_texture_variant {
 enum gl_shader_color_curve {
 	SHADER_COLOR_CURVE_IDENTITY = 0,
 	SHADER_COLOR_CURVE_LUT_3x1D,
+	SHADER_COLOR_CURVE_LINPOW,
+	SHADER_COLOR_CURVE_POWLIN,
 };
 
 /* Keep the following in sync with fragment.glsl. */
@@ -69,6 +87,25 @@ enum gl_shader_color_mapping {
 	SHADER_COLOR_MAPPING_3DLUT,
 	SHADER_COLOR_MAPPING_MATRIX,
 };
+
+enum gl_shader_attrib_loc {
+	SHADER_ATTRIB_LOC_POSITION = 0,
+	SHADER_ATTRIB_LOC_TEXCOORD,
+	SHADER_ATTRIB_LOC_BARYCENTRIC,
+};
+
+enum gl_tex_unit {
+	TEX_UNIT_IMAGES = 0,
+	TEX_UNIT_COLOR_PRE_CURVE = SHADER_INPUT_TEX_MAX,
+	TEX_UNIT_COLOR_MAPPING,
+	TEX_UNIT_COLOR_POST_CURVE,
+	TEX_UNIT_WIREFRAME,
+	TEX_UNIT_LAST,
+};
+static_assert(TEX_UNIT_LAST < 8, "OpenGL ES 2.0 requires at least 8 texture "
+	      "units. Consider replacing this assert with a "
+	      "GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS check at display creation "
+	      "to require more.");
 
 /** GL shader requirements key
  *
@@ -85,16 +122,19 @@ struct gl_shader_requirements
 
 	unsigned variant:4; /* enum gl_shader_texture_variant */
 	bool input_is_premult:1;
-	bool green_tint:1;
+	bool tint:1;
+	bool wireframe:1;
 
-	unsigned color_pre_curve:1; /* enum gl_shader_color_curve */
+	unsigned color_pre_curve:2; /* enum gl_shader_color_curve */
 	unsigned color_mapping:2; /* enum gl_shader_color_mapping */
-	unsigned color_post_curve:1; /* enum gl_shader_color_curve */
+	unsigned color_post_curve:2; /* enum gl_shader_color_curve */
+	unsigned color_channel_order:2; /* enum gl_channel_order */
+
 	/*
 	 * The total size of all bitfields plus pad_bits_ must fill up exactly
 	 * how many bytes the compiler allocates for them together.
 	 */
-	unsigned pad_bits_:21;
+	unsigned pad_bits_:16;
 };
 static_assert(sizeof(struct gl_shader_requirements) ==
 	      4 /* total bitfield size in bytes */,
@@ -102,8 +142,8 @@ static_assert(sizeof(struct gl_shader_requirements) ==
 
 struct gl_shader;
 struct weston_color_transform;
+struct dmabuf_allocator;
 
-#define GL_SHADER_INPUT_TEX_MAX 3
 struct gl_shader_config {
 	struct gl_shader_requirements req;
 
@@ -111,19 +151,40 @@ struct gl_shader_config {
 	struct weston_matrix surface_to_buffer;
 	float view_alpha;
 	GLfloat unicolor[4];
+	GLfloat tint[4];
 	GLint input_tex_filter; /* GL_NEAREST or GL_LINEAR */
-	GLuint input_tex[GL_SHADER_INPUT_TEX_MAX];
-	GLuint color_pre_curve_lut_tex;
-	GLfloat color_pre_curve_lut_scale_offset[2];
+	GLuint input_tex[SHADER_INPUT_TEX_MAX];
+	GLuint wireframe_tex;
+
 	union {
 		struct {
-			GLuint  tex;
+			GLuint tex;
+			GLfloat scale_offset[2];
+		} lut_3x1d;
+		struct {
+			GLfloat params[3][10];
+			GLboolean clamped_input;
+		} parametric;
+	} color_pre_curve;
+
+	union {
+		struct {
+			GLuint tex;
 			GLfloat scale_offset[2];
 		} lut3d;
 		GLfloat matrix[9];
 	} color_mapping;
-	GLuint color_post_curve_lut_tex;
-	GLfloat color_post_curve_lut_scale_offset[2];
+
+	union {
+		struct {
+			GLuint tex;
+			GLfloat scale_offset[2];
+		} lut_3x1d;
+		struct {
+			GLfloat params[3][10];
+			GLboolean clamped_input;
+		} parametric;
+	} color_post_curve;
 };
 
 struct gl_renderer {
@@ -131,10 +192,14 @@ struct gl_renderer {
 	struct weston_compositor *compositor;
 	struct weston_log_scope *renderer_scope;
 
-	bool fragment_shader_debug;
-	bool fan_debug;
-	struct weston_binding *fragment_binding;
-	struct weston_binding *fan_binding;
+	/* Debug modes. */
+	struct weston_binding *debug_mode_binding;
+	int debug_mode;
+	bool debug_clear;
+	bool wireframe_dirty;
+	GLuint wireframe_tex;
+	int wireframe_size;
+	int nbatches;
 
 	EGLenum platform;
 	EGLDisplay egl_display;
@@ -143,8 +208,10 @@ struct gl_renderer {
 
 	uint32_t gl_version;
 
-	struct wl_array vertices;
-	struct wl_array vtxcnt;
+	/* Vertex streams. */
+	struct wl_array position_stream;
+	struct wl_array barycentric_stream;
+	struct wl_array indices;
 
 	EGLDeviceEXT egl_device;
 	const char *drm_device;
@@ -152,6 +219,8 @@ struct gl_renderer {
 	struct weston_drm_format_array supported_formats;
 
 	PFNGLEGLIMAGETARGETTEXTURE2DOESPROC image_target_texture_2d;
+	PFNGLTEXIMAGE3DOESPROC tex_image_3d;
+	PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC image_target_renderbuffer_storage;
 	PFNEGLCREATEIMAGEKHRPROC create_image;
 	PFNEGLDESTROYIMAGEKHRPROC destroy_image;
 	PFNEGLSWAPBUFFERSWITHDAMAGEEXTPROC swap_buffers_with_damage;
@@ -187,6 +256,13 @@ struct gl_renderer {
 	bool has_texture_storage;
 	bool has_pack_reverse;
 	bool has_rgb8_rgba8;
+
+	bool has_pbo;
+	GLenum pbo_usage;
+	PFNGLMAPBUFFERRANGEEXTPROC map_buffer_range;
+	PFNGLUNMAPBUFFEROESPROC unmap_buffer;
+
+	struct wl_list pending_capture_list;
 
 	struct gl_shader *current_shader;
 	struct gl_shader *fallback_shader;
@@ -227,6 +303,8 @@ struct gl_renderer {
 	 */
 	struct wl_list shader_list;
 	struct weston_log_scope *shader_scope;
+
+	struct dmabuf_allocator *allocator;
 };
 
 static inline struct gl_renderer *
@@ -286,7 +364,8 @@ struct weston_log_scope *
 gl_shader_scope_create(struct gl_renderer *gr);
 
 bool
-gl_shader_config_set_color_transform(struct gl_shader_config *sconf,
+gl_shader_config_set_color_transform(struct gl_renderer *gr,
+				     struct gl_shader_config *sconf,
 				     struct weston_color_transform *xform);
 
 #endif /* GL_RENDERER_INTERNAL_H */

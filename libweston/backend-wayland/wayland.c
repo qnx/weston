@@ -117,7 +117,6 @@ struct wayland_output {
 	struct wayland_backend *backend;
 
 	struct {
-		bool draw_initial_frame;
 		struct wl_surface *surface;
 
 		struct wl_output *output;
@@ -472,48 +471,42 @@ wayland_output_start_repaint_loop(struct weston_output *output_base)
 {
 	struct wayland_output *output = to_wayland_output(output_base);
 	struct wayland_backend *wb;
+	struct timespec ts;
 
 	assert(output);
 
 	wb = output->backend;
 
-	/* If this is the initial frame, we need to attach a buffer so that
-	 * the compositor can map the surface and include it in its render
-	 * loop. If the surface doesn't end up in the render loop, the frame
-	 * callback won't be invoked. The buffer is transparent and of the
-	 * same size as the future real output buffer. */
-	if (output->parent.draw_initial_frame) {
-		output->parent.draw_initial_frame = false;
-
-		draw_initial_frame(output);
-	}
-
-	output->frame_cb = wl_surface_frame(output->parent.surface);
-	wl_callback_add_listener(output->frame_cb, &frame_listener, output);
-	wl_surface_commit(output->parent.surface);
-	wl_display_flush(wb->parent.wl_display);
+	weston_compositor_read_presentation_clock(wb->compositor, &ts);
+	weston_output_finish_frame(output_base, &ts, WP_PRESENTATION_FEEDBACK_INVALID);
 
 	return 0;
 }
 
 #ifdef ENABLE_EGL
 static int
-wayland_output_repaint_gl(struct weston_output *output_base,
-			  pixman_region32_t *damage)
+wayland_output_repaint_gl(struct weston_output *output_base)
 {
 	struct wayland_output *output = to_wayland_output(output_base);
 	struct weston_compositor *ec;
+	pixman_region32_t damage;
 
 	assert(output);
 
 	ec = output->base.compositor;
+
+	pixman_region32_init(&damage);
+
+	weston_output_flush_damage_for_primary_plane(output_base, &damage);
 
 	output->frame_cb = wl_surface_frame(output->parent.surface);
 	wl_callback_add_listener(output->frame_cb, &frame_listener, output);
 
 	wayland_output_update_gl_border(output);
 
-	ec->renderer->repaint_output(&output->base, damage, NULL);
+	ec->renderer->repaint_output(&output->base, &damage, NULL);
+
+	pixman_region32_fini(&damage);
 
 	return 0;
 }
@@ -604,16 +597,20 @@ wayland_shm_buffer_attach(struct wayland_shm_buffer *sb,
 }
 
 static int
-wayland_output_repaint_pixman(struct weston_output *output_base,
-			      pixman_region32_t *damage)
+wayland_output_repaint_pixman(struct weston_output *output_base)
 {
 	struct wayland_output *output = to_wayland_output(output_base);
 	struct wayland_backend *b;
 	struct wayland_shm_buffer *sb;
+	pixman_region32_t damage;
 
 	assert(output);
 
 	b = output->backend;
+
+	pixman_region32_init(&damage);
+
+	weston_output_flush_damage_for_primary_plane(output_base, &damage);
 
 	if (output->frame) {
 		if (frame_status(output->frame) & FRAME_STATUS_REPAINT)
@@ -624,10 +621,12 @@ wayland_output_repaint_pixman(struct weston_output *output_base,
 	sb = wayland_output_get_shm_buffer(output);
 
 	wayland_output_update_shm_border(sb);
-	b->compositor->renderer->repaint_output(output_base, damage,
+	b->compositor->renderer->repaint_output(output_base, &damage,
 						sb->renderbuffer);
 
-	wayland_shm_buffer_attach(sb, damage);
+	wayland_shm_buffer_attach(sb, &damage);
+
+	pixman_region32_fini(&damage);
 
 	output->frame_cb = wl_surface_frame(output->parent.surface);
 	wl_callback_add_listener(output->frame_cb, &frame_listener, output);
@@ -1004,7 +1003,6 @@ wayland_output_fullscreen_shell_mode_feedback(struct wayland_output *output,
 							   &mode_feedback_listener,
 							   &mode_status);
 
-	output->parent.draw_initial_frame = false;
 	draw_initial_frame(output);
 	wl_surface_commit(output->parent.surface);
 
@@ -1226,8 +1224,6 @@ wayland_backend_create_output_surface(struct wayland_output *output)
 
 	wl_surface_set_user_data(output->parent.surface, output);
 
-	output->parent.draw_initial_frame = true;
-
 	if (b->parent.xdg_wm_base) {
 		output->parent.xdg_surface =
 		xdg_wm_base_get_xdg_surface(b->parent.xdg_wm_base,
@@ -1314,14 +1310,12 @@ wayland_output_enable(struct weston_output *base)
 
 			mode_status = wayland_output_fullscreen_shell_mode_feedback(output, &output->mode);
 
-			if (mode_status == MODE_STATUS_FAIL) {
+			if (mode_status == MODE_STATUS_FAIL)
 				zwp_fullscreen_shell_v1_present_surface(b->parent.fshell,
 									output->parent.surface,
 									ZWP_FULLSCREEN_SHELL_V1_PRESENT_METHOD_CENTER,
 									output->parent.output);
 
-				output->parent.draw_initial_frame = true;
-			}
 		}
 	} else if (b->fullscreen) {
 		wayland_output_set_fullscreen(output, 0, NULL);
@@ -1527,7 +1521,7 @@ wayland_output_set_size(struct weston_output *base, int width, int height)
 	assert(!output->base.current_mode);
 
 	/* Make sure we have scale set. */
-	assert(output->base.scale);
+	assert(output->base.current_scale);
 
 	if (width < 1) {
 		weston_log("Invalid width \"%d\" for output %s\n",
@@ -1548,8 +1542,8 @@ wayland_output_set_size(struct weston_output *base, int width, int height)
 		weston_head_set_physical_size(head, width, height);
 	}
 
-	output_width = width * output->base.scale;
-	output_height = height * output->base.scale;
+	output_width = width * output->base.current_scale;
+	output_height = height * output->base.current_scale;
 
 	output->mode.flags =
 		WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED;
@@ -1582,7 +1576,7 @@ wayland_output_setup_for_parent_output(struct wayland_output *output,
 		return -1;
 	}
 
-	output->base.scale = 1;
+	output->base.current_scale = 1;
 	output->base.transform = WL_OUTPUT_TRANSFORM_NORMAL;
 
 	output->parent.output = poutput->global;
@@ -1606,7 +1600,7 @@ wayland_output_setup_fullscreen(struct wayland_output *output,
 	struct wayland_backend *b = output->backend;
 	int width = 0, height = 0;
 
-	output->base.scale = 1;
+	output->base.current_scale = 1;
 	output->base.transform = WL_OUTPUT_TRANSFORM_NORMAL;
 
 	if (wayland_backend_create_output_surface(output) < 0)
@@ -2947,8 +2941,8 @@ wayland_backend_create(struct weston_compositor *compositor,
 		if (renderer != WESTON_RENDERER_PIXMAN)
 			break;
 		weston_log_continue("; falling back to Pixman.\n");
+		FALLTHROUGH;
 	}
-		/* fallthrough */
 	case WESTON_RENDERER_PIXMAN:
 		if (weston_compositor_init_renderer(compositor,
 						    WESTON_RENDERER_PIXMAN,
@@ -2976,12 +2970,6 @@ wayland_backend_create(struct weston_compositor *compositor,
 		goto err_renderer;
 
 	wl_event_source_check(b->parent.wl_source);
-
-	if (compositor->renderer->import_dmabuf) {
-		if (linux_dmabuf_setup(compositor) < 0)
-			weston_log("Error: initializing dmabuf "
-			           "support failed.\n");
-	}
 
 	return b;
 err_renderer:
@@ -3070,7 +3058,8 @@ weston_backend_init(struct weston_compositor *compositor,
 		return 0;
 	}
 
-	ret = weston_plugin_api_register(compositor, WESTON_WINDOWED_OUTPUT_API_NAME,
+	ret = weston_plugin_api_register(compositor,
+					 WESTON_WINDOWED_OUTPUT_API_NAME_WAYLAND,
 					 &windowed_api, sizeof(windowed_api));
 
 	if (ret < 0) {

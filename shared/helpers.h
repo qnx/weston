@@ -22,6 +22,8 @@
 #ifndef WESTON_HELPERS_H
 #define WESTON_HELPERS_H
 
+#include "config.h"
+
 #include <stdint.h>
 
 #ifdef  __cplusplus
@@ -106,6 +108,17 @@ do { \
 	({ typeof(d) tmp = (d); ((n) + tmp - 1) / tmp; })
 
 /**
+ * Round up to the next multiple of a power of 2.
+ *
+ * @param a the value to round up.
+ * @param n the power of 2.
+ * @return the rounded up value.
+ */
+#ifndef ROUND_UP_N
+#define ROUND_UP_N(a, n) (((a) + (n) - 1) & ~((n) - 1))
+#endif
+
+/**
  * Returns a pointer to the containing struct of a given member item.
  *
  * To demonstrate, the following example retrieves a pointer to
@@ -168,12 +181,14 @@ do { \
  * @param cond Expression to check for truth
  * @param msg Message to print on failure
  */
+#if !(defined(__cplusplus) && __cplusplus >= 201103L)
 #ifndef static_assert
 # ifdef _Static_assert
 #  define static_assert(cond, msg) _Static_assert(cond, msg)
 # else
 #  define static_assert(cond, msg)
 # endif
+#endif
 #endif
 
 /** Ensure argument is of given type */
@@ -221,6 +236,108 @@ do {                        \
 #else
 #define unreachable(str) assert(!str)
 #endif
+
+#if __has_attribute(fallthrough)
+/* Supported at least by gcc and clang. */
+#define FALLTHROUGH __attribute__((fallthrough))
+#else
+#define FALLTHROUGH do {} while(0)
+#endif
+
+/**
+ * Returns number of bits set in 32-bit value x.
+ *
+ * @param x a 32-bit value.
+ * @return the number of bits set.
+ */
+static inline int
+bitcount32(uint32_t x)
+{
+#if defined(HAVE_BUILTIN_POPCOUNT)
+	return __builtin_popcount(x);
+#else
+	int n;
+
+	for (n = 0; x; n++)
+		x &= x - 1;
+
+	return n;
+#endif
+}
+
+/**
+ * Returns 32-bit value x in reversed byte order.
+ *
+ * @param x a 32-bit value.
+ * @return the reversed 32-bit value.
+ */
+static inline uint32_t
+bswap32(uint32_t x)
+{
+#if defined(HAVE_BUILTIN_BSWAP32)
+	return __builtin_bswap32(x);
+#else
+	return (x >> 24) |
+		((x >> 8) & 0x0000ff00) |
+		((x << 8) & 0x00ff0000) |
+		(x << 24);
+#endif
+}
+
+/**
+ * Returns the highest power of two lesser than or equal to 32-bit value x.
+ * Saturated to 0 (which isn't a power of two) if x is lesser than 2^0.
+ *
+ * @param x a 32-bit value.
+ * @return the rounded down 32-bit value.
+ */
+static inline uint32_t
+round_down_pow2_32(uint32_t x)
+{
+#if defined(HAVE_BUILTIN_CLZ)
+	/* clz depends on the underlying architecture when x is 0. */
+	return x ? (1u << ((32 - __builtin_clz(x)) - 1)) : 0;
+#else
+	/* See Hacker's Delight 2nd Edition, Chapter 3-2. */
+	x |= x >> 1;
+	x |= x >> 2;
+	x |= x >> 4;
+	x |= x >> 8;
+	x |= x >> 16;
+	x -= x >> 1;
+
+	return x;
+#endif
+}
+
+/**
+ * Returns the smallest power of two greater than or equal to 32-bit value x.
+ * Saturated to 2^32 - 1 (which isn't a power of two) if x is greater than 2^31.
+ *
+ * @param x a 32-bit value.
+ * @return the rounded up 32-bit value.
+ */
+static inline uint32_t
+round_up_pow2_32(uint32_t x)
+{
+	if (x > (1u << 31))
+		return UINT32_MAX;
+
+#if defined(HAVE_BUILTIN_CLZ)
+	return (x > 1) ? (1 << (32 - __builtin_clz(x - 1))) : 1;
+#else
+	/* Slight change from the Hacker's Delight version (which subtracts 1
+	 * unconditionally) in order to return 1 if x is 0. */
+	x -= x != 0;
+	x |= x >> 1;
+	x |= x >> 2;
+	x |= x >> 4;
+	x |= x >> 8;
+	x |= x >> 16;
+
+	return x + 1;
+#endif
+}
 
 #ifdef  __cplusplus
 }
