@@ -120,11 +120,7 @@ drm_output_try_paint_node_on_plane(struct drm_plane *plane,
 	assert(!state->fb);
 	state->output = output;
 
-	if (!drm_plane_state_coords_for_paint_node(state, node, zpos)) {
-		drm_debug(b, "\t\t\t\t[view] not placing view %p on plane: "
-			     "unsuitable transform\n", ev);
-		goto out;
-	}
+	drm_plane_state_coords_for_paint_node(state, node, zpos);
 
 	/* Should've been ensured by weston_view_matches_entire_output. */
 	if (plane->type == WDRM_PLANE_TYPE_PRIMARY) {
@@ -243,11 +239,7 @@ drm_output_prepare_cursor_paint_node(struct drm_output_state *output_state,
 	/* We can't scale with the legacy API, and we don't try to account for
 	 * simple cropping/translation in cursor_bo_update. */
 	plane_state->output = output;
-	if (!drm_plane_state_coords_for_paint_node(plane_state, node, zpos)) {
-		drm_debug(b, "\t\t\t\t[%s] not placing view %p on %s: "
-			     "unsuitable transform\n", p_name, ev, p_name);
-		goto err;
-	}
+	drm_plane_state_coords_for_paint_node(plane_state, node, zpos);
 
 	if (plane_state->src_x != 0 || plane_state->src_y != 0 ||
 	    plane_state->src_w > (unsigned) device->cursor_width << 16 ||

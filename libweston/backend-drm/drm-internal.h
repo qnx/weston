@@ -915,7 +915,7 @@ void
 drm_plane_state_free(struct drm_plane_state *state, bool force);
 void
 drm_plane_state_put_back(struct drm_plane_state *state);
-bool
+void
 drm_plane_state_coords_for_paint_node(struct drm_plane_state *state,
 				      struct weston_paint_node *node,
 				      uint64_t zpos);

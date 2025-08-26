@@ -216,7 +216,7 @@ drm_plane_state_put_back(struct drm_plane_state *state)
  * Given a weston_view, fill the drm_plane_state's co-ordinates to display on
  * a given plane.
  */
-bool
+void
 drm_plane_state_coords_for_paint_node(struct drm_plane_state *state,
 				      struct weston_paint_node *node,
 				      uint64_t zpos)
@@ -231,8 +231,11 @@ drm_plane_state_coords_for_paint_node(struct drm_plane_state *state,
 	uint16_t min_alpha = state->plane->alpha_min;
 	uint16_t max_alpha = state->plane->alpha_max;
 
-	if (!drm_paint_node_transform_supported(node, state->plane))
-		return false;
+	/* The caller has already checked supported transforms when creating
+	 * a list of candidate planes, so we should only ever get here with
+	 * a supported transform.
+	 */
+	assert(drm_paint_node_transform_supported(node, state->plane));
 
 	assert(node->valid_transform);
 	state->rotation = drm_rotation_from_output_transform(state->plane, node->transform);
@@ -315,8 +318,6 @@ drm_plane_state_coords_for_paint_node(struct drm_plane_state *state,
 	 * never exceed max_alpha if ev->alpha <= 1.0.
 	 */
 	state->alpha = min_alpha + (uint16_t)round((max_alpha - min_alpha) * ev->alpha);
-
-	return true;
 }
 
 /**
