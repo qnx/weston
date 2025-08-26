@@ -8888,6 +8888,44 @@ debug_scene_view_print_buffer(FILE *fp, struct weston_view *view)
 		fprintf(fp, "\t\t\tdirect-display buffer (no renderer access)\n");
 }
 
+static const struct weston_enum_map transforms[] = {
+	{ "normal",             WL_OUTPUT_TRANSFORM_NORMAL },
+	{ "rotate-90",          WL_OUTPUT_TRANSFORM_90 },
+	{ "rotate-180",         WL_OUTPUT_TRANSFORM_180 },
+	{ "rotate-270",         WL_OUTPUT_TRANSFORM_270 },
+	{ "flipped",            WL_OUTPUT_TRANSFORM_FLIPPED },
+	{ "flipped-rotate-90",  WL_OUTPUT_TRANSFORM_FLIPPED_90 },
+	{ "flipped-rotate-180", WL_OUTPUT_TRANSFORM_FLIPPED_180 },
+	{ "flipped-rotate-270", WL_OUTPUT_TRANSFORM_FLIPPED_270 },
+};
+
+WL_EXPORT int
+weston_parse_transform(const char *transform, uint32_t *out)
+{
+	const struct weston_enum_map *entry;
+
+	entry = weston_enum_map_find_name(transforms, transform);
+	if (entry) {
+		*out = entry->value;
+		return 0;
+	}
+
+	*out = WL_OUTPUT_TRANSFORM_NORMAL;
+	return -1;
+}
+
+WL_EXPORT const char *
+weston_transform_to_string(uint32_t output_transform)
+{
+	const struct weston_enum_map *entry;
+
+	entry = weston_enum_map_find_value(transforms, output_transform);
+	if (entry)
+		return entry->name;
+
+	return "<illegal value>";
+}
+
 WL_EXPORT const char *
 weston_plane_failure_reasons_to_str(enum try_view_on_plane_failure_reasons failure_reasons)
 {
