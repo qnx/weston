@@ -8916,6 +8916,29 @@ weston_plane_failure_reasons_to_str(enum try_view_on_plane_failure_reasons failu
 }
 
 static void
+debug_scene_view_print_paint_node(FILE *fp,
+				  struct weston_view *view,
+				  struct weston_output *output)
+{
+	struct weston_paint_node *pnode;
+
+	pnode = weston_view_find_paint_node(view, output);
+	fprintf(fp, "\t\t\tpaint node %p:\n", pnode);
+
+	fprintf(fp, "\t\t\t\toutput: %d (%s)%s\n",
+		output->id, output->name,
+		(view->output == output) ? " (primary)" : "");
+
+	if (pnode->try_view_on_plane_failure_reasons) {
+		char *fr_str = bits_to_str(pnode->try_view_on_plane_failure_reasons,
+					   weston_plane_failure_reasons_to_str);
+		fprintf(fp, "\t\t\t\tPlane failure reasons: %s\n", fr_str);
+
+		free(fr_str);
+	}
+}
+
+static void
 debug_scene_view_print(FILE *fp, struct weston_view *view, int view_idx)
 {
 	struct weston_compositor *ec = view->surface->compositor;
@@ -8969,19 +8992,14 @@ debug_scene_view_print(FILE *fp, struct weston_view *view, int view_idx)
 		fprintf(fp, "\t\talpha: %f\n", view->alpha);
 
 	if (view->output_mask != 0) {
-		bool first_output = true;
-		fprintf(fp, "\t\toutputs: ");
+		fprintf(fp, "\t\tpaint nodes:\n");
 		wl_list_for_each(output, &ec->output_list, link) {
 			if (!(view->output_mask & (1 << output->id)))
 				continue;
-			fprintf(fp, "%s%d (%s)%s",
-				(first_output) ? "" : ", ",
-				output->id, output->name,
-				(view->output == output) ? " (primary)" : "");
-			first_output = false;
+			debug_scene_view_print_paint_node(fp, view, output);
 		}
 	} else {
-		fprintf(fp, "\t\t[no outputs]");
+		fprintf(fp, "\t\t[no paint nodes]");
 	}
 
 	fprintf(fp, "\n");
