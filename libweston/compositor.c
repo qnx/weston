@@ -8967,6 +8967,16 @@ debug_scene_view_print_paint_node(FILE *fp,
 		output->id, output->name,
 		(view->output == output) ? " (primary)" : "");
 
+	fprintf(fp, "\t\t\t\tBuffer to output transform: ");
+	if (!pnode->valid_transform)
+		fprintf(fp, "Free form\n");
+	else {
+		const char *tform;
+
+		tform = weston_transform_to_string(pnode->transform);
+		fprintf(fp, "%s\n", tform);
+	}
+
 	if (pnode->try_view_on_plane_failure_reasons) {
 		char *fr_str = bits_to_str(pnode->try_view_on_plane_failure_reasons,
 					   weston_plane_failure_reasons_to_str);
