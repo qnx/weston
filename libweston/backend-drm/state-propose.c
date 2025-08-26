@@ -464,6 +464,9 @@ failure_reasons_to_str(enum try_view_on_plane_failure_reasons failure_reasons)
 	case FAILURE_REASONS_NO_GBM:			    return "no gbm";
 	case FAILURE_REASONS_GBM_BO_IMPORT_FAILED:	    return "gbm bo import failed";
 	case FAILURE_REASONS_GBM_BO_GET_HANDLE_FAILED:	    return "gbm bo get handle failed";
+	case FAILURE_REASONS_NO_COLOR_TRANSFORM:            return "no color transform";
+	case FAILURE_REASONS_SOLID_SURFACE:                 return "solid surface";
+	case FAILURE_REASONS_OCCLUDED_BY_RENDERER:          return "occluded by renderer";
 	}
 	return "???";
 }
@@ -495,8 +498,6 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 	uint32_t possible_plane_mask = 0;
 	uint32_t fb_failure_reasons = 0;
 	bool any_candidate_picked = false;
-
-	pnode->try_view_on_plane_failure_reasons = FAILURE_REASONS_NONE;
 
 	/* renderer-only mode, so no view assignments to planes */
 	if (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY) {
@@ -853,11 +854,12 @@ drm_output_propose_state(struct weston_output *output_base,
 			 z_order_link) {
 		struct weston_view *ev = pnode->view;
 		struct drm_plane_state *ps = NULL;
-		bool force_renderer = false;
 		pixman_region32_t clipped_view;
 		pixman_region32_t surface_overlap;
 		bool totally_occluded = false;
 		bool need_underlay = false;
+
+		pnode->try_view_on_plane_failure_reasons = FAILURE_REASONS_NONE;
 
 		drm_debug(b, "\t\t\t[view] evaluating view %p for "
 		             "output %s (%lu)\n",
@@ -894,35 +896,27 @@ drm_output_propose_state(struct weston_output *output_base,
 			continue;
 		}
 
-		if (!b->gbm) {
-			drm_debug(b, "\t\t\t\t[view] not assigning view %p to plane "
-			             "(GBM not available)\n", ev);
-			force_renderer = true;
-		}
+		if (!b->gbm)
+			pnode->try_view_on_plane_failure_reasons |=
+				FAILURE_REASONS_NO_GBM;
 
-		if (!weston_view_has_valid_buffer(ev)) {
-			drm_debug(b, "\t\t\t\t[view] not assigning view %p to plane "
-			             "(no buffer available)\n", ev);
-			force_renderer = true;
-		}
+		if (!weston_view_has_valid_buffer(ev))
+			pnode->try_view_on_plane_failure_reasons |=
+				FAILURE_REASONS_NO_BUFFER;
 
 		/* We can support this with the 'CRTC background colour' property,
 		 * if it is fullscreen (i.e. we disable the primary plane), and
 		 * opaque (as it is only shown in the absence of any covering
 		 * plane, not as a replacement for the primary plane per se). */
 		if (ev->surface->buffer_ref.buffer &&
-		    ev->surface->buffer_ref.buffer->type == WESTON_BUFFER_SOLID) {
-			drm_debug(b, "\t\t\t\t[view] not assigning view %p to plane "
-			             "(solid-colour surface)\n", ev);
-			force_renderer = true;
-		}
+		    ev->surface->buffer_ref.buffer->type == WESTON_BUFFER_SOLID)
+			pnode->try_view_on_plane_failure_reasons |=
+				FAILURE_REASONS_SOLID_SURFACE;
 
 		if (pnode->surf_xform.transform != NULL ||
-		    !pnode->surf_xform.identity_pipeline) {
-			drm_debug(b, "\t\t\t\t[view] not assigning view %p to plane "
-			             "(requires color transform)\n", ev);
-			force_renderer = true;
-		}
+		    !pnode->surf_xform.identity_pipeline)
+			pnode->try_view_on_plane_failure_reasons |=
+				FAILURE_REASONS_NO_COLOR_TRANSFORM;
 
 		/* Since we process views from top to bottom, we know that if
 		 * the view intersects the calculated renderer region, it must
@@ -934,7 +928,8 @@ drm_output_propose_state(struct weston_output *output_base,
 			if (b->has_underlay) {
 				need_underlay = true;
 			} else {
-				force_renderer = true;
+				pnode->try_view_on_plane_failure_reasons |=
+					FAILURE_REASONS_OCCLUDED_BY_RENDERER;
 				drm_debug(b, "\t\t\t\t[view] not assigning view %p to a "
 					     "plane (occluded by renderer views), current lowest "
 					     "zpos change to %"PRIu64"\n", ev,
@@ -947,22 +942,17 @@ drm_output_propose_state(struct weston_output *output_base,
 		 * be rendered. Only fully-opaque views can go on an underlay.
 		 */
 		if (need_underlay &&
-		    !weston_view_is_opaque(ev, &ev->transform.boundingbox)) {
-			force_renderer = true;
-			drm_debug(b, "\t\t\t\t[view] not assigning view %p to "
-				     "a plane (alpha view occluded by renderer "
-				     "views)", ev);
-		}
+		    !weston_view_is_opaque(ev, &ev->transform.boundingbox))
+			pnode->try_view_on_plane_failure_reasons |=
+				FAILURE_REASONS_OCCLUDED_BY_RENDERER;
 
 		/* In case of enforced mode of content-protection do not
 		 * assign planes for a protected surface on an unsecured output.
 		 */
 		if (ev->surface->protection_mode == WESTON_SURFACE_PROTECTION_MODE_ENFORCED &&
-		    ev->surface->desired_protection > output_base->current_protection) {
-			drm_debug(b, "\t\t\t\t[view] not assigning view %p to plane "
-				     "(enforced protection mode on unsecured output)\n", ev);
-			force_renderer = true;
-		}
+		    ev->surface->desired_protection > output_base->current_protection)
+			pnode->try_view_on_plane_failure_reasons |=
+				FAILURE_REASONS_INADEQUATE_CONTENT_PROTECTION;
 
 		if (pnode->view->surface->tear_control)
 			state->tear &= pnode->view->surface->tear_control->may_tear;
@@ -970,7 +960,7 @@ drm_output_propose_state(struct weston_output *output_base,
 			state->tear = 0;
 
 		/* Now try to place it on a plane if we can. */
-		if (!force_renderer) {
+		if (!pnode->try_view_on_plane_failure_reasons) {
 			drm_debug(b, "\t\t\t[plane] started with zpos %"PRIu64"\n",
 				      need_underlay ? current_lowest_zpos_underlay :
 				      current_lowest_zpos_overlay);
@@ -979,11 +969,6 @@ drm_output_propose_state(struct weston_output *output_base,
 							    current_lowest_zpos_overlay,
 							    current_lowest_zpos_underlay,
 							    need_underlay);
-		} else {
-			/* We are forced to place the view in the renderer, set
-			 * the failure reason accordingly. */
-			pnode->try_view_on_plane_failure_reasons =
-				FAILURE_REASONS_FORCE_RENDERER;
 		}
 
 		if (ps) {
@@ -1153,7 +1138,6 @@ drm_assign_planes(struct weston_output *output_base)
 		if (ev->surface->dmabuf_feedback)
 			dmabuf_feedback_maybe_update(device, ev,
 						     pnode->try_view_on_plane_failure_reasons);
-		pnode->try_view_on_plane_failure_reasons = FAILURE_REASONS_NONE;
 
 		/* Test whether this buffer can ever go into a plane:
 		 * non-shm, or small enough to be a cursor.  */
