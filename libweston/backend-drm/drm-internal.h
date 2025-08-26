@@ -154,31 +154,6 @@ struct drm_property_info {
 };
 
 /**
- * Reasons why placing a view on a plane failed. Needed by the dma-buf feedback.
- */
-enum try_view_on_plane_failure_reasons {
-	FAILURE_REASONS_NONE = 0,
-	FAILURE_REASONS_FORCE_RENDERER = 1 << 0,
-	FAILURE_REASONS_FB_FORMAT_INCOMPATIBLE = 1 << 1,
-	FAILURE_REASONS_DMABUF_MODIFIER_INVALID = 1 << 2,
-	FAILURE_REASONS_ADD_FB_FAILED = 1 << 3,
-	FAILURE_REASONS_NO_PLANES_AVAILABLE = 1 << 4,
-	FAILURE_REASONS_PLANES_REJECTED = 1 << 5,
-	FAILURE_REASONS_INADEQUATE_CONTENT_PROTECTION = 1 << 6,
-	FAILURE_REASONS_INCOMPATIBLE_TRANSFORM = 1 << 7,
-	FAILURE_REASONS_NO_BUFFER = 1 << 8,
-	FAILURE_REASONS_BUFFER_TOO_BIG = 1 << 9,
-	FAILURE_REASONS_BUFFER_TYPE = 1 << 10,
-	FAILURE_REASONS_GLOBAL_ALPHA = 1 << 11,
-	FAILURE_REASONS_NO_GBM = 1 << 12,
-	FAILURE_REASONS_GBM_BO_IMPORT_FAILED = 1 << 13,
-	FAILURE_REASONS_GBM_BO_GET_HANDLE_FAILED = 1 << 14,
-	FAILURE_REASONS_NO_COLOR_TRANSFORM = 1 << 15,
-	FAILURE_REASONS_SOLID_SURFACE = 1 << 16,
-	FAILURE_REASONS_OCCLUDED_BY_RENDERER = 1 << 17,
-};
-
-/**
  * We use this to keep track of actions we need to do with the dma-buf feedback
  * in order to keep it up-to-date with the info we get from the DRM-backend.
  */

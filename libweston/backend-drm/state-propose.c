@@ -444,33 +444,6 @@ dmabuf_feedback_maybe_update(struct drm_device *device, struct weston_view *ev,
 	dmabuf_feedback->action_needed = ACTION_NEEDED_NONE;
 }
 
-static const char *
-failure_reasons_to_str(enum try_view_on_plane_failure_reasons failure_reasons)
-{
-	switch(failure_reasons) {
-	case FAILURE_REASONS_NONE:			    return "none";
-	case FAILURE_REASONS_FORCE_RENDERER:		    return "force renderer";
-	case FAILURE_REASONS_FB_FORMAT_INCOMPATIBLE:	    return "fb format incompatible";
-	case FAILURE_REASONS_DMABUF_MODIFIER_INVALID:	    return "dmabuf modifier invalid";
-	case FAILURE_REASONS_ADD_FB_FAILED:		    return "add fb failed";
-	case FAILURE_REASONS_NO_PLANES_AVAILABLE:	    return "no planes available";
-	case FAILURE_REASONS_PLANES_REJECTED:		    return "planes rejected";
-	case FAILURE_REASONS_INADEQUATE_CONTENT_PROTECTION: return "inadequate content protection";
-	case FAILURE_REASONS_INCOMPATIBLE_TRANSFORM:	    return "incompatible transform";
-	case FAILURE_REASONS_NO_BUFFER:			    return "no buffer";
-	case FAILURE_REASONS_BUFFER_TOO_BIG:		    return "buffer too big";
-	case FAILURE_REASONS_BUFFER_TYPE:		    return "buffer type";
-	case FAILURE_REASONS_GLOBAL_ALPHA:		    return "global alpha";
-	case FAILURE_REASONS_NO_GBM:			    return "no gbm";
-	case FAILURE_REASONS_GBM_BO_IMPORT_FAILED:	    return "gbm bo import failed";
-	case FAILURE_REASONS_GBM_BO_GET_HANDLE_FAILED:	    return "gbm bo get handle failed";
-	case FAILURE_REASONS_NO_COLOR_TRANSFORM:            return "no color transform";
-	case FAILURE_REASONS_SOLID_SURFACE:                 return "solid surface";
-	case FAILURE_REASONS_OCCLUDED_BY_RENDERER:          return "occluded by renderer";
-	}
-	return "???";
-}
-
 static struct drm_plane_state *
 drm_output_find_plane_for_view(struct drm_output_state *state,
 			       struct weston_paint_node *pnode,
@@ -578,7 +551,8 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 		if (fb) {
 			possible_plane_mask &= fb->plane_mask;
 		} else {
-			char *fr_str = bits_to_str(fb_failure_reasons, failure_reasons_to_str);
+			char *fr_str = bits_to_str(fb_failure_reasons,
+						   weston_plane_failure_reasons_to_str);
 			weston_assert_ptr_not_null(b->compositor, fr_str);
 			drm_debug(b, "\t\t\t[view] couldn't get FB for view: %s\n", fr_str);
 			free(fr_str);
@@ -988,7 +962,7 @@ drm_output_propose_state(struct weston_output *output_base,
 			goto err_region;
 		} else if (!ps) {
 			char *fr_str = bits_to_str(pnode->try_view_on_plane_failure_reasons,
-						   failure_reasons_to_str);
+						   weston_plane_failure_reasons_to_str);
 			weston_assert_ptr_not_null(b->compositor, fr_str);
 			drm_debug(b, "\t\t\t\t[view] view %p will be placed "
 				     "on the renderer: %s\n", ev, fr_str);

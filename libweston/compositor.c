@@ -8888,6 +8888,33 @@ debug_scene_view_print_buffer(FILE *fp, struct weston_view *view)
 		fprintf(fp, "\t\t\tdirect-display buffer (no renderer access)\n");
 }
 
+WL_EXPORT const char *
+weston_plane_failure_reasons_to_str(enum try_view_on_plane_failure_reasons failure_reasons)
+{
+	switch(failure_reasons) {
+	case FAILURE_REASONS_NONE:			    return "none";
+	case FAILURE_REASONS_FORCE_RENDERER:		    return "force renderer";
+	case FAILURE_REASONS_FB_FORMAT_INCOMPATIBLE:	    return "fb format incompatible";
+	case FAILURE_REASONS_DMABUF_MODIFIER_INVALID:	    return "dmabuf modifier invalid";
+	case FAILURE_REASONS_ADD_FB_FAILED:		    return "add fb failed";
+	case FAILURE_REASONS_NO_PLANES_AVAILABLE:	    return "no planes available";
+	case FAILURE_REASONS_PLANES_REJECTED:		    return "planes rejected";
+	case FAILURE_REASONS_INADEQUATE_CONTENT_PROTECTION: return "inadequate content protection";
+	case FAILURE_REASONS_INCOMPATIBLE_TRANSFORM:	    return "incompatible transform";
+	case FAILURE_REASONS_NO_BUFFER:			    return "no buffer";
+	case FAILURE_REASONS_BUFFER_TOO_BIG:		    return "buffer too big";
+	case FAILURE_REASONS_BUFFER_TYPE:		    return "buffer type";
+	case FAILURE_REASONS_GLOBAL_ALPHA:		    return "global alpha";
+	case FAILURE_REASONS_NO_GBM:			    return "no gbm";
+	case FAILURE_REASONS_GBM_BO_IMPORT_FAILED:	    return "gbm bo import failed";
+	case FAILURE_REASONS_GBM_BO_GET_HANDLE_FAILED:	    return "gbm bo get handle failed";
+	case FAILURE_REASONS_NO_COLOR_TRANSFORM:	    return "no color transform";
+	case FAILURE_REASONS_SOLID_SURFACE:		    return "solid surface";
+	case FAILURE_REASONS_OCCLUDED_BY_RENDERER:	    return "occluded by renderer";
+	}
+	return "???";
+}
+
 static void
 debug_scene_view_print(FILE *fp, struct weston_view *view, int view_idx)
 {
