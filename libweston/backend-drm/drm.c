@@ -1064,12 +1064,6 @@ drm_repaint_begin(struct weston_backend *backend)
 		if (device->will_repaint)
 			drm_repaint_begin_device(device);
 	}
-
-	if (weston_log_scope_is_enabled(b->debug)) {
-		char *dbg = weston_compositor_print_scene_graph(b->compositor);
-		drm_debug(b, "%s", dbg);
-		free(dbg);
-	}
 }
 
 static void
@@ -1126,6 +1120,12 @@ drm_repaint_flush(struct weston_backend *backend)
 
 	wl_list_for_each(device, &b->kms_list, link)
 		drm_repaint_flush_device(device);
+
+	if (weston_log_scope_is_enabled(b->debug)) {
+		char *dbg = weston_compositor_print_scene_graph(b->compositor);
+		drm_debug(b, "%s", dbg);
+		free(dbg);
+	}
 }
 
 static void
