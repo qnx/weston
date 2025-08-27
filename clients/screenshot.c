@@ -28,6 +28,7 @@
 #include <cairo.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <getopt.h>
 #include <limits.h>
 #include <pixman.h>
 #include <stdbool.h>
@@ -44,6 +45,7 @@
 #include "shared/client-buffer-util.h"
 #include "shared/file-util.h"
 #include "shared/os-compatibility.h"
+#include "shared/string-helpers.h"
 #include "shared/xalloc.h"
 #include "weston-output-capture-client-protocol.h"
 
@@ -51,6 +53,10 @@ struct screenshooter_app {
 	struct wl_registry *registry;
 	struct wl_shm *shm;
 	struct weston_capture_v1 *capture_factory;
+
+	bool verbose;
+	const struct pixel_format_info *requested_format;
+	enum weston_capture_v1_source src_type;
 
 	struct wl_list output_list; /* struct screenshooter_output::link */
 
@@ -62,6 +68,7 @@ struct screenshooter_app {
 struct screenshooter_buffer {
 	struct client_buffer *buf;
 	pixman_image_t *image;
+	enum weston_capture_v1_source src_type;
 };
 
 struct screenshooter_output {
@@ -146,6 +153,15 @@ capture_source_handle_format(void *data,
 	fmt = wl_array_add(&output->formats, sizeof(uint32_t));
 	assert(fmt);
 	*fmt = drm_format;
+
+	if (output->app->verbose) {
+		const struct pixel_format_info *fmt_info;
+
+		fmt_info = pixel_format_get_info(drm_format);
+		assert(fmt_info);
+		printf("Got format %s / 0x%x\n", fmt_info->drm_format_name,
+		       drm_format);
+	}
 }
 
 static void
@@ -169,6 +185,9 @@ capture_source_handle_size(void *data,
 
 	output->buffer_width = width;
 	output->buffer_height = height;
+
+	if (output->app->verbose)
+		printf("Got size %dx%d\n", width, height);
 }
 
 static void
@@ -230,7 +249,7 @@ create_output(struct screenshooter_app *app, uint32_t output_name, uint32_t vers
 
 	output->source = weston_capture_v1_create(app->capture_factory,
 						  output->wl_output,
-						  WESTON_CAPTURE_V1_SOURCE_FRAMEBUFFER);
+						  app->src_type);
 	abort_oom_if_null(output->source);
 	weston_capture_source_v1_add_listener(output->source,
 					      &capture_source_handlers, output);
@@ -300,12 +319,22 @@ screenshooter_output_capture(struct screenshooter_output *output)
 	wl_array_for_each(fmt, &output->formats) {
 		fmt_info = pixel_format_get_info(*fmt);
 		assert(fmt_info);
-		break;
+
+		if (fmt_info == output->app->requested_format ||
+		    output->app->requested_format == NULL)
+			break;
+
+		fmt_info = NULL;
 	}
 	if (!fmt_info) {
 		fprintf(stderr, "No supported format found\n");
 		exit(1);
 	}
+
+	if (output->app->verbose)
+		printf("Creating buffer with format %s / 0x%x and size %ux%u\n",
+		       fmt_info->drm_format_name, fmt_info->format,
+		       output->buffer_width, output->buffer_height);
 
 	output->buffer = screenshot_create_shm_buffer(output->app,
 						      output->buffer_width,
@@ -405,6 +434,25 @@ received_formats_for_all_outputs(struct screenshooter_app *app)
 	return true;
 }
 
+static void
+print_usage_and_exit(void)
+{
+	printf("usage flags:\n"
+	       "\t'-v,--verbose'"
+	       "\n\t\tprint additional output\n"
+	       "\t'-f,--format=<>'"
+	       "\n\t\tthe DRM format name to use without the DRM_FORMAT_ prefix, e.g. RGBA8888 or NV12\n"
+	       "\t'-s,--source-type=<>'"
+	       "\n\t\tframebuffer to use framebuffer source (default), "
+	       "\n\t\twriteback to use writeback source\n");
+	exit(0);
+}
+
+static const struct weston_enum_map source_types [] = {
+	{ "framebuffer", WESTON_CAPTURE_V1_SOURCE_FRAMEBUFFER },
+	{ "writeback", WESTON_CAPTURE_V1_SOURCE_WRITEBACK },
+};
+
 int
 main(int argc, char *argv[])
 {
@@ -413,6 +461,44 @@ main(int argc, char *argv[])
 	struct screenshooter_output *tmp_output;
 	struct buffer_size buff_size = {};
 	struct screenshooter_app app = {};
+	int c, option_index;
+
+	app.src_type = WESTON_CAPTURE_V1_SOURCE_FRAMEBUFFER;
+
+	static struct option long_options[] = {
+		{"verbose",     no_argument,       NULL, 'v'},
+		{"format",      required_argument, NULL, 'f'},
+		{"source-type",	required_argument, NULL, 's'},
+		{0, 0, 0, 0}
+	};
+
+	while ((c = getopt_long(argc, argv, "hvf:s:",
+			long_options, &option_index)) != -1) {
+		const struct weston_enum_map *entry;
+
+		switch(c) {
+		case 'v':
+			app.verbose = true;
+			break;
+		case 'f':
+			app.requested_format = pixel_format_get_info_by_drm_name(optarg);
+			if (!app.requested_format) {
+				fprintf(stderr, "Unknown format %s\n", optarg);
+				return -1;
+			}
+			break;
+		case 's':
+			entry = weston_enum_map_find_name(source_types,
+							  optarg);
+			if (!entry)
+				print_usage_and_exit();
+
+			app.src_type = entry->value;
+			break;
+		default:
+			print_usage_and_exit();
+		}
+	}
 
 	wl_list_init(&app.output_list);
 
@@ -442,6 +528,9 @@ main(int argc, char *argv[])
 	wl_display_roundtrip(display);
 
 	while (!received_formats_for_all_outputs(&app)) {
+		if (app.verbose)
+			printf("Waiting for compositor to send capture source data\n");
+
 		if (wl_display_dispatch(display) < 0) {
 			fprintf(stderr, "Error: connection terminated\n");
 			return -1;
