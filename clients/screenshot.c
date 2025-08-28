@@ -24,27 +24,27 @@
 
 #include "config.h"
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <limits.h>
-#include <sys/param.h>
-#include <sys/mman.h>
-#include <pixman.h>
-#include <cairo.h>
 #include <assert.h>
-
+#include <cairo.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <pixman.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/param.h>
+#include <unistd.h>
 #include <wayland-client.h>
-#include "weston-output-capture-client-protocol.h"
+
+#include "pixel-formats.h"
+#include "shared/file-util.h"
 #include "shared/os-compatibility.h"
 #include "shared/xalloc.h"
-#include "shared/file-util.h"
-#include "pixel-formats.h"
+#include "weston-output-capture-client-protocol.h"
 
 struct screenshooter_app {
 	struct wl_registry *registry;
