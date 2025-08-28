@@ -38,11 +38,17 @@ struct weston_output;
 #define WESTON_WINDOWED_OUTPUT_API_NAME_X11 "weston_windowed_output_api_x11_v2"
 #define WESTON_WINDOWED_OUTPUT_API_NAME_WAYLAND "weston_windowed_output_api_wayland_v2"
 #define WESTON_WINDOWED_OUTPUT_API_NAME_HEADLESS "weston_windowed_output_api_headless_v2"
+#if defined(__QNX__)
+#define WESTON_WINDOWED_OUTPUT_API_NAME_QNX "weston_windowed_output_api_qnx_screen_v2" 
+#endif
 
 enum weston_windowed_output_type {
 	WESTON_WINDOWED_OUTPUT_X11 = 0,
 	WESTON_WINDOWED_OUTPUT_WAYLAND,
 	WESTON_WINDOWED_OUTPUT_HEADLESS,
+#if defined(__QNX__)
+	WESTON_WINDOWED_OUTPUT_QNX_SCREEN,
+#endif
 };
 
 struct weston_windowed_output_api {
@@ -94,6 +100,9 @@ weston_windowed_output_get_api(struct weston_compositor *compositor,
 		WESTON_WINDOWED_OUTPUT_API_NAME_X11,
 		WESTON_WINDOWED_OUTPUT_API_NAME_WAYLAND,
 		WESTON_WINDOWED_OUTPUT_API_NAME_HEADLESS,
+#if defined(__QNX__)
+		WESTON_WINDOWED_OUTPUT_API_NAME_QNX,
+#endif
 	};
 
 	if (type >= ARRAY_LENGTH(api_names))

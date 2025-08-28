@@ -62,6 +62,9 @@ SRCS += \
 	viewporter-protocol.c \
 	color.c \
 	color-noop.c \
+	color-management.c \
+	color-properties.c \
+	id-number-allocator.c \
 	drm-formats.c \
 	$(if $(filter so dll,$(VARIANT_LIST)),epoll-create-stub.c) \
 	$(if $(filter so dll,$(VARIANT_LIST)),socketpair-stub.c) \
@@ -91,6 +94,7 @@ SRCS += \
 	weston-output-capture-protocol.c \
 	tearing-control-v1-protocol.c \
 	tablet-unstable-v2-protocol.c \
+	color-management-v1-protocol.c \
 
 LIBS += sharedS xkbcommon wayland-server pixman-1 memstream m
 

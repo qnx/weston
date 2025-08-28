@@ -1,4 +1,4 @@
-EXTRA_INCVPATH += $(DIST_ROOT)/compositor
+EXTRA_INCVPATH += $(DIST_ROOT)/frontend
 
 LIBS += memstream
 

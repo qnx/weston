@@ -25,7 +25,6 @@ SRCS = \
 	option-parser.c \
 	file-util.c \
 	os-compatibility.c \
-	signal.c \
 	process-util.c
 
 

@@ -4323,7 +4323,8 @@ qnx_screen_backend_output_configure(struct weston_output *output)
 		return -1;
 	}
 
-	return wet_configure_windowed_output_from_config(output, &defaults);
+	return wet_configure_windowed_output_from_config(output, &defaults,
+							 WESTON_WINDOWED_OUTPUT_QNX_SCREEN);
 }
 
 static int
@@ -4390,7 +4391,7 @@ load_qnx_screen_backend(struct weston_compositor *c,
 	if (!wb)
 		return -1;
 
-	api = weston_windowed_output_get_api(c);
+	api = weston_windowed_output_get_api(c, WESTON_WINDOWED_OUTPUT_QNX_SCREEN);
 
 	if (!api) {
 		weston_log("Cannot use weston_windowed_output_api.\n");

@@ -6,7 +6,7 @@ include $(QCONFIG)
 DIST_ROOT = $(PROJECT_ROOT)/../../..
 INSTALLDIR = usr/sbin
 
-EXTRA_INCVPATH += $(DIST_ROOT)/compositor
+EXTRA_INCVPATH += $(DIST_ROOT)/frontend
 EXTRA_INCVPATH += $(DIST_ROOT)/libweston
 EXTRA_INCVPATH += $(DIST_ROOT)/include
 EXTRA_INCVPATH += $(DIST_ROOT)
@@ -15,7 +15,7 @@ EXTRA_INCVPATH += $(PROJECT_ROOT)/../$(OS)
 EXTRA_INCVPATH += $(PROJECT_ROOT)/../$(OS)/libweston
 EXTRA_INCVPATH += $(addsuffix /pixman-1,$(USE_ROOT_INCLUDE))
 
-EXTRA_SRCVPATH += $(DIST_ROOT)/compositor
+EXTRA_SRCVPATH += $(DIST_ROOT)/frontend
 EXTRA_SRCVPATH += $(PROJECT_ROOT)/../$(OS)
 
 EXTRA_LIBVPATH += $(PROJECT_ROOT)/../libs/shared/$(OS)/$(CPU)/$(shell echo $(VARIANT1) | sed 's/^o\(.*\)$$/a.shared\1/')

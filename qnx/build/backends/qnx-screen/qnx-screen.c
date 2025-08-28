@@ -281,17 +281,23 @@ qnx_screen_output_start_repaint_loop(struct weston_output *output)
 }
 
 static int
-qnx_screen_output_repaint_gl(struct weston_output *output_base,
-							 pixman_region32_t *damage)
+qnx_screen_output_repaint_gl(struct weston_output *output_base)
 {
 	struct qnx_screen_output *output = to_qnx_screen_output(output_base);
 	struct weston_compositor *ec;
+	pixman_region32_t damage;
 
 	assert(output);
 
 	ec = output->base.compositor;
 
-	ec->renderer->repaint_output(output_base, damage, NULL);
+	pixman_region32_init(&damage);
+
+	weston_output_flush_damage_for_primary_plane(output_base, &damage);
+
+	ec->renderer->repaint_output(output_base, &damage, NULL);
+
+	pixman_region32_fini(&damage);
 
 	weston_output_arm_frame_timer(output_base, output->finish_frame_timer);
 	return 0;
@@ -782,7 +788,7 @@ qnx_screen_output_set_size(struct weston_output *base, int width, int height)
 	assert(!output->base.current_mode);
 
 	/* Make sure we have scale set. */
-	assert(output->base.scale);
+	assert(output->base.current_scale);
 
 	if (width < WINDOW_MIN_WIDTH) {
 		weston_log("Invalid width \"%d\" for output %s\n",
@@ -796,8 +802,8 @@ qnx_screen_output_set_size(struct weston_output *base, int width, int height)
 		return -1;
 	}
 
-	output_width = width * output->base.scale;
-	output_height = height * output->base.scale;
+	output_width = width * output->base.current_scale;
+	output_height = height * output->base.current_scale;
 
 	int size_in_millimeters[] = { output_width, output_height };
 	int size_in_pixels[] = { output_width, output_height };
@@ -805,10 +811,10 @@ qnx_screen_output_set_size(struct weston_output *base, int width, int height)
 	screen_get_display_property_iv(output->display, SCREEN_PROPERTY_SIZE, size_in_pixels);
 
 	if (b->fullscreen) {
-		width = size_in_pixels[0] / output->base.scale;
-		height = size_in_pixels[1] / output->base.scale;
-		output_width = width * output->base.scale;
-		output_height = height * output->base.scale;
+		width = size_in_pixels[0] / output->base.current_scale;
+		height = size_in_pixels[1] / output->base.current_scale;
+		output_width = width * output->base.current_scale;
+		output_height = height * output->base.current_scale;
 	}
 
 	wl_list_for_each(head, &output->base.head_list, output_link) {
@@ -825,12 +831,12 @@ qnx_screen_output_set_size(struct weston_output *base, int width, int height)
 	output->mode.height = output_height;
 	output->mode.refresh = 60000;
 	output->native = output->mode;
-	output->scale = output->base.scale;
+	output->scale = output->base.current_scale;
 	wl_list_insert(&output->base.mode_list, &output->mode.link);
 
 	output->base.current_mode = &output->mode;
-	output->base.native_mode = &output->native;
-	output->base.native_scale = output->base.scale;
+	weston_output_copy_native_mode(&output->base, &output->mode);
+	output->base.native_scale = output->base.current_scale;
 
 	return 0;
 }
@@ -1386,19 +1392,14 @@ qnx_screen_backend_create(struct weston_compositor *compositor,
 				     qnx_screen_backend_handle_event, b);
 	wl_event_source_check(b->screen_source);
 
-	if (compositor->renderer->import_dmabuf) {
-		if (linux_dmabuf_setup(compositor) < 0)
-			weston_log("Error: initializing dmabuf "
-				   "support failed.\n");
-	}
-
 	if (compositor->capabilities & WESTON_CAP_EXPLICIT_SYNC) {
 		if (linux_explicit_synchronization_setup(compositor) < 0)
 			weston_log("Error: initializing explicit "
 				   " synchronization support failed.\n");
 	}
 
-	ret = weston_plugin_api_register(compositor, WESTON_WINDOWED_OUTPUT_API_NAME,
+	ret = weston_plugin_api_register(compositor,
+					 WESTON_WINDOWED_OUTPUT_API_NAME_QNX,
 					 &api, sizeof(api));
 
 	if (ret < 0) {

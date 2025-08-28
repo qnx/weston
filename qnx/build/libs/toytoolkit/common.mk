@@ -27,6 +27,7 @@ SRCS +=	\
 	window.c \
 	xdg-shell-unstable-v6-protocol.c \
 	xdg-shell-protocol.c \
+	color-management-v1-protocol.c \
 	text-cursor-position-protocol.c \
 	pointer-constraints-unstable-v1-protocol.c \
 	relative-pointer-unstable-v1-protocol.c \

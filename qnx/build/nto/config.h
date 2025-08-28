@@ -31,6 +31,8 @@
 
 #define HAVE_XKBCOMMON_COMPOSE 1
 
+#define HAVE_BUILTIN_CLZ 1
+
 #define LIBEXECDIR "/usr/libexec"
 
 #define LIBWESTON_MODULEDIR "/usr/lib/libweston"
@@ -43,15 +45,15 @@
 
 #define PACKAGE_BUGREPORT "https://gitlab.freedesktop.org/wayland/weston/issues/"
 
-#define PACKAGE_STRING "weston 13.0.0"
+#define PACKAGE_STRING "weston 14.0.0"
 
 #define PACKAGE_URL "https://wayland.freedesktop.org"
 
-#define PACKAGE_VERSION "13.0.0"
+#define PACKAGE_VERSION "14.0.0"
 
 #define USE_RESIZE_POOL 1
 
-#define VERSION "13.0.0"
+#define VERSION "14.0.0"
 
 #define WESTON_SHELL_CLIENT "weston-desktop-shell"
 

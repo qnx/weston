@@ -153,6 +153,22 @@ load_jpeg_image(struct jpeg_decompress_struct *cinfo,
 	return pixman_image;
 }
 
+#if defined(__QNX__)
+// fixes: undefined reference to `jpeg_read_icc_profile'
+// this symbol is not found in libjpeg.so.9 from qnx sdp,
+// QNX TODO: update this when symbol becomes available
+static bool
+jpeg_read_icc_profile(j_decompress_ptr cinfo, 
+                      JOCTET **icc_data_ptr,
+                      unsigned int *icc_data_len)
+{
+    // For now, return false to indicate no ICC profile
+    *icc_data_ptr = NULL;
+    *icc_data_len = 0;
+    return false;
+}
+#endif
+
 static int
 load_jpeg_icc(struct jpeg_decompress_struct *cinfo,
 	      struct icc_profile_data **icc_profile_data)

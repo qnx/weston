@@ -33,7 +33,7 @@ SRCS += \
 	gl-borders.c \
 	presentation-time-protocol.c
 
-LIBS += weston wayland-server pixman-1 cairo shared-cairoS m png jpeg
+LIBS += weston wayland-server pixman-1 cairo shared-cairoS m png jpeg socket epoll
 
 define PINFO
 PINFO DESCRIPTION = Weston Headless Backend Library

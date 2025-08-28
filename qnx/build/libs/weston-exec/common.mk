@@ -13,7 +13,7 @@ EXTRA_INCVPATH += $(PROJECT_ROOT)/../../$(OS)/libweston
 EXTRA_INCVPATH += $(PROJECT_ROOT)/../../$(OS)/protocol
 EXTRA_INCVPATH += $(addsuffix /pixman-1,$(USE_ROOT_INCLUDE))
 
-EXTRA_SRCVPATH += $(DIST_ROOT)/compositor
+EXTRA_SRCVPATH += $(DIST_ROOT)/frontend
 EXTRA_SRCVPATH += $(DIST_ROOT)/libweston/shell-utils
 EXTRA_SRCVPATH += $(PROJECT_ROOT)/../../$(OS)/protocol
 

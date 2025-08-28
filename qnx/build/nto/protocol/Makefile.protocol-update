@@ -23,6 +23,7 @@ PROTOCOL_HEADER_LIST=client server
 EXTRA_PROTOCOLVPATH += ../../../../protocol
 
 PROTOCOLS += \
+	color-management-v1 \
 	fullscreen-shell-unstable-v1 \
 	fractional-scale-v1 \
 	input-method-unstable-v1 \

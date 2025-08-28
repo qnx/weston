@@ -36,7 +36,6 @@ weston-transformed
 alpha-blending-test
 bad-buffer-test
 buffer-transforms-test
-color-manager-test
 color-metadata-errors-test
 config-parser-test
 custom-env-test
