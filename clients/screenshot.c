@@ -442,6 +442,59 @@ screenshot_write_png(const struct buffer_size *buff_size,
 	pixman_image_unref(shot);
 }
 
+static void
+screenshot_write_yuv(const struct buffer_size *buff_size,
+		     struct wl_list *output_list)
+{
+	struct screenshooter_output *output;
+	int i = 0;
+
+	wl_list_for_each(output, output_list, link) {
+		struct screenshooter_buffer *buffer = output->buffer;
+		char filepath[PATH_MAX];
+		char filepath_prefix[100];
+		int write_offset = 0;
+		FILE *fp;
+
+		sprintf(filepath_prefix, "wayland-screenshot-output-%d-", i++);
+		fp = file_create_dated(getenv("XDG_PICTURES_DIR"),
+				       filepath_prefix, ".yuv", filepath,
+				       sizeof(filepath));
+		if (!fp) {
+			fprintf(stderr, "Writing yuv file for output %d failed\n", i);
+			return;
+		}
+
+		client_buffer_util_maybe_sync_dmabuf_start(buffer->buf);
+
+		for (unsigned int j = 0; j < pixel_format_get_plane_count(buffer->buf->fmt); j++) {
+			int plane_height =
+				buffer->buf->height / pixel_format_hsub(buffer->buf->fmt, j);
+
+			for (int k = 0; k < plane_height; k++) {
+				size_t lines_written;
+
+				lines_written = fwrite(buffer->buf->data + write_offset,
+						       buffer->buf->bytes_per_line[j],
+						       1, fp);
+				if (lines_written != 1) {
+					fprintf(stderr,
+						"Writing yuv file for output %d " \
+						"failed during write(): %s\n",
+						i, strerror(errno));
+
+					return;
+				}
+
+				write_offset += buffer->buf->strides[j];
+			}
+		}
+		fclose (fp);
+
+		client_buffer_util_maybe_sync_dmabuf_end(buffer->buf);
+	}
+}
+
 static int
 screenshot_set_buffer_size(struct buffer_size *buff_size,
 			   struct wl_list *output_list)
@@ -487,6 +540,28 @@ received_formats_for_all_outputs(struct screenshooter_app *app)
 	return true;
 }
 
+static bool
+all_output_formats_are_yuv(struct wl_list *output_list)
+{
+	struct screenshooter_output *output;
+	int color_model = -1;
+
+	wl_list_for_each(output, output_list, link) {
+		if (color_model == -1) {
+			color_model = output->buffer->buf->fmt->color_model;
+			continue;
+		}
+
+		if ((int)output->buffer->buf->fmt->color_model != color_model) {
+			fprintf(stderr, "Mixing of RGB and YUV output formats not supported\n");
+			exit(1);
+		}
+	}
+	assert(color_model == (int)COLOR_MODEL_RGB ||
+	       color_model == (int)COLOR_MODEL_YUV);
+	return color_model == COLOR_MODEL_YUV;
+}
+
 static void
 print_usage_and_exit(void)
 {
@@ -497,6 +572,10 @@ print_usage_and_exit(void)
 	       "\n\t\tprint additional output\n"
 	       "\t'-f,--format=<>'"
 	       "\n\t\tthe DRM format name to use without the DRM_FORMAT_ prefix, e.g. RGBA8888 or NV12\n"
+	       "\n\t\tIn case of YCbCr formats like NV12, instead of a single .png, the output will consist of raw .yuv files for each output."
+	       "\n\t\tThese files do not contain any metadata, however that can be added by converting to .y4m with a command like:"
+	       "\n\t\tffmpeg -s 1024x768 -r 1 -pix_fmt yuv420p -i ~/wayland-screenshot-output-0-2025-08-01_15-58-24.yuv -c:v copy screenshot.y4m\n"
+	       "\n\t\tNote that this may not work for all YCbCr pixel formats.\n"
 	       "\t'-s,--source-type=<>'"
 	       "\n\t\tframebuffer to use framebuffer source (default), "
 	       "\n\t\twriteback to use writeback source\n"
@@ -642,7 +721,11 @@ main(int argc, char *argv[])
 	if (!app.failed) {
 		if (screenshot_set_buffer_size(&buff_size, &app.output_list) < 0)
 			return -1;
-		screenshot_write_png(&buff_size, &app.output_list);
+
+		if (all_output_formats_are_yuv(&app.output_list))
+			screenshot_write_yuv(&buff_size, &app.output_list);
+		else
+			screenshot_write_png(&buff_size, &app.output_list);
 	} else {
 		fprintf(stderr, "Error: screenshot or protocol failure\n");
 	}
