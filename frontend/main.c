@@ -2660,23 +2660,21 @@ wet_output_overlap_post_enable(struct weston_head *head,
 static void
 simple_heads_output_sharing_resize(struct wl_listener *listener, void *data)
 {
-	struct weston_head *head = data;
 	struct weston_head *head_to_mirror = NULL;
-	struct weston_output *output;
+	struct weston_output *output = data;
 	struct wet_head_tracker *head_track =
 		container_of(listener, struct wet_head_tracker, resized_listener);
 	struct wet_compositor *wet = head_track->wet;
 	struct weston_mode mode;
 	int scale = 1;
 
-	output = weston_head_get_output(head);
 	head_to_mirror = wet_config_find_head_to_mirror(output, wet);
 	if (!head_to_mirror)
 		return;
 
 	weston_output_set_position(head_to_mirror->output, output->pos);
 
-	wet_output_compute_output_from_mirror(head->output,
+	wet_output_compute_output_from_mirror(output,
 					      head_to_mirror->output,
 					      &mode, &scale);
 	weston_output_mode_set_native(head_to_mirror->output, &mode, scale);

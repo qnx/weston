@@ -669,7 +669,6 @@ drm_output_propose_state(struct weston_output *output_base,
 	pixman_region32_t occluded_region;
 
 	bool renderer_ok = (mode != DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY);
-	bool need_underlay = false;
 	int ret;
 	/* Record the current lowest zpos of the overlay planes */
 	uint64_t current_lowest_zpos_overlay = DRM_PLANE_ZPOS_INVALID_PLANE;
@@ -762,6 +761,7 @@ drm_output_propose_state(struct weston_output *output_base,
 		pixman_region32_t clipped_view;
 		pixman_region32_t surface_overlap;
 		bool totally_occluded = false;
+		bool need_underlay = false;
 
 		drm_debug(b, "\t\t\t[view] evaluating view %p for "
 		             "output %s (%lu)\n",

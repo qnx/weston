@@ -1926,6 +1926,7 @@ weston_pointer_set_focus(struct weston_pointer *pointer,
 	if (view) {
 		struct weston_coord_surface surf_pos;
 
+		weston_view_update_transform(view);
 		surf_pos = weston_coord_global_to_surface(view, pointer->pos);
 		sx = wl_fixed_from_double(surf_pos.c.x);
 		sy = wl_fixed_from_double(surf_pos.c.y);
@@ -3856,6 +3857,9 @@ bind_seat(struct wl_client *client, void *data, uint32_t version, uint32_t id)
 	wl_resource_set_implementation(resource, &seat_interface, data,
 				       unbind_resource);
 
+	if (version >= WL_SEAT_NAME_SINCE_VERSION)
+		wl_seat_send_name(resource, seat->seat_name);
+
 	if (weston_seat_get_pointer(seat))
 		caps |= WL_SEAT_CAPABILITY_POINTER;
 	if (weston_seat_get_keyboard(seat))
@@ -3864,8 +3868,6 @@ bind_seat(struct wl_client *client, void *data, uint32_t version, uint32_t id)
 		caps |= WL_SEAT_CAPABILITY_TOUCH;
 
 	wl_seat_send_capabilities(resource, caps);
-	if (version >= WL_SEAT_NAME_SINCE_VERSION)
-		wl_seat_send_name(resource, seat->seat_name);
 }
 
 static void

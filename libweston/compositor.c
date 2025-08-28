@@ -217,6 +217,35 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 
 	pnode->draw_solid = false;
 	pnode->is_direct = false;
+	/* Check for content protection first, as we should always prevent
+	 * the rendering of protected content.
+	 */
+	if (surface->protection_mode ==
+	    WESTON_SURFACE_PROTECTION_MODE_ENFORCED &&
+	    (recording_censor || unprotected_censor)) {
+		pnode->draw_solid = true;
+		pnode->is_fully_opaque = true;
+		pnode->is_fully_blended = false;
+		pnode->solid = placeholder_color;
+		return;
+	}
+	/* Check if we need a hole before we check direct-display, otherwise
+	 * we'll end up drawing an opaque placeholder over direct_display
+	 * paint nodes when we place them on underlays.
+	 */
+	if (pnode->need_hole) {
+		pnode->draw_solid = true;
+		pnode->is_fully_opaque = true;
+		pnode->is_fully_blended = false;
+
+		if (buffer->direct_display)
+			pnode->is_direct = true;
+
+		pnode->solid = (struct weston_solid_buffer_values) {
+			               0.0, 0.0, 0.0, 0.0
+		               };
+		return;
+	}
 	if (buffer->direct_display) {
 		pnode->draw_solid = true;
 		pnode->is_direct = true;
@@ -224,25 +253,6 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 		pnode->is_fully_blended = false;
 		pnode->solid = placeholder_color;
 		return;
-	}
-	if (pnode->need_hole) {
-		pnode->draw_solid = true;
-		pnode->is_fully_opaque = true;
-		pnode->is_fully_blended = false;
-		pnode->solid = (struct weston_solid_buffer_values) {
-			               0.0, 0.0, 0.0, 0.0
-		               };
-		return;
-	}
-	if (surface->protection_mode !=
-	    WESTON_SURFACE_PROTECTION_MODE_ENFORCED)
-		return;
-
-	if (recording_censor || unprotected_censor) {
-		pnode->draw_solid = true;
-		pnode->is_fully_opaque = true;
-		pnode->is_fully_blended = false;
-		pnode->solid = placeholder_color;
 	}
 }
 
@@ -6649,7 +6659,6 @@ weston_output_compute_protection(struct weston_output *output)
 
 	if (output->current_protection != op_protection) {
 		output->current_protection = op_protection;
-		weston_output_dirty_paint_nodes(output);
 		weston_output_damage(output);
 		weston_schedule_surface_protection_update(wc);
 	}
