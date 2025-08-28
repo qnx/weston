@@ -1086,7 +1086,8 @@ shared_output_destroy(struct shared_output *so)
 	wl_list_remove(&so->output_destroyed.link);
 	wl_list_remove(&so->frame_listener.link);
 
-	pixman_image_unref(so->cache_image);
+	if (so->cache_image)
+		pixman_image_unref(so->cache_image);
 	free(so->tmp_data);
 
 	free(so);
