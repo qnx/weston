@@ -164,6 +164,21 @@ simple_clients = [
 		'dep_objs': [ dep_wayland_client, dep_libshared ]
 	},
 	{
+		'name': 'timing',
+		'sources': [
+			'simple-timing.c',
+			xdg_shell_client_protocol_h,
+			xdg_shell_protocol_c,
+			commit_timing_v1_client_protocol_h,
+			commit_timing_v1_protocol_c,
+			fifo_v1_client_protocol_h,
+			fifo_v1_protocol_c,
+			presentation_time_client_protocol_h,
+			presentation_time_protocol_c,
+		],
+		'dep_objs': [ dep_wayland_client, dep_libshared ]
+	},
+	{
 		'name': 'touch',
 		'sources': [
 			'simple-touch.c',
