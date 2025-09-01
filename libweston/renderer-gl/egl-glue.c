@@ -208,6 +208,15 @@ print_egl_config_info(FILE *fp, struct gl_renderer *gr, EGLConfig eglconfig)
 	else
 		fputs("-", fp);
 
+	fputs(" val: ", fp);
+	if (egl_display_has(gr, EXTENSION_EXT_PIXEL_FORMAT_FLOAT) &&
+	    eglGetConfigAttrib(gr->egl_display, eglconfig, EGL_COLOR_COMPONENT_TYPE_EXT, &value) &&
+	    value == EGL_COLOR_COMPONENT_TYPE_FLOAT_EXT) {
+		fputs("flt", fp);
+	} else {
+		fputs("fix", fp);
+	}
+
 	fputs(" vis_id: ", fp);
 	if (eglGetConfigAttrib(gr->egl_display, eglconfig, EGL_NATIVE_VISUAL_ID, &value)) {
 		if (value != 0) {
