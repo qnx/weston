@@ -680,7 +680,7 @@ gl_renderer_log_extensions(struct gl_renderer *gr,
 			   const char *name, const char *extensions);
 
 void
-log_egl_config_info(EGLDisplay egldpy, EGLConfig eglconfig);
+log_egl_config_info(struct gl_renderer *gr, EGLConfig eglconfig);
 
 EGLConfig
 gl_renderer_get_egl_config(struct gl_renderer *gr,

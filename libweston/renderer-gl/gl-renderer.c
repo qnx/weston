@@ -4213,7 +4213,7 @@ gl_renderer_create_window_surface(struct gl_renderer *gr,
 	if (egl_config == EGL_NO_CONFIG_KHR)
 		return EGL_NO_SURFACE;
 
-	log_egl_config_info(gr->egl_display, egl_config);
+	log_egl_config_info(gr, egl_config);
 
 	if (gr->create_platform_window)
 		egl_surface = gr->create_platform_window(gr->egl_display,

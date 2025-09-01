@@ -196,20 +196,20 @@ print_egl_config_ints(FILE *fp, EGLDisplay egldpy, EGLConfig eglconfig)
 }
 
 static void
-print_egl_config_info(FILE *fp, EGLDisplay egldpy, EGLConfig eglconfig)
+print_egl_config_info(FILE *fp, struct gl_renderer *gr, EGLConfig eglconfig)
 {
 	EGLint value;
 
-	print_egl_config_ints(fp, egldpy, eglconfig);
+	print_egl_config_ints(fp, gr->egl_display, eglconfig);
 
 	fputs("type: ", fp);
-	if (eglGetConfigAttrib(egldpy, eglconfig, EGL_SURFACE_TYPE, &value))
+	if (eglGetConfigAttrib(gr->egl_display, eglconfig, EGL_SURFACE_TYPE, &value))
 		print_egl_surface_type_bits(fp, value);
 	else
 		fputs("-", fp);
 
 	fputs(" vis_id: ", fp);
-	if (eglGetConfigAttrib(egldpy, eglconfig, EGL_NATIVE_VISUAL_ID, &value)) {
+	if (eglGetConfigAttrib(gr->egl_display, eglconfig, EGL_NATIVE_VISUAL_ID, &value)) {
 		if (value != 0) {
 			const struct pixel_format_info *p;
 
@@ -229,7 +229,7 @@ print_egl_config_info(FILE *fp, EGLDisplay egldpy, EGLConfig eglconfig)
 }
 
 static void
-log_all_egl_configs(EGLDisplay egldpy)
+log_all_egl_configs(struct gl_renderer *gr)
 {
 	EGLint count = 0;
 	EGLConfig *configs;
@@ -240,14 +240,14 @@ log_all_egl_configs(EGLDisplay egldpy)
 
 	weston_log("All available EGLConfigs:\n");
 
-	if (!eglGetConfigs(egldpy, NULL, 0, &count) || count < 1)
+	if (!eglGetConfigs(gr->egl_display, NULL, 0, &count) || count < 1)
 		return;
 
 	configs = calloc(count, sizeof *configs);
 	if (!configs)
 		return;
 
-	if (!eglGetConfigs(egldpy, configs, count, &count))
+	if (!eglGetConfigs(gr->egl_display, configs, count, &count))
 		return;
 
 	fp = open_memstream(&strbuf, &strsize);
@@ -255,7 +255,7 @@ log_all_egl_configs(EGLDisplay egldpy)
 		goto out;
 
 	for (i = 0; i < count; i++) {
-		print_egl_config_info(fp, egldpy, configs[i]);
+		print_egl_config_info(fp, gr, configs[i]);
 		fputc(0, fp);
 		fflush(fp);
 		weston_log_continue(STAMP_SPACE "%s\n", strbuf);
@@ -270,7 +270,7 @@ out:
 }
 
 void
-log_egl_config_info(EGLDisplay egldpy, EGLConfig eglconfig)
+log_egl_config_info(struct gl_renderer *gr, EGLConfig eglconfig)
 {
 	char *strbuf = NULL;
 	size_t strsize = 0;
@@ -278,7 +278,7 @@ log_egl_config_info(EGLDisplay egldpy, EGLConfig eglconfig)
 
 	fp = open_memstream(&strbuf, &strsize);
 	if (fp) {
-		print_egl_config_info(fp, egldpy, eglconfig);
+		print_egl_config_info(fp, gr, eglconfig);
 		fclose(fp);
 	}
 
@@ -480,7 +480,7 @@ gl_renderer_get_egl_config(struct gl_renderer *gr,
 						   formats, formats_count);
 		weston_log("No EGLConfig matches %s.\n", what);
 		free(what);
-		log_all_egl_configs(gr->egl_display);
+		log_all_egl_configs(gr);
 		return EGL_NO_CONFIG_KHR;
 	}
 
