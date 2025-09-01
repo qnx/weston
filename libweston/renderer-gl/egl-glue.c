@@ -211,9 +211,11 @@ print_egl_config_info(FILE *fp, struct gl_renderer *gr, EGLConfig eglconfig)
 	fputs(" vis_id: ", fp);
 	if (eglGetConfigAttrib(gr->egl_display, eglconfig, EGL_NATIVE_VISUAL_ID, &value)) {
 		if (value != 0) {
-			const struct pixel_format_info *p;
+			const struct pixel_format_info *p = NULL;
 
-			p = pixel_format_get_info(value);
+			if (gr->platform == EGL_PLATFORM_GBM_KHR)
+				p = pixel_format_get_info(value);
+
 			if (p) {
 				fprintf(fp, "%s (0x%x)",
 					p->drm_format_name, (unsigned)value);
