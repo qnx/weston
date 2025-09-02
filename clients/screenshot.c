@@ -41,6 +41,7 @@
 #include <wayland-client.h>
 
 #include "pixel-formats.h"
+#include "shared/client-buffer-util.h"
 #include "shared/file-util.h"
 #include "shared/os-compatibility.h"
 #include "shared/xalloc.h"
@@ -59,9 +60,7 @@ struct screenshooter_app {
 };
 
 struct screenshooter_buffer {
-	size_t len;
-	void *data;
-	struct wl_buffer *wl_buffer;
+	struct client_buffer *buf;
 	pixman_image_t *image;
 };
 
@@ -93,10 +92,6 @@ screenshot_create_shm_buffer(struct screenshooter_app *app,
 			     const struct pixel_format_info *fmt)
 {
 	struct screenshooter_buffer *buffer;
-	struct wl_shm_pool *pool;
-	int fd;
-	size_t bytes_pp;
-	size_t stride;
 
 	assert(width > 0);
 	assert(height > 0);
@@ -105,40 +100,15 @@ screenshot_create_shm_buffer(struct screenshooter_app *app,
 
 	buffer = xzalloc(sizeof *buffer);
 
-	bytes_pp = fmt->bpp / 8;
-	stride = width * bytes_pp;
-	buffer->len = stride * height;
-
-	assert(width == stride / bytes_pp);
-	assert(height == buffer->len / stride);
-
-	fd = os_create_anonymous_file(buffer->len);
-	if (fd < 0) {
-		fprintf(stderr, "creating a buffer file for %zd B failed: %s\n",
-			buffer->len, strerror(errno));
-		free(buffer);
-		return NULL;
-	}
-
-	buffer->data = mmap(NULL, buffer->len, PROT_READ | PROT_WRITE,
-			    MAP_SHARED, fd, 0);
-	if (buffer->data == MAP_FAILED) {
-		fprintf(stderr, "mmap failed: %s\n", strerror(errno));
-		close(fd);
-		free(buffer);
-		return NULL;
-	}
-
-	pool = wl_shm_create_pool(app->shm, fd, buffer->len);
-	close(fd);
-	buffer->wl_buffer =
-		wl_shm_pool_create_buffer(pool, 0, width, height, stride,
-					  pixel_format_get_shm_format(fmt));
-	wl_shm_pool_destroy(pool);
+	buffer->buf = client_buffer_util_create_shm_buffer(app->shm,
+							   fmt,
+							   width,
+							   height);
 
 	buffer->image = pixman_image_create_bits(fmt->pixman_format,
 						 width, height,
-						 buffer->data, stride);
+						 buffer->buf->data,
+						 buffer->buf->strides[0]);
 	abort_oom_if_null(buffer->image);
 
 	return buffer;
@@ -151,8 +121,7 @@ screenshooter_buffer_destroy(struct screenshooter_buffer *buffer)
 		return;
 
 	pixman_image_unref(buffer->image);
-	munmap(buffer->data, buffer->len);
-	wl_buffer_destroy(buffer->wl_buffer);
+	client_buffer_util_destroy_buffer(buffer->buf);
 	free(buffer);
 }
 
@@ -305,7 +274,7 @@ screenshooter_output_capture(struct screenshooter_output *output)
 	abort_oom_if_null(output->buffer);
 
 	weston_capture_source_v1_capture(output->source,
-					 output->buffer->wl_buffer);
+					 output->buffer->buf->wl_buffer);
 	output->app->waitcount++;
 }
 

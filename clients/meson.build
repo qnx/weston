@@ -491,6 +491,7 @@ if get_option('shell-desktop') or get_option('deprecated-shell-fullscreen') or g
 		weston_output_capture_protocol_c,
 		include_directories: common_inc,
 		dependencies: [
+			dep_client_buffer,
 			dep_toytoolkit,
 			dep_libweston_private, # for pixel-formats.h
 			dep_pixman,
