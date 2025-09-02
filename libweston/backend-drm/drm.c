@@ -4224,26 +4224,28 @@ out_fd:
  * rather than pure render nodes (GPU with no display), or pure
  * memory-allocation devices (VGEM).
  */
-static struct udev_device*
-find_primary_gpu(struct drm_backend *b, const char *seat)
+static struct drm_kms_device *
+find_primary_gpu(struct weston_launcher *launcher,
+		 struct udev *udev,
+		 const char *seat)
 {
+	struct drm_kms_device *chosen_kms_device = NULL;
 	struct udev_enumerate *e;
 	struct udev_list_entry *entry;
 	const char *path, *device_seat, *id;
-	struct udev_device *dev, *drm_device, *pci;
+	struct udev_device *dev, *pci;
 
-	e = udev_enumerate_new(b->udev);
+	e = udev_enumerate_new(udev);
 	udev_enumerate_add_match_subsystem(e, "drm");
 	udev_enumerate_add_match_sysname(e, "card[0-9]*");
 
 	udev_enumerate_scan_devices(e);
-	drm_device = NULL;
 	udev_list_entry_foreach(entry, udev_enumerate_get_list_entry(e)) {
 		struct drm_kms_device *kms_device;
 		bool is_boot_vga = false;
 
 		path = udev_list_entry_get_name(entry);
-		dev = udev_device_new_from_syspath(b->udev, path);
+		dev = udev_device_new_from_syspath(udev, path);
 		if (!dev)
 			continue;
 		device_seat = udev_device_get_property_value(dev, "ID_SEAT");
@@ -4265,71 +4267,60 @@ find_primary_gpu(struct drm_backend *b, const char *seat)
 		/* If we already have a modesetting-capable device, and this
 		 * device isn't our boot-VGA device, we aren't going to use
 		 * it. */
-		if (!is_boot_vga && drm_device) {
+		if (!is_boot_vga && chosen_kms_device) {
 			udev_device_unref(dev);
 			continue;
 		}
 
 		/* Make sure this device is actually capable of modesetting */
-		kms_device = drm_kms_device_create(b->compositor->launcher, dev);
-		if (!kms_device) {
-			udev_device_unref(dev);
+		kms_device = drm_kms_device_create(launcher, dev);
+		udev_device_unref(dev);
+
+		if (!kms_device)
 			continue;
-		}
-		drm_kms_device_destroy(b->drm->kms_device);
-		b->drm->kms_device = kms_device;
 
 		/* There can only be one boot_vga device, and we try to use it
 		 * at all costs. */
 		if (is_boot_vga) {
-			if (drm_device)
-				udev_device_unref(drm_device);
-			drm_device = dev;
+			drm_kms_device_destroy(chosen_kms_device);
+			chosen_kms_device = kms_device;
 			break;
 		}
 
-		/* Per the (!is_boot_vga && drm_device) test above, we only
+		/* Per the (!is_boot_vga && chosen_kms_device) test above, we only
 		 * trump existing saved devices with boot-VGA devices, so if
 		 * we end up here, this must be the first device we've seen. */
-		assert(!drm_device);
-		drm_device = dev;
+		assert(!chosen_kms_device);
+		chosen_kms_device = kms_device;
 	}
 
-	/* If we're returning a device to use, we must have an open FD for
-	 * it. */
-	assert(!!drm_device == !!b->drm->kms_device);
-
 	udev_enumerate_unref(e);
-	return drm_device;
+	return chosen_kms_device;
 }
 
-static struct udev_device *
-open_specific_drm_device(struct drm_backend *b, struct drm_device *device,
+static struct drm_kms_device *
+open_specific_drm_device(struct weston_launcher *launcher,
+			 struct udev *udev,
 			 const char *name)
 {
 	struct udev_device *udev_device;
 	struct drm_kms_device *kms_device;
 
-	udev_device = udev_device_new_from_subsystem_sysname(b->udev, "drm", name);
+	udev_device = udev_device_new_from_subsystem_sysname(udev, "drm", name);
 	if (!udev_device) {
 		weston_log("ERROR: could not open DRM device '%s'\n", name);
 		return NULL;
 	}
 
-	kms_device = drm_kms_device_create(b->compositor->launcher, udev_device);
+	kms_device = drm_kms_device_create(launcher, udev_device);
+	udev_device_unref(udev_device);
+
 	if (!kms_device) {
-		udev_device_unref(udev_device);
 		weston_log("ERROR: DRM device '%s' is not a KMS device.\n", name);
 		return NULL;
 	}
-	drm_kms_device_destroy(device->kms_device);
-	device->kms_device = kms_device;
 
-	/* If we're returning a device to use, we must have an open FD for
-	 * it. */
-	assert(device->kms_device->fd >= 0);
-
-	return udev_device;
+	return kms_device;
 }
 
 static void
@@ -4474,7 +4465,6 @@ static struct drm_device *
 drm_device_create(struct drm_backend *backend, const char *name)
 {
 	struct weston_compositor *compositor = backend->compositor;
-	struct udev_device *udev_device;
 	struct drm_device *device;
 	struct wl_event_loop *loop;
 	drmModeRes *res;
@@ -4486,8 +4476,9 @@ drm_device_create(struct drm_backend *backend, const char *name)
 	device->backend = backend;
 	device->gem_handle_refcnt = hash_table_create();
 
-	udev_device = open_specific_drm_device(backend, device, name);
-	if (!udev_device) {
+	device->kms_device = open_specific_drm_device(compositor->launcher,
+						      backend->udev, name);
+	if (!device->kms_device) {
 		free(device);
 		return NULL;
 	}
@@ -4519,7 +4510,7 @@ drm_device_create(struct drm_backend *backend, const char *name)
 	wl_list_init(&device->drm_colorop_3x1d_lut_list);
 
 	wl_list_init(&device->writeback_connector_list);
-	if (drm_backend_discover_connectors(device, udev_device, res) < 0) {
+	if (drm_backend_discover_connectors(device, device->kms_device->udev_device, res) < 0) {
 		weston_log("Failed to create heads for %s\n", device->kms_device->filename);
 		goto err;
 	}
@@ -4571,7 +4562,6 @@ drm_backend_create(struct weston_compositor *compositor,
 {
 	struct drm_backend *b;
 	struct drm_device *device;
-	struct udev_device *drm_device;
 	struct wl_event_loop *loop;
 	const char *seat_id = default_seat;
 	const char *session_seat;
@@ -4641,19 +4631,22 @@ drm_backend_create(struct weston_compositor *compositor,
 	b->session_listener.notify = session_notify;
 	wl_signal_add(&compositor->session_signal, &b->session_listener);
 
-	if (config->specific_device)
-		drm_device = open_specific_drm_device(b, device,
-						      config->specific_device);
-	else
-		drm_device = find_primary_gpu(b, seat_id);
-	if (drm_device == NULL) {
+	if (config->specific_device) {
+		device->kms_device = open_specific_drm_device(compositor->launcher,
+							      b->udev,
+							      config->specific_device);
+	} else {
+		device->kms_device = find_primary_gpu(compositor->launcher,
+						      b->udev, seat_id);
+	}
+	if (!device->kms_device) {
 		weston_log("no drm device found\n");
 		goto err_udev;
 	}
 
 	if (init_kms_caps(device) < 0) {
 		weston_log("failed to initialize kms\n");
-		goto err_udev_dev;
+		goto err_kms_device;
 	}
 
 	if (config->additional_devices)
@@ -4676,24 +4669,24 @@ drm_backend_create(struct weston_compositor *compositor,
 	case WESTON_RENDERER_PIXMAN:
 		if (init_pixman(b) < 0) {
 			weston_log("failed to initialize pixman renderer\n");
-			goto err_udev_dev;
+			goto err_kms_device;
 		}
 		break;
 	case WESTON_RENDERER_GL:
 		if (init_egl(b) < 0) {
 			weston_log("failed to initialize egl\n");
-			goto err_udev_dev;
+			goto err_kms_device;
 		}
 		break;
 	case WESTON_RENDERER_VULKAN:
 		if (init_vulkan(b) < 0) {
 			weston_log("failed to initialize vulkan\n");
-			goto err_udev_dev;
+			goto err_kms_device;
 		}
 		break;
 	default:
 		weston_log("unsupported renderer for DRM backend\n");
-		goto err_udev_dev;
+		goto err_kms_device;
 	}
 
 	b->base.shutdown = drm_shutdown;
@@ -4710,7 +4703,7 @@ drm_backend_create(struct weston_compositor *compositor,
 	res = drmModeGetResources(b->drm->kms_device->fd);
 	if (!res) {
 		weston_log("Failed to get drmModeRes\n");
-		goto err_udev_dev;
+		goto err_kms_device;
 	}
 
 	wl_list_init(&b->drm->crtc_list);
@@ -4732,7 +4725,7 @@ drm_backend_create(struct weston_compositor *compositor,
 	}
 
 	wl_list_init(&b->drm->writeback_connector_list);
-	if (drm_backend_discover_connectors(b->drm, drm_device, res) < 0) {
+	if (drm_backend_discover_connectors(b->drm, b->drm->kms_device->udev_device, res) < 0) {
 		weston_log("Failed to create heads for %s\n",
 			   b->drm->kms_device->filename);
 		goto err_udev_input;
@@ -4769,8 +4762,6 @@ drm_backend_create(struct weston_compositor *compositor,
 		weston_log("failed to enable udev-monitor receiving\n");
 		goto err_udev_monitor;
 	}
-
-	udev_device_unref(drm_device);
 
 	weston_compositor_add_debug_binding(compositor, KEY_O,
 					    planes_binding, b);
@@ -4846,8 +4837,9 @@ err_sprite:
 	destroy_sprites(b->drm);
 err_create_crtc_list:
 	drmModeFreeResources(res);
-err_udev_dev:
-	udev_device_unref(drm_device);
+err_kms_device:
+	drm_kms_device_destroy(device->kms_device);
+	device->kms_device = NULL;
 err_udev:
 	udev_unref(b->udev);
 err_launcher:
