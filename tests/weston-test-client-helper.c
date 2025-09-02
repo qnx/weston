@@ -39,6 +39,7 @@
 
 #include "test-config.h"
 #include "pixel-formats.h"
+#include "shared/client-buffer-util.h"
 #include "shared/weston-drm-fourcc.h"
 #include "shared/os-compatibility.h"
 #include "shared/string-helpers.h"
@@ -497,11 +498,6 @@ create_shm_buffer(struct client *client, int width, int height,
 	const struct pixel_format_info *pfmt;
 	struct wl_shm *shm = client->wl_shm;
 	struct buffer *buf;
-	size_t stride_bytes;
-	struct wl_shm_pool *pool;
-	int fd;
-	void *data;
-	size_t bytes_pp;
 	uint32_t shm_format;
 
 	test_assert_int_gt(width, 0);
@@ -517,34 +513,18 @@ create_shm_buffer(struct client *client, int width, int height,
 
 	buf = xzalloc(sizeof *buf);
 
-	bytes_pp = pfmt->bpp / 8;
-	stride_bytes = width * bytes_pp;
-	/* round up to multiple of 4 bytes for Pixman */
-	stride_bytes = (stride_bytes + 3) & ~3u;
-	test_assert_u64_ge(stride_bytes / bytes_pp, width);
-
-	buf->len = stride_bytes * height;
-	test_assert_u64_eq(buf->len / stride_bytes, height);
-
-	fd = os_create_anonymous_file(buf->len);
-	test_assert_int_ge(fd, 0);
-
-	data = mmap(NULL, buf->len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (data == MAP_FAILED) {
-		close(fd);
-		test_assert_not_reached("Unreachable");
-	}
-
-	pool = wl_shm_create_pool(shm, fd, buf->len);
-	buf->proxy = wl_shm_pool_create_buffer(pool, 0, width, height,
-					       stride_bytes,
-					       pixel_format_get_shm_format(pfmt));
-	wl_shm_pool_destroy(pool);
-	close(fd);
+	buf->buf = client_buffer_util_create_shm_buffer(shm,
+							pfmt,
+							width,
+							height);
+	test_assert_ptr_not_null(buf->buf);
+	buf->proxy = buf->buf->wl_buffer;
+	buf->len = buf->buf->bytes;
 
 	buf->image = pixman_image_create_bits(pfmt->pixman_format,
 					      width, height,
-					      data, stride_bytes);
+					      buf->buf->data,
+					      buf->buf->strides[0]);
 
 	test_assert_ptr_not_null(buf->proxy);
 	test_assert_ptr_not_null(buf->image);
@@ -577,17 +557,10 @@ create_pixman_buffer(int width, int height, pixman_format_code_t pixman_format)
 void
 buffer_destroy(struct buffer *buf)
 {
-	void *pixels;
-
-	pixels = pixman_image_get_data(buf->image);
-
-	if (buf->proxy) {
-		wl_buffer_destroy(buf->proxy);
-		test_assert_int_eq(munmap(pixels, buf->len), 0);
-	}
-
 	test_assert_true(pixman_image_unref(buf->image));
 
+	if (buf->buf)
+		client_buffer_util_destroy_buffer(buf->buf);
 	free(buf);
 }
 
