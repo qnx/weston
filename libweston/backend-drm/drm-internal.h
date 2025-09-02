@@ -178,15 +178,16 @@ enum drm_recovery_status {
 
 struct drm_kms_device {
 	int id;
-	int fd;
 	char *filename;
 	dev_t devnum;
+
+	int fd;
+	struct weston_launcher *fd_owner;
 };
 
 struct drm_device {
 	struct drm_backend *backend;
 
-	struct drm_kms_device kms_device_allocd;
 	struct drm_kms_device *kms_device;
 
 	/* Track the GEM handles if the device does not have a gbm device, which

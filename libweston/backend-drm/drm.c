@@ -3889,6 +3889,9 @@ udev_event_is_hotplug(struct drm_device *device, struct udev_device *udev_device
 	const char *sysnum;
 	const char *val;
 
+	if (!device->kms_device)
+		return 0;
+
 	drm_debug(device->backend, "[udev] HOTPLUG event\n");
 
 	sysnum = udev_device_get_sysnum(udev_device);
@@ -4037,6 +4040,18 @@ drm_shutdown(struct weston_backend *backend)
 	b->debug = NULL;
 }
 
+static void
+drm_kms_device_destroy(struct drm_kms_device *kms_device)
+{
+	if (!kms_device)
+		return;
+
+	if (kms_device->fd >= 0)
+		weston_launcher_close(kms_device->fd_owner, kms_device->fd);
+	free(kms_device->filename);
+	free(kms_device);
+}
+
 void
 drm_destroy(struct weston_backend *backend)
 {
@@ -4068,15 +4083,15 @@ drm_destroy(struct weston_backend *backend)
 		gbm_device_destroy(b->gbm);
 #endif
 
+	drm_kms_device_destroy(device->kms_device);
+
 	udev_monitor_unref(b->udev_monitor);
 	udev_unref(b->udev);
 
-	weston_launcher_close(ec->launcher, device->kms_device->fd);
 	weston_launcher_destroy(ec->launcher);
 
 	hash_table_destroy(device->gem_handle_refcnt);
 
-	free(device->kms_device->filename);
 	free(device);
 	free(b);
 }
@@ -4134,7 +4149,7 @@ drm_device_changed(struct weston_backend *backend,
 	struct weston_compositor *compositor = b->compositor;
 	struct drm_device *device = b->drm;
 
-	if (device->kms_device->fd < 0 || device->kms_device->devnum != devnum ||
+	if (!device->kms_device || device->kms_device->devnum != devnum ||
 	    compositor->session_active == added)
 		return;
 
@@ -4143,26 +4158,25 @@ drm_device_changed(struct weston_backend *backend,
 }
 
 /**
- * Determines whether or not a device is capable of modesetting. If successful,
- * sets b->drm.fd and b->drm.filename to the opened device.
+ * Determines whether or not a device is capable of modesetting.
  */
-static bool
-drm_device_is_kms(struct drm_backend *b, struct drm_device *device,
-		  struct udev_device *udev_device)
+static struct drm_kms_device *
+drm_kms_device_create(struct weston_launcher *launcher,
+		      struct udev_device *udev_device)
 {
-	struct weston_compositor *compositor = b->compositor;
 	const char *filename = udev_device_get_devnode(udev_device);
 	const char *sysnum = udev_device_get_sysnum(udev_device);
 	dev_t devnum = udev_device_get_devnum(udev_device);
+	struct drm_kms_device *kms_device;
 	drmModeRes *res;
 	int id = -1, fd;
 
 	if (!filename)
-		return false;
+		return NULL;
 
-	fd = weston_launcher_open(compositor->launcher, filename, O_RDWR);
+	fd = weston_launcher_open(launcher, filename, O_RDWR);
 	if (fd < 0)
-		return false;
+		return NULL;
 
 	res = drmModeGetResources(fd);
 	if (!res)
@@ -4179,26 +4193,23 @@ drm_device_is_kms(struct drm_backend *b, struct drm_device *device,
 		goto out_res;
 	}
 
-	/* We can be called successfully on multiple devices; if we have,
-	 * clean up old entries. */
-	if (device->kms_device->fd >= 0)
-		weston_launcher_close(compositor->launcher, device->kms_device->fd);
-	free(device->kms_device->filename);
+	kms_device = xzalloc(sizeof *kms_device);
 
-	device->kms_device->fd = fd;
-	device->kms_device->id = id;
-	device->kms_device->filename = strdup(filename);
-	device->kms_device->devnum = devnum;
+	kms_device->fd_owner = launcher;
+	kms_device->fd = fd;
+	kms_device->id = id;
+	kms_device->filename = strdup(filename);
+	kms_device->devnum = devnum;
 
 	drmModeFreeResources(res);
 
-	return true;
+	return kms_device;
 
 out_res:
 	drmModeFreeResources(res);
 out_fd:
-	weston_launcher_close(b->compositor->launcher, fd);
-	return false;
+	weston_launcher_close(launcher, fd);
+	return NULL;
 }
 
 /*
@@ -4214,7 +4225,6 @@ out_fd:
 static struct udev_device*
 find_primary_gpu(struct drm_backend *b, const char *seat)
 {
-	struct drm_device *device = b->drm;
 	struct udev_enumerate *e;
 	struct udev_list_entry *entry;
 	const char *path, *device_seat, *id;
@@ -4227,6 +4237,7 @@ find_primary_gpu(struct drm_backend *b, const char *seat)
 	udev_enumerate_scan_devices(e);
 	drm_device = NULL;
 	udev_list_entry_foreach(entry, udev_enumerate_get_list_entry(e)) {
+		struct drm_kms_device *kms_device;
 		bool is_boot_vga = false;
 
 		path = udev_list_entry_get_name(entry);
@@ -4257,13 +4268,14 @@ find_primary_gpu(struct drm_backend *b, const char *seat)
 			continue;
 		}
 
-		/* Make sure this device is actually capable of modesetting;
-		 * if this call succeeds, device->drm.{fd,filename} will be set,
-		 * and any old values freed. */
-		if (!drm_device_is_kms(b, b->drm, dev)) {
+		/* Make sure this device is actually capable of modesetting */
+		kms_device = drm_kms_device_create(b->compositor->launcher, dev);
+		if (!kms_device) {
 			udev_device_unref(dev);
 			continue;
 		}
+		drm_kms_device_destroy(b->drm->kms_device);
+		b->drm->kms_device = kms_device;
 
 		/* There can only be one boot_vga device, and we try to use it
 		 * at all costs. */
@@ -4283,7 +4295,7 @@ find_primary_gpu(struct drm_backend *b, const char *seat)
 
 	/* If we're returning a device to use, we must have an open FD for
 	 * it. */
-	assert(!!drm_device == (device->kms_device->fd >= 0));
+	assert(!!drm_device == !!b->drm->kms_device);
 
 	udev_enumerate_unref(e);
 	return drm_device;
@@ -4294,6 +4306,7 @@ open_specific_drm_device(struct drm_backend *b, struct drm_device *device,
 			 const char *name)
 {
 	struct udev_device *udev_device;
+	struct drm_kms_device *kms_device;
 
 	udev_device = udev_device_new_from_subsystem_sysname(b->udev, "drm", name);
 	if (!udev_device) {
@@ -4301,11 +4314,14 @@ open_specific_drm_device(struct drm_backend *b, struct drm_device *device,
 		return NULL;
 	}
 
-	if (!drm_device_is_kms(b, device, udev_device)) {
+	kms_device = drm_kms_device_create(b->compositor->launcher, udev_device);
+	if (!kms_device) {
 		udev_device_unref(udev_device);
 		weston_log("ERROR: DRM device '%s' is not a KMS device.\n", name);
 		return NULL;
 	}
+	drm_kms_device_destroy(device->kms_device);
+	device->kms_device = kms_device;
 
 	/* If we're returning a device to use, we must have an open FD for
 	 * it. */
@@ -4465,8 +4481,6 @@ drm_device_create(struct drm_backend *backend, const char *name)
 	if (device == NULL)
 		return NULL;
 	device->recovery_status = DRM_RECOVERY_SCHEDULED;
-	device->kms_device = &device->kms_device_allocd;
-	device->kms_device->fd = -1;
 	device->backend = backend;
 	device->gem_handle_refcnt = hash_table_create();
 
@@ -4581,8 +4595,6 @@ drm_backend_create(struct weston_compositor *compositor,
 		goto err_backend;
 
 	device->recovery_status = DRM_RECOVERY_SCHEDULED;
-	device->kms_device = &device->kms_device_allocd;
-	device->kms_device->fd = -1;
 	device->backend = b;
 	device->gem_handle_refcnt = hash_table_create();
 	if (!device->gem_handle_refcnt)
