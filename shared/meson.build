@@ -104,3 +104,13 @@ dep_matrix_c = declare_dependency(
 	include_directories: public_inc,
 	dependencies: dep_libm
 )
+
+dep_client_buffer = declare_dependency(
+	sources: [
+		'client-buffer-util.c',
+		linux_dmabuf_unstable_v1_client_protocol_h,
+		linux_dmabuf_unstable_v1_protocol_c,
+	],
+	include_directories: public_inc,
+	dependencies: [ dep_libm, dep_libdrm_headers ]
+)
