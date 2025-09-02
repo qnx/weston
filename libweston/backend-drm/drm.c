@@ -4048,6 +4048,7 @@ drm_kms_device_destroy(struct drm_kms_device *kms_device)
 
 	if (kms_device->fd >= 0)
 		weston_launcher_close(kms_device->fd_owner, kms_device->fd);
+	udev_device_unref(kms_device->udev_device);
 	free(kms_device->filename);
 	free(kms_device);
 }
@@ -4200,6 +4201,7 @@ drm_kms_device_create(struct weston_launcher *launcher,
 	kms_device->id = id;
 	kms_device->filename = strdup(filename);
 	kms_device->devnum = devnum;
+	kms_device->udev_device = udev_device_ref(udev_device);
 
 	drmModeFreeResources(res);
 

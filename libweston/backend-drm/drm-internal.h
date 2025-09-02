@@ -180,6 +180,7 @@ struct drm_kms_device {
 	int id;
 	char *filename;
 	dev_t devnum;
+	struct udev_device *udev_device;
 
 	int fd;
 	struct weston_launcher *fd_owner;
