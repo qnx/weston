@@ -27,8 +27,6 @@
 
 #include <fcntl.h>
 #include <math.h>
-#include <linux/dma-buf.h>
-#include <sys/ioctl.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -39,18 +37,10 @@
 #include "weston-test-fixture-compositor.h"
 #include "image-iter.h"
 #include "pixel-formats.h"
+#include "shared/client-buffer-util.h"
 #include "shared/os-compatibility.h"
 #include "shared/weston-drm-fourcc.h"
 #include "shared/xalloc.h"
-
-/* Align buffers to 256 bytes - required by e.g. AMD GPUs */
-#define STRIDE_ALIGN_MASK 255
-
-static size_t
-get_aligned_stride(size_t width_bytes)
-{
-	return (width_bytes + STRIDE_ALIGN_MASK) & ~STRIDE_ALIGN_MASK;
-}
 
 /* XXX For formats with more than 8 bit pre component, we should ideally load a
  * 16-bit (or 32-bit) per component image and store into a 16-bit (or 32-bit)
@@ -170,27 +160,6 @@ enum buffer_type {
 	BUFFER_TYPE_DMABUF,
 };
 
-struct client_buffer {
-	enum buffer_type type;
-	void *data;
-	size_t bytes;
-	struct wl_buffer *wl_buffer;
-	int fd;
-	int width;
-	int height;
-};
-
-struct client_buffer_create_data {
-	uint32_t drm_format;
-	enum buffer_type type;
-	size_t bytes;
-	size_t strides[3];
-	size_t offsets[3];
-	int n_planes;
-	int width;
-	int height;
-};
-
 struct client_buffer_case {
 	uint32_t drm_format;
 	const char *drm_format_name;
@@ -201,14 +170,11 @@ struct client_buffer_case {
 					       pixman_image_t *rgb_image);
 };
 
-#define UDMABUF_CREATE		_IOW('u', 0x42, struct udmabuf_create)
-#define UDMABUF_FLAGS_CLOEXEC	0x01
-
-struct udmabuf_create {
-  uint32_t memfd;
-  uint32_t flags;
-  uint64_t offset;
-  uint64_t size;
+struct client_buffer_create_data {
+	const struct pixel_format_info *fmt;
+	enum buffer_type type;
+	int width;
+	int height;
 };
 
 static struct client_buffer_create_data
@@ -216,7 +182,7 @@ create_init(uint32_t drm_format, enum buffer_type type,
 	    const struct image_header *ih)
 {
 	return (struct client_buffer_create_data){
-		.drm_format = drm_format,
+		.fmt = pixel_format_get_info(drm_format),
 		.type = type,
 		.width = ih->width,
 		.height = ih->height,
@@ -224,256 +190,45 @@ create_init(uint32_t drm_format, enum buffer_type type,
 }
 
 static struct client_buffer *
-shm_buffer_create(struct client *client,
-		  size_t bytes,
-		  int width,
-		  int height,
-		  int stride_bytes,
-		  uint32_t drm_format)
-{
-	struct wl_shm_pool *pool;
-	struct client_buffer *buf;
-	uint32_t shm_format;
-	int fd;
-
-	if (drm_format == DRM_FORMAT_ARGB8888)
-		shm_format = WL_SHM_FORMAT_ARGB8888;
-	else if (drm_format == DRM_FORMAT_XRGB8888)
-		shm_format = WL_SHM_FORMAT_XRGB8888;
-	else
-		shm_format = drm_format;
-
-	if (!support_shm_format(client, shm_format)) {
-		testlog("%s: Skipped: format not supported by compositor for SHM\n",
-			get_test_name());
-		return NULL;
-	}
-
-	buf = xzalloc(sizeof *buf);
-	buf->type = BUFFER_TYPE_SHM;
-	buf->fd = -1;
-	buf->bytes = bytes;
-	buf->width = width;
-	buf->height = height;
-
-	fd = os_create_anonymous_file(buf->bytes);
-	test_assert_int_ge(fd, 0);
-
-	buf->data = mmap(NULL, buf->bytes,
-			 PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (buf->data == MAP_FAILED) {
-		close(fd);
-		test_assert_not_reached("mmap() failed");
-	}
-
-	pool = wl_shm_create_pool(client->wl_shm, fd, buf->bytes);
-	buf->wl_buffer = wl_shm_pool_create_buffer(pool, 0, buf->width,
-						   buf->height, stride_bytes,
-						   shm_format);
-	wl_shm_pool_destroy(pool);
-	close(fd);
-
-	return buf;
-}
-
-static void
-create_succeeded(void *data,
-		 struct zwp_linux_buffer_params_v1 *params,
-		 struct wl_buffer *new_buffer)
-{
-	struct client_buffer *buf = data;
-
-	buf->wl_buffer = new_buffer;
-	wl_proxy_set_queue ((struct wl_proxy *) buf->wl_buffer, NULL);
-
-	zwp_linux_buffer_params_v1_destroy(params);
-}
-
-static void
-create_failed(void *data, struct zwp_linux_buffer_params_v1 *params)
-{
-	zwp_linux_buffer_params_v1_destroy(params);
-	test_assert_not_reached("buffer creation failed");
-}
-
-static const struct zwp_linux_buffer_params_v1_listener params_listener = {
-	create_succeeded,
-	create_failed
-};
-
-static struct client_buffer *
-dmabuf_buffer_create(struct client *client,
-		     uint32_t drm_format,
-		     size_t bytes,
-		     int width,
-		     int height,
-		     int n_planes,
-		     size_t *strides_bytes,
-		     size_t *offsets_bytes)
-{
-	struct zwp_linux_buffer_params_v1 *params;
-	struct wl_event_queue *event_queue;
-	struct client_buffer *buf;
-	struct udmabuf_create create;
-	int udmabuf_fd;
-	int fd, orig_fd;
-
-	if (!support_drm_format(client, drm_format, DRM_FORMAT_MOD_LINEAR)) {
-		testlog("%s: Skipped: format not supported by compositor for DMABUF\n",
-			get_test_name());
-		return NULL;
-	}
-
-	udmabuf_fd = open ("/dev/udmabuf", O_RDWR | O_CLOEXEC, 0);
-	if (udmabuf_fd < 0) {
-		testlog("%s: Skipped: udmabuf not supported\n", get_test_name());
-		return NULL;
-	}
-
-	orig_fd = memfd_create ("udmabuf", MFD_CLOEXEC | MFD_ALLOW_SEALING);
-	if (orig_fd < 0) {
-		testlog("memfd_create() failed: %s", strerror (errno));
-		test_assert_not_reached("udmabuf creation failed");
-	}
-
-	if (ftruncate (orig_fd, bytes) < 0) {
-		testlog("ftruncate failed: %s", strerror (errno));
-		close (orig_fd);
-		test_assert_not_reached("udmabuf creation failed");
-	}
-
-	if (fcntl (orig_fd, F_ADD_SEALS, F_SEAL_SHRINK) < 0) {
-		testlog("adding seals failed: %s", strerror (errno));
-		close (orig_fd);
-		test_assert_not_reached("udmabuf creation failed");
-	}
-
-	create.memfd = orig_fd;
-	create.flags = UDMABUF_FLAGS_CLOEXEC;
-	create.offset = 0;
-	create.size = bytes;
-
-	fd = ioctl (udmabuf_fd, UDMABUF_CREATE, &create);
-	if (fd < 0) {
-		testlog("creating udmabuf failed: %s", strerror (errno));
-		close (orig_fd);
-		test_assert_not_reached("udmabuf creation failed");
-	}
-	/* The underlying memfd is kept as as a reference in the kernel. */
-	close (orig_fd);
-	close (udmabuf_fd);
-
-	test_assert_int_ge(fd, 0);
-
-	buf = xzalloc(sizeof *buf);
-	buf->type = BUFFER_TYPE_DMABUF;
-	buf->bytes = bytes;
-	buf->fd = fd;
-	buf->width = width;
-	buf->height = height;
-
-	buf->data = mmap(NULL, buf->bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (buf->data == MAP_FAILED) {
-		testlog("mmap() failed: %s\n", strerror (errno));
-		close(fd);
-		test_assert_not_reached("udmabuf creation failed");
-	}
-
-	params = zwp_linux_dmabuf_v1_create_params(client->dmabuf);
-	event_queue = wl_display_create_queue (client->wl_display);
-	wl_proxy_set_queue ((struct wl_proxy *) params, event_queue);
-
-	for (int i = 0; i < n_planes; i++) {
-		zwp_linux_buffer_params_v1_add(params,
-					       buf->fd,
-					       i /* plane id */,
-					       offsets_bytes[i],
-					       strides_bytes[i],
-					       DRM_FORMAT_MOD_LINEAR >> 32,
-		                               DRM_FORMAT_MOD_LINEAR & 0xffffffff);
-	}
-
-	zwp_linux_buffer_params_v1_add_listener(params,
-						&params_listener,
-						buf);
-
-	zwp_linux_buffer_params_v1_create(params,
-					  buf->width,
-					  buf->height,
-					  drm_format,
-					  0 /* flags */);
-
-	while (!buf->wl_buffer) {
-		if (wl_display_dispatch_queue(client->wl_display, event_queue) == -1)
-			break;
-	}
-	test_assert_true(buf->wl_buffer);
-
-	wl_event_queue_destroy(event_queue);
-
-	return buf;
-}
-
-static struct client_buffer *
 client_buffer_create(struct client *client,
 		     struct client_buffer_create_data *create_data)
 {
+	struct client_buffer *buf = NULL;
+
 	switch (create_data->type) {
-	case BUFFER_TYPE_SHM:
-		return shm_buffer_create(client, create_data->bytes,
-					 create_data->width,
-					 create_data->height,
-					 create_data->strides[0],
-					 create_data->drm_format);
-	case BUFFER_TYPE_DMABUF:
-		return dmabuf_buffer_create(client, create_data->drm_format,
-					    create_data->bytes,
-					    create_data->width,
-					    create_data->height,
-					    create_data->n_planes,
-					    create_data->strides,
-					    create_data->offsets);
+		case BUFFER_TYPE_SHM: {
+			if (!support_shm_format(client,
+						pixel_format_get_shm_format (create_data->fmt))) {
+				testlog("%s: Skipped: format not supported by compositor for SHM\n",
+					get_test_name());
+				return NULL;
+			}
+
+			buf = client_buffer_util_create_shm_buffer(client->wl_shm,
+								   create_data->fmt,
+								   create_data->width,
+								   create_data->height);
+			break;
+		}
+		case BUFFER_TYPE_DMABUF: {
+			if (!support_drm_format(client, create_data->fmt->format,
+						DRM_FORMAT_MOD_LINEAR)) {
+				testlog("%s: Skipped: format not supported by compositor for DMABUF\n",
+					get_test_name());
+				return NULL;
+			}
+
+			buf = client_buffer_util_create_dmabuf_buffer(client->wl_display,
+								      client->dmabuf,
+								      create_data->fmt,
+								      create_data->width,
+								      create_data->height);
+			break;
+		}
 	}
 
-	test_assert_not_reached("Unknown buffer type");
-}
-
-static void
-client_buffer_destroy(struct client_buffer *buf)
-{
-	wl_buffer_destroy(buf->wl_buffer);
-	test_assert_int_eq(munmap(buf->data, buf->bytes), 0);
-	if (buf->fd > -1)
-		close(buf->fd);
-	free(buf);
-}
-
-static void
-maybe_sync_dma_buffer_start(struct client_buffer *buf)
-{
-	struct dma_buf_sync sync = { DMA_BUF_SYNC_START | DMA_BUF_SYNC_WRITE };
-	int ret;
-
-	if (buf->type != BUFFER_TYPE_DMABUF)
-		return;
-
-	do {
-		ret = ioctl(buf->fd, DMA_BUF_IOCTL_SYNC, &sync);
-	} while (ret && (errno == EINTR || errno == EAGAIN));
-}
-
-static void
-maybe_sync_dma_buffer_end(struct client_buffer *buf)
-{
-	struct dma_buf_sync sync = { DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE };
-	int ret;
-
-	if (buf->type != BUFFER_TYPE_DMABUF)
-		return;
-
-	do {
-		ret = ioctl(buf->fd, DMA_BUF_IOCTL_SYNC, &sync);
-	} while (ret && (errno == EINTR || errno == EAGAIN));
+	test_assert_ptr_not_null(buf);
+	return buf;
 }
 
 /*
@@ -548,11 +303,6 @@ rgba4444_create_buffer(struct client *client,
 		test_assert_not_reached("Invalid format!");
 	};
 
-	args.n_planes = 1;
-	args.strides[0] = get_aligned_stride(src.width * 2);
-	args.offsets[0] = 0;
-	args.bytes = args.strides[0] * src.height;
-
 	buf = client_buffer_create(client, &args);
 	if (!buf)
 		return NULL;
@@ -561,10 +311,10 @@ rgba4444_create_buffer(struct client *client,
 	 * with 0xf. */
 	a = is_opaque ? 0x0 : 0xf;
 
-	maybe_sync_dma_buffer_start(buf);
+	client_buffer_util_maybe_sync_dmabuf_start(buf);
 	for (y = 0; y < src.height; y++) {
 		uint16_t *dst_row =
-			(uint16_t*) buf->data + (args.strides[0] / sizeof(uint16_t)) * y;
+			(uint16_t*) buf->data + (buf->strides[0] / sizeof(uint16_t)) * y;
 		uint32_t *src_row = image_header_get_row_u32(&src, y);
 
 		for (x = 0; x < src.width; x++) {
@@ -579,7 +329,7 @@ rgba4444_create_buffer(struct client *client,
 				a << (swizzles[idx][3] * 4);
 		}
 	}
-	maybe_sync_dma_buffer_end(buf);
+	client_buffer_util_maybe_sync_dmabuf_end(buf);
 
 	return buf;
 }
@@ -611,11 +361,6 @@ rgba5551_create_buffer(struct client *client,
 			 drm_format == DRM_FORMAT_BGRX5551 ||
 			 drm_format == DRM_FORMAT_BGRA5551);
 
-	args.n_planes = 1;
-	args.strides[0] = get_aligned_stride(src.width * 2);
-	args.offsets[0] = 0;
-	args.bytes = args.strides[0] * src.height;
-
 	buf = client_buffer_create(client, &args);
 	if (!buf)
 		return NULL;
@@ -625,10 +370,10 @@ rgba5551_create_buffer(struct client *client,
 	a = drm_format == DRM_FORMAT_RGBX5551 ||
 		drm_format == DRM_FORMAT_RGBX5551 ? 0x0 : 0x1;
 
-	maybe_sync_dma_buffer_start(buf);
+	client_buffer_util_maybe_sync_dmabuf_start(buf);
 	for (y = 0; y < src.height; y++) {
 		uint16_t *dst_row =
-			(uint16_t*) buf->data + (args.strides[0] / sizeof(uint16_t)) * y;
+			(uint16_t*) buf->data + (buf->strides[0] / sizeof(uint16_t)) * y;
 		uint32_t *src_row = image_header_get_row_u32(&src, y);
 
 		for (x = 0; x < src.width; x++) {
@@ -643,7 +388,7 @@ rgba5551_create_buffer(struct client *client,
 				dst_row[x] = b << 11 | g << 6 | r << 1 | a;
 		}
 	}
-	maybe_sync_dma_buffer_end(buf);
+	client_buffer_util_maybe_sync_dmabuf_end(buf);
 
 	return buf;
 }
@@ -668,19 +413,14 @@ rgb565_create_buffer(struct client *client,
 	test_assert_true(drm_format == DRM_FORMAT_RGB565 ||
 			 drm_format == DRM_FORMAT_BGR565);
 
-	args.n_planes = 1;
-	args.strides[0] = get_aligned_stride(src.width * 2);
-	args.offsets[0] = 0;
-	args.bytes = args.strides[0] * src.height;
-
 	buf = client_buffer_create(client, &args);
 	if (!buf)
 		return NULL;
 
-	maybe_sync_dma_buffer_start(buf);
+	client_buffer_util_maybe_sync_dmabuf_start(buf);
 	for (y = 0; y < src.height; y++) {
 		uint16_t *dst_row =
-			(uint16_t*) buf->data + (args.strides[0] / sizeof(uint16_t)) * y;
+			(uint16_t*) buf->data + (buf->strides[0] / sizeof(uint16_t)) * y;
 		uint32_t *src_row = image_header_get_row_u32(&src, y);
 
 		for (x = 0; x < src.width; x++) {
@@ -694,7 +434,7 @@ rgb565_create_buffer(struct client *client,
 				dst_row[x] = b << 11 | g << 5 | r;
 		}
 	}
-	maybe_sync_dma_buffer_end(buf);
+	client_buffer_util_maybe_sync_dmabuf_end(buf);
 
 	return buf;
 }
@@ -719,16 +459,11 @@ rgb888_create_buffer(struct client *client,
 	test_assert_true(drm_format == DRM_FORMAT_RGB888 ||
 			 drm_format == DRM_FORMAT_BGR888);
 
-	args.n_planes = 1;
-	args.strides[0] = get_aligned_stride(src.width * 3);
-	args.offsets[0] = 0;
-	args.bytes = args.strides[0] * src.height;
-
 	buf = client_buffer_create(client, &args);
 	if (!buf)
 		return NULL;
 
-	maybe_sync_dma_buffer_start(buf);
+	client_buffer_util_maybe_sync_dmabuf_start(buf);
 	for (y = 0; y < src.height; y++) {
 		uint8_t *dst_row = (uint8_t*) buf->data + src.width * 3 * y;
 		uint32_t *src_row = image_header_get_row_u32(&src, y);
@@ -749,7 +484,7 @@ rgb888_create_buffer(struct client *client,
 			}
 		}
 	}
-	maybe_sync_dma_buffer_end(buf);
+	client_buffer_util_maybe_sync_dmabuf_end(buf);
 
 	return buf;
 }
@@ -826,11 +561,6 @@ rgba8888_create_buffer(struct client *client,
 		test_assert_not_reached("Invalid format!");
 	};
 
-	args.n_planes = 1;
-	args.strides[0] = get_aligned_stride(src.width * 4);
-	args.offsets[0] = 0;
-	args.bytes = args.strides[0] * src.height;
-
 	buf = client_buffer_create(client, &args);
 	if (!buf)
 		return NULL;
@@ -839,10 +569,10 @@ rgba8888_create_buffer(struct client *client,
 	 * with 0xff. */
 	a = is_opaque ? 0x00 : 0xff;
 
-	maybe_sync_dma_buffer_start(buf);
+	client_buffer_util_maybe_sync_dmabuf_start(buf);
 	for (y = 0; y < src.height; y++) {
 		uint32_t *dst_row =
-			(uint32_t*) buf->data + (args.strides[0] / sizeof(uint32_t)) * y;
+			(uint32_t*) buf->data + (buf->strides[0] / sizeof(uint32_t)) * y;
 		uint32_t *src_row = image_header_get_row_u32(&src, y);
 
 		for (x = 0; x < src.width; x++) {
@@ -857,7 +587,7 @@ rgba8888_create_buffer(struct client *client,
 				a << (swizzles[idx][3] * 8);
 		}
 	}
-	maybe_sync_dma_buffer_end(buf);
+	client_buffer_util_maybe_sync_dmabuf_end(buf);
 
 	return buf;
 }
@@ -888,11 +618,6 @@ rgba2101010_create_buffer(struct client *client,
 			 drm_format == DRM_FORMAT_XBGR2101010 ||
 			 drm_format == DRM_FORMAT_ABGR2101010);
 
-	args.n_planes = 1;
-	args.strides[0] = get_aligned_stride(src.width * 4);
-	args.offsets[0] = 0;
-	args.bytes = args.strides[0] * src.height;
-
 	buf = client_buffer_create(client, &args);
 	if (!buf)
 		return NULL;
@@ -902,10 +627,10 @@ rgba2101010_create_buffer(struct client *client,
 	a = drm_format == DRM_FORMAT_XRGB2101010 ||
 		drm_format == DRM_FORMAT_XRGB2101010 ? 0x0 : 0x3;
 
-	maybe_sync_dma_buffer_start(buf);
+	client_buffer_util_maybe_sync_dmabuf_start(buf);
 	for (y = 0; y < src.height; y++) {
 		uint32_t *dst_row =
-			(uint32_t*) buf->data + (args.strides[0] / sizeof(uint32_t)) * y;
+			(uint32_t*) buf->data + (buf->strides[0] / sizeof(uint32_t)) * y;
 		uint32_t *src_row = image_header_get_row_u32(&src, y);
 
 		for (x = 0; x < src.width; x++) {
@@ -920,7 +645,7 @@ rgba2101010_create_buffer(struct client *client,
 				dst_row[x] = a << 30 | b << 20 | g << 10 | r;
 		}
 	}
-	maybe_sync_dma_buffer_end(buf);
+	client_buffer_util_maybe_sync_dmabuf_end(buf);
 
 	return buf;
 }
@@ -973,11 +698,6 @@ rgba16161616_create_buffer(struct client *client,
 		test_assert_not_reached("Invalid format!");
 	};
 
-	args.n_planes = 1;
-	args.strides[0] = get_aligned_stride(src.width * 8);
-	args.offsets[0] = 0;
-	args.bytes = args.strides[0] * src.height;
-
 	buf = client_buffer_create(client, &args);
 	if (!buf)
 		return NULL;
@@ -986,10 +706,10 @@ rgba16161616_create_buffer(struct client *client,
 	 * with 0xffff. */
 	a = is_opaque ? 0x0000 : 0xffff;
 
-	maybe_sync_dma_buffer_start(buf);
+	client_buffer_util_maybe_sync_dmabuf_start(buf);
 	for (y = 0; y < src.height; y++) {
 		uint64_t *dst_row =
-			(uint64_t*) buf->data + (args.strides[0] / sizeof(uint64_t)) * y;
+			(uint64_t*) buf->data + (buf->strides[0] / sizeof(uint64_t)) * y;
 		uint32_t *src_row = image_header_get_row_u32(&src, y);
 
 		for (x = 0; x < src.width; x++) {
@@ -1004,7 +724,7 @@ rgba16161616_create_buffer(struct client *client,
 				a << (swizzles[idx][3] * 16);
 		}
 	}
-	maybe_sync_dma_buffer_end(buf);
+	client_buffer_util_maybe_sync_dmabuf_end(buf);
 
 	return buf;
 }
@@ -1080,11 +800,6 @@ rgba16161616f_create_buffer(struct client *client,
 		test_assert_not_reached("Invalid format!");
 	};
 
-	args.n_planes = 1;
-	args.strides[0] = get_aligned_stride(src.width * 8);
-	args.offsets[0] = 0;
-	args.bytes = args.strides[0] * src.height;
-
 	buf = client_buffer_create(client, &args);
 	if (!buf)
 		return NULL;
@@ -1095,10 +810,10 @@ rgba16161616f_create_buffer(struct client *client,
 		binary16_from_binary32(0.0f) :
 		binary16_from_binary32(1.0f);
 
-	maybe_sync_dma_buffer_start(buf);
+	client_buffer_util_maybe_sync_dmabuf_start(buf);
 	for (y = 0; y < src.height; y++) {
 		uint64_t *dst_row =
-			(uint64_t*) buf->data + (args.strides[0] / sizeof(uint64_t)) * y;
+			(uint64_t*) buf->data + (buf->strides[0] / sizeof(uint64_t)) * y;
 		uint32_t *src_row = image_header_get_row_u32(&src, y);
 
 		for (x = 0; x < src.width; x++) {
@@ -1116,7 +831,7 @@ rgba16161616f_create_buffer(struct client *client,
 				a << (swizzles[idx][3] * 16);
 		}
 	}
-	maybe_sync_dma_buffer_end(buf);
+	client_buffer_util_maybe_sync_dmabuf_end(buf);
 
 	return buf;
 }
@@ -1227,87 +942,44 @@ y_u_v_create_buffer(struct client *client,
 	uint8_t *u_row;
 	uint8_t *v_row;
 	uint32_t argb;
-	int sub_x;
-	int sub_y;
-
-	switch (drm_format) {
-	case DRM_FORMAT_YUV420:
-	case DRM_FORMAT_YVU420:
-		sub_x = 2;
-		sub_y = 2;
-		break;
-	case DRM_FORMAT_YUV422:
-	case DRM_FORMAT_YVU422:
-		sub_x = 2;
-		sub_y = 1;
-		break;
-	case DRM_FORMAT_YUV444:
-	case DRM_FORMAT_YVU444:
-		sub_x = 1;
-		sub_y = 1;
-		break;
-	default:
-		test_assert_not_reached("Invalid format!");
-	}
-
-	switch (type) {
-	case BUFFER_TYPE_SHM:
-		args.strides[0] = src.width;
-		args.strides[1] = args.strides[2] = src.width / sub_x;
-		break;
-	case BUFFER_TYPE_DMABUF:
-		args.strides[0] = get_aligned_stride(src.width);
-		args.strides[1] = args.strides[2] = get_aligned_stride(src.width / sub_x);
-		break;
-	}
-
-	args.n_planes = 3;
-	args.offsets[0] = 0;
-	args.offsets[1] = args.strides[0] * src.height;
-	args.offsets[2] = args.offsets[1] + args.strides[1] * (src.height / sub_y);
-
-	/* Full size Y plus quarter U and V */
-	args.bytes =
-		args.strides[0] * src.height +
-		args.strides[1] * (src.height / sub_y) * 2;
 
 	buf = client_buffer_create(client, &args);
 	if (!buf)
 		return NULL;
 
-	y_base = buf->data + args.offsets[0];
+	y_base = buf->data + buf->offsets[0];
 	switch (drm_format) {
 	case DRM_FORMAT_YUV420:
 	case DRM_FORMAT_YUV422:
 	case DRM_FORMAT_YUV444:
-		u_base = buf->data + args.offsets[1];
-		v_base = buf->data + args.offsets[2];
+		u_base = buf->data + buf->offsets[1];
+		v_base = buf->data + buf->offsets[2];
 		break;
 	case DRM_FORMAT_YVU420:
 	case DRM_FORMAT_YVU422:
 	case DRM_FORMAT_YVU444:
-		v_base = buf->data + args.offsets[1];
-		u_base = buf->data + args.offsets[2];
+		v_base = buf->data + buf->offsets[1];
+		u_base = buf->data + buf->offsets[2];
 		break;
 	}
 
-	maybe_sync_dma_buffer_start(buf);
+	client_buffer_util_maybe_sync_dmabuf_start(buf);
 	for (y = 0; y < src.height; y++) {
-		rgb_row = image_header_get_row_u32(&src, y / 2 *	 2);
-		y_row = y_base + y * args.strides[0];
+		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
+		y_row = y_base + y * buf->strides[0];
 
 		switch (drm_format) {
 		case DRM_FORMAT_YUV420:
 		case DRM_FORMAT_YUV422:
 		case DRM_FORMAT_YUV444:
-			u_row = u_base + (y / sub_y) * args.strides[1];
-			v_row = v_base + (y / sub_y) * args.strides[2];
+			u_row = u_base + (y / pixel_format_vsub(buf->fmt, 1)) * buf->strides[1];
+			v_row = v_base + (y / pixel_format_vsub(buf->fmt, 1)) * buf->strides[2];
 			break;
 		case DRM_FORMAT_YVU420:
 		case DRM_FORMAT_YVU422:
 		case DRM_FORMAT_YVU444:
-			v_row = v_base + (y / sub_y) * args.strides[1];
-			u_row = u_base + (y / sub_y) * args.strides[2];
+			v_row = v_base + (y / pixel_format_vsub(buf->fmt, 1)) * buf->strides[1];
+			u_row = u_base + (y / pixel_format_vsub(buf->fmt, 1)) * buf->strides[2];
 			break;
 		}
 
@@ -1324,17 +996,18 @@ y_u_v_create_buffer(struct client *client,
 			 * do the necessary filtering/averaging/siting or
 			 * alternate Cb/Cr rows.
 			 */
-			if ((y & (sub_y - 1)) == 0 && (x & (sub_x - 1)) == 0) {
+			if ((y & (pixel_format_vsub(buf->fmt, 1) - 1)) == 0 &&
+			    (x & (pixel_format_hsub(buf->fmt, 1) - 1)) == 0) {
 				x8r8g8b8_to_ycbcr8_bt709(argb, y_row + x,
-							 u_row + x / sub_x,
-							 v_row + x / sub_x);
+							 u_row + x / pixel_format_hsub(buf->fmt, 1),
+							 v_row + x / pixel_format_hsub(buf->fmt, 1));
 			} else {
 				x8r8g8b8_to_ycbcr8_bt709(argb, y_row + x,
 							 NULL, NULL);
 			}
 		}
 	}
-	maybe_sync_dma_buffer_end(buf);
+	client_buffer_util_maybe_sync_dmabuf_end(buf);
 
 	return buf;
 }
@@ -1372,8 +1045,6 @@ nv12_create_buffer(struct client *client,
 	uint32_t argb;
 	uint8_t cr;
 	uint8_t cb;
-	int sub_x;
-	int sub_y;
 
 	switch (drm_format) {
 	case DRM_FORMAT_NV12:
@@ -1386,32 +1057,18 @@ nv12_create_buffer(struct client *client,
 		test_assert_not_reached("Invalid format!");
 	};
 
-	sub_x = sub_y = 2;
-
-	args.n_planes = 2;
-	args.strides[0] = get_aligned_stride(src.width);
-	args.strides[1] = get_aligned_stride(src.width / sub_x * sizeof(uint16_t));
-
-	args.offsets[0] = 0;
-	args.offsets[1] = args.strides[0] * src.height;
-
-	/* Full size Y plus quarter U and V */
-	args.bytes =
-		args.strides[0] * src.height +
-		args.strides[1] * (src.height / sub_y);
-
 	buf = client_buffer_create(client, &args);
 	if (!buf)
 		return NULL;
 
-	y_base = buf->data + args.offsets[0];
-	uv_base = (uint16_t *)(buf->data + args.offsets[1]);
+	y_base = buf->data + buf->offsets[0];
+	uv_base = (uint16_t *)(buf->data + buf->offsets[1]);
 
-	maybe_sync_dma_buffer_start(buf);
+	client_buffer_util_maybe_sync_dmabuf_start(buf);
 	for (y = 0; y < src.height; y++) {
 		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
-		y_row = y_base + y * args.strides[0];
-		uv_row = uv_base + (y / 2) * (args.strides[1] / sizeof(uint16_t));
+		y_row = y_base + y * buf->strides[0];
+		uv_row = uv_base + (y / 2) * (buf->strides[1] / sizeof(uint16_t));
 
 		for (x = 0; x < src.width; x++) {
 			/*
@@ -1437,7 +1094,7 @@ nv12_create_buffer(struct client *client,
 			}
 		}
 	}
-	maybe_sync_dma_buffer_end(buf);
+	client_buffer_util_maybe_sync_dmabuf_end(buf);
 
 	return buf;
 }
@@ -1475,8 +1132,6 @@ nv16_create_buffer(struct client *client,
 	uint32_t argb;
 	uint8_t cr;
 	uint8_t cb;
-	int sub_x;
-	int sub_y;
 
 	switch (drm_format) {
 	case DRM_FORMAT_NV16:
@@ -1489,33 +1144,18 @@ nv16_create_buffer(struct client *client,
 		test_assert_not_reached("Invalid format!");
 	};
 
-	sub_x = 2;
-	sub_y = 1;
-
-	args.n_planes = 2;
-	args.strides[0] = get_aligned_stride(src.width);
-	args.strides[1] = get_aligned_stride(src.width / sub_x * sizeof(uint16_t));
-
-	args.offsets[0] = 0;
-	args.offsets[1] = args.strides[0] * src.height;
-
-	/* Full size Y, horizontally subsampled UV */
-	args.bytes =
-		args.strides[0] * src.height +
-		args.strides[1] * (src.height / sub_y);
-
 	buf = client_buffer_create(client, &args);
 	if (!buf)
 		return NULL;
 
-	y_base = buf->data + args.offsets[0];
-	uv_base = (uint16_t *)(buf->data + args.offsets[1]);
+	y_base = buf->data + buf->offsets[0];
+	uv_base = (uint16_t *)(buf->data + buf->offsets[1]);
 
-	maybe_sync_dma_buffer_start(buf);
+	client_buffer_util_maybe_sync_dmabuf_start(buf);
 	for (y = 0; y < src.height; y++) {
 		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
-		y_row = y_base + y * args.strides[0];
-		uv_row = uv_base + y * (args.strides[1] / sizeof(uint16_t));
+		y_row = y_base + y * buf->strides[0];
+		uv_row = uv_base + y * (buf->strides[1] / sizeof(uint16_t));
 
 		for (x = 0; x < src.width; x++) {
 			/*
@@ -1541,7 +1181,7 @@ nv16_create_buffer(struct client *client,
 			}
 		}
 	}
-	maybe_sync_dma_buffer_end(buf);
+	client_buffer_util_maybe_sync_dmabuf_end(buf);
 
 	return buf;
 }
@@ -1579,8 +1219,6 @@ nv24_create_buffer(struct client *client,
 	uint32_t argb;
 	uint8_t cr;
 	uint8_t cb;
-	int sub_x;
-	int sub_y;
 
 	switch (drm_format) {
 	case DRM_FORMAT_NV24:
@@ -1593,33 +1231,18 @@ nv24_create_buffer(struct client *client,
 		test_assert_not_reached("Invalid format!");
 	};
 
-	sub_x = 1;
-	sub_y = 1;
-
-	args.n_planes = 2;
-	args.strides[0] = get_aligned_stride(src.width);
-	args.strides[1] = get_aligned_stride(src.width / sub_x * sizeof(uint16_t));
-
-	args.offsets[0] = 0;
-	args.offsets[1] = args.strides[0] * src.height;
-
-	/* Full size Y, non-subsampled UV */
-	args.bytes =
-		args.strides[0] * src.height +
-		args.strides[1] * (src.height / sub_y);
-
 	buf = client_buffer_create(client, &args);
 	if (!buf)
 		return NULL;
 
-	y_base = buf->data + args.offsets[0];
-	uv_base = (uint16_t *)(buf->data + args.offsets[1]);
+	y_base = buf->data + buf->offsets[0];
+	uv_base = (uint16_t *)(buf->data + buf->offsets[1]);
 
-	maybe_sync_dma_buffer_start(buf);
+	client_buffer_util_maybe_sync_dmabuf_start(buf);
 	for (y = 0; y < src.height; y++) {
 		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
-		y_row = y_base + y * args.strides[0];
-		uv_row = uv_base + y * (args.strides[1] / sizeof(uint16_t));
+		y_row = y_base + y * buf->strides[0];
+		uv_row = uv_base + y * (buf->strides[1] / sizeof(uint16_t));
 
 		for (x = 0; x < src.width; x++) {
 			/*
@@ -1636,7 +1259,7 @@ nv24_create_buffer(struct client *client,
 				((uint16_t) cb << (swizzles[idx][0] * 8));
 		}
 	}
-	maybe_sync_dma_buffer_end(buf);
+	client_buffer_util_maybe_sync_dmabuf_end(buf);
 
 	return buf;
 }
@@ -1696,23 +1319,16 @@ yuyv_create_buffer(struct client *client,
 		test_assert_not_reached("Invalid format!");
 	};
 
-	args.n_planes = 1;
-	args.strides[0] = get_aligned_stride(src.width / 2 * sizeof(uint32_t));
-	args.offsets[0] = 0;
-
-	/* Full size Y, horizontally subsampled UV, 2 pixels in 32 bits */
-	args.bytes = args.strides[0] * src.height;
-
 	buf = client_buffer_create(client, &args);
 	if (!buf)
 		return NULL;
 
 	yuv_base = buf->data;
 
-	maybe_sync_dma_buffer_start(buf);
+	client_buffer_util_maybe_sync_dmabuf_start(buf);
 	for (y = 0; y < src.height; y++) {
 		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
-		yuv_row = yuv_base + y * (args.strides[0] / sizeof(uint32_t));
+		yuv_row = yuv_base + y * (buf->strides[0] / sizeof(uint32_t));
 
 		for (x = 0; x < src.width; x += 2) {
 			/*
@@ -1728,7 +1344,7 @@ yuyv_create_buffer(struct client *client,
 				((uint32_t)y0 << (swizzles[idx][0] * 8));
 		}
 	}
-	maybe_sync_dma_buffer_end(buf);
+	client_buffer_util_maybe_sync_dmabuf_end(buf);
 
 	return buf;
 }
@@ -1758,23 +1374,16 @@ xyuv8888_create_buffer(struct client *client,
 
 	test_assert_enum(drm_format, DRM_FORMAT_XYUV8888);
 
-	args.n_planes = 1;
-	args.strides[0] = get_aligned_stride(src.width * sizeof(uint32_t));
-	args.offsets[0] = 0;
-
-	/* Full size, 32 bits per pixel */
-	args.bytes = args.strides[0] * src.height;
-
 	buf = client_buffer_create(client, &args);
 	if (!buf)
 		return NULL;
 
 	yuv_base = buf->data;
 
-	maybe_sync_dma_buffer_start(buf);
+	client_buffer_util_maybe_sync_dmabuf_start(buf);
 	for (y = 0; y < src.height; y++) {
 		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
-		yuv_row = yuv_base + y * (args.strides[0] / sizeof(uint32_t));
+		yuv_row = yuv_base + y * (buf->strides[0] / sizeof(uint32_t));
 
 		for (x = 0; x < src.width; x++) {
 			/*
@@ -1794,7 +1403,7 @@ xyuv8888_create_buffer(struct client *client,
 				((uint32_t)cr << 0);
 		}
 	}
-	maybe_sync_dma_buffer_end(buf);
+	client_buffer_util_maybe_sync_dmabuf_end(buf);
 
 	return buf;
 }
@@ -1832,8 +1441,6 @@ p016_create_buffer(struct client *client,
 	uint32_t argb;
 	uint16_t cr;
 	uint16_t cb;
-	int sub_x;
-	int sub_y;
 
 	switch (drm_format) {
 	case DRM_FORMAT_P016:
@@ -1849,32 +1456,18 @@ p016_create_buffer(struct client *client,
 		test_assert_not_reached("Invalid format!");
 	};
 
-	sub_x = sub_y = 2;
-
-	args.n_planes = 2;
-	args.strides[0] = get_aligned_stride(src.width * sizeof(uint16_t));
-	args.strides[1] = get_aligned_stride(src.width / sub_x * sizeof(uint32_t));
-
-	args.offsets[0] = 0;
-	args.offsets[1] = args.strides[0] * src.height;
-
-	/* Full size Y, quarter UV */
-	args.bytes =
-		args.strides[0] * src.height +
-		args.strides[1] * (src.height / sub_y);
-
 	buf = client_buffer_create(client, &args);
 	if (!buf)
 		return NULL;
 
-	y_base = (uint16_t *)(buf->data + args.offsets[0]);
-	uv_base = (uint32_t *)(buf->data + args.offsets[1]);
+	y_base = (uint16_t *)(buf->data + buf->offsets[0]);
+	uv_base = (uint32_t *)(buf->data + buf->offsets[1]);
 
-	maybe_sync_dma_buffer_start(buf);
+	client_buffer_util_maybe_sync_dmabuf_start(buf);
 	for (y = 0; y < src.height; y++) {
 		rgb_row = image_header_get_row_u32(&src, y / 2 * 2);
-		y_row = y_base + y * (args.strides[0] / sizeof(uint16_t));
-		uv_row = uv_base + (y / 2) * (args.strides[1] / sizeof(uint32_t));
+		y_row = y_base + y * (buf->strides[0] / sizeof(uint16_t));
+		uv_row = uv_base + (y / 2) * (buf->strides[1] / sizeof(uint32_t));
 
 		for (x = 0; x < src.width; x++) {
 			/*
@@ -1900,7 +1493,7 @@ p016_create_buffer(struct client *client,
 			}
 		}
 	}
-	maybe_sync_dma_buffer_end(buf);
+	client_buffer_util_maybe_sync_dmabuf_end(buf);
 
 	return buf;
 }
@@ -2033,7 +1626,7 @@ test_client_buffer(const struct client_buffer_case *cb_case,
 					      NULL);
 		res = match ? RESULT_OK : RESULT_FAIL;
 
-		client_buffer_destroy(buf);
+		client_buffer_util_destroy_buffer(buf);
 	}
 
 	pixman_image_unref(img);
@@ -2129,6 +1722,11 @@ TEST_P(client_buffer_drm, client_buffer_cases)
 	}
 
 	testlog("%s: format %s\n", get_test_name(), cb_case->drm_format_name);
+
+	if (!client_buffer_util_is_dmabuf_supported()) {
+		testlog("%s: Skipped: udmabuf not supported\n", get_test_name());
+		return RESULT_SKIP;
+	}
 
 	res = test_client_buffer(cb_case, BUFFER_TYPE_DMABUF);
 	if (res == RESULT_SKIP) {
