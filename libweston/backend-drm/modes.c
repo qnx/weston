@@ -139,7 +139,7 @@ drm_mode_ensure_blob(struct drm_device *device, struct drm_mode *mode)
 	if (mode->blob_id)
 		return 0;
 
-	ret = drmModeCreatePropertyBlob(device->drm.fd,
+	ret = drmModeCreatePropertyBlob(device->kms_device->fd,
 					&mode->mode_info,
 					sizeof(mode->mode_info),
 					&mode->blob_id);
@@ -428,7 +428,7 @@ drm_head_maybe_update_display_data(struct drm_head *head,
 			&head->connector.props[WDRM_CONNECTOR_EDID],
 			props, 0);
 	if (blob_id)
-		edid_blob = drmModeGetPropertyBlob(device->drm.fd, blob_id);
+		edid_blob = drmModeGetPropertyBlob(device->kms_device->fd, blob_id);
 
 	if (edid_blob && edid_blob->length > 0) {
 		if (!head->display_data ||
@@ -553,7 +553,7 @@ static void
 drm_output_destroy_mode(struct drm_device *device, struct drm_mode *mode)
 {
 	if (mode->blob_id)
-		drmModeDestroyPropertyBlob(device->drm.fd, mode->blob_id);
+		drmModeDestroyPropertyBlob(device->kms_device->fd, mode->blob_id);
 	wl_list_remove(&mode->base.link);
 	free(mode);
 }

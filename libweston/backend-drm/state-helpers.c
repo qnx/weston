@@ -99,7 +99,7 @@ drm_plane_state_free(struct drm_plane_state *state, bool force)
 	if (state->damage_blob_id != 0) {
 		device = state->plane->device;
 
-		drmModeDestroyPropertyBlob(device->drm.fd,
+		drmModeDestroyPropertyBlob(device->kms_device->fd,
 					   state->damage_blob_id);
 		state->damage_blob_id = 0;
 	}

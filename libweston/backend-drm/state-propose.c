@@ -349,7 +349,7 @@ dmabuf_feedback_maybe_update(struct drm_device *device, struct weston_view *ev,
 	struct weston_dmabuf_feedback *dmabuf_feedback = ev->surface->dmabuf_feedback;
 	struct weston_dmabuf_feedback_tranche *scanout_tranche;
 	struct drm_backend *b = device->backend;
-	dev_t scanout_dev = device->drm.devnum;
+	dev_t scanout_dev = device->kms_device->devnum;
 	uint32_t scanout_flags = ZWP_LINUX_DMABUF_FEEDBACK_V1_TRANCHE_FLAGS_SCANOUT;
 	enum actions_needed_dmabuf_feedback action_needed = ACTION_NEEDED_NONE;
 	struct timespec current_time, delta_time;

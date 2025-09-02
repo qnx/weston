@@ -504,7 +504,7 @@ drm_property_info_populate(struct drm_device *device,
 	for (i = 0; i < props->count_props; i++) {
 		unsigned int k;
 
-		prop = drmModeGetProperty(device->drm.fd, props->props[i]);
+		prop = drmModeGetProperty(device->kms_device->fd, props->props[i]);
 		if (!prop)
 			continue;
 
@@ -631,7 +631,7 @@ drm_plane_populate_formats(struct drm_plane *plane, const drmModePlane *kplane,
 	if (blob_id == 0)
 		goto fallback;
 
-	blob = drmModeGetPropertyBlob(device->drm.fd, blob_id);
+	blob = drmModeGetPropertyBlob(device->kms_device->fd, blob_id);
 	if (!blob)
 		goto fallback;
 
@@ -788,7 +788,7 @@ drm_output_set_cursor(struct drm_output_state *output_state)
 		return;
 
 	if (!state->fb) {
-		drmModeSetCursor(device->drm.fd, crtc->crtc_id, 0, 0, 0);
+		drmModeSetCursor(device->kms_device->fd, crtc->crtc_id, 0, 0, 0);
 		return;
 	}
 
@@ -797,7 +797,7 @@ drm_output_set_cursor(struct drm_output_state *output_state)
 
 	handle = output->gbm_cursor_handle[output->current_cursor];
 	if (plane->state_cur->fb != state->fb) {
-		if (drmModeSetCursor(device->drm.fd, crtc->crtc_id, handle,
+		if (drmModeSetCursor(device->kms_device->fd, crtc->crtc_id, handle,
 				     device->cursor_width, device->cursor_height)) {
 			weston_log("failed to set cursor: %s\n",
 				   strerror(errno));
@@ -805,7 +805,7 @@ drm_output_set_cursor(struct drm_output_state *output_state)
 		}
 	}
 
-	if (drmModeMoveCursor(device->drm.fd, crtc->crtc_id,
+	if (drmModeMoveCursor(device->kms_device->fd, crtc->crtc_id,
 	                      state->dest_x, state->dest_y)) {
 		weston_log("failed to move cursor: %s\n", strerror(errno));
 		goto err;
@@ -815,7 +815,7 @@ drm_output_set_cursor(struct drm_output_state *output_state)
 
 err:
 	device->cursors_are_broken = true;
-	drmModeSetCursor(device->drm.fd, crtc->crtc_id, 0, 0, 0);
+	drmModeSetCursor(device->kms_device->fd, crtc->crtc_id, 0, 0, 0);
 }
 
 static void
@@ -840,7 +840,7 @@ drm_output_reset_legacy_gamma(struct drm_output *output)
 	for (i = 0; i < len; i++)
 		lut[i] = 0xffff * i / (len - 1);
 
-	ret = drmModeCrtcSetGamma(output->device->drm.fd,
+	ret = drmModeCrtcSetGamma(output->device->kms_device->fd,
 				  output->crtc->crtc_id,
 				  len, lut, lut, lut);
 	if (ret == -EOPNOTSUPP || ret == -ENOSYS)
@@ -878,14 +878,14 @@ drm_output_apply_state_legacy(struct drm_output_state *state)
 
 	if (state->dpms != WESTON_DPMS_ON) {
 		if (output->cursor_plane) {
-			ret = drmModeSetCursor(device->drm.fd, crtc->crtc_id,
+			ret = drmModeSetCursor(device->kms_device->fd, crtc->crtc_id,
 					       0, 0, 0);
 			if (ret)
 				weston_log("drmModeSetCursor failed disable: %s\n",
 					   strerror(errno));
 		}
 
-		ret = drmModeSetCrtc(device->drm.fd, crtc->crtc_id, 0, 0, 0,
+		ret = drmModeSetCrtc(device->kms_device->fd, crtc->crtc_id, 0, 0, 0,
 				     NULL, 0, NULL);
 		if (ret)
 			weston_log("drmModeSetCrtc failed disabling: %s\n",
@@ -924,7 +924,7 @@ drm_output_apply_state_legacy(struct drm_output_state *state)
 	    scanout_plane->state_cur->fb->strides[0] !=
 	    scanout_state->fb->strides[0]) {
 
-		ret = drmModeSetCrtc(device->drm.fd, crtc->crtc_id,
+		ret = drmModeSetCrtc(device->kms_device->fd, crtc->crtc_id,
 				     scanout_state->fb->fb_id,
 				     0, 0,
 				     connectors, n_conn,
@@ -942,7 +942,7 @@ drm_output_apply_state_legacy(struct drm_output_state *state)
 			   crtc->crtc_id, scanout_state->plane->plane_id,
 			   pinfo ? pinfo->drm_format_name : "UNKNOWN");
 
-	if (drmModePageFlip(device->drm.fd, crtc->crtc_id,
+	if (drmModePageFlip(device->kms_device->fd, crtc->crtc_id,
 			    scanout_state->fb->fb_id,
 			    DRM_MODE_PAGE_FLIP_EVENT, output) < 0) {
 		weston_log("queueing pageflip failed: %s\n", strerror(errno));
@@ -963,7 +963,7 @@ drm_output_apply_state_legacy(struct drm_output_state *state)
 			if (dpms_prop->prop_id == 0)
 				continue;
 
-			ret = drmModeConnectorSetProperty(device->drm.fd,
+			ret = drmModeConnectorSetProperty(device->kms_device->fd,
 						head->connector.connector_id,
 						dpms_prop->prop_id,
 						state->dpms);
@@ -1581,7 +1581,7 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
 			 * off, as the kernel will refuse to generate an event
 			 * for an off->off state and fail the commit.
 			 */
-			props = drmModeObjectGetProperties(device->drm.fd,
+			props = drmModeObjectGetProperties(device->kms_device->fd,
 							   crtc->crtc_id,
 							   DRM_MODE_OBJECT_CRTC);
 			if (!props) {
@@ -1633,7 +1633,7 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
 	if (may_tear)
 		tear_flag = DRM_MODE_PAGE_FLIP_ASYNC;
 
-	ret = drmModeAtomicCommit(device->drm.fd, req, flags | tear_flag,
+	ret = drmModeAtomicCommit(device->kms_device->fd, req, flags | tear_flag,
 				  device);
 	drm_debug(b, "[atomic] drmModeAtomicCommit\n");
 	if (ret != 0 && may_tear && mode == DRM_STATE_TEST_ONLY) {
@@ -1642,7 +1642,7 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
 		 * out of our state in case we were testing for a later commit.
 		 */
 		drm_debug(b, "[atomic] drmModeAtomicCommit (no tear fallback)\n");
-		ret = drmModeAtomicCommit(device->drm.fd, req, flags, device);
+		ret = drmModeAtomicCommit(device->kms_device->fd, req, flags, device);
 		if (ret == 0)
 			drm_pending_state_clear_tearing(pending_state);
 	}
@@ -1747,7 +1747,7 @@ drm_pending_state_apply(struct drm_pending_state *pending_state)
 		wl_list_for_each(crtc, &device->crtc_list, link) {
 			if (crtc->output)
 				continue;
-			drmModeSetCrtc(device->drm.fd, crtc->crtc_id, 0, 0, 0,
+			drmModeSetCrtc(device->kms_device->fd, crtc->crtc_id, 0, 0, 0,
 				       NULL, 0, NULL);
 		}
 	}
@@ -1824,7 +1824,7 @@ drm_pending_state_apply_sync(struct drm_pending_state *pending_state)
 		wl_list_for_each(crtc, &device->crtc_list, link) {
 			if (crtc->output)
 				continue;
-			drmModeSetCrtc(device->drm.fd, crtc->crtc_id, 0, 0, 0,
+			drmModeSetCrtc(device->kms_device->fd, crtc->crtc_id, 0, 0, 0,
 				       NULL, 0, NULL);
 		}
 	}
@@ -2006,9 +2006,9 @@ init_kms_caps(struct drm_device *device)
 	uint64_t cap;
 	int ret;
 
-	weston_log("using %s\n", device->drm.filename);
+	weston_log("using %s\n", device->kms_device->filename);
 
-	ret = drmGetCap(device->drm.fd, DRM_CAP_TIMESTAMP_MONOTONIC, &cap);
+	ret = drmGetCap(device->kms_device->fd, DRM_CAP_TIMESTAMP_MONOTONIC, &cap);
 	if (ret != 0 || cap != 1) {
 		weston_log("Error: kernel DRM KMS does not support DRM_CAP_TIMESTAMP_MONOTONIC.\n");
 		return -1;
@@ -2016,25 +2016,25 @@ init_kms_caps(struct drm_device *device)
 
 	b->base.supported_presentation_clocks = 1 << CLOCK_MONOTONIC;
 
-	ret = drmGetCap(device->drm.fd, DRM_CAP_CURSOR_WIDTH, &cap);
+	ret = drmGetCap(device->kms_device->fd, DRM_CAP_CURSOR_WIDTH, &cap);
 	if (ret == 0)
 		device->cursor_width = cap;
 	else
 		device->cursor_width = 64;
 
-	ret = drmGetCap(device->drm.fd, DRM_CAP_CURSOR_HEIGHT, &cap);
+	ret = drmGetCap(device->kms_device->fd, DRM_CAP_CURSOR_HEIGHT, &cap);
 	if (ret == 0)
 		device->cursor_height = cap;
 	else
 		device->cursor_height = 64;
 
-	ret = drmSetClientCap(device->drm.fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1);
+	ret = drmSetClientCap(device->kms_device->fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1);
 	if (ret) {
 		weston_log("Error: drm card doesn't support universal planes!\n");
 		return -1;
 	}
 
-	ret = drmGetCap(device->drm.fd, DRM_CAP_CRTC_IN_VBLANK_EVENT, &cap);
+	ret = drmGetCap(device->kms_device->fd, DRM_CAP_CRTC_IN_VBLANK_EVENT, &cap);
 	if (ret != 0)
 		cap = 0;
 
@@ -2057,23 +2057,23 @@ init_kms_caps(struct drm_device *device)
 	}
 
 	if (!getenv("WESTON_DISABLE_ATOMIC")) {
-		ret = drmSetClientCap(device->drm.fd, DRM_CLIENT_CAP_ATOMIC, 1);
+		ret = drmSetClientCap(device->kms_device->fd, DRM_CLIENT_CAP_ATOMIC, 1);
 		device->atomic_modeset = ((ret == 0) && (cap == 1));
 	}
 	weston_log("DRM: %s atomic modesetting\n",
 		   device->atomic_modeset ? "supports" : "does not support");
 
 	if (!getenv("WESTON_DISABLE_GBM_MODIFIERS")) {
-		ret = drmGetCap(device->drm.fd, DRM_CAP_ADDFB2_MODIFIERS, &cap);
+		ret = drmGetCap(device->kms_device->fd, DRM_CAP_ADDFB2_MODIFIERS, &cap);
 		if (ret == 0)
 			device->fb_modifiers = cap;
 	}
 	weston_log("DRM: %s GBM modifiers\n",
 		   device->fb_modifiers ? "supports" : "does not support");
 
-	drmSetClientCap(device->drm.fd, DRM_CLIENT_CAP_WRITEBACK_CONNECTORS, 1);
+	drmSetClientCap(device->kms_device->fd, DRM_CLIENT_CAP_WRITEBACK_CONNECTORS, 1);
 
-	ret = drmGetCap(device->drm.fd, DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP, &cap);
+	ret = drmGetCap(device->kms_device->fd, DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP, &cap);
 	if (ret == 0)
 		device->tearing_supported = cap;
 	weston_log("DRM: %s Atomic async page flip\n",
@@ -2090,7 +2090,7 @@ init_kms_caps(struct drm_device *device)
 	if (!device->atomic_modeset || getenv("WESTON_FORCE_RENDERER"))
 		device->sprites_are_broken = true;
 
-	ret = drmSetClientCap(device->drm.fd, DRM_CLIENT_CAP_ASPECT_RATIO, 1);
+	ret = drmSetClientCap(device->kms_device->fd, DRM_CLIENT_CAP_ASPECT_RATIO, 1);
 	device->aspect_ratio_supported = (ret == 0);
 	weston_log("DRM: %s picture aspect ratio\n",
 		   device->aspect_ratio_supported ? "supports" : "does not support");

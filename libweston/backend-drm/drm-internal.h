@@ -176,15 +176,18 @@ enum drm_recovery_status {
 	DRM_RECOVERY_APPLIED = 3,
 };
 
+struct drm_kms_device {
+	int id;
+	int fd;
+	char *filename;
+	dev_t devnum;
+};
+
 struct drm_device {
 	struct drm_backend *backend;
 
-	struct {
-		int id;
-		int fd;
-		char *filename;
-		dev_t devnum;
-	} drm;
+	struct drm_kms_device kms_device_allocd;
+	struct drm_kms_device *kms_device;
 
 	/* Track the GEM handles if the device does not have a gbm device, which
 	 * tracks the handles for us.

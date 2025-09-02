@@ -110,7 +110,7 @@ init_egl(struct drm_backend *b)
 {
 	struct drm_device *device = b->drm;
 
-	b->gbm = gbm_create_device(device->drm.fd);
+	b->gbm = gbm_create_device(device->kms_device->fd);
 	if (!b->gbm)
 		return -1;
 
@@ -128,7 +128,7 @@ init_vulkan(struct drm_backend *b)
 {
 	struct drm_device *device = b->drm;
 
-	b->gbm = gbm_create_device(device->drm.fd);
+	b->gbm = gbm_create_device(device->kms_device->fd);
 	if (!b->gbm)
 		return -1;
 
@@ -180,7 +180,7 @@ drm_output_init_cursor_egl(struct drm_output *output, struct drm_backend *b)
 	for (i = 0; i < ARRAY_LENGTH(output->gbm_cursor_fb); i++) {
 		struct gbm_bo *bo;
 
-		if (gbm_device_get_fd(b->gbm) != output->device->drm.fd) {
+		if (gbm_device_get_fd(b->gbm) != output->device->kms_device->fd) {
 			output->gbm_cursor_fb[i] =
 				drm_fb_create_dumb(output->device,
 						   device->cursor_width,
@@ -229,7 +229,7 @@ drm_output_init_cursor_vulkan(struct drm_output *output, struct drm_backend *b)
 	for (i = 0; i < ARRAY_LENGTH(output->gbm_cursor_fb); i++) {
 		struct gbm_bo *bo;
 
-		if (gbm_device_get_fd(b->gbm) != output->device->drm.fd) {
+		if (gbm_device_get_fd(b->gbm) != output->device->kms_device->fd) {
 			output->gbm_cursor_fb[i] =
 				drm_fb_create_dumb(output->device,
 						   device->cursor_width,
@@ -298,7 +298,7 @@ create_gbm_surface(struct gbm_device *gbm, struct drm_output *output)
 	 * on a different GPU), we have to use linear buffers to make sure that
 	 * the allocated GBM surface is correctly displayed on the KMS device.
 	 */
-	if (gbm_device_get_fd(gbm) != output->device->drm.fd)
+	if (gbm_device_get_fd(gbm) != output->device->kms_device->fd)
 		output->gbm_bo_flags |= GBM_BO_USE_LINEAR;
 
 	/* We may allocate with no modifiers in the following situations:
@@ -585,7 +585,7 @@ drm_gbm_create_bo(struct gbm_device *gbm, struct drm_output *output)
 	 * use linear buffers and hope that the allocated GBM surface
 	 * is correctly displayed on the KMS device.
 	 */
-	if (gbm_device_get_fd(gbm) != output->device->drm.fd)
+	if (gbm_device_get_fd(gbm) != output->device->kms_device->fd)
 		output->gbm_bo_flags |= GBM_BO_USE_LINEAR;
 
 	if (!bo) {

@@ -100,7 +100,7 @@ static void gem_handle_put(struct drm_device *device, int handle)
 	ref_count = hash_table_lookup(device->gem_handle_refcnt, handle);
 	if (!ref_count) {
 		weston_log("failed to find GEM handle %d for device %s\n",
-			   handle, device->drm.filename);
+			   handle, device->kms_device->filename);
 		return;
 	}
 	(*ref_count)--;
@@ -108,7 +108,7 @@ static void gem_handle_put(struct drm_device *device, int handle)
 	if (*ref_count == 0) {
 		hash_table_remove(device->gem_handle_refcnt, handle);
 		free(ref_count);
-		drmCloseBufferHandle(device->drm.fd, handle);
+		drmCloseBufferHandle(device->kms_device->fd, handle);
 	}
 }
 
@@ -198,9 +198,9 @@ drm_fb_maybe_import(struct drm_device *device, struct drm_fb *fb)
 		if (gbm_device_get_fd(gbm_device) == fb->fd)
 			return 0;
 
-		if (fb->fd != device->drm.fd) {
+		if (fb->fd != device->kms_device->fd) {
 			weston_log("fb was not allocated for scanout device %s\n",
-				   device->drm.filename);
+				   device->kms_device->filename);
 			return -1;
 		}
 
@@ -313,7 +313,7 @@ drm_fb_create_dumb(struct drm_device *device, int width, int height,
 	create_arg.width = width;
 	create_arg.height = height;
 
-	ret = drmIoctl(device->drm.fd, DRM_IOCTL_MODE_CREATE_DUMB, &create_arg);
+	ret = drmIoctl(device->kms_device->fd, DRM_IOCTL_MODE_CREATE_DUMB, &create_arg);
 	if (ret)
 		goto err_fb;
 
@@ -325,7 +325,7 @@ drm_fb_create_dumb(struct drm_device *device, int width, int height,
 	fb->size = create_arg.size;
 	fb->width = width;
 	fb->height = height;
-	fb->fd = device->drm.fd;
+	fb->fd = device->kms_device->fd;
 
 	if (drm_fb_addfb(device, fb) != 0) {
 		weston_log("failed to create kms fb: %s\n", strerror(errno));
@@ -339,18 +339,18 @@ drm_fb_create_dumb(struct drm_device *device, int width, int height,
 		goto err_add_fb;
 
 	fb->map = mmap(NULL, fb->size, PROT_WRITE,
-		       MAP_SHARED, device->drm.fd, map_arg.offset);
+		       MAP_SHARED, device->kms_device->fd, map_arg.offset);
 	if (fb->map == MAP_FAILED)
 		goto err_add_fb;
 
 	return fb;
 
 err_add_fb:
-	drmModeRmFB(device->drm.fd, fb->fb_id);
+	drmModeRmFB(device->kms_device->fd, fb->fb_id);
 err_bo:
 	memset(&destroy_arg, 0, sizeof(destroy_arg));
 	destroy_arg.handle = create_arg.handle;
-	drmIoctl(device->drm.fd, DRM_IOCTL_MODE_DESTROY_DUMB, &destroy_arg);
+	drmIoctl(device->kms_device->fd, DRM_IOCTL_MODE_DESTROY_DUMB, &destroy_arg);
 err_fb:
 	free(fb);
 	return NULL;
@@ -489,7 +489,7 @@ bo_import_skip:
 	fb->height = attributes->height;
 	fb->modifier = attributes->modifier;
 	fb->size = 0;
-	fb->fd = device->drm.fd;
+	fb->fd = device->kms_device->fd;
 
 	ARRAY_COPY(fb->strides, attributes->stride);
 	ARRAY_COPY(fb->offsets, attributes->offset);
@@ -571,7 +571,7 @@ drm_fb_get_from_bo(struct gbm_bo *bo, struct drm_device *device,
 	fb->refcnt = 1;
 	fb->backend = device->backend;
 	fb->bo = bo;
-	fb->fd = device->drm.fd;
+	fb->fd = device->kms_device->fd;
 
 	fb->width = gbm_bo_get_width(bo);
 	fb->height = gbm_bo_get_height(bo);
