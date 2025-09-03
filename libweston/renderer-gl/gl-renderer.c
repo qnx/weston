@@ -188,6 +188,7 @@ struct gl_renderer;
 
 struct gl_capture_task {
 	struct weston_capture_task *task;
+	struct wl_listener destroy_listener;
 	struct wl_event_source *source;
 	struct gl_renderer *gr;
 	struct wl_list link;
@@ -1054,6 +1055,7 @@ destroy_capture_task(struct gl_capture_task *gl_task)
 
 	wl_event_source_remove(gl_task->source);
 	wl_list_remove(&gl_task->link);
+	wl_list_remove(&gl_task->destroy_listener.link);
 	glDeleteBuffers(1, &gl_task->pbo);
 
 	if (gl_task->sync != EGL_NO_SYNC_KHR)
@@ -1063,6 +1065,15 @@ destroy_capture_task(struct gl_capture_task *gl_task)
 		close(gl_task->fd);
 
 	free(gl_task);
+}
+
+static void
+capture_task_parent_destroy_handler(struct wl_listener *l, void *data)
+{
+	struct gl_capture_task *gl_task;
+
+	gl_task = container_of(l, struct gl_capture_task, destroy_listener);
+	destroy_capture_task(gl_task);
 }
 
 static struct gl_capture_task*
@@ -1081,6 +1092,9 @@ create_capture_task(struct weston_capture_task *task,
 		!gl_extensions_has(gr, EXTENSION_ANGLE_PACK_REVERSE_ROW_ORDER);
 	gl_task->sync = EGL_NO_SYNC_KHR;
 	gl_task->fd = EGL_NO_NATIVE_FENCE_FD_ANDROID;
+
+	gl_task->destroy_listener.notify = capture_task_parent_destroy_handler;
+	weston_capture_task_add_destroy_listener(task, &gl_task->destroy_listener);
 
 	return gl_task;
 }
@@ -1127,6 +1141,9 @@ async_capture_handler(void *data)
 
 	assert(gl_task);
 
+	wl_list_remove(&gl_task->destroy_listener.link);
+	wl_list_init(&gl_task->destroy_listener.link);
+
 	copy_capture(gl_task);
 	weston_capture_task_retire_complete(gl_task->task);
 	destroy_capture_task(gl_task);
@@ -1141,6 +1158,9 @@ async_capture_handler_fd(int fd, uint32_t mask, void *data)
 
 	assert(gl_task);
 	assert(fd == gl_task->fd);
+
+	wl_list_remove(&gl_task->destroy_listener.link);
+	wl_list_init(&gl_task->destroy_listener.link);
 
 	if (mask & WL_EVENT_READABLE) {
 		copy_capture(gl_task);
