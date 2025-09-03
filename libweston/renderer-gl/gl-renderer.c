@@ -1047,6 +1047,24 @@ gl_renderer_do_capture(struct gl_renderer *gr, struct gl_output_state *go,
 	return ret;
 }
 
+static void
+destroy_capture_task(struct gl_capture_task *gl_task)
+{
+	assert(gl_task);
+
+	wl_event_source_remove(gl_task->source);
+	wl_list_remove(&gl_task->link);
+	glDeleteBuffers(1, &gl_task->pbo);
+
+	if (gl_task->sync != EGL_NO_SYNC_KHR)
+		gl_task->gr->destroy_sync(gl_task->gr->egl_display,
+					  gl_task->sync);
+	if (gl_task->fd != EGL_NO_NATIVE_FENCE_FD_ANDROID)
+		close(gl_task->fd);
+
+	free(gl_task);
+}
+
 static struct gl_capture_task*
 create_capture_task(struct weston_capture_task *task,
 		    struct gl_renderer *gr,
@@ -1065,24 +1083,6 @@ create_capture_task(struct weston_capture_task *task,
 	gl_task->fd = EGL_NO_NATIVE_FENCE_FD_ANDROID;
 
 	return gl_task;
-}
-
-static void
-destroy_capture_task(struct gl_capture_task *gl_task)
-{
-	assert(gl_task);
-
-	wl_event_source_remove(gl_task->source);
-	wl_list_remove(&gl_task->link);
-	glDeleteBuffers(1, &gl_task->pbo);
-
-	if (gl_task->sync != EGL_NO_SYNC_KHR)
-		gl_task->gr->destroy_sync(gl_task->gr->egl_display,
-					  gl_task->sync);
-	if (gl_task->fd != EGL_NO_NATIVE_FENCE_FD_ANDROID)
-		close(gl_task->fd);
-
-	free(gl_task);
 }
 
 static void
