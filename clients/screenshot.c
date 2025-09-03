@@ -209,7 +209,9 @@ capture_source_handle_failed(void *data,
 	struct screenshooter_output *output = data;
 
 	output->app->waitcount--;
-	output->app->failed = true;
+	/* We don't set app.failed here because there could be other
+	 * outputs we still want to capture!
+	 */
 
 	if (msg)
 		fprintf(stderr, "Output capture error: %s\n", msg);
