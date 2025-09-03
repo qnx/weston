@@ -492,6 +492,11 @@ struct weston_output {
 			    struct weston_head *head);
 
 	/**
+	 * Get the DRM formats supported by a compatible writeback connector.
+	 */
+	const struct weston_drm_format_array *(*get_writeback_formats)(struct weston_output *output);
+
+	/**
 	 * When set, this output is a mirror-of another output. See
 	 * mirror-of key in [output] section.
 	 */
@@ -2652,6 +2657,9 @@ weston_output_set_vrr_mode(struct weston_output *output,
 
 uint32_t
 weston_output_get_supported_vrr_modes(struct weston_output *output);
+
+const struct weston_drm_format_array *
+weston_output_get_writeback_formats(struct weston_output *output);
 
 void
 weston_compositor_arm_surface_counter_fps(struct weston_compositor *ec);

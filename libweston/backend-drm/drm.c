@@ -1940,6 +1940,19 @@ drm_output_detach_head(struct weston_output *output_base,
 	wl_list_insert(&output->disable_head, &head->disable_head_link);
 }
 
+static const struct weston_drm_format_array *
+drm_output_get_writeback_formats(struct weston_output *output_base)
+{
+	struct drm_output *output = to_drm_output(output_base);
+	struct drm_writeback *writeback;
+
+	writeback = drm_output_find_compatible_writeback(output);
+	if (!writeback)
+		return NULL;
+
+	return &writeback->formats;
+}
+
 int
 parse_gbm_format(const char *s, const struct pixel_format_info *default_format,
 		 const struct pixel_format_info **format)
@@ -3246,6 +3259,8 @@ drm_output_create(struct weston_backend *backend, const char *name)
 	output->base.disable = drm_output_disable;
 	output->base.attach_head = drm_output_attach_head;
 	output->base.detach_head = drm_output_detach_head;
+
+	output->base.get_writeback_formats = drm_output_get_writeback_formats;
 
 	output->backend = b;
 

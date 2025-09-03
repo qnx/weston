@@ -292,6 +292,15 @@ weston_output_update_capture_info(struct weston_output *output,
 	}
 }
 
+WL_EXPORT const struct weston_drm_format_array *
+weston_output_get_writeback_formats(struct weston_output *output)
+{
+	if (output->get_writeback_formats)
+		return output->get_writeback_formats(output);
+
+	return NULL;
+}
+
 static bool
 buffer_is_compatible(struct weston_buffer *buffer,
 		     struct weston_output_capture_source_info *csi)
