@@ -56,6 +56,7 @@
 #include <libweston/backend-pipewire.h>
 #include <libweston/linux-dmabuf.h>
 #include <libweston/weston-log.h>
+#include "output-capture.h"
 #include "pixel-formats.h"
 #include "pixman-renderer.h"
 #include "renderer-gl/gl-renderer.h"
@@ -1043,6 +1044,7 @@ pipewire_output_repaint(struct weston_output *base)
 	struct pipewire_frame_data *frame_data;
 	pixman_region32_t damage;
 	bool submit_scheduled = false;
+	bool rendered = false;
 
 	assert(output);
 
@@ -1053,7 +1055,8 @@ pipewire_output_repaint(struct weston_output *base)
 
 	weston_output_flush_damage_for_primary_plane(base, &damage);
 
-	if (!pixman_region32_not_empty(&damage))
+	if (!pixman_region32_not_empty(&damage) &&
+	    !weston_output_has_renderer_capture_tasks(base))
 		goto out;
 
 	buffer = pw_stream_dequeue_buffer(output->stream);
@@ -1064,9 +1067,10 @@ pipewire_output_repaint(struct weston_output *base)
 	pipewire_output_debug(output, "dequeued buffer: %p", buffer);
 
 	frame_data = buffer->user_data;
-	if (frame_data->renderbuffer)
+	if (frame_data->renderbuffer) {
 		ec->renderer->repaint_output(&output->base, &damage, frame_data->renderbuffer);
-	else
+		rendered = true;
+	} else
 		output->base.full_repaint_needed = true;
 
 	if (buffer->buffer->datas[0].type == SPA_DATA_DmaBuf) {
@@ -1077,6 +1081,20 @@ pipewire_output_repaint(struct weston_output *base)
 		pipewire_submit_buffer(output, buffer);
 
 out:
+	/* We didn't have anywhere to render to, so capture tasks could be
+	 * left dangling. Shoot them down.
+	 */
+	if (!rendered && weston_output_has_renderer_capture_tasks(base)) {
+		int width = base->current_mode->width;
+		int height = base->current_mode->height;
+		struct weston_capture_task *ct;
+
+		while ((ct = weston_output_pull_capture_task(base,
+							     WESTON_OUTPUT_CAPTURE_SOURCE_FRAMEBUFFER,
+							     width, height,
+							     ec->read_format)))
+			weston_capture_task_retire_failed(ct, "No pipewire buffer");
+	}
 
 	pixman_region32_fini(&damage);
 
