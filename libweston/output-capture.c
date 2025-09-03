@@ -110,6 +110,8 @@ struct weston_capture_task {
 
 	struct weston_buffer *buffer;
 	struct wl_listener buffer_resource_destroy_listener;
+
+	struct wl_signal destroy_signal;
 };
 
 /** Buffer requirements broadcasting for a pixel source */
@@ -299,6 +301,8 @@ buffer_is_compatible(struct weston_buffer *buffer,
 static void
 weston_capture_task_destroy(struct weston_capture_task *ct)
 {
+	wl_signal_emit(&ct->destroy_signal, ct);
+
 	if (ct->owner->pixel_source != WESTON_OUTPUT_CAPTURE_SOURCE_WRITEBACK &&
 	    ct->owner->output)
 		weston_output_disable_planes_decr(ct->owner->output);
@@ -344,6 +348,8 @@ weston_capture_task_create(struct weston_capture_source *csrc,
 
 	if (ct->owner->pixel_source != WESTON_OUTPUT_CAPTURE_SOURCE_WRITEBACK)
 		weston_output_disable_planes_incr(ct->owner->output);
+
+	wl_signal_init(&ct->destroy_signal);
 
 	return ct;
 }
@@ -697,4 +703,17 @@ weston_compositor_add_screenshot_authority(struct weston_compositor *compositor,
 {
 	listener->notify = (wl_notify_func_t)auth;
 	wl_signal_add(&compositor->output_capture.ask_auth, listener);
+}
+
+/* Add a capture task destroy listener
+ * \param task The capture task
+ * \listener The listener to call when the task is destroyed
+ *
+ * Add a listener for capture task destruction.
+ */
+WL_EXPORT void
+weston_capture_task_add_destroy_listener(struct weston_capture_task *task,
+                                         struct wl_listener *listener)
+{
+	wl_signal_add(&task->destroy_signal, listener);
 }

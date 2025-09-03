@@ -89,6 +89,9 @@ weston_capture_task_retire_failed(struct weston_capture_task *ct,
 void
 weston_capture_task_retire_complete(struct weston_capture_task *ct);
 
+void
+weston_capture_task_add_destroy_listener(struct weston_capture_task *ct,
+					 struct wl_listener *listener);
 
 /*
  * entry point for weston_compositor
