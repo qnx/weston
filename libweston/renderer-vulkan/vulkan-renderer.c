@@ -1450,7 +1450,8 @@ vulkan_renderer_do_capture_tasks(struct vulkan_renderer *vr,
 	}
 
 	while ((ct = weston_output_pull_capture_task(output, source, rect.width,
-						     rect.height, pixel_format))) {
+						     rect.height, pixel_format,
+						     NULL))) {
 		struct weston_buffer *buffer = weston_capture_task_get_buffer(ct);
 
 		assert(buffer->width == rect.width);
@@ -3270,12 +3271,14 @@ vulkan_renderer_resize_output(struct weston_output *output,
 	weston_output_update_capture_info(output,
 					  WESTON_OUTPUT_CAPTURE_SOURCE_FRAMEBUFFER,
 					  area->width, area->height,
-					  output->compositor->read_format);
+					  output->compositor->read_format,
+					  NULL);
 
 	weston_output_update_capture_info(output,
 					  WESTON_OUTPUT_CAPTURE_SOURCE_FULL_FRAMEBUFFER,
 					  fb_size->width, fb_size->height,
-					  output->compositor->read_format);
+					  output->compositor->read_format,
+					  NULL);
 
 	if (!vulkan_renderer_discard_renderbuffers(vo, false))
 		return false;
@@ -3630,12 +3633,14 @@ vulkan_renderer_output_surface_create(struct weston_output *output,
 	weston_output_update_capture_info(output,
 					  WESTON_OUTPUT_CAPTURE_SOURCE_FRAMEBUFFER,
 					  area->width, area->height,
-					  output->compositor->read_format);
+					  output->compositor->read_format,
+					  NULL);
 
 	weston_output_update_capture_info(output,
 					  WESTON_OUTPUT_CAPTURE_SOURCE_FULL_FRAMEBUFFER,
 					  fb_size->width, fb_size->height,
-					  output->compositor->read_format);
+					  output->compositor->read_format,
+					  NULL);
 
 	vulkan_renderer_create_output_frames(output, fb_size, area, MAX_CONCURRENT_FRAMES);
 
@@ -3670,12 +3675,14 @@ vulkan_renderer_output_surfaceless_create(struct weston_output *output,
 	weston_output_update_capture_info(output,
 					  WESTON_OUTPUT_CAPTURE_SOURCE_FRAMEBUFFER,
 					  area->width, area->height,
-					  output->compositor->read_format);
+					  output->compositor->read_format,
+					  NULL);
 
 	weston_output_update_capture_info(output,
 					  WESTON_OUTPUT_CAPTURE_SOURCE_FULL_FRAMEBUFFER,
 					  fb_size->width, fb_size->height,
-					  output->compositor->read_format);
+					  output->compositor->read_format,
+					  NULL);
 
 	vulkan_renderer_create_output_frames(output, fb_size, area, MAX_CONCURRENT_FRAMES);
 

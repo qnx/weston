@@ -1092,7 +1092,8 @@ out:
 		while ((ct = weston_output_pull_capture_task(base,
 							     WESTON_OUTPUT_CAPTURE_SOURCE_FRAMEBUFFER,
 							     width, height,
-							     ec->read_format)))
+							     ec->read_format,
+							     NULL)))
 			weston_capture_task_retire_failed(ct, "No pipewire buffer");
 	}
 

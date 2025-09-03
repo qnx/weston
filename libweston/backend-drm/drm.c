@@ -634,11 +634,6 @@ drm_output_find_compatible_writeback(struct drm_output *output)
 		if (!(possible_crtcs & (1 << output->crtc->pipe)))
 			continue;
 
-		/* Does the writeback connector support the output gbm format? */
-		if (!weston_drm_format_array_find_format(&wb->formats,
-							 output->format->format))
-			continue;
-
 		return wb;
 	}
 
@@ -691,13 +686,14 @@ drm_output_pick_writeback_capture_task(struct drm_output *output)
 	const char *msg;
 	int32_t width = output->base.current_mode->width;
 	int32_t height = output->base.current_mode->height;
-	uint32_t format = output->format->format;
+	const struct weston_drm_format_array *writeback_formats =
+		weston_output_get_writeback_formats(&output->base);
 
 	assert(output->device->atomic_modeset);
 
 	ct = weston_output_pull_capture_task(&output->base,
 					     WESTON_OUTPUT_CAPTURE_SOURCE_WRITEBACK,
-					     width, height, pixel_format_get_info(format));
+					     width, height, NULL, writeback_formats);
 	if (!ct)
 		return;
 
@@ -716,7 +712,6 @@ drm_output_pick_writeback_capture_task(struct drm_output *output)
 	buffer = weston_capture_task_get_buffer(ct);
 	assert(buffer->width == width);
 	assert(buffer->height == height);
-	assert(buffer->pixel_format->format == output->format->format);
 
 	output->wb_state = drm_writeback_state_alloc();
 	if (!output->wb_state) {
@@ -724,7 +719,8 @@ drm_output_pick_writeback_capture_task(struct drm_output *output)
 		goto err;
 	}
 
-	output->wb_state->fb = drm_fb_create_dumb(output->device, width, height, format);
+	output->wb_state->fb = drm_fb_create_dumb(output->device, width, height,
+						  buffer->pixel_format->format);
 	if (!output->wb_state->fb) {
 		msg = "drm: failed to create dumb buffer for writeback state";
 		goto err_fb;
@@ -1234,7 +1230,8 @@ drm_output_apply_mode(struct drm_output *output)
 						  WESTON_OUTPUT_CAPTURE_SOURCE_WRITEBACK,
 						  output->base.current_mode->width,
 						  output->base.current_mode->height,
-						  pixel_format_get_info(output->format->format));
+						  NULL,
+						  weston_output_get_writeback_formats(&output->base));
 
 	return 0;
 }
@@ -2728,10 +2725,12 @@ drm_output_enable(struct weston_output *base)
 	output->base.switch_mode = drm_output_switch_mode;
 
 	if (device->atomic_modeset)
-		weston_output_update_capture_info(base, WESTON_OUTPUT_CAPTURE_SOURCE_WRITEBACK,
+		weston_output_update_capture_info(base,
+						  WESTON_OUTPUT_CAPTURE_SOURCE_WRITEBACK,
 						  base->current_mode->width,
 						  base->current_mode->height,
-						  pixel_format_get_info(output->format->format));
+						  NULL,
+						  weston_output_get_writeback_formats(&output->base));
 
 	weston_log("Output %s (crtc %d) video modes:\n",
 		   output->base.name, output->crtc->crtc_id);

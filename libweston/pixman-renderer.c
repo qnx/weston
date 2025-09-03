@@ -609,9 +609,11 @@ pixman_renderer_do_capture_tasks(struct weston_output *output,
 	int height = pixman_image_get_height(from);
 	struct weston_capture_task *ct;
 
+	assert(source != WESTON_OUTPUT_CAPTURE_SOURCE_WRITEBACK);
+
 	while ((ct = weston_output_pull_capture_task(output, source,
 						     width, height,
-						     pfmt))) {
+						     pfmt, NULL))) {
 		struct weston_buffer *buffer = weston_capture_task_get_buffer(ct);
 
 		assert(buffer->width == width);
@@ -1036,7 +1038,8 @@ pixman_renderer_resize_output(struct weston_output *output,
 						  WESTON_OUTPUT_CAPTURE_SOURCE_FRAMEBUFFER,
 						  po->fb_size.width,
 						  po->fb_size.height,
-						  po->hw_format);
+						  po->hw_format,
+						  NULL);
 	}
 
 	/* Discard renderbuffers as a last step in order to emit discarded
@@ -1059,7 +1062,8 @@ pixman_renderer_resize_output(struct weston_output *output,
 					  WESTON_OUTPUT_CAPTURE_SOURCE_BLENDING,
 					  po->fb_size.width,
 					  po->fb_size.height,
-					  po->shadow_format);
+					  po->shadow_format,
+					  NULL);
 
 	return !!po->shadow_image;
 }
@@ -1177,7 +1181,8 @@ pixman_renderer_output_set_buffer(struct weston_output *output,
 					  WESTON_OUTPUT_CAPTURE_SOURCE_FRAMEBUFFER,
 					  po->fb_size.width,
 					  po->fb_size.height,
-					  po->hw_format);
+					  po->hw_format,
+					  NULL);
 }
 
 static int
@@ -1214,7 +1219,8 @@ pixman_renderer_output_create(struct weston_output *output,
 	weston_output_update_capture_info(output,
 					  WESTON_OUTPUT_CAPTURE_SOURCE_FRAMEBUFFER,
 					  area.width, area.height,
-					  options->format);
+					  options->format,
+					  NULL);
 
 	return 0;
 }

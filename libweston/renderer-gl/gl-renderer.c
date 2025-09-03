@@ -1274,7 +1274,8 @@ gl_renderer_do_capture_tasks(struct gl_renderer *gr,
 	}
 
 	while ((ct = weston_output_pull_capture_task(output, source, rect.width,
-						     rect.height, format))) {
+						     rect.height, format,
+						     NULL))) {
 		struct weston_buffer *buffer = weston_capture_task_get_buffer(ct);
 
 		assert(buffer->width == rect.width);
@@ -4193,12 +4194,14 @@ gl_renderer_resize_output(struct weston_output *output,
 	weston_output_update_capture_info(output,
 					  WESTON_OUTPUT_CAPTURE_SOURCE_FRAMEBUFFER,
 					  area->width, area->height,
-					  output->compositor->read_format);
+					  output->compositor->read_format,
+					  NULL);
 
 	weston_output_update_capture_info(output,
 					  WESTON_OUTPUT_CAPTURE_SOURCE_FULL_FRAMEBUFFER,
 					  fb_size->width, fb_size->height,
-					  output->compositor->read_format);
+					  output->compositor->read_format,
+					  NULL);
 
 	/* Discard renderbuffers as a last step in order to emit discarded
 	 * callbacks once the renderer has correctly been updated. */

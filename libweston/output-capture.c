@@ -120,7 +120,12 @@ struct weston_output_capture_source_info {
 
 	int width;
 	int height;
+
+	/* Format used for non-writeback capture source */
 	uint32_t drm_format;
+
+	/* Formats supported for writeback capture source */
+	struct weston_drm_format_array writeback_formats;
 };
 
 /** Capture records for an output */
@@ -150,8 +155,10 @@ weston_output_capture_info_create(void)
 	 * Initialize to no sources available by leaving
 	 * width, height and drm_format as zero.
 	 */
-	for (i = 0; i < ARRAY_LENGTH(ci->source_info); i++)
+	for (i = 0; i < ARRAY_LENGTH(ci->source_info); i++) {
 		ci->source_info[i].pixel_source = i;
+		weston_drm_format_array_init(&ci->source_info[i].writeback_formats);
+	}
 
 	return ci;
 }
@@ -162,6 +169,7 @@ weston_output_capture_info_destroy(struct weston_output_capture_info **cip)
 {
 	struct weston_output_capture_info *ci = *cip;
 	struct weston_capture_source *csrc, *tmp;
+	unsigned i;
 
 	assert(ci);
 
@@ -177,6 +185,9 @@ weston_output_capture_info_destroy(struct weston_output_capture_info **cip)
 	}
 
 	assert(wl_list_empty(&ci->pending_capture_list));
+
+	for (i = 0; i < ARRAY_LENGTH(ci->source_info); i++)
+		weston_drm_format_array_fini(&ci->source_info[i].writeback_formats);
 
 	free(ci);
 	*cip = NULL;
@@ -198,8 +209,14 @@ weston_output_capture_info_repaint_done(struct weston_output_capture_info *ci)
 static bool
 source_info_is_available(const struct weston_output_capture_source_info *csi)
 {
-	return csi->width > 0 && csi->height > 0 &&
-	       csi->drm_format != DRM_FORMAT_INVALID;
+	if (csi->pixel_source == WESTON_OUTPUT_CAPTURE_SOURCE_WRITEBACK &&
+	    weston_drm_format_array_count_pairs(&csi->writeback_formats) == 0)
+		return false;
+	else if (csi->pixel_source != WESTON_OUTPUT_CAPTURE_SOURCE_WRITEBACK &&
+		 csi->drm_format == DRM_FORMAT_INVALID)
+		return false;
+
+	return csi->width > 0 && csi->height > 0;
 }
 
 static void
@@ -209,13 +226,28 @@ capture_info_send_source_info(struct weston_output_capture_info *ci,
 	struct weston_capture_source *csrc;
 
 	wl_list_for_each(csrc, &ci->capture_source_list, link) {
+		bool send_done;
+
 		if (csrc->pixel_source != csi->pixel_source)
 			continue;
 
-		weston_capture_source_v1_send_format(csrc->resource,
-						     csi->drm_format);
-		if (wl_resource_get_version(csrc->resource) >=
-		    WESTON_CAPTURE_SOURCE_V1_FORMATS_DONE_SINCE_VERSION)
+		send_done = wl_resource_get_version(csrc->resource) >=
+			WESTON_CAPTURE_SOURCE_V1_FORMATS_DONE_SINCE_VERSION;
+
+		if (csi->pixel_source == WESTON_OUTPUT_CAPTURE_SOURCE_WRITEBACK) {
+			struct weston_drm_format *fmt;
+
+			wl_array_for_each(fmt, &csi->writeback_formats.arr) {
+				weston_capture_source_v1_send_format(csrc->resource,
+								     fmt->format);
+				if (!send_done)
+					break;
+			}
+		} else {
+			weston_capture_source_v1_send_format(csrc->resource,
+							     csi->drm_format);
+		}
+		if (send_done)
 			weston_capture_source_v1_send_formats_done(csrc->resource);
 
 		weston_capture_source_v1_send_size(csrc->resource,
@@ -246,7 +278,9 @@ capture_info_get_csi(struct weston_output_capture_info *ci,
  * \param src The source type on the output.
  * \param width The new buffer width.
  * \param height The new buffer height.
- * \param format The new pixel format.
+ * \param format The new pixel format or %NULL for writeback sources.
+ * \param writeback_formats An array of the supported pixel formats or %NULL for
+ *                          non-writeback sources.
  *
  * If any one of width, height or format is zero/NULL, the source becomes
  * unavailable to clients. Otherwise the source becomes available.
@@ -257,21 +291,47 @@ WL_EXPORT void
 weston_output_update_capture_info(struct weston_output *output,
 				  enum weston_output_capture_source src,
 				  int width, int height,
-				  const struct pixel_format_info *format)
+				  const struct pixel_format_info *format,
+				  const struct weston_drm_format_array *writeback_formats)
 {
 	struct weston_output_capture_info *ci = output->capture_info;
 	struct weston_output_capture_source_info *csi;
+	bool formats_equal;
 
 	csi = capture_info_get_csi(ci, src);
 
+	if (src == WESTON_OUTPUT_CAPTURE_SOURCE_WRITEBACK) {
+		assert(!format);
+		if (writeback_formats) {
+			formats_equal =
+				weston_drm_format_array_equal(&csi->writeback_formats,
+							      writeback_formats);
+		} else {
+			formats_equal = csi->writeback_formats.arr.size == 0;
+		}
+	} else {
+		assert(format && !writeback_formats);
+		formats_equal = (format->format == csi->drm_format);
+	}
+
 	if (csi->width == width &&
 	    csi->height == height &&
-	    csi->drm_format == format->format)
+	    formats_equal)
 		return;
 
 	csi->width = width;
 	csi->height = height;
-	csi->drm_format = format->format;
+	if (src == WESTON_OUTPUT_CAPTURE_SOURCE_WRITEBACK) {
+		if (writeback_formats) {
+			weston_drm_format_array_replace(&csi->writeback_formats,
+							writeback_formats);
+		} else {
+			weston_drm_format_array_fini(&csi->writeback_formats);
+			weston_drm_format_array_init(&csi->writeback_formats);
+		}
+	} else {
+		csi->drm_format = format->format;
+	}
 
 	if (source_info_is_available(csi)) {
 		capture_info_send_source_info(ci, csi);
@@ -305,9 +365,19 @@ static bool
 buffer_is_compatible(struct weston_buffer *buffer,
 		     struct weston_output_capture_source_info *csi)
 {
+	bool format_supported = false;
+
+	if (csi->pixel_source == WESTON_OUTPUT_CAPTURE_SOURCE_WRITEBACK) {
+		format_supported =
+			weston_drm_format_array_find_format(&csi->writeback_formats,
+							    buffer->pixel_format->format) != NULL;
+	} else {
+		format_supported = (buffer->pixel_format->format == csi->drm_format);
+        }
+
 	return buffer->width == csi->width &&
 	       buffer->height == csi->height &&
-	       buffer->pixel_format->format == csi->drm_format &&
+	       format_supported &&
 	       buffer->format_modifier == DRM_FORMAT_MOD_LINEAR;
 }
 
@@ -401,7 +471,8 @@ WL_EXPORT struct weston_capture_task *
 weston_output_pull_capture_task(struct weston_output *output,
 				enum weston_output_capture_source src,
 				int width, int height,
-				const struct pixel_format_info *format)
+				const struct pixel_format_info *format,
+				const struct weston_drm_format_array *writeback_formats)
 {
 	struct weston_output_capture_info *ci = output->capture_info;
 	struct weston_output_capture_source_info *csi;
@@ -416,7 +487,13 @@ weston_output_pull_capture_task(struct weston_output *output,
 	csi = capture_info_get_csi(ci, src);
 	assert(csi->width == width);
 	assert(csi->height == height);
-	assert(csi->drm_format == format->format);
+
+	if (src == WESTON_OUTPUT_CAPTURE_SOURCE_WRITEBACK) {
+		assert(weston_drm_format_array_equal(&csi->writeback_formats,
+						     writeback_formats));
+	} else {
+		assert(csi->drm_format == format->format);
+	}
 
 	wl_list_for_each_safe(ct, tmp, &ci->pending_capture_list, link) {
 		assert(ct->owner->output == output);

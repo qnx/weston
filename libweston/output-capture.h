@@ -66,7 +66,8 @@ void
 weston_output_update_capture_info(struct weston_output *output,
 				  enum weston_output_capture_source src,
 				  int width, int height,
-				  const struct pixel_format_info *format);
+				  const struct pixel_format_info *format,
+				  const struct weston_drm_format_array *writeback_formats);
 
 bool
 weston_output_has_renderer_capture_tasks(struct weston_output *output);
@@ -77,7 +78,8 @@ struct weston_capture_task *
 weston_output_pull_capture_task(struct weston_output *output,
 				enum weston_output_capture_source src,
 				int width, int height,
-				const struct pixel_format_info *format);
+				const struct pixel_format_info *format,
+				const struct weston_drm_format_array *writeback_formats);
 
 struct weston_buffer *
 weston_capture_task_get_buffer(struct weston_capture_task *ct);
