@@ -247,7 +247,6 @@ struct drm_backend {
 	struct weston_compositor *compositor;
 
 	struct udev *udev;
-	struct wl_event_source *drm_source;
 
 	struct udev_monitor *udev_monitor;
 	struct wl_event_source *udev_drm_source;

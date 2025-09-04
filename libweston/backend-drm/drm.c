@@ -4000,7 +4000,6 @@ drm_shutdown(struct weston_backend *backend)
 	udev_input_destroy(&b->input);
 
 	wl_event_source_remove(b->udev_drm_source);
-	wl_event_source_remove(b->drm_source);
 	wl_event_source_remove(b->perf_page_flips_stats.pageflip_timer_counter);
 
 	/* We are shutting down. This function destroy the planes with
@@ -4577,12 +4576,12 @@ drm_backend_create(struct weston_compositor *compositor,
 		   struct weston_drm_backend_config *config)
 {
 	struct drm_backend *b;
+	struct drm_kms_device *main_kms_device;
 	struct drm_device *device;
 	struct wl_event_loop *loop;
 	const char *seat_id = default_seat;
 	const char *session_seat;
 	struct weston_drm_format_array *scanout_formats;
-	drmModeRes *res;
 	int ret;
 
 	session_seat = getenv("XDG_SEAT");
@@ -4598,17 +4597,6 @@ drm_backend_create(struct weston_compositor *compositor,
 	if (b == NULL)
 		return NULL;
 
-	device = zalloc(sizeof *device);
-	if (device == NULL)
-		goto err_backend;
-
-	device->recovery_status = DRM_RECOVERY_SCHEDULED;
-	device->backend = b;
-	device->gem_handle_refcnt = hash_table_create();
-	if (!device->gem_handle_refcnt)
-		goto err_device;
-
-	b->drm = device;
 	wl_list_init(&b->kms_list);
 
 	b->compositor = compositor;
@@ -4648,22 +4636,28 @@ drm_backend_create(struct weston_compositor *compositor,
 	wl_signal_add(&compositor->session_signal, &b->session_listener);
 
 	if (config->specific_device) {
-		device->kms_device = open_specific_drm_device(compositor->launcher,
+		main_kms_device = open_specific_drm_device(compositor->launcher,
 							      b->udev,
 							      config->specific_device);
 	} else {
-		device->kms_device = find_primary_gpu(compositor->launcher,
+		main_kms_device = find_primary_gpu(compositor->launcher,
 						      b->udev, seat_id);
 	}
-	if (!device->kms_device) {
+	if (!main_kms_device) {
 		weston_log("no drm device found\n");
 		goto err_udev;
 	}
 
-	if (init_kms_caps(device) < 0) {
-		weston_log("failed to initialize kms\n");
-		goto err_kms_device;
+	device = drm_device_create(b, main_kms_device);
+	if (device) {
+		main_kms_device = NULL;
+	} else {
+		weston_log("Could not initialize DRM device '%s'\n",
+			   main_kms_device->filename);
+		drm_kms_device_destroy(main_kms_device);
+		goto err_udev;
 	}
+	b->drm = device;
 
 	if (config->additional_devices)
 		open_additional_devices(b, config->additional_devices);
@@ -4685,24 +4679,24 @@ drm_backend_create(struct weston_compositor *compositor,
 	case WESTON_RENDERER_PIXMAN:
 		if (init_pixman(b) < 0) {
 			weston_log("failed to initialize pixman renderer\n");
-			goto err_kms_device;
+			goto err_drm_device;
 		}
 		break;
 	case WESTON_RENDERER_GL:
 		if (init_egl(b) < 0) {
 			weston_log("failed to initialize egl\n");
-			goto err_kms_device;
+			goto err_drm_device;
 		}
 		break;
 	case WESTON_RENDERER_VULKAN:
 		if (init_vulkan(b) < 0) {
 			weston_log("failed to initialize vulkan\n");
-			goto err_kms_device;
+			goto err_drm_device;
 		}
 		break;
 	default:
 		weston_log("unsupported renderer for DRM backend\n");
-		goto err_kms_device;
+		goto err_drm_device;
 	}
 
 	b->base.shutdown = drm_shutdown;
@@ -4716,59 +4710,26 @@ drm_backend_create(struct weston_compositor *compositor,
 
 	weston_setup_vt_switch_bindings(compositor);
 
-	res = drmModeGetResources(b->drm->kms_device->fd);
-	if (!res) {
-		weston_log("Failed to get drmModeRes\n");
-		goto err_kms_device;
-	}
-
-	wl_list_init(&b->drm->crtc_list);
-	if (drm_backend_create_crtc_list(b->drm, res) == -1) {
-		weston_log("Failed to create CRTC list for DRM-backend\n");
-		goto err_create_crtc_list;
-	}
-
-	wl_list_init(&device->plane_list);
-	create_sprites(b->drm);
-
-	wl_list_init(&device->drm_colorop_3x1d_lut_list);
-
 	if (udev_input_init(&b->input,
 			    compositor, b->udev, seat_id,
 			    config->configure_device) < 0) {
 		weston_log("failed to create input devices\n");
-		goto err_sprite;
+		goto err_drm_device;
 	}
-
-	wl_list_init(&b->drm->writeback_connector_list);
-	if (drm_backend_discover_connectors(b->drm, b->drm->kms_device->udev_device, res) < 0) {
-		weston_log("Failed to create heads for %s\n",
-			   b->drm->kms_device->filename);
-		goto err_udev_input;
-	}
-
-	drmModeFreeResources(res);
-
-	/* 'compute' faked zpos values in case HW doesn't expose any */
-	drm_backend_create_faked_zpos(b->drm);
 
 	/* A this point we have some idea of whether or not we have a working
 	 * cursor plane. */
 	if (!device->cursors_are_broken)
 		compositor->capabilities |= WESTON_CAP_CURSOR_PLANE;
 
-	loop = wl_display_get_event_loop(compositor->wl_display);
-	b->drm_source =
-		wl_event_loop_add_fd(loop, b->drm->kms_device->fd,
-				     WL_EVENT_READABLE, on_drm_input, b->drm);
-
 	b->udev_monitor = udev_monitor_new_from_netlink(b->udev, "udev");
 	if (b->udev_monitor == NULL) {
 		weston_log("failed to initialize udev monitor\n");
-		goto err_drm_source;
+		goto err_udev_input;
 	}
 	udev_monitor_filter_add_match_subsystem_devtype(b->udev_monitor,
 							"drm", NULL);
+	loop = wl_display_get_event_loop(compositor->wl_display);
 	b->udev_drm_source =
 		wl_event_loop_add_fd(loop,
 				     udev_monitor_get_fd(b->udev_monitor),
@@ -4845,17 +4806,10 @@ drm_backend_create(struct weston_compositor *compositor,
 err_udev_monitor:
 	wl_event_source_remove(b->udev_drm_source);
 	udev_monitor_unref(b->udev_monitor);
-err_drm_source:
-	wl_event_source_remove(b->drm_source);
 err_udev_input:
 	udev_input_destroy(&b->input);
-err_sprite:
-	destroy_sprites(b->drm);
-err_create_crtc_list:
-	drmModeFreeResources(res);
-err_kms_device:
-	drm_kms_device_destroy(device->kms_device);
-	device->kms_device = NULL;
+err_drm_device:
+	drm_device_destroy(b->drm);
 err_udev:
 	udev_unref(b->udev);
 err_launcher:
@@ -4866,10 +4820,6 @@ err_compositor:
 	if (b->gbm)
 		gbm_device_destroy(b->gbm);
 #endif
-	hash_table_destroy(device->gem_handle_refcnt);
-err_device:
-	free(device);
-err_backend:
 	free(b);
 	return NULL;
 }
