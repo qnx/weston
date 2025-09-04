@@ -420,9 +420,6 @@ weston_surface_apply_state(struct weston_surface *surface,
 }
 
 static enum weston_surface_status
-weston_subsurface_commit(struct weston_subsurface *sub);
-
-static enum weston_surface_status
 weston_subsurface_apply_from_cache(struct weston_subsurface *sub)
 {
 	WESTON_TRACE_FUNC();
@@ -475,20 +472,6 @@ weston_surface_apply(struct weston_surface *surface,
 		if (sub->surface != surface)
 			status |= weston_subsurface_parent_apply(sub);
 	}
-
-	return status;
-}
-
-enum weston_surface_status
-weston_surface_commit(struct weston_surface *surface)
-{
-	struct weston_subsurface *sub = weston_surface_to_subsurface(surface);
-	enum weston_surface_status status;
-
-	if (sub)
-		status = weston_subsurface_commit(sub);
-	else
-		status = weston_surface_apply(surface, &surface->pending);
 
 	return status;
 }
@@ -593,6 +576,20 @@ weston_subsurface_commit(struct weston_subsurface *sub)
 		return WESTON_SURFACE_CLEAN;
 
 	return weston_subsurface_apply_from_cache(sub);
+}
+
+enum weston_surface_status
+weston_surface_commit(struct weston_surface *surface)
+{
+	struct weston_subsurface *sub = weston_surface_to_subsurface(surface);
+	enum weston_surface_status status;
+
+	if (sub)
+		status = weston_subsurface_commit(sub);
+	else
+		status = weston_surface_apply(surface, &surface->pending);
+
+	return status;
 }
 
 /** Recursively update effectively_synchronized state for a subsurface tree
