@@ -4065,6 +4065,9 @@ drm_device_destroy(struct drm_device *device)
 
 	weston_assert_true(ec, wl_list_empty(&device->drm_colorop_3x1d_lut_list));
 
+	if (device->drm_event_source)
+		wl_event_source_remove(device->drm_event_source);
+
 	drm_kms_device_destroy(device->kms_device);
 	hash_table_destroy(device->gem_handle_refcnt);
 	free(device);
@@ -4507,8 +4510,9 @@ drm_device_create(struct drm_backend *backend,
 	}
 
 	loop = wl_display_get_event_loop(compositor->wl_display);
-	wl_event_loop_add_fd(loop, device->kms_device->fd,
-			     WL_EVENT_READABLE, on_drm_input, device);
+	device->drm_event_source =
+		wl_event_loop_add_fd(loop, device->kms_device->fd,
+				     WL_EVENT_READABLE, on_drm_input, device);
 
 	wl_list_init(&device->plane_list);
 	create_sprites(device);

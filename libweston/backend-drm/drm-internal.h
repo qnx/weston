@@ -189,7 +189,9 @@ struct drm_kms_device {
 struct drm_device {
 	struct drm_backend *backend;
 
+	/* owned */
 	struct drm_kms_device *kms_device;
+	struct wl_event_source *drm_event_source;
 
 	/* Track the GEM handles if the device does not have a gbm device, which
 	 * tracks the handles for us.
