@@ -581,6 +581,9 @@ struct drm_crtc {
 
 	/* CRTC prop WDRM_CRTC_GAMMA_LUT_SIZE */
 	uint32_t lut_size;
+
+	/* CRTC prop WDRM_CRTC_BACKGROUND_COLOR */
+	uint64_t background_color;
 };
 
 struct drm_output {
@@ -770,6 +773,9 @@ drm_output_get_handle_type_name(struct drm_plane_handle *h)
 
 struct drm_crtc *
 drm_crtc_find(struct drm_device *device, uint32_t crtc_id);
+
+bool
+drm_crtc_supports_background_color(struct drm_crtc *crtc);
 
 struct drm_head *
 drm_head_find_by_connector(struct drm_backend *backend, struct drm_device *device, uint32_t connector_id);

@@ -2512,6 +2512,10 @@ drm_crtc_create(struct drm_device *device, uint32_t crtc_id, uint32_t pipe)
 		drm_property_get_value(&crtc->props_crtc[WDRM_CRTC_GAMMA_LUT_SIZE],
 				       props, 0);
 
+	crtc->background_color =
+		drm_property_get_value(&crtc->props_crtc[WDRM_CRTC_BACKGROUND_COLOR],
+				       props, 0);
+
 	/* Add it to the last position of the DRM-backend CRTC list */
 	wl_list_insert(device->crtc_list.prev, &crtc->link);
 

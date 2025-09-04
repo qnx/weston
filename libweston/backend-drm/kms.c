@@ -263,6 +263,7 @@ const struct drm_property_info crtc_props[] = {
 	[WDRM_CRTC_GAMMA_LUT] = { .name = "GAMMA_LUT", },
 	[WDRM_CRTC_GAMMA_LUT_SIZE] = { .name = "GAMMA_LUT_SIZE", },
 	[WDRM_CRTC_VRR_ENABLED] = { .name = "VRR_ENABLED", },
+	[WDRM_CRTC_BACKGROUND_COLOR] = { .name = "BACKGROUND_COLOR", },
 };
 
 
@@ -1039,6 +1040,15 @@ crtc_add_prop_zero_ok(drmModeAtomicReq *req, struct drm_crtc *crtc,
 	return crtc_add_prop(req, crtc, prop, val);
 }
 
+bool
+drm_crtc_supports_background_color(struct drm_crtc *crtc)
+{
+	if (crtc->props_crtc[WDRM_CRTC_BACKGROUND_COLOR].prop_id != 0)
+		return true;
+
+	return false;
+}
+
 static int
 connector_add_prop(drmModeAtomicReq *req, struct drm_connector *connector,
 		   enum wdrm_connector_property prop, uint64_t val)
@@ -1337,6 +1347,10 @@ drm_output_apply_state_atomic(struct drm_output_state *state,
 		ret |= crtc_add_prop_zero_ok(req, crtc, WDRM_CRTC_CTM, 0);
 		ret |= crtc_add_prop_zero_ok(req, crtc, WDRM_CRTC_VRR_ENABLED,
 					     wdrm_vrr_enabled_from_output(output));
+
+		ret |= crtc_add_prop_zero_ok(req, crtc,
+					     WDRM_CRTC_BACKGROUND_COLOR,
+					     crtc->background_color);
 
 		/* No need for the DPMS property, since it is implicit in
 		 * routing and CRTC activity. */
