@@ -556,6 +556,10 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 				FAILURE_REASONS_BUFFER_TOO_BIG;
 		}
 
+		if (!drm_paint_node_transform_supported(pnode, output->cursor_plane))
+			pnode->try_view_on_plane_failure_reasons =
+				FAILURE_REASONS_INCOMPATIBLE_TRANSFORM;
+
 		if (pnode->try_view_on_plane_failure_reasons == FAILURE_REASONS_NONE)
 			possible_plane_mask = (1 << output->cursor_plane->plane_idx);
 	} else {
