@@ -5152,12 +5152,11 @@ surface_commit(struct wl_client *client, struct wl_resource *resource)
 	if (sub) {
 		status = weston_subsurface_commit(sub);
 	} else {
-		status = WESTON_SURFACE_CLEAN;
+		status = weston_surface_commit(surface);
 		wl_list_for_each(sub, &surface->subsurface_list, parent_link) {
 			if (sub->surface != surface)
 				status |= weston_subsurface_parent_apply(sub);
 		}
-		status |= weston_surface_commit(surface);
 	}
 
 	if (status & WESTON_SURFACE_DIRTY_SUBSURFACE_CONFIG)
