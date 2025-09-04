@@ -4048,49 +4048,54 @@ drm_kms_device_destroy(struct drm_kms_device *kms_device)
 	free(kms_device);
 }
 
+static void
+drm_device_destroy(struct drm_device *device)
+{
+	struct drm_crtc *crtc, *crtc_tmp;
+	struct drm_writeback *writeback, *writeback_tmp;
+
+	destroy_sprites(device);
+
+	wl_list_for_each_safe(crtc, crtc_tmp, &device->crtc_list, link)
+		drm_crtc_destroy(crtc);
+
+	wl_list_for_each_safe(writeback, writeback_tmp,
+			      &device->writeback_connector_list, link)
+		drm_writeback_destroy(writeback);
+
+	weston_assert_true(ec, wl_list_empty(&device->drm_colorop_3x1d_lut_list));
+
+	drm_kms_device_destroy(device->kms_device);
+	hash_table_destroy(device->gem_handle_refcnt);
+	free(device);
+}
+
 void
 drm_destroy(struct weston_backend *backend)
 {
 	struct drm_backend *b = container_of(backend, struct drm_backend, base);
 	struct weston_compositor *ec = b->compositor;
-	struct drm_device *device = b->drm;
 	struct weston_head *base, *next;
-	struct drm_crtc *crtc, *crtc_tmp;
-	struct drm_writeback *writeback, *writeback_tmp;
 
 	wl_list_remove(&b->base.link);
-
-	wl_list_for_each_safe(crtc, crtc_tmp, &b->drm->crtc_list, link)
-		drm_crtc_destroy(crtc);
 
 	wl_list_for_each_safe(base, next, &ec->head_list, compositor_link) {
 		if (to_drm_head(base))
 			drm_head_destroy(base);
 	}
 
-	wl_list_for_each_safe(writeback, writeback_tmp,
-			      &b->drm->writeback_connector_list, link)
-		drm_writeback_destroy(writeback);
-
-	weston_assert_true(ec, wl_list_empty(&b->drm->drm_colorop_3x1d_lut_list));
-
 #ifdef BUILD_DRM_GBM
 	if (b->gbm)
 		gbm_device_destroy(b->gbm);
 #endif
 
-	destroy_sprites(device);
-
-	drm_kms_device_destroy(device->kms_device);
+	drm_device_destroy(b->drm);
 
 	udev_monitor_unref(b->udev_monitor);
 	udev_unref(b->udev);
 
 	weston_launcher_destroy(ec->launcher);
 
-	hash_table_destroy(device->gem_handle_refcnt);
-
-	free(device);
 	free(b);
 }
 
