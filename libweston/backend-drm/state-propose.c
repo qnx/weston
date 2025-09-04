@@ -762,6 +762,9 @@ drm_output_propose_state(struct weston_output *output_base,
 	struct drm_output_state *state;
 	struct drm_plane_state *scanout_state = NULL;
 
+	struct weston_paint_node **visible_pnode;
+	struct wl_array visible_pnodes;
+
 	pixman_region32_t renderer_region;
 
 	bool renderer_ok = (mode != DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY);
@@ -838,22 +841,16 @@ drm_output_propose_state(struct weston_output *output_base,
 				scanout_state->zpos);
 	}
 
-	/* - renderer_region contains the total region which which will be
-	 *   covered by the renderer and underlay region.
-	 */
-	pixman_region32_init(&renderer_region);
-
+	/* Build an array of paint nodes that will be visible on screen. Doing
+	 * so before assigning them to hardware planes or the renderer allows
+	 * us to apply optimizations. */
+	wl_array_init(&visible_pnodes);
 	wl_list_for_each(pnode, &output->base.paint_node_z_order_list,
 			 z_order_link) {
 		struct weston_view *ev = pnode->view;
-		struct drm_plane_state *ps = NULL;
-		pixman_region32_t tmp;
-		bool need_underlay = false;
 
-		pnode->try_view_on_plane_failure_reasons = FAILURE_REASONS_NONE;
-
-		drm_debug(b, "\t\t\t[view] evaluating view %p for "
-		             "output %s (%lu)\n",
+		drm_debug(b, "\t\t\t[view] evaluating view %p for scene-graph "
+		             "building on output %s (%lu)\n",
 		          ev, output->base.name,
 			  (unsigned long) output->base.id);
 
@@ -880,6 +877,29 @@ drm_output_propose_state(struct weston_output *output_base,
 			             "(occluded on our output)\n", ev);
 			continue;
 		}
+
+		visible_pnode = wl_array_add(&visible_pnodes, sizeof(pnode));
+		*visible_pnode = pnode;
+	}
+
+	/* renderer_region contains the total region which which will be
+	 * covered by the renderer and underlay region. */
+	pixman_region32_init(&renderer_region);
+
+	/* Assign paint nodes to planes. */
+	wl_array_for_each(visible_pnode, &visible_pnodes) {
+		struct weston_paint_node *pnode = *visible_pnode;
+		struct weston_view *ev = pnode->view;
+		struct drm_plane_state *ps = NULL;
+		bool need_underlay = false;
+		pixman_region32_t tmp;
+
+		pnode->try_view_on_plane_failure_reasons = FAILURE_REASONS_NONE;
+
+		drm_debug(b, "\t\t\t[view] evaluating view %p for plane "
+		             "assignment on output %s (%lu)\n",
+		          ev, output->base.name,
+			  (unsigned long) output->base.id);
 
 		if (!b->gbm)
 			pnode->try_view_on_plane_failure_reasons |=
@@ -991,6 +1011,7 @@ drm_output_propose_state(struct weston_output *output_base,
 	}
 
 	pixman_region32_fini(&renderer_region);
+	wl_array_release(&visible_pnodes);
 
 	/* In renderer-only and renderer-and-cursor modes, we can't test the
 	 * state as we don't have a renderer buffer yet. */
@@ -1022,6 +1043,7 @@ drm_output_propose_state(struct weston_output *output_base,
 
 err_region:
 	pixman_region32_fini(&renderer_region);
+	wl_array_release(&visible_pnodes);
 err:
 	drm_output_state_free(state);
 	return NULL;
