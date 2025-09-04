@@ -4461,8 +4461,18 @@ recorder_binding(struct weston_keyboard *keyboard, const struct timespec *time,
 }
 #endif
 
+/** Create a live DRM KMS device initialized for use
+ *
+ * \param backend The backend.
+ * \param kms_device The opened DRM KMS device to initialize.
+ * \return The new initialized DRM KMS device, or NULL on failure.
+ *
+ * On success, the ownership of kms_device is taken. On failure, it is not,
+ * and the caller must take care of disposing it.
+ */
 static struct drm_device *
-drm_device_create(struct drm_backend *backend, const char *name)
+drm_device_create(struct drm_backend *backend,
+		  struct drm_kms_device *kms_device)
 {
 	struct weston_compositor *compositor = backend->compositor;
 	struct drm_device *device;
@@ -4473,15 +4483,9 @@ drm_device_create(struct drm_backend *backend, const char *name)
 	if (device == NULL)
 		return NULL;
 	device->recovery_status = DRM_RECOVERY_SCHEDULED;
+	device->kms_device = kms_device;
 	device->backend = backend;
 	device->gem_handle_refcnt = hash_table_create();
-
-	device->kms_device = open_specific_drm_device(compositor->launcher,
-						      backend->udev, name);
-	if (!device->kms_device) {
-		free(device);
-		return NULL;
-	}
 
 	if (init_kms_caps(device) < 0) {
 		weston_log("failed to initialize kms\n");
@@ -4526,14 +4530,20 @@ err:
 static void
 open_additional_devices(struct drm_backend *backend, const char *cards)
 {
-	struct drm_device *device;
 	char *tokenize = strdup(cards);
 	char *card = strtok(tokenize, ",");
 
 	while (card) {
-		device = drm_device_create(backend, card);
+		struct drm_kms_device *kms_device;
+		struct drm_device *device = NULL;
+
+		kms_device = open_specific_drm_device(backend->compositor->launcher,
+						      backend->udev, card);
+		if (kms_device)
+			device = drm_device_create(backend, kms_device);
 		if (!device) {
 			weston_log("unable to use card %s\n", card);
+			drm_kms_device_destroy(kms_device);
 			goto next;
 		}
 
