@@ -423,7 +423,38 @@ static enum weston_surface_status
 weston_subsurface_commit(struct weston_subsurface *sub);
 
 static enum weston_surface_status
-weston_subsurface_parent_apply(struct weston_subsurface *sub);
+weston_subsurface_apply_from_cache(struct weston_subsurface *sub)
+{
+	WESTON_TRACE_FUNC();
+	struct weston_surface *surface = sub->surface;
+	enum weston_surface_status status;
+
+	status = weston_surface_apply(surface, &sub->cached);
+	weston_buffer_reference(&sub->cached_buffer_ref, NULL,
+				BUFFER_WILL_NOT_BE_ACCESSED);
+
+	return status;
+}
+
+static enum weston_surface_status
+weston_subsurface_parent_apply(struct weston_subsurface *sub)
+{
+	enum weston_surface_status status = WESTON_SURFACE_CLEAN;
+	struct weston_view *view;
+
+	if (sub->position.changed) {
+		wl_list_for_each(view, &sub->surface->views, surface_link)
+			weston_view_set_rel_position(view,
+						     sub->position.offset);
+
+		sub->position.changed = false;
+	}
+
+	if (sub->effectively_synchronized)
+		status = weston_subsurface_apply_from_cache(sub);
+
+	return status;
+}
 
 static enum weston_surface_status
 weston_surface_apply(struct weston_surface *surface,
@@ -458,20 +489,6 @@ weston_surface_commit(struct weston_surface *surface)
 		status = weston_subsurface_commit(sub);
 	else
 		status = weston_surface_apply(surface, &surface->pending);
-
-	return status;
-}
-
-static enum weston_surface_status
-weston_subsurface_apply_from_cache(struct weston_subsurface *sub)
-{
-	WESTON_TRACE_FUNC();
-	struct weston_surface *surface = sub->surface;
-	enum weston_surface_status status;
-
-	status = weston_surface_apply(surface, &sub->cached);
-	weston_buffer_reference(&sub->cached_buffer_ref, NULL,
-				BUFFER_WILL_NOT_BE_ACCESSED);
 
 	return status;
 }
@@ -576,26 +593,6 @@ weston_subsurface_commit(struct weston_subsurface *sub)
 		return WESTON_SURFACE_CLEAN;
 
 	return weston_subsurface_apply_from_cache(sub);
-}
-
-static enum weston_surface_status
-weston_subsurface_parent_apply(struct weston_subsurface *sub)
-{
-	enum weston_surface_status status = WESTON_SURFACE_CLEAN;
-	struct weston_view *view;
-
-	if (sub->position.changed) {
-		wl_list_for_each(view, &sub->surface->views, surface_link)
-			weston_view_set_rel_position(view,
-						     sub->position.offset);
-
-		sub->position.changed = false;
-	}
-
-	if (sub->effectively_synchronized)
-		status = weston_subsurface_apply_from_cache(sub);
-
-	return status;
 }
 
 /** Recursively update effectively_synchronized state for a subsurface tree
