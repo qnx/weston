@@ -1155,9 +1155,6 @@ drm_repaint_begin(struct weston_backend *backend)
 	struct drm_backend *b = container_of(backend, struct drm_backend, base);
 	struct drm_device *device;
 
-	if (b->drm->will_repaint)
-		drm_repaint_begin_device(b->drm);
-
 	wl_list_for_each(device, &b->kms_list, link) {
 		if (device->will_repaint)
 			drm_repaint_begin_device(device);
@@ -1214,8 +1211,6 @@ drm_repaint_flush(struct weston_backend *backend)
 	struct drm_backend *b = container_of(backend, struct drm_backend, base);
 	struct drm_device *device;
 
-	drm_repaint_flush_device(b->drm);
-
 	wl_list_for_each(device, &b->kms_list, link)
 		drm_repaint_flush_device(device);
 
@@ -1252,8 +1247,6 @@ drm_repaint_cancel(struct weston_backend *backend)
 {
 	struct drm_backend *b = container_of(backend, struct drm_backend, base);
 	struct drm_device *device;
-
-	drm_repaint_cancel_device(b->drm);
 
 	wl_list_for_each(device, &b->kms_list, link)
 		drm_repaint_cancel_device(device);
@@ -3935,31 +3928,10 @@ udev_drm_event(int fd, uint32_t mask, void *data)
 	struct drm_backend *b = data;
 	struct udev_device *event;
 	uint32_t conn_id, prop_id;
-	struct drm_device *device = b->drm;
 	struct drm_device *device_iter;
 	drmModeRes *resources = NULL;
 
 	event = udev_monitor_receive_device(b->udev_monitor);
-
-	if (udev_event_is_hotplug(device, event)) {
-		resources = drmModeGetResources(device->kms_device->fd);
-		if (!resources) {
-			weston_log("drmModeGetResources failed\n");
-			udev_device_unref(event);
-			return 1;
-		}
-		udev_event_is_conn_prop_change(b, event, &conn_id, &prop_id);
-
-		if (conn_id > 0 && prop_id > 0) {
-			drm_backend_update_conn_props(b, device, conn_id, prop_id);
-		} else if (conn_id > 0) {
-			drm_backend_update_connector(device, event, conn_id);
-			drm_backend_update_connectors_post_destroy(device, resources);
-		} else {
-			drm_backend_update_connectors(device, event, resources);
-		}
-		drmModeFreeResources(resources);
-	}
 
 	wl_list_for_each(device_iter, &b->kms_list, link) {
 		if (!udev_event_is_hotplug(device_iter, event))
@@ -4052,6 +4024,8 @@ drm_device_destroy(struct drm_device *device)
 {
 	struct drm_crtc *crtc, *crtc_tmp;
 	struct drm_writeback *writeback, *writeback_tmp;
+
+	wl_list_remove(&device->link);
 
 	destroy_sprites(device);
 
@@ -4527,6 +4501,8 @@ drm_device_create(struct drm_backend *backend,
 	/* 'compute' faked zpos values in case HW doesn't expose any */
 	drm_backend_create_faked_zpos(device);
 
+	wl_list_insert(backend->kms_list.prev, &device->link);
+
 	return device;
 err:
 	return NULL;
@@ -4554,7 +4530,6 @@ open_additional_devices(struct drm_backend *backend, const char *cards)
 
 		weston_log("adding secondary device %s\n",
 			   device->kms_device->filename);
-		wl_list_insert(&backend->kms_list, &device->link);
 
 next:
 		card = strtok(NULL, ",");
