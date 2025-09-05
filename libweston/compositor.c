@@ -4426,7 +4426,10 @@ surface_attach(struct wl_client *client,
 			return;
 		}
 	} else {
-		surface->pending.status |= WESTON_SURFACE_DIRTY_POS;
+		if (sx != 0 || sy != 0)
+			surface->pending.status |= WESTON_SURFACE_DIRTY_POS;
+		else
+			surface->pending.status &= ~WESTON_SURFACE_DIRTY_POS;
 		surface->pending.buf_offset = weston_coord_surface(sx, sy,
 								   surface);
 	}
@@ -4790,7 +4793,10 @@ surface_offset(struct wl_client *client,
 		return;
 	}
 
-	surface->pending.status |= WESTON_SURFACE_DIRTY_POS;
+	if (sx != 0 || sy != 0)
+		surface->pending.status |= WESTON_SURFACE_DIRTY_POS;
+	else
+		surface->pending.status &= ~WESTON_SURFACE_DIRTY_POS;
 	surface->pending.buf_offset = weston_coord_surface(sx, sy, surface);
 }
 
