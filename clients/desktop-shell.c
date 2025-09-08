@@ -53,6 +53,7 @@
 
 #include "window.h"
 
+#include "single-pixel-buffer-v1-client-protocol.h"
 #include "tablet-unstable-v2-client-protocol.h"
 #include "weston-desktop-shell-client-protocol.h"
 
@@ -783,93 +784,138 @@ enum {
 };
 
 static void
+buffer_release(void *data, struct wl_buffer *buffer)
+{
+	wl_buffer_destroy(buffer);
+}
+
+static const struct wl_buffer_listener buffer_listener = {
+	buffer_release
+};
+
+static void
 background_draw(struct widget *widget, void *data)
 {
 	struct background *background = data;
-	cairo_surface_t *surface, *image;
-	cairo_pattern_t *pattern;
-	cairo_matrix_t matrix;
-	cairo_t *cr;
-	double im_w, im_h;
-	double sx, sy, s;
-	double tx, ty;
-	struct rectangle allocation;
 
-	surface = window_get_surface(background->window);
+	if (!background->image && background->color) {
+		struct display *display = window_get_display(background->window);
+		struct wp_single_pixel_buffer_manager_v1 *sp_manager;
+		struct wl_surface *wl_surface;
+		struct wl_buffer *wl_buffer;
+		uint32_t r8, g8, b8;
+		uint32_t r32, g32, b32;
 
-	cr = widget_cairo_create(background->widget);
-	cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-	if (background->color == 0)
-		cairo_set_source_rgba(cr, 0.0, 0.0, 0.2, 1.0);
-	else
-		set_hex_color(cr, background->color);
-	cairo_paint(cr);
+		sp_manager = display_get_single_pixel_buffer_manager(display);
+		assert(sp_manager);
+		wl_surface = widget_get_wl_surface(background->widget);
+		assert(wl_surface);
 
-	widget_get_allocation(widget, &allocation);
-	image = NULL;
-	if (background->image)
-		image = load_cairo_surface(background->image);
-	else if (background->color == 0) {
-		char *name = file_name_with_datadir("pattern.png");
+		r8 = (background->color >> 16) & 0xff;
+		g8 = (background->color >>  8) & 0xff;
+		b8 = (background->color >>  0) & 0xff;
 
-		image = load_cairo_surface(name);
-		free(name);
-	}
+		r32 = r8 << 24 | r8 << 16 | r8 << 8 | r8;
+		g32 = g8 << 24 | g8 << 16 | g8 << 8 | g8;
+		b32 = b8 << 24 | b8 << 16 | b8 << 8 | b8;
 
-	if (image && background->type != -1) {
-		im_w = cairo_image_surface_get_width(image);
-		im_h = cairo_image_surface_get_height(image);
-		sx = im_w / allocation.width;
-		sy = im_h / allocation.height;
+		wl_buffer =
+			wp_single_pixel_buffer_manager_v1_create_u32_rgba_buffer(sp_manager,
+										 r32,
+										 g32,
+										 b32,
+										 0xffffffff);
+		assert(wl_buffer);
 
-		pattern = cairo_pattern_create_for_surface(image);
+		wl_surface_attach(wl_surface, wl_buffer, 0, 0);
+		wl_buffer_add_listener(wl_buffer, &buffer_listener, NULL);
+		widget_surface_flush(widget);
+	} else {
+		cairo_surface_t *surface, *image;
+		cairo_pattern_t *pattern;
+		cairo_matrix_t matrix;
+		cairo_t *cr;
+		double im_w, im_h;
+		double sx, sy, s;
+		double tx, ty;
+		struct rectangle allocation;
 
-		switch (background->type) {
-		case BACKGROUND_SCALE:
-			cairo_matrix_init_scale(&matrix, sx, sy);
-			cairo_pattern_set_matrix(pattern, &matrix);
-			cairo_pattern_set_extend(pattern, CAIRO_EXTEND_PAD);
-			break;
-		case BACKGROUND_SCALE_CROP:
-		case BACKGROUND_SCALE_FIT:
-			if (background->type == BACKGROUND_SCALE_CROP)
-				s = (sx < sy) ? sx : sy;
-			else
-				s = (sx > sy) ? sx : sy;
-			/* align center */
-			tx = (im_w - s * allocation.width) * 0.5;
-			ty = (im_h - s * allocation.height) * 0.5;
-			cairo_matrix_init_translate(&matrix, tx, ty);
-			cairo_matrix_scale(&matrix, s, s);
-			cairo_pattern_set_matrix(pattern, &matrix);
-			cairo_pattern_set_extend(pattern, CAIRO_EXTEND_PAD);
-			break;
-		case BACKGROUND_TILE:
-			cairo_pattern_set_extend(pattern, CAIRO_EXTEND_REPEAT);
-			break;
-		case BACKGROUND_CENTERED:
-			s = (sx < sy) ? sx : sy;
-			if (s < 1.0)
-				s = 1.0;
+		surface = window_get_surface(background->window);
 
-			/* align center */
-			tx = (im_w - s * allocation.width) * 0.5;
-			ty = (im_h - s * allocation.height) * 0.5;
+		cr = widget_cairo_create(background->widget);
+		cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+		if (background->color == 0)
+			cairo_set_source_rgba(cr, 0.0, 0.0, 0.2, 1.0);
+		else
+			set_hex_color(cr, background->color);
+		cairo_paint(cr);
 
-			cairo_matrix_init_translate(&matrix, tx, ty);
-			cairo_matrix_scale(&matrix, s, s);
-			cairo_pattern_set_matrix(pattern, &matrix);
-			break;
+		widget_get_allocation(widget, &allocation);
+		image = NULL;
+		if (background->image)
+			image = load_cairo_surface(background->image);
+		else if (background->color == 0) {
+			char *name = file_name_with_datadir("pattern.png");
+
+			image = load_cairo_surface(name);
+			free(name);
 		}
 
-		cairo_set_source(cr, pattern);
-		cairo_pattern_destroy (pattern);
-		cairo_surface_destroy(image);
-		cairo_mask(cr, pattern);
-	}
+		if (image && background->type != -1) {
+			im_w = cairo_image_surface_get_width(image);
+			im_h = cairo_image_surface_get_height(image);
+			sx = im_w / allocation.width;
+			sy = im_h / allocation.height;
 
-	cairo_destroy(cr);
-	cairo_surface_destroy(surface);
+			pattern = cairo_pattern_create_for_surface(image);
+
+			switch (background->type) {
+			case BACKGROUND_SCALE:
+				cairo_matrix_init_scale(&matrix, sx, sy);
+				cairo_pattern_set_matrix(pattern, &matrix);
+				cairo_pattern_set_extend(pattern, CAIRO_EXTEND_PAD);
+				break;
+			case BACKGROUND_SCALE_CROP:
+			case BACKGROUND_SCALE_FIT:
+				if (background->type == BACKGROUND_SCALE_CROP)
+					s = (sx < sy) ? sx : sy;
+				else
+					s = (sx > sy) ? sx : sy;
+				/* align center */
+				tx = (im_w - s * allocation.width) * 0.5;
+				ty = (im_h - s * allocation.height) * 0.5;
+				cairo_matrix_init_translate(&matrix, tx, ty);
+				cairo_matrix_scale(&matrix, s, s);
+				cairo_pattern_set_matrix(pattern, &matrix);
+				cairo_pattern_set_extend(pattern, CAIRO_EXTEND_PAD);
+				break;
+			case BACKGROUND_TILE:
+				cairo_pattern_set_extend(pattern, CAIRO_EXTEND_REPEAT);
+				break;
+			case BACKGROUND_CENTERED:
+				s = (sx < sy) ? sx : sy;
+				if (s < 1.0)
+					s = 1.0;
+
+				/* align center */
+				tx = (im_w - s * allocation.width) * 0.5;
+				ty = (im_h - s * allocation.height) * 0.5;
+
+				cairo_matrix_init_translate(&matrix, tx, ty);
+				cairo_matrix_scale(&matrix, s, s);
+				cairo_pattern_set_matrix(pattern, &matrix);
+				break;
+			}
+
+			cairo_set_source(cr, pattern);
+			cairo_pattern_destroy (pattern);
+			cairo_surface_destroy(image);
+			cairo_mask(cr, pattern);
+		}
+
+		cairo_destroy(cr);
+		cairo_surface_destroy(surface);
+	}
 
 	background->painted = 1;
 	check_desktop_ready(background->window);
@@ -897,6 +943,7 @@ background_configure(void *data,
 	}
 
 	if (!background->image && background->color) {
+		widget_set_use_cairo(background->widget, 0);
 		widget_set_viewport_destination(background->widget, width, height);
 		width = 1;
 		height = 1;

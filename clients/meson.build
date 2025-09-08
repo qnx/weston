@@ -14,6 +14,8 @@ srcs_toytoolkit = [
 	relative_pointer_unstable_v1_protocol_c,
 	pointer_constraints_unstable_v1_client_protocol_h,
 	pointer_constraints_unstable_v1_protocol_c,
+	single_pixel_buffer_v1_client_protocol_h,
+	single_pixel_buffer_v1_protocol_c,
 	tablet_unstable_v2_client_protocol_h,
 	tablet_unstable_v2_protocol_c,
 	ivi_application_client_protocol_h,
