@@ -24,7 +24,7 @@ EXTRA_LIBVPATH += $(PROJECT_ROOT)/../../libs/weston-exec/$(OS)/$(CPU)/$(shell ec
 EXTRA_LIBVPATH += $(PROJECT_ROOT)/../../libs/weston/$(OS)/$(CPU)/$(shell echo $(VARIANT1) | sed 's/^o\(.*\)$$/so\1/')
 EXTRA_LIBVPATH += $(PROJECT_ROOT)/../../libs/shared/$(OS)/$(CPU)/$(shell echo $(VARIANT1) | sed 's/^o\(.*\)$$/a.shared\1/')
 
-LIBS += test-runnerS test-clientS weston-exec weston sharedS wayland-server wayland-client pixman-1 xkbcommon epoll cairo socket
+LIBS += test-runnerS test-clientS weston-exec weston sharedS wayland-server wayland-client pixman-1 xkbcommon epoll cairo socket m
 
 override CCFLAGS += '-DTHIS_TEST_NAME="test-$(TEST_NAME)"'
 
