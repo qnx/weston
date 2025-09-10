@@ -444,6 +444,48 @@ dmabuf_feedback_maybe_update(struct drm_device *device, struct weston_view *ev,
 	dmabuf_feedback->action_needed = ACTION_NEEDED_NONE;
 }
 
+static void
+try_pnode_on_cursor_plane(struct drm_output *output, struct weston_paint_node *pnode)
+{
+	struct drm_device *device = output->device;
+	struct drm_backend *b = device->backend;
+	struct weston_buffer *buffer = pnode->view->surface->buffer_ref.buffer;
+	struct weston_view *ev = pnode->view;
+
+	if (!output->cursor_plane || device->cursors_are_broken) {
+		pnode->try_view_on_plane_failure_reasons |=
+			FAILURE_REASONS_BUFFER_TYPE;
+		/* SHM buffers can only be placed on a cursor plane, so if
+		 * cursors aren't available skip all the following tests,
+		 * we already have the only failure reason that matters.
+		 */
+		return;
+	}
+
+	/* Even though this is a SHM buffer, pixel_format stores
+	 * the format code as DRM FourCC */
+	if (buffer->pixel_format->format != DRM_FORMAT_ARGB8888) {
+		drm_debug(b, "\t\t\t\t[view] not placing view %p on "
+			     "plane; SHM buffers must be ARGB8888 for "
+			     "cursor view\n", ev);
+		pnode->try_view_on_plane_failure_reasons |=
+			FAILURE_REASONS_FB_FORMAT_INCOMPATIBLE;
+	}
+
+	if (buffer->width > device->cursor_width ||
+	    buffer->height > device->cursor_height) {
+		drm_debug(b, "\t\t\t\t[view] not assigning view %p to plane "
+			     "(buffer (%dx%d) too large for cursor plane)\n",
+			     ev, buffer->width, buffer->height);
+		pnode->try_view_on_plane_failure_reasons |=
+			FAILURE_REASONS_BUFFER_TOO_BIG;
+	}
+
+	if (!drm_paint_node_transform_supported(pnode, output->cursor_plane))
+		pnode->try_view_on_plane_failure_reasons |=
+			FAILURE_REASONS_INCOMPATIBLE_TRANSFORM;
+}
+
 static struct drm_plane_state *
 drm_output_find_plane_for_view(struct drm_output_state *state,
 			       struct weston_paint_node *pnode,
@@ -499,32 +541,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 		pnode->try_view_on_plane_failure_reasons |=
 			FAILURE_REASONS_BUFFER_TYPE;
 	} else if (buffer->type == WESTON_BUFFER_SHM) {
-		if (!output->cursor_plane || device->cursors_are_broken)
-			pnode->try_view_on_plane_failure_reasons |=
-				FAILURE_REASONS_BUFFER_TYPE;
-
-		/* Even though this is a SHM buffer, pixel_format stores
-		 * the format code as DRM FourCC */
-		if (buffer->pixel_format->format != DRM_FORMAT_ARGB8888) {
-			drm_debug(b, "\t\t\t\t[view] not placing view %p on "
-				     "plane; SHM buffers must be ARGB8888 for "
-				     "cursor view\n", ev);
-			pnode->try_view_on_plane_failure_reasons |=
-				FAILURE_REASONS_FB_FORMAT_INCOMPATIBLE;
-		}
-
-		if (buffer->width > device->cursor_width ||
-		    buffer->height > device->cursor_height) {
-			drm_debug(b, "\t\t\t\t[view] not assigning view %p to plane "
-				     "(buffer (%dx%d) too large for cursor plane)\n",
-				     ev, buffer->width, buffer->height);
-			pnode->try_view_on_plane_failure_reasons |=
-				FAILURE_REASONS_BUFFER_TOO_BIG;
-		}
-
-		if (!drm_paint_node_transform_supported(pnode, output->cursor_plane))
-			pnode->try_view_on_plane_failure_reasons =
-				FAILURE_REASONS_INCOMPATIBLE_TRANSFORM;
+		try_pnode_on_cursor_plane(output, pnode);
 
 		if (pnode->try_view_on_plane_failure_reasons == FAILURE_REASONS_NONE)
 			possible_plane_mask = (1 << output->cursor_plane->plane_idx);
