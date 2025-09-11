@@ -1174,14 +1174,13 @@ pipewire_switch_mode(struct weston_output *base, struct weston_mode *target_mode
 }
 
 static int
-pipewire_output_set_size(struct weston_output *base, int width, int height)
+pipewire_output_set_size(struct weston_output *base, int width, int height, int framerate)
 {
 	struct pipewire_output *output = to_pipewire_output(base);
 	struct weston_head *head;
 	struct pipewire_head *pw_head;
 	struct weston_mode *current_mode;
 	struct weston_mode init_mode;
-	int framerate = -1;
 
 	/* We can only be called once. */
 	assert(!output->base.current_mode);
@@ -1193,7 +1192,8 @@ pipewire_output_set_size(struct weston_output *base, int width, int height)
 			width = pw_head->config.width;
 		if (height == -1)
 			height = pw_head->config.height;
-		framerate = pw_head->config.framerate;
+		if (framerate == -1)
+			framerate = pw_head->config.framerate;
 	}
 	if (framerate == -1 || width == -1 || height == -1)
 		return -1;

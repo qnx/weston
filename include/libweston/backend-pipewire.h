@@ -54,19 +54,20 @@ struct weston_pipewire_output_api {
 			    const char *name,
 			    const struct pipewire_config *config);
 
-	/** Set the size of a PipeWire output to the specified width and height.
+	/** Set the size and frame rate of a PipeWire output to the specified value.
 	 *
-	 * If the width or height are set to -1, the size of the underlying
-	 * PipeWire head will be used.
+	 * If the width or height or framerate are set to -1, the size or frame rate
+	 * of the underlying PipeWire head will be used.
 	 *
 	 * \param output     The weston output for which the size shall be set
 	 * \param width	     Desired width of the output
 	 * \param height     Desired height of the output
+	 * \param framerate  Desired frame rate of the output
 	 *
 	 * Returns 0 on success, -1 on failure.
 	 */
 	int (*output_set_size)(struct weston_output *output,
-			       int width, int height);
+			       int width, int height, int framerate);
 
 	/** The pixel format to be used by the output.
 	 *

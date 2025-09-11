@@ -1831,7 +1831,7 @@ wet_config_head_has_mirror_of_entry(struct wet_compositor *wet, char *head_name)
 static void
 parse_simple_mode(struct weston_output *output,
 		  struct weston_config_section *section, int *width,
-		  int *height, struct wet_output_config *defaults,
+		  int *height, int *framerate, struct wet_output_config *defaults,
 		  struct wet_output_config *parsed_options)
 {
 	*width = defaults->width;
@@ -1841,11 +1841,12 @@ parse_simple_mode(struct weston_output *output,
 		char *mode;
 
 		weston_config_section_get_string(section, "mode", &mode, NULL);
-		if (!mode || sscanf(mode, "%dx%d", width, height) != 2) {
+		if (!mode || sscanf(mode, "%dx%d@%d", width, height, framerate) < 2) {
 			weston_log("Invalid mode for output %s. Using defaults.\n",
 				   output->name);
 			*width = defaults->width;
 			*height = defaults->height;
+			*framerate = -1;
 		}
 		free(mode);
 	}
@@ -1871,6 +1872,7 @@ wet_configure_windowed_output_from_config(struct weston_output *output,
 	struct wet_output_config *parsed_options = compositor->parsed_options;
 	int width;
 	int height;
+	int framerate = -1;
 
 	assert(parsed_options);
 
@@ -1881,7 +1883,7 @@ wet_configure_windowed_output_from_config(struct weston_output *output,
 
 	section = weston_config_get_section(wc, "output", "name", output->name);
 
-	parse_simple_mode(output, section, &width, &height, defaults,
+	parse_simple_mode(output, section, &width, &height, &framerate, defaults,
 			  parsed_options);
 
 	allow_content_protection(output, section);
@@ -3612,6 +3614,7 @@ pipewire_backend_output_configure(struct weston_output *output)
 	char *gbm_format = NULL;
 	int width;
 	int height;
+	int framerate = -1;
 
 	assert(parsed_options);
 
@@ -3622,7 +3625,7 @@ pipewire_backend_output_configure(struct weston_output *output)
 
 	section = weston_config_get_section(wc, "output", "name", output->name);
 
-	parse_simple_mode(output, section, &width, &height, &defaults,
+	parse_simple_mode(output, section, &width, &height, &framerate, &defaults,
 			  parsed_options);
 
 	weston_config_section_get_string(section, "gbm-format", &gbm_format, NULL);
@@ -3633,7 +3636,7 @@ pipewire_backend_output_configure(struct weston_output *output)
 	api->set_gbm_format(output, gbm_format);
 	free(gbm_format);
 
-	if (api->output_set_size(output, width, height) < 0) {
+	if (api->output_set_size(output, width, height, framerate) < 0) {
 		weston_log("Cannot configure output \"%s\" using weston_pipewire_output_api.\n",
 			   output->name);
 		return -1;
@@ -3848,6 +3851,7 @@ vnc_backend_output_configure(struct weston_output *output)
 	struct weston_config_section *section;
 	int width;
 	int height;
+	int framerate = -1;
 	bool resizeable;
 
 	assert(parsed_options);
@@ -3859,7 +3863,7 @@ vnc_backend_output_configure(struct weston_output *output)
 
 	section = weston_config_get_section(wc, "output", "name", output->name);
 
-	parse_simple_mode(output, section, &width, &height, &defaults,
+	parse_simple_mode(output, section, &width, &height, &framerate, &defaults,
 			  compositor->parsed_options);
 
 	weston_config_section_get_bool(section, "resizeable", &resizeable, true);
