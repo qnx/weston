@@ -101,6 +101,7 @@ struct qnx_screen_backend {
 	int				 prev_modifiers;
 	int				 left_gui_state;
 	int				 right_gui_state;
+	int 			 prev_vertical_scroll_state;
 
 	const struct pixel_format_info **formats;
 	unsigned int formats_count;
@@ -1002,6 +1003,32 @@ static enum wl_pointer_button_state to_wl_pointer_button_state(int value)
 	return value ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED;
 }
 
+static void 
+qnx_screen_backend_deliver_scroll_event(struct qnx_screen_backend *b,
+				         screen_event_t event)
+{
+	
+	int vertical_scroll_state = b->prev_vertical_scroll_state;
+	screen_get_event_property_iv(event, SCREEN_PROPERTY_MOUSE_WHEEL, &vertical_scroll_state);
+
+	if(vertical_scroll_state != b->prev_vertical_scroll_state)
+	{
+		struct timespec time;
+		struct weston_pointer_axis_event weston_event;
+
+		weston_event.axis = WL_POINTER_AXIS_VERTICAL_SCROLL;
+		weston_event.value = -(vertical_scroll_state);
+		weston_event.has_discrete = false;
+		weston_compositor_get_time(&time);
+
+		notify_axis(&b->core_seat, &time, &weston_event);
+		notify_pointer_frame(&b->core_seat);
+
+		b->prev_vertical_scroll_state = vertical_scroll_state;
+	}
+
+}
+
 static void
 qnx_screen_backend_deliver_pointer_button_event(struct qnx_screen_backend *b,
 				                int buttons,
@@ -1077,6 +1104,8 @@ qnx_screen_backend_deliver_pointer_event(struct qnx_screen_backend *b,
 		qnx_screen_backend_deliver_pointer_button_event(b, buttons, 0x2, BTN_MIDDLE);
 		qnx_screen_backend_deliver_pointer_button_event(b, buttons, 0x4, BTN_RIGHT);
 	}
+
+	qnx_screen_backend_deliver_scroll_event(b, event);
 
 	b->prev_window = window;
 	b->prev_pos = pos;
