@@ -671,12 +671,45 @@ create_renderbuffers(struct gbm_device *gbm, struct drm_output *output, unsigned
 	}
 }
 
+static bool
+drm_output_pick_format_vulkan(struct drm_output *output)
+{
+	struct drm_device *device = output->device;
+	struct drm_backend *b = device->backend;
+
+	/* Any other value of eotf_mode requires color-management, which is not
+	 * yet supported by vulkan-renderer. */
+	assert(output->base.eotf_mode == WESTON_EOTF_MODE_SDR);
+
+	if (!b->format->vulkan_format) {
+		weston_log("Error: failed to pick format for output '%s', format %s unsupported by vulkan-renderer.\n",
+			   output->base.name, b->format->drm_format_name);
+		return false;
+	}
+
+	assert(b->format);
+	output->format = b->format;
+
+	if (b->has_underlay && (output->format->bits.a == 0)) {
+		weston_log("Disabling underlay planes: output '%s' with format %s does not have alpha channel,\n"
+			   "which is required to support underlay planes.\n",
+			   output->base.name, output->format->drm_format_name);
+		b->has_underlay = false;
+	}
+
+	return true;
+}
+
 /* Init output state that depends on vulkan */
 int
 drm_output_init_vulkan(struct drm_output *output, struct drm_backend *b)
 {
 	const struct weston_mode *mode = output->base.current_mode;
 	struct weston_renderer *renderer = b->compositor->renderer;
+
+	if (!output->format && !drm_output_pick_format_vulkan(output))
+		return -1;
+
 	const struct vulkan_renderer_surfaceless_options options = {
 		.area.x = 0,
 		.area.y = 0,
