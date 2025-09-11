@@ -1251,7 +1251,7 @@ output_path(void)
 	return path;
 }
 
-static const char*
+const char *
 reference_path(void)
 {
 	char *path = getenv("WESTON_TEST_REFERENCE_PATH");
@@ -1405,6 +1405,58 @@ fopen_dump_file(const char *suffix)
 	free(fname);
 
 	return fp;
+}
+
+/**
+ * Read a file into a newly malloc'd memory.
+ *
+ * \param fname Full name of the file to read.
+ * \param data_out Pointer where to store the pointer to the read data.
+ * \return Length of the data, or 0 on error.
+ *
+ * On error, *data_out is not modified. On success, *data_out contains a
+ * pointer to the data and must be free()'d by the caller.
+ */
+size_t
+read_blob_from_file(const char *fname, char **data_out)
+{
+	struct wl_array data;
+	char tmpbuf[64];
+	FILE *fp;
+	size_t len;
+	void *p;
+	int fer;
+
+	testlog("%s: %s\n", __func__, fname);
+
+	wl_array_init(&data);
+
+	fp = fopen(fname, "rb");
+	if (!test_assert_ptr_not_null(fp)) {
+		wl_array_release(&data);
+		return 0;
+	}
+
+	while (!feof(fp)) {
+		len = fread(tmpbuf, 1, sizeof tmpbuf, fp);
+		if (len == 0)
+			break;
+
+		p = wl_array_add(&data, len);
+		abort_oom_if_null(p);
+		memcpy(p, tmpbuf, len);
+	}
+
+	fer = ferror(fp);
+	fclose(fp);
+
+	if (fer) {
+		wl_array_release(&data);
+		return 0;
+	}
+
+	*data_out = data.data;
+	return data.size;
 }
 
 struct format_map_entry {

@@ -53,3 +53,8 @@ wet_output_set_colorimetry_mode(struct weston_output *output,
 
 typedef void (*wet_head_additional_setup)(struct weston_head *head,
 					  struct weston_head *head_to_mirror);
+
+struct weston_color_profile *
+wet_create_output_color_profile(struct weston_output *output,
+				struct weston_config *wc,
+				const char *prof_name);

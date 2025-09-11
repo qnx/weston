@@ -267,6 +267,9 @@ void
 expect_protocol_error(struct client *client,
 		      const struct wl_interface *intf, uint32_t code);
 
+const char *
+reference_path(void);
+
 char *
 screenshot_reference_filename(const char *basename, uint32_t seq);
 
@@ -288,6 +291,9 @@ output_filename_for_test_case(const char *suffix, uint32_t seq_number,
 
 FILE *
 fopen_dump_file(const char *suffix);
+
+size_t
+read_blob_from_file(const char *fname, char **data_out);
 
 bool
 check_images_match(pixman_image_t *img_a, pixman_image_t *img_b,

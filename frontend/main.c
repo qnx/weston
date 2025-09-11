@@ -1944,7 +1944,7 @@ wet_parse_auto_profile(struct weston_output *output,
 		return NULL;
 }
 
-static struct weston_color_profile *
+WESTON_EXPORT_FOR_TESTS struct weston_color_profile *
 wet_create_output_color_profile(struct weston_output *output,
 				struct weston_config *wc,
 				const char *prof_name)

@@ -157,12 +157,38 @@ test_assert_fail(void *compositor, const char *fmt, ...)
 #define test_assert_f32_lt(a, b) weston_assert_(NULL, a, b, float, "%.10g", <)
 #define test_assert_f32_le(a, b) weston_assert_(NULL, a, b, float, "%.10g", <=)
 
+#define test_assert_f32_absdiff_lt(a, b, tol)					\
+({										\
+	float a_ = (a);								\
+	float b_ = (b);								\
+	float tol_ = (tol);							\
+	float absdiff = fabsf(a_ - b_);						\
+	bool cond = absdiff < tol_;						\
+	if (!cond)								\
+		custom_assert_fail_(NULL, "%s:%u: Assertion %s ≈≈ %s (|%.10g - %.10g| < %.10g) failed!\n",	\
+				    __FILE__, __LINE__, #a, #b, a_, b_, tol_);	\
+	cond;									\
+})
+
 #define test_assert_f64_eq(a, b) weston_assert_(NULL, a, b, double, "%.10g", ==)
 #define test_assert_f64_ne(a, b) weston_assert_(NULL, a, b, double, "%.10g", !=)
 #define test_assert_f64_gt(a, b) weston_assert_(NULL, a, b, double, "%.10g", >)
 #define test_assert_f64_ge(a, b) weston_assert_(NULL, a, b, double, "%.10g", >=)
 #define test_assert_f64_lt(a, b) weston_assert_(NULL, a, b, double, "%.10g", <)
 #define test_assert_f64_le(a, b) weston_assert_(NULL, a, b, double, "%.10g", <=)
+
+#define test_assert_f64_absdiff_lt(a, b, tol)					\
+({										\
+	double a_ = (a);							\
+	double b_ = (b);							\
+	double tol_ = (tol);							\
+	double absdiff = fabs(a_ - b_);						\
+	bool cond = absdiff < tol_;						\
+	if (!cond)								\
+		custom_assert_fail_(NULL, "%s:%u: Assertion %s ≈≈ %s (|%.10g - %.10g| < %.10g) failed!\n",	\
+				    __FILE__, __LINE__, #a, #b, a_, b_, tol_);	\
+	cond;									\
+})
 
 /* Various helpers. */
 

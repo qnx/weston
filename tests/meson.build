@@ -125,6 +125,13 @@ tests = [
 		'name': 'color-metadata-errors',
 		'dep_objs': dep_libexec_weston,
 	},
+	{
+		'name': 'color-output-parsing',
+		'dep_objs': [
+			dep_libexec_weston,
+			dep_libdisplay_info,
+		],
+	},
 	{	'name': 'config-parser', },
 	{
 		'name': 'constraints',
