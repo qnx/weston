@@ -596,10 +596,23 @@ drm_gbm_create_bo(struct gbm_device *gbm, struct drm_output *output)
 	return bo;
 }
 
+struct drm_gbm_dmabuf {
+	struct linux_dmabuf_memory base;
+	struct gbm_bo *bo;
+};
+
 static void
 drm_gbm_dmabuf_destroy(struct linux_dmabuf_memory *dmabuf)
 {
 	struct dmabuf_attributes *attributes;
+	struct drm_gbm_dmabuf *drm_gbm_dmabuf;
+	struct gbm_bo *bo;
+
+	drm_gbm_dmabuf = container_of(dmabuf, struct drm_gbm_dmabuf, base);
+	bo = drm_gbm_dmabuf->bo;
+	assert(bo);
+
+	gbm_bo_destroy(bo);
 
 	attributes = dmabuf->attributes;
 	for (int i = 0; i < attributes->n_planes; ++i)
@@ -609,10 +622,10 @@ drm_gbm_dmabuf_destroy(struct linux_dmabuf_memory *dmabuf)
 	free(dmabuf);
 }
 
-static struct linux_dmabuf_memory *
+static struct drm_gbm_dmabuf *
 drm_gbm_bo_get_dmabuf(struct gbm_device *gbm, struct drm_output *output, struct gbm_bo *bo)
 {
-	struct linux_dmabuf_memory *dmabuf;
+	struct drm_gbm_dmabuf *drm_gbm_dmabuf;
 	struct dmabuf_attributes *attributes;
 
 	attributes = xzalloc(sizeof(*attributes));
@@ -627,11 +640,12 @@ drm_gbm_bo_get_dmabuf(struct gbm_device *gbm, struct drm_output *output, struct 
 	}
 	attributes->modifier = gbm_bo_get_modifier(bo);
 
-	dmabuf = xzalloc(sizeof(*dmabuf));
-	dmabuf->attributes = attributes;
-	dmabuf->destroy = drm_gbm_dmabuf_destroy;
+	drm_gbm_dmabuf = xzalloc(sizeof(*drm_gbm_dmabuf));
+	drm_gbm_dmabuf->base.attributes = attributes;
+	drm_gbm_dmabuf->base.destroy = drm_gbm_dmabuf_destroy;
+	drm_gbm_dmabuf->bo = bo;
 
-	return dmabuf;
+	return drm_gbm_dmabuf;
 }
 
 static void
@@ -639,9 +653,8 @@ create_renderbuffers(struct gbm_device *gbm, struct drm_output *output, unsigned
 {
 	struct weston_renderer *renderer = output->base.compositor->renderer;
 
-	struct drm_device *device = output->device;
 	for (unsigned int i = 0; i < n; i++) {
-		struct linux_dmabuf_memory *dmabuf;
+		struct drm_gbm_dmabuf *drm_gbm_dmabuf;
 		struct gbm_bo *bo;
 
 		bo = drm_gbm_create_bo(gbm, output);
@@ -650,22 +663,22 @@ create_renderbuffers(struct gbm_device *gbm, struct drm_output *output, unsigned
 			return;
 		}
 
-		dmabuf = drm_gbm_bo_get_dmabuf(gbm, output, bo);
-		if (!dmabuf) {
+		drm_gbm_dmabuf = drm_gbm_bo_get_dmabuf(gbm, output, bo);
+		if (!drm_gbm_dmabuf) {
 			weston_log("failed to allocate dmabuf\n");
 			return;
 		}
 
 		output->renderbuffer[i] =
 			renderer->create_renderbuffer_dmabuf(&output->base,
-							     dmabuf,
+							     &drm_gbm_dmabuf->base,
 							     NULL, NULL);
 		if (!output->renderbuffer[i]) {
 			weston_log("failed to allocate renderbuffer\n");
 			return;
 		}
 
-		output->linux_dmabuf_memory[i] = dmabuf;
+		output->linux_dmabuf_memory[i] = &drm_gbm_dmabuf->base;
 	}
 }
 
