@@ -3882,18 +3882,11 @@ vulkan_renderer_create_renderbuffer_dmabuf(struct weston_output *output,
 	struct vulkan_output_state *vo = get_output_state(output);
 	struct vulkan_renderer *vr = get_renderer(ec);
 	struct dmabuf_attributes *attributes = dmabuf->attributes;
-	struct vulkan_buffer_state *vb;
 	const struct weston_size *fb_size = &vo->fb_size;
 	struct vulkan_renderbuffer *renderbuffer;
 	const uint32_t drm_format = attributes->format;
 	const struct pixel_format_info *pixel_format = pixel_format_get_info(drm_format);
 	assert(pixel_format);
-
-	vb = xzalloc(sizeof(*vb));
-
-	vb->vr = vr;
-	pixman_region32_init(&vb->texture_damage);
-	wl_list_init(&vb->destroy_listener.link);
 
 	renderbuffer = xzalloc(sizeof(*renderbuffer));
 
