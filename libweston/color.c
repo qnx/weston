@@ -170,7 +170,7 @@ weston_color_gamut_fprint(FILE *fp,
  * \returns The color profile parameters as string. Callers must free() it.
  */
 WL_EXPORT char *
-weston_color_profile_params_to_str(struct weston_color_profile_params *params,
+weston_color_profile_params_to_str(const struct weston_color_profile_params *params,
 				   const char *ident)
 {
 	FILE *fp;

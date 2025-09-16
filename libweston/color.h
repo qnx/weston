@@ -655,7 +655,7 @@ weston_color_profile_init(struct weston_color_profile *cprof,
 			  struct weston_color_manager *cm);
 
 char *
-weston_color_profile_params_to_str(struct weston_color_profile_params *params,
+weston_color_profile_params_to_str(const struct weston_color_profile_params *params,
 				   const char *ident);
 
 bool
