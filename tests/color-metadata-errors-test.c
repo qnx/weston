@@ -37,6 +37,7 @@
 #include "backend.h"
 #include "color.h"
 #include "id-number-allocator.h"
+#include "shared/string-helpers.h"
 #include "shared/xalloc.h"
 
 struct config_testcase {
@@ -176,10 +177,8 @@ mock_cm_ref_stock_sRGB_color_profile(struct weston_color_manager *mock_cm)
 
 	mock_cprof = xzalloc(sizeof(*mock_cprof));
 
-	mock_cprof->cm = mock_cm;
-	mock_cprof->ref_count = 1;
-	mock_cprof->description = xstrdup("mock cprof");
-	mock_cprof->id = weston_idalloc_get_id(mock_cm->compositor->color_profile_id_generator);
+	weston_color_profile_init(mock_cprof, mock_cm);
+	str_printf(&mock_cprof->description, "mock cprof");
 
 	return mock_cprof;
 }
