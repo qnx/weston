@@ -376,7 +376,16 @@ dmabuf_feedback_maybe_update(struct drm_device *device, struct weston_view *ev,
 	 * params from the scanout tranche, so keep only the renderer tranche. */
 	if (try_view_on_plane_failure_reasons & (FAILURE_REASONS_FORCE_RENDERER |
 						 FAILURE_REASONS_NO_PLANES_AVAILABLE |
-						 FAILURE_REASONS_INADEQUATE_CONTENT_PROTECTION)) {
+						 FAILURE_REASONS_INADEQUATE_CONTENT_PROTECTION |
+						 FAILURE_REASONS_INCOMPATIBLE_TRANSFORM |
+						 FAILURE_REASONS_NO_BUFFER |
+						 FAILURE_REASONS_BUFFER_TOO_BIG |
+						 FAILURE_REASONS_BUFFER_TYPE |
+						 FAILURE_REASONS_GLOBAL_ALPHA |
+						 FAILURE_REASONS_NO_GBM |
+						 FAILURE_REASONS_NO_COLOR_TRANSFORM |
+						 FAILURE_REASONS_SOLID_SURFACE |
+						 FAILURE_REASONS_OCCLUDED_BY_RENDERER)) {
 		action_needed = ACTION_NEEDED_REMOVE_SCANOUT_TRANCHE;
 	/* Direct scanout may be possible if client re-allocates using the
 	 * params from the scanout tranche. */
