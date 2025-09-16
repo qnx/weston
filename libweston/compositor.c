@@ -6840,7 +6840,6 @@ weston_compositor_reflow_outputs(struct weston_compositor *compositor,
 				struct weston_output *resized_output, int delta_width)
 {
 	struct weston_output *output;
-	bool start_resizing = false;
 
 	if (compositor->output_flow_dirty)
 		return;
@@ -6849,17 +6848,21 @@ weston_compositor_reflow_outputs(struct weston_compositor *compositor,
 		return;
 
 	wl_list_for_each(output, &compositor->output_list, link) {
-		if (output == resized_output) {
-			start_resizing = true;
+		struct weston_coord_global pos = output->pos;
+
+		/* Since outputs are in a horizontal line, reflow any to the
+		 * right of the removed output.
+		 *
+		 * There's an easter egg here - with mirrored outputs, there
+		 * may still be an output at the same place as the removed
+		 * output, and we don't want to move its contents, so we use
+		 * <= here.
+		 */
+		if (pos.c.x <= resized_output->pos.c.x)
 			continue;
-		}
 
-		if (start_resizing) {
-			struct weston_coord_global pos = output->pos;
-
-			pos.c.x += delta_width;
-			weston_output_set_position(output, pos);
-		}
+		pos.c.x += delta_width;
+		weston_output_set_position(output, pos);
 	}
 }
 
