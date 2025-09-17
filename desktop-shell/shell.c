@@ -1710,7 +1710,13 @@ shell_set_view_fullscreen(struct shell_surface *shsurf)
 	struct weston_surface *surface =
 		weston_desktop_surface_get_surface(shsurf->desktop_surface);
 	struct weston_compositor *ec = surface->compositor;
-	struct weston_output *output = shsurf->fullscreen_output->output;
+	struct weston_output *output = NULL;
+
+	if (!shsurf->fullscreen_output)
+		return;
+
+	output = shsurf->fullscreen_output->output;
+
 	struct weston_curtain_params curtain_params = {
 		.r = 0.0, .g = 0.0, .b = 0.0, .a = 1.0,
 		.pos = output->pos,
