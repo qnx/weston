@@ -206,10 +206,37 @@ is_point_inside_triangle(float point_x, float point_y,
 }
 
 static void
+validate_CIE_value(struct weston_color_profile_param_builder *builder,
+		   const char *gamut_name,
+		   const char *chan_name,
+		   const char *elem_name,
+		   float v)
+{
+	/*
+	 * We choose the legal range [-1.0, 2.0] for CIE xy values. It is
+	 * probably more than we'd ever need, but tight enough to not cause
+	 * mathematical issues. If wasn't for the ACES AP0 color space, we'd
+	 * probably choose the range [0.0, 1.0].
+	 */
+	if (v >= -1.0f && v <= 2.0f)
+		return;
+
+	store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_CIE_XY_OUT_OF_RANGE,
+		    "invalid %s color volume, the %s CIE %s value %f is out of range [-1.0, 2.0]",
+		    gamut_name, chan_name, elem_name, v);
+}
+
+static void
 validate_color_gamut(struct weston_color_profile_param_builder *builder,
 		     const struct weston_color_gamut *gamut,
 		     const char *gamut_name)
 {
+	const char *chan_name[4] = {
+		"red primary",
+		"green primary",
+		"blue primary",
+		"white point"
+	};
 	struct weston_CIExy xy[4] = {
 		gamut->primary[0],
 		gamut->primary[1],
@@ -218,19 +245,9 @@ validate_color_gamut(struct weston_color_profile_param_builder *builder,
 	};
 	unsigned int i;
 
-	/*
-	 * We choose the legal range [-1.0, 2.0] for CIE xy values. It is
-	 * probably more than we'd ever need, but tight enough to not cause
-	 * mathematical issues. If wasn't for the ACES AP0 color space, we'd
-	 * probably choose the range [0.0, 1.0].
-	 */
 	for (i = 0; i < ARRAY_LENGTH(xy); i++) {
-		if (!(xy->x >= -1.0f && xy->y <= 2.0f)) {
-			store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_CIE_XY_OUT_OF_RANGE,
-				    "invalid %s, one of the CIE xy values is out of range [-1.0, 2.0]",
-				    gamut_name);
-			return;
-		}
+		validate_CIE_value(builder, gamut_name, chan_name[i], "x", xy[i].x);
+		validate_CIE_value(builder, gamut_name, chan_name[i], "y", xy[i].y);
 	}
 
 	/*
@@ -244,9 +261,10 @@ validate_color_gamut(struct weston_color_profile_param_builder *builder,
 				      gamut->primary[1].x,
 				      gamut->primary[1].y,
 				      gamut->primary[2].x,
-				      gamut->primary[2].y))
+				      gamut->primary[2].y)) {
 		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_CIE_XY_OUT_OF_RANGE,
 			    "white point out of %s volume", gamut_name);
+	}
 }
 
 /**
@@ -735,12 +753,10 @@ builder_validate_params(struct weston_color_profile_param_builder *builder)
 			    builder->params.maxFALL,  builder->params.maxCLL);
 
 	if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_PRIMARIES)
-		validate_color_gamut(builder, &builder->params.primaries,
-				     "primaries");
+		validate_color_gamut(builder, &builder->params.primaries, "primary");
 
 	if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TARGET_PRIMARIES)
-		validate_color_gamut(builder, &builder->params.target_primaries,
-				     "target primaries");
+		validate_color_gamut(builder, &builder->params.target_primaries, "target");
 }
 
 static void
