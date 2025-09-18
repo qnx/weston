@@ -487,7 +487,7 @@ weston_color_profile_param_builder_set_tf_power_exponent(struct weston_color_pro
  * \param max_lum The maximum luminance.
  * \return true on success, false otherwise.
  */
-bool
+WL_EXPORT bool
 weston_color_profile_param_builder_set_primary_luminance(struct weston_color_profile_param_builder *builder,
 							 float ref_lum, float min_lum, float max_lum)
 {
