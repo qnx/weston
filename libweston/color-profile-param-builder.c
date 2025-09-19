@@ -174,6 +174,81 @@ weston_color_profile_param_builder_get_error(struct weston_color_profile_param_b
 	return true;
 }
 
+static float
+triangle_area(float x1, float y1, float x2, float y2, float x3, float y3)
+{
+	/* Based on the shoelace formula, also known as Gauss's area formula. */
+	return fabs((x1 - x3) * (y2 - y1) - (x1 - x2) * (y3 - y1)) / 2.0f;
+}
+
+static bool
+is_point_inside_triangle(float point_x, float point_y,
+			 float x1, float y1, float x2, float y2, float x3, float y3)
+{
+	float A1, A2, A3;
+	float A;
+	const float PRECISION = 1e-5;
+
+	A = triangle_area(x1, y1, x2, y2, x3, y3);
+
+	/* Bail out if something that is not a triangle was given. */
+	if (A <= PRECISION)
+		return false;
+
+	A1 = triangle_area(point_x, point_y, x1, y1, x2, y2);
+	A2 = triangle_area(point_x, point_y, x1, y1, x3, y3);
+	A3 = triangle_area(point_x, point_y, x2, y2, x3, y3);
+
+	if (fabs(A - (A1 + A2 + A3)) <= PRECISION)
+		return true;
+
+	return false;
+}
+
+static void
+validate_color_gamut(struct weston_color_profile_param_builder *builder,
+		     const struct weston_color_gamut *gamut,
+		     const char *gamut_name)
+{
+	struct weston_CIExy xy[4] = {
+		gamut->primary[0],
+		gamut->primary[1],
+		gamut->primary[2],
+		gamut->white_point,
+	};
+	unsigned int i;
+
+	/*
+	 * We choose the legal range [-1.0, 2.0] for CIE xy values. It is
+	 * probably more than we'd ever need, but tight enough to not cause
+	 * mathematical issues. If wasn't for the ACES AP0 color space, we'd
+	 * probably choose the range [0.0, 1.0].
+	 */
+	for (i = 0; i < ARRAY_LENGTH(xy); i++) {
+		if (!(xy->x >= -1.0f && xy->y <= 2.0f)) {
+			store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_CIE_XY_OUT_OF_RANGE,
+				    "invalid %s, one of the CIE xy values is out of range [-1.0, 2.0]",
+				    gamut_name);
+			return;
+		}
+	}
+
+	/*
+	 * That is not sufficient. There are points inside the triangle that
+	 * would not be valid white points. But for now that's good enough.
+	 */
+	if (!is_point_inside_triangle(gamut->white_point.x,
+				      gamut->white_point.y,
+				      gamut->primary[0].x,
+				      gamut->primary[0].y,
+				      gamut->primary[1].x,
+				      gamut->primary[1].y,
+				      gamut->primary[2].x,
+				      gamut->primary[2].y))
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_CIE_XY_OUT_OF_RANGE,
+			    "white point out of %s volume", gamut_name);
+}
+
 /**
  * Sets primaries for struct weston_color_profile_param_builder object.
  *
@@ -607,81 +682,6 @@ builder_validate_params_set(struct weston_color_profile_param_builder *builder)
 	if (!(builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TF))
 		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INCOMPLETE_SET,
 			    "transfer function not set");
-}
-
-static float
-triangle_area(float x1, float y1, float x2, float y2, float x3, float y3)
-{
-	/* Based on the shoelace formula, also known as Gauss's area formula. */
-	return fabs((x1 - x3) * (y2 - y1) - (x1 - x2) * (y3 - y1)) / 2.0f;
-}
-
-static bool
-is_point_inside_triangle(float point_x, float point_y,
-			 float x1, float y1, float x2, float y2, float x3, float y3)
-{
-	float A1, A2, A3;
-	float A;
-	const float PRECISION = 1e-5;
-
-	A = triangle_area(x1, y1, x2, y2, x3, y3);
-
-	/* Bail out if something that is not a triangle was given. */
-	if (A <= PRECISION)
-		return false;
-
-	A1 = triangle_area(point_x, point_y, x1, y1, x2, y2);
-	A2 = triangle_area(point_x, point_y, x1, y1, x3, y3);
-	A3 = triangle_area(point_x, point_y, x2, y2, x3, y3);
-
-	if (fabs(A - (A1 + A2 + A3)) <= PRECISION)
-		return true;
-
-	return false;
-}
-
-static void
-validate_color_gamut(struct weston_color_profile_param_builder *builder,
-		     const struct weston_color_gamut *gamut,
-		     const char *gamut_name)
-{
-	struct weston_CIExy xy[4] = {
-		gamut->primary[0],
-		gamut->primary[1],
-		gamut->primary[2],
-		gamut->white_point,
-	};
-	unsigned int i;
-
-	/*
-	 * We choose the legal range [-1.0, 2.0] for CIE xy values. It is
-	 * probably more than we'd ever need, but tight enough to not cause
-	 * mathematical issues. If wasn't for the ACES AP0 color space, we'd
-	 * probably choose the range [0.0, 1.0].
-	 */
-	for (i = 0; i < ARRAY_LENGTH(xy); i++) {
-		if (!(xy->x >= -1.0f && xy->y <= 2.0f)) {
-			store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_CIE_XY_OUT_OF_RANGE,
-				    "invalid %s, one of the CIE xy values is out of range [-1.0, 2.0]",
-				    gamut_name);
-			return;
-		}
-	}
-
-	/*
-	 * That is not sufficient. There are points inside the triangle that
-	 * would not be valid white points. But for now that's good enough.
-	 */
-	if (!is_point_inside_triangle(gamut->white_point.x,
-				      gamut->white_point.y,
-				      gamut->primary[0].x,
-				      gamut->primary[0].y,
-				      gamut->primary[1].x,
-				      gamut->primary[1].y,
-				      gamut->primary[2].x,
-				      gamut->primary[2].y))
-		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_CIE_XY_OUT_OF_RANGE,
-			    "white point out of %s volume", gamut_name);
 }
 
 static void
