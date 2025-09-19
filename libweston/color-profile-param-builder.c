@@ -703,37 +703,98 @@ builder_validate_params_set(struct weston_color_profile_param_builder *builder)
 }
 
 static void
+builder_validate_primary_luminances(struct weston_color_profile_param_builder *builder)
+{
+	float min_lum = builder->params.min_luminance;
+	float ref_lum = builder->params.reference_white_luminance;
+	float max_lum = builder->params.max_luminance;
+
+	if (!(ref_lum > 0.0f && ref_lum <= 1e6f)) {
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
+			    "reference luminance (%f) must be in the range (0.0, 1e+6]",
+			    ref_lum);
+	}
+
+	if (!(min_lum >= 0.0f && min_lum <= 1e6f)) {
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
+			    "primary minimum luminance (%f) must be in the range [0.0, 1e+6]",
+			    min_lum);
+	}
+
+	if (!(max_lum > 0.0f && max_lum <= 1e6f)) {
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
+			    "primary maximum luminance (%f) must be in the range (0.0, 1e+6]",
+			    max_lum);
+	}
+}
+
+static void
+builder_validate_target_luminances(struct weston_color_profile_param_builder *builder)
+{
+	float min_lum = builder->params.target_min_luminance;
+	float max_lum = builder->params.target_max_luminance;
+
+	if (!(min_lum >= 0.0f && min_lum <= 1e6f)) {
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
+			    "target minimum luminance (%f) must be in the range [0.0, 1e+6]",
+			    min_lum);
+	}
+
+	if (!(max_lum > 0.0f && max_lum <= 1e6f)) {
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
+			    "target maximum luminance (%f) must be in the range (0.0, 1e+6]",
+			    max_lum);
+	}
+}
+
+static void
 validate_maxcll(struct weston_color_profile_param_builder *builder)
 {
+	float maxCLL = builder->params.maxCLL;
+
+	if (!(maxCLL > 0.0f && maxCLL <= 1e6f)) {
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
+			    "maxCLL (%f) must be in the range (0.0, 1e+6]",
+			    maxCLL);
+	}
+
 	if (!(builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TARGET_LUMINANCE))
 		return;
 
-	if (builder->params.target_min_luminance >= builder->params.maxCLL)
+	if (builder->params.target_min_luminance >= maxCLL)
 		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
 			    "maxCLL (%f) should be greater than target min luminance (%f)",
-			    builder->params.maxCLL, builder->params.target_min_luminance);
+			    maxCLL, builder->params.target_min_luminance);
 
-	if (builder->params.target_max_luminance < builder->params.maxCLL)
+	if (builder->params.target_max_luminance < maxCLL)
 		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
 			    "maxCLL (%f) should not be greater than target max luminance (%f)",
-			    builder->params.maxCLL, builder->params.target_max_luminance);
+			    maxCLL, builder->params.target_max_luminance);
 }
 
 static void
 validate_maxfall(struct weston_color_profile_param_builder *builder)
 {
+	float maxFALL = builder->params.maxFALL;
+
+	if (!(maxFALL > 0.0f && maxFALL <= 1e6f)) {
+		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
+			    "maxFALL (%f) must be in the range (0.0, 1e+6]",
+			    maxFALL);
+	}
+
 	if (!(builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TARGET_LUMINANCE))
 		return;
 
-	if (builder->params.target_min_luminance >= builder->params.maxFALL)
+	if (builder->params.target_min_luminance >= maxFALL)
 		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
 			    "maxFALL (%f) must be greater than min luminance (%f)",
-			    builder->params.maxFALL, builder->params.target_min_luminance);
+			    maxFALL, builder->params.target_min_luminance);
 
-	if (builder->params.target_max_luminance < builder->params.maxFALL)
+	if (builder->params.target_max_luminance < maxFALL)
 		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
 			    "maxFALL (%f) must be less than or equal to target max luminance (%f)",
-			    builder->params.maxFALL, builder->params.target_max_luminance);
+			    maxFALL, builder->params.target_max_luminance);
 }
 
 static void
@@ -757,6 +818,12 @@ builder_validate_params(struct weston_color_profile_param_builder *builder)
 
 	if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TARGET_PRIMARIES)
 		validate_color_gamut(builder, &builder->params.target_primaries, "target");
+
+	if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_PRIMARY_LUMINANCE)
+		builder_validate_primary_luminances(builder);
+
+	if (builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TARGET_LUMINANCE)
+		builder_validate_target_luminances(builder);
 }
 
 static void
