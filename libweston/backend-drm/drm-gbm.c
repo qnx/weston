@@ -665,8 +665,6 @@ create_renderbuffers(struct gbm_device *gbm, struct drm_output *output, unsigned
 			return;
 		}
 
-		drm_fb_get_from_dmabuf_attributes(dmabuf->attributes, device, true, false, NULL);
-
 		output->linux_dmabuf_memory[i] = dmabuf;
 	}
 }
