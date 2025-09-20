@@ -3300,7 +3300,6 @@ import_dmabuf(struct vulkan_renderer *vr,
 	int fd0 = attributes->fd[0];
 
 	assert(vulkan_device_has(vr, EXTENSION_EXT_EXTERNAL_MEMORY_DMA_BUF));
-	assert(vulkan_device_has(vr, EXTENSION_KHR_DEDICATED_ALLOCATION));
 	assert(vulkan_device_has(vr, EXTENSION_KHR_EXTERNAL_MEMORY_FD));
 	assert(vulkan_device_has(vr, EXTENSION_KHR_GET_MEMORY_REQUIREMENTS_2));
 
@@ -3319,6 +3318,13 @@ import_dmabuf(struct vulkan_renderer *vr,
 	VkMemoryRequirements2 mem_reqs = {
 		.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
 	};
+
+	VkMemoryDedicatedRequirements mem_dedicated_req = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS,
+	};
+	if (vulkan_device_has(vr, EXTENSION_KHR_DEDICATED_ALLOCATION))
+		pnext(&mem_reqs_info, &mem_dedicated_req);
+
 	vr->get_image_memory_requirements2(vr->dev, &mem_reqs_info, &mem_reqs);
 
 	const uint32_t memory_type_bits = fd_props.memoryTypeBits &
@@ -3351,7 +3357,10 @@ import_dmabuf(struct vulkan_renderer *vr,
 		.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
 		.image = image,
 	};
-	pnext(&memory_allocate_info, &memory_dedicated_info);
+	if (vulkan_device_has(vr, EXTENSION_KHR_DEDICATED_ALLOCATION) &&
+	    (mem_dedicated_req.requiresDedicatedAllocation ||
+	     mem_dedicated_req.prefersDedicatedAllocation))
+		pnext(&memory_allocate_info, &memory_dedicated_info);
 
 	result = vkAllocateMemory(vr->dev, &memory_allocate_info, NULL, memory);
 	check_vk_success(result, "vkAllocateMemory");
