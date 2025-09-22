@@ -808,6 +808,11 @@ drm_fb_unref(struct drm_fb *fb);
 struct drm_fb *
 drm_fb_create_dumb(struct drm_device *device, int width, int height,
 		   uint32_t format);
+
+struct drm_fb *
+drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf,
+		       struct drm_device *device, bool is_opaque,
+		       uint32_t *try_view_on_plane_failure_reasons);
 struct drm_fb *
 drm_fb_get_from_bo(struct gbm_bo *bo, struct drm_device *device,
 		   bool is_opaque, enum drm_fb_type type);

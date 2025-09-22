@@ -171,8 +171,8 @@
         image buffer. Any buffer is incompatible if it does not have
         this size.
 
-        Row alignment of the buffer must be 4 bytes, and it must not contain
-        further row padding. Otherwise the buffer is unsupported.
+        For wl_shm the row alignment of the buffer must be 4 bytes, and it must
+        not contain further row padding. Otherwise the buffer is unsupported.
 
         This is an initial event, and sent whenever the required size
         changes.

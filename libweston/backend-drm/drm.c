@@ -683,7 +683,7 @@ drm_output_pick_writeback_capture_task(struct drm_output *output)
 	struct weston_capture_task *ct;
 	struct weston_buffer *buffer;
 	struct drm_writeback *wb;
-	const char *msg;
+	char *msg;
 	int32_t width = output->base.current_mode->width;
 	int32_t height = output->base.current_mode->height;
 	const struct weston_drm_format_array *writeback_formats =
@@ -698,14 +698,15 @@ drm_output_pick_writeback_capture_task(struct drm_output *output)
 		return;
 
 	if (output->base.disable_planes > 0) {
-		msg = "drm: KMS planes usage is disabled for now, so " \
-		      "writeback capture tasks are rejected";
+		str_printf(&msg, "drm: KMS planes usage is disabled for now, " \
+			   "so writeback capture tasks are rejected");
 		goto err;
 	}
 
 	wb = drm_output_find_compatible_writeback(output);
 	if (!wb) {
-		msg = "drm: could not find writeback connector for output";
+		str_printf(&msg,
+			   "drm: could not find writeback connector for output");
 		goto err;
 	}
 
@@ -715,14 +716,40 @@ drm_output_pick_writeback_capture_task(struct drm_output *output)
 
 	output->wb_state = drm_writeback_state_alloc();
 	if (!output->wb_state) {
-		msg = "drm: failed to allocate memory for writeback state";
+		str_printf(&msg,
+			   "drm: failed to allocate memory for writeback state");
 		goto err;
 	}
 
-	output->wb_state->fb = drm_fb_create_dumb(output->device, width, height,
-						  buffer->pixel_format->format);
-	if (!output->wb_state->fb) {
-		msg = "drm: failed to create dumb buffer for writeback state";
+	if (buffer->type == WESTON_BUFFER_SHM) {
+		output->wb_state->fb = drm_fb_create_dumb(output->device, width,
+							  height,
+							  buffer->pixel_format->format);
+		if (!output->wb_state->fb) {
+			str_printf(&msg,
+				   "drm: failed to create dumb buffer for " \
+				   "writeback state");
+			goto err_fb;
+		}
+	}
+#ifdef BUILD_DRM_GBM
+	else if (buffer->type == WESTON_BUFFER_DMABUF) {
+		uint32_t failure_reasons = 0;
+		output->wb_state->fb = drm_fb_get_from_dmabuf(buffer->dmabuf,
+							      output->device,
+							      false,
+							      &failure_reasons);
+		if (!output->wb_state->fb) {
+			str_printf(&msg,
+				   "drm: failed to attach dma buffer from " \
+				   "client for writeback state: %s",
+				   weston_plane_failure_reasons_to_str(failure_reasons));
+			goto err_fb;
+		}
+	}
+#endif
+	else {
+		str_printf(&msg, "drm: Invalid buffer type");
 		goto err_fb;
 	}
 
@@ -738,6 +765,7 @@ err_fb:
 	output->wb_state = NULL;
 err:
 	weston_capture_task_retire_failed(ct, msg);
+	free(msg);
 }
 
 #ifdef BUILD_DRM_GBM
@@ -3312,20 +3340,22 @@ drm_writeback_success_screenshot(struct drm_writeback_state *state)
 	int dst_stride, src_stride;
 	uint32_t *src, *dst;
 
-	src = state->fb->map;
-	src_stride = state->fb->strides[0];
+	if (buffer->type == WESTON_BUFFER_SHM) {
+		src = state->fb->map;
+		src_stride = state->fb->strides[0];
 
-	dst = wl_shm_buffer_get_data(buffer->shm_buffer);
-	dst_stride = buffer->stride;
+		dst = wl_shm_buffer_get_data(buffer->shm_buffer);
+		dst_stride = buffer->stride;
 
-	width = state->fb->width;
-	height = state->fb->height;
+		width = state->fb->width;
+		height = state->fb->height;
 
-	wl_shm_buffer_begin_access(buffer->shm_buffer);
-	pixman_copy_screenshot(dst, src, dst_stride, src_stride,
-			       buffer->pixel_format->pixman_format,
-			       width, height);
-	wl_shm_buffer_end_access(buffer->shm_buffer);
+		wl_shm_buffer_begin_access(buffer->shm_buffer);
+		pixman_copy_screenshot(dst, src, dst_stride, src_stride,
+				       buffer->pixel_format->pixman_format,
+				       width, height);
+		wl_shm_buffer_end_access(buffer->shm_buffer);
+	}
 
 	weston_capture_task_retire_complete(state->ct);
 	drm_writeback_state_free(state);
