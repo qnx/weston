@@ -335,12 +335,15 @@ weston_color_profile_param_builder_set_primaries_named(struct weston_color_profi
 {
 	struct weston_compositor *compositor = builder->compositor;
 	struct weston_color_manager *cm = compositor->color_manager;
+	const struct weston_color_primaries_info *info;
 	bool success = true;
+
+	info = weston_color_primaries_info_from(compositor, primaries);
 
 	if (!((cm->supported_primaries_named >> primaries) & 1)) {
 		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_PRIMARIES_NAMED,
-			    "named primaries %u not supported by the color manager",
-			    primaries);
+			    "primaries named %s not supported by the color manager",
+			    info->desc);
 		success = false;
 	}
 
@@ -353,11 +356,8 @@ weston_color_profile_param_builder_set_primaries_named(struct weston_color_profi
 	if (!success)
 		return false;
 
-	builder->params.primaries_info =
-		weston_color_primaries_info_from(compositor, primaries);
-
+	builder->params.primaries_info = info;
 	builder->params.primaries = builder->params.primaries_info->color_gamut;
-
 	builder->group_mask |= WESTON_COLOR_PROFILE_PARAMS_PRIMARIES;
 
 	return true;
