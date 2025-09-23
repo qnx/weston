@@ -577,6 +577,31 @@ weston_color_profile_param_builder_set_target_primaries(struct weston_color_prof
 }
 
 /**
+ * Sets target primaries for struct weston_color_profile_param_builder object
+ * from the given enumerated primaries.
+ *
+ * If the target primaries are already set, this should fail. Setting a
+ * parameter twice is forbidden.
+ *
+ * If this fails, users can call weston_color_profile_param_builder_get_error()
+ * to get the error details.
+ *
+ * \param builder The builder object whose parameters will be set.
+ * \param target_primaries The entry from the enumeration to use.
+ * \return true on success, false otherwise.
+ */
+WL_EXPORT bool
+weston_color_profile_param_builder_set_target_primaries_named(struct weston_color_profile_param_builder *builder,
+							      enum weston_color_primaries target_primaries)
+{
+	const struct weston_color_primaries_info *info;
+
+	info = weston_color_primaries_info_from(builder->compositor, target_primaries);
+
+	return weston_color_profile_param_builder_set_target_primaries(builder, &info->color_gamut);
+}
+
+/**
  * Sets target luminance for struct weston_color_profile_param_builder object.
  *
  * If the target luminance is already set, this should fail. Setting a parameter

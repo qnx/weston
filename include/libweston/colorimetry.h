@@ -235,6 +235,10 @@ weston_color_profile_param_builder_set_target_primaries(struct weston_color_prof
 							const struct weston_color_gamut *target_primaries);
 
 bool
+weston_color_profile_param_builder_set_target_primaries_named(struct weston_color_profile_param_builder *builder,
+							      enum weston_color_primaries target_primaries);
+
+bool
 weston_color_profile_param_builder_set_target_luminance(struct weston_color_profile_param_builder *builder,
 							float min_lum, float max_lum);
 
