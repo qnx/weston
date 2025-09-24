@@ -48,34 +48,6 @@ fixture_setup(struct weston_test_harness *harness)
 }
 DECLARE_FIXTURE_SETUP(fixture_setup);
 
-static struct wl_subcompositor *
-get_subcompositor(struct client *client)
-{
-	struct global *g;
-	struct global *global_sub = NULL;
-	struct wl_subcompositor *sub;
-
-	wl_list_for_each(g, &client->global_list, link) {
-		if (strcmp(g->interface, "wl_subcompositor"))
-			continue;
-
-		if (global_sub)
-			test_assert_not_reached("multiple wl_subcompositor objects");
-
-		global_sub = g;
-	}
-
-	test_assert_ptr_not_null(global_sub);
-
-	test_assert_u32_eq(global_sub->version, 1);
-
-	sub = wl_registry_bind(client->wl_registry, global_sub->name,
-			       &wl_subcompositor_interface, 1);
-	test_assert_ptr_not_null(sub);
-
-	return sub;
-}
-
 static struct xdg_wm_base *
 get_xdg_wm_base(struct client *client)
 {
@@ -114,7 +86,7 @@ TEST(test_role_conflict_sub_wlshell)
 	client = create_client_and_test_surface(100, 50, 123, 77);
 	test_assert_ptr_not_null(client);
 
-	subco = get_subcompositor(client);
+	subco = client_get_subcompositor(client);
 	xdg_wm_base = get_xdg_wm_base(client);
 
 	child = wl_compositor_create_surface(client->wl_compositor);
@@ -152,7 +124,7 @@ TEST(test_role_conflict_wlshell_sub)
 	client = create_client_and_test_surface(100, 50, 123, 77);
 	test_assert_ptr_not_null(client);
 
-	subco = get_subcompositor(client);
+	subco = client_get_subcompositor(client);
 	xdg_wm_base = get_xdg_wm_base(client);
 
 	child = wl_compositor_create_surface(client->wl_compositor);

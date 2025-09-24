@@ -423,4 +423,7 @@ void
 assert_surface_matches(struct wet_testsuite_data *suite_data,
 		       struct weston_surface *s, struct surface *c);
 
+struct wl_subcompositor *
+client_get_subcompositor(struct client *client);
+
 #endif

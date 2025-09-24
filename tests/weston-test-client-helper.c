@@ -2597,3 +2597,31 @@ client_release_breakpoint(struct client *client,
 	suite_data->breakpoints.in_client_break = false;
 	wet_test_post_sem(&suite_data->breakpoints.server_release);
 }
+
+struct wl_subcompositor *
+client_get_subcompositor(struct client *client)
+{
+	struct global *g;
+	struct global *global_sub = NULL;
+	struct wl_subcompositor *sub;
+
+	wl_list_for_each(g, &client->global_list, link) {
+		if (strcmp(g->interface, "wl_subcompositor"))
+			continue;
+
+		if (global_sub)
+			test_assert_not_reached("multiple wl_subcompositor objects");
+
+		global_sub = g;
+	}
+
+	test_assert_ptr_not_null(global_sub);
+
+	test_assert_u32_eq(global_sub->version, 1);
+
+	sub = wl_registry_bind(client->wl_registry, global_sub->name,
+			      &wl_subcompositor_interface, 1);
+	test_assert_ptr_not_null(sub);
+
+	return sub;
+}

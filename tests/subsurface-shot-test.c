@@ -71,34 +71,6 @@ fixture_setup(struct weston_test_harness *harness, const struct setup_args *arg)
 }
 DECLARE_FIXTURE_SETUP_WITH_ARG(fixture_setup, my_setup_args, meta);
 
-static struct wl_subcompositor *
-get_subcompositor(struct client *client)
-{
-	struct global *g;
-	struct global *global_sub = NULL;
-	struct wl_subcompositor *sub;
-
-	wl_list_for_each(g, &client->global_list, link) {
-		if (strcmp(g->interface, "wl_subcompositor"))
-			continue;
-
-		if (global_sub)
-			test_assert_not_reached("multiple wl_subcompositor objects");
-
-		global_sub = g;
-	}
-
-	test_assert_ptr_not_null(global_sub);
-
-	test_assert_u32_eq(global_sub->version, 1);
-
-	sub = wl_registry_bind(client->wl_registry, global_sub->name,
-			       &wl_subcompositor_interface, 1);
-	test_assert_ptr_not_null(sub);
-
-	return sub;
-}
-
 static int
 check_screen(struct client *client,
 	     const char *ref_image,
@@ -150,7 +122,7 @@ TEST(subsurface_recursive_unmap)
 
 	client = create_client_and_test_surface(100, 50, 100, 100);
 	test_assert_ptr_not_null(client);
-	subco = get_subcompositor(client);
+	subco = client_get_subcompositor(client);
 
 	/* move the pointer clearly away from our screenshooting area */
 	weston_test_move_pointer(client->test->weston_test, 0, 1, 0, 2, 30);
@@ -242,7 +214,7 @@ TEST(subsurface_z_order)
 
 	client = create_client_and_test_surface(100, 50, 100, 100);
 	test_assert_ptr_not_null(client);
-	subco = get_subcompositor(client);
+	subco = client_get_subcompositor(client);
 
 	/* move the pointer clearly away from our screenshooting area */
 	weston_test_move_pointer(client->test->weston_test, 0, 1, 0, 2, 30);
@@ -333,7 +305,7 @@ TEST(subsurface_sync_damage_buffer)
 
 	client = create_client_and_test_surface(100, 50, 100, 100);
 	test_assert_ptr_not_null(client);
-	subco = get_subcompositor(client);
+	subco = client_get_subcompositor(client);
 
 	/* move the pointer clearly away from our screenshooting area */
 	weston_test_move_pointer(client->test->weston_test, 0, 1, 0, 2, 30);
@@ -405,7 +377,7 @@ TEST(subsurface_empty_mapping)
 
 	client = create_client_and_test_surface(100, 50, 100, 100);
 	test_assert_ptr_not_null(client);
-	subco = get_subcompositor(client);
+	subco = client_get_subcompositor(client);
 	viewporter = bind_to_singleton_global(client,
 					      &wp_viewporter_interface, 1);
 
@@ -533,7 +505,7 @@ TEST(subsurface_desync_commit)
 
 	client = create_client_and_test_surface(100, 50, 100, 100);
 	test_assert_ptr_not_null(client);
-	subco = get_subcompositor(client);
+	subco = client_get_subcompositor(client);
 
 	/* make the parent surface red */
 	surf[0] = client->surface->wl_surface;

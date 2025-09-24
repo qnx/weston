@@ -56,40 +56,12 @@ struct compound_surface {
 	struct wl_subsurface *sub[NUM_SUBSURFACES];
 };
 
-static struct wl_subcompositor *
-get_subcompositor(struct client *client)
-{
-	struct global *g;
-	struct global *global_sub = NULL;
-	struct wl_subcompositor *sub;
-
-	wl_list_for_each(g, &client->global_list, link) {
-		if (strcmp(g->interface, "wl_subcompositor"))
-			continue;
-
-		if (global_sub)
-			test_assert_not_reached("multiple wl_subcompositor objects");
-
-		global_sub = g;
-	}
-
-	test_assert_ptr_not_null(global_sub);
-
-	test_assert_u32_eq(global_sub->version, 1);
-
-	sub = wl_registry_bind(client->wl_registry, global_sub->name,
-			       &wl_subcompositor_interface, 1);
-	test_assert_ptr_not_null(sub);
-
-	return sub;
-}
-
 static void
 populate_compound_surface(struct compound_surface *com, struct client *client)
 {
 	int i;
 
-	com->subco = get_subcompositor(client);
+	com->subco = client_get_subcompositor(client);
 
 	com->parent = wl_compositor_create_surface(client->wl_compositor);
 
@@ -195,7 +167,7 @@ TEST(test_subsurface_paradox)
 	client = create_client_and_test_surface(100, 50, 123, 77);
 	test_assert_ptr_not_null(client);
 
-	subco = get_subcompositor(client);
+	subco = client_get_subcompositor(client);
 	parent = wl_compositor_create_surface(client->wl_compositor);
 
 	/* surface is its own parent */
@@ -326,7 +298,7 @@ TEST(test_subsurface_loop_paradox)
 	client = create_client_and_test_surface(100, 50, 123, 77);
 	test_assert_ptr_not_null(client);
 
-	subco = get_subcompositor(client);
+	subco = client_get_subcompositor(client);
 	surface[0] = wl_compositor_create_surface(client->wl_compositor);
 	surface[1] = wl_compositor_create_surface(client->wl_compositor);
 	surface[2] = wl_compositor_create_surface(client->wl_compositor);
@@ -363,7 +335,7 @@ TEST(test_subsurface_place_above_nested_parent)
 
 	populate_compound_surface(&com, client);
 
-	subco = get_subcompositor(client);
+	subco = client_get_subcompositor(client);
 	grandchild = wl_compositor_create_surface(client->wl_compositor);
 	sub = wl_subcompositor_get_subsurface(subco, grandchild, com.child[0]);
 
@@ -393,7 +365,7 @@ TEST(test_subsurface_place_above_grandparent)
 
 	populate_compound_surface(&com, client);
 
-	subco = get_subcompositor(client);
+	subco = client_get_subcompositor(client);
 	grandchild = wl_compositor_create_surface(client->wl_compositor);
 	sub = wl_subcompositor_get_subsurface(subco, grandchild, com.child[0]);
 
@@ -425,7 +397,7 @@ TEST(test_subsurface_place_above_great_aunt)
 
 	populate_compound_surface(&com, client);
 
-	subco = get_subcompositor(client);
+	subco = client_get_subcompositor(client);
 	grandchild = wl_compositor_create_surface(client->wl_compositor);
 	sub = wl_subcompositor_get_subsurface(subco, grandchild, com.child[0]);
 
@@ -457,7 +429,7 @@ TEST(test_subsurface_place_above_child)
 
 	populate_compound_surface(&com, client);
 
-	subco = get_subcompositor(client);
+	subco = client_get_subcompositor(client);
 	grandchild = wl_compositor_create_surface(client->wl_compositor);
 	sub = wl_subcompositor_get_subsurface(subco, grandchild, com.child[0]);
 
@@ -489,7 +461,7 @@ TEST(test_subsurface_place_below_nested_parent)
 
 	populate_compound_surface(&com, client);
 
-	subco = get_subcompositor(client);
+	subco = client_get_subcompositor(client);
 	grandchild = wl_compositor_create_surface(client->wl_compositor);
 	sub = wl_subcompositor_get_subsurface(subco, grandchild, com.child[0]);
 
@@ -519,7 +491,7 @@ TEST(test_subsurface_place_below_grandparent)
 
 	populate_compound_surface(&com, client);
 
-	subco = get_subcompositor(client);
+	subco = client_get_subcompositor(client);
 	grandchild = wl_compositor_create_surface(client->wl_compositor);
 	sub = wl_subcompositor_get_subsurface(subco, grandchild, com.child[0]);
 
@@ -551,7 +523,7 @@ TEST(test_subsurface_place_below_great_aunt)
 
 	populate_compound_surface(&com, client);
 
-	subco = get_subcompositor(client);
+	subco = client_get_subcompositor(client);
 	grandchild = wl_compositor_create_surface(client->wl_compositor);
 	sub = wl_subcompositor_get_subsurface(subco, grandchild, com.child[0]);
 
@@ -583,7 +555,7 @@ TEST(test_subsurface_place_below_child)
 
 	populate_compound_surface(&com, client);
 
-	subco = get_subcompositor(client);
+	subco = client_get_subcompositor(client);
 	grandchild = wl_compositor_create_surface(client->wl_compositor);
 	sub = wl_subcompositor_get_subsurface(subco, grandchild, com.child[0]);
 
@@ -746,7 +718,7 @@ create_subsurface_tree(struct client *client, struct wl_surface **surfs,
 	struct wl_subcompositor *subco;
 	int i;
 
-	subco = get_subcompositor(client);
+	subco = client_get_subcompositor(client);
 
 	for (i = 0; i < n; i++)
 		surfs[i] = wl_compositor_create_surface(client->wl_compositor);
