@@ -818,13 +818,11 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 }
 
 static bool
-is_paint_node_solid_opaque_black(struct weston_paint_node *pnode)
+is_paint_node_solid_opaque_untransformed(struct weston_paint_node *pnode)
 {
 	return pnode->draw_solid && pnode->is_fully_opaque &&
 	       pnode->valid_transform &&
-	       (pnode->surf_xform_valid && !pnode->surf_xform.transform) &&
-	       pnode->solid.r == 0.0f && pnode->solid.g == 0.0f &&
-	       pnode->solid.b == 0.0f;
+	       (pnode->surf_xform_valid && !pnode->surf_xform.transform);
 }
 
 static bool
@@ -837,6 +835,7 @@ lower_solid_views_to_background_region(struct drm_output *output,
 	struct drm_backend *b = device->backend;
 	struct weston_paint_node **visible_pnode;
 	struct wl_array visible_pnodes_new;
+	struct weston_solid_buffer_values background_region_color = {0};
 
 	wl_array_init(&visible_pnodes_new);
 	wl_array_for_each(visible_pnode, visible_pnodes) {
@@ -850,60 +849,99 @@ lower_solid_views_to_background_region(struct drm_output *output,
 			  ev->internal_name, output->base.name,
 			  (unsigned long) output->base.id);
 
-		if (is_paint_node_solid_opaque_black(pnode)) {
-			drm_debug(b, "\t\t\t\t[view] ignoring view %s " \
-				  "(opaque-black solid buffer r %f g %f b %f " \
-				  "a %f)\n",
-				  ev->internal_name, pnode->solid.r, pnode->solid.g,
-				  pnode->solid.b, pnode->solid.a);
+		if (!pnode->draw_solid) {
+			/* Bail if parts of the view need to be occluded by the
+			 * background region as this would generally require a
+			 * solid-color plane on a higher z-pos.
+			 * Note: A special case that could be optimized in the future
+			 * is if the visible region of the view is a rectangle. In that
+			 * case we could crop the plane. */
+			pixman_region32_init(&tmp);
+			pixman_region32_intersect(&tmp,
+						  &pnode->clipped_view,
+						  background_region);
+			if (pixman_region32_not_empty(&tmp)) {
+				drm_debug(b, "\t\t\t\t[view] not assigning view %s to "
+					  "a plane (occluded by solid buffer).\n",
+					  ev->internal_name);
+				pixman_region32_fini(&tmp);
+				goto error;
+			}
+			pixman_region32_fini(&tmp);
 
-			pixman_region32_union(background_region,
-					      background_region,
-					      &pnode->visible);
+			visible_pnode_new = wl_array_add(&visible_pnodes_new,
+							 sizeof(pnode));
+			*visible_pnode_new = pnode;
+			*last_visible_pnode = pnode;
 			continue;
 		}
 
-		/* We can support this with the 'CRTC background colour'
-		 * property */
-		if (pnode->draw_solid) {
+		if (!is_paint_node_solid_opaque_untransformed(pnode)) {
 			drm_debug(b, "\t\t\t\t[view] not assigning view %s to "
-                                  "a plane (non-opaque-black solid buffer r %f "
-                                  "g %f b %f a %f)\n",
-				  ev->internal_name, pnode->solid.r, pnode->solid.g,
-				  pnode->solid.b, pnode->solid.a);
-			wl_array_release(&visible_pnodes_new);
-			return false;
-		}
-
-		/* Bail if parts of the view need to be occluded by the
-		 * background region as this would generally require a
-		 * solid-color plane on a higher z-pos.
-		 * Note: A special case that could be optimized in the future
-		 * is if the visible region of the view is a rectangle. In that
-		 * case we could crop the plane. */
-		pixman_region32_init(&tmp);
-		pixman_region32_intersect(&tmp,
-					  &pnode->clipped_view,
-					  background_region);
-		if (pixman_region32_not_empty(&tmp)) {
-			drm_debug(b, "\t\t\t\t[view] not assigning view %s to "
-				  "a plane (occluded by solid buffer).\n",
+                                  "a plane (solid buffer not opaque or requiring "
+				  "a color transform).\n",
 				  ev->internal_name);
-			wl_array_release(&visible_pnodes_new);
-			pixman_region32_fini(&tmp);
-			return false;
+			goto error;
 		}
-		pixman_region32_fini(&tmp);
 
-		visible_pnode_new = wl_array_add(&visible_pnodes_new,
-						 sizeof(pnode));
-		*visible_pnode_new = pnode;
-		*last_visible_pnode = pnode;
+		if (!drm_crtc_supports_background_color(output->crtc) &&
+		    (pnode->solid.r != 0.0f || pnode->solid.g != 0.0f ||
+		     pnode->solid.b != 0.0f)) {
+			drm_debug(b, "\t\t\t\t[view] not assigning view %s to "
+                                  "a plane (non-opaque-black solid buffer not "
+				  "supported).\n",
+				  ev->internal_name);
+			goto error;
+		}
+
+		if (pixman_region32_not_empty(background_region) &&
+		    (background_region_color.r != pnode->solid.r ||
+		     background_region_color.g != pnode->solid.g ||
+		     background_region_color.b != pnode->solid.b)) {
+			drm_debug(b, "\t\t\t\t[view] not assigning view %s to "
+				  "a plane (multiple solid buffer buffers with "
+				  "different colors).\n",
+				  ev->internal_name);
+			goto error;
+		}
+
+		drm_debug(b, "\t\t\t\t[view] lowering view %s to background " \
+			  "(opaque solid buffer r %f g %f b %f " \
+			  "a %f).\n",
+			  ev->internal_name, pnode->solid.r, pnode->solid.g,
+			  pnode->solid.b, pnode->solid.a);
+
+		pixman_region32_union(background_region,
+				      background_region,
+				      &pnode->visible);
+
+		/* Fixate the background_region color */
+		background_region_color.a = 1.0f;
+		background_region_color.r = pnode->solid.r;
+		background_region_color.g = pnode->solid.g;
+		background_region_color.b = pnode->solid.b;
+
+		if (drm_crtc_supports_background_color(output->crtc)) {
+			uint64_t a16, r16, g16, b16;
+
+			a16 = 0xffff;
+			r16 = 0xffff * background_region_color.r;
+			g16 = 0xffff * background_region_color.g;
+			b16 = 0xffff * background_region_color.b;
+
+			output->crtc->background_color =
+				a16 << 48 | r16 << 32 | g16 << 16 | b16;
+		}
 	}
 
 	wl_array_release(visible_pnodes);
 	*visible_pnodes = visible_pnodes_new;
 	return true;
+
+error:
+	wl_array_release(&visible_pnodes_new);
+	output->crtc->background_color = 0;
+	return false;
 }
 
 static void
@@ -1066,8 +1104,8 @@ drm_output_propose_state(struct weston_output *output_base,
 	pixman_region32_init(&obscured_region);
 
 	/* background_region contains the area that is covered by opaque
-	 * solid-black views. This area can be fully ignored in PLANES_ONLY mode
-	 * according to the DRM spec:
+	 * solid views. If they are black this area can be fully ignored in
+	 * PLANES_ONLY mode according to the DRM spec:
 	 *
 	 * "Unless explicitly specified (via CRTC property or otherwise), the
 	 * active area of a CRTC will be black by default. This means portions
@@ -1076,6 +1114,9 @@ drm_output_propose_state(struct weston_output *output_base,
 	 * with black at the lowest zpos."
 	 *
 	 * See https://dri.freedesktop.org/docs/drm/gpu/drm-kms.html#plane-abstraction
+	 *
+	 * For other colors the same applies if the BACKGROUND_COLOR DRM
+	 * property is supported.
 	 *
 	 * All said views can thus be ignored during plane assignment.
 	 */
