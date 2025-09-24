@@ -30,7 +30,11 @@ lib_test_client = static_library(
 	[
 		'weston-test-client-helper.c',
 		'weston-test-fixture-compositor.c',
-                'xdg-client-helper.c',
+		'xdg-client-helper.c',
+		presentation_time_client_protocol_h,
+		presentation_time_protocol_c,
+		single_pixel_buffer_v1_client_protocol_h,
+		single_pixel_buffer_v1_protocol_c,
 		weston_test_client_protocol_h,
 		weston_test_protocol_c,
 		weston_output_capture_client_protocol_h,
@@ -203,14 +207,7 @@ tests = [
 		],
 	},
 	{	'name': 'pointer-shot', },
-	{
-		'name': 'presentation',
-		'sources': [
-			'presentation-test.c',
-			presentation_time_client_protocol_h,
-			presentation_time_protocol_c,
-		],
-	},
+	{	'name': 'presentation', },
 	{
 		'name': 'roles',
 		'sources': [
@@ -219,14 +216,7 @@ tests = [
 			xdg_shell_protocol_c,
 		],
 	},
-	{
-		'name': 'single-pixel-buffer',
-		'sources': [
-			'single-pixel-buffer-test.c',
-			single_pixel_buffer_v1_client_protocol_h,
-			single_pixel_buffer_v1_protocol_c,
-		]
-	},
+	{	'name': 'single-pixel-buffer', },
 	{	'name': 'string', },
 	{	'name': 'subsurface', },
 	{	'name': 'subsurface-shot', },

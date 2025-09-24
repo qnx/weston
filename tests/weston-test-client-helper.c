@@ -881,6 +881,10 @@ handle_global(void *data, struct wl_registry *registry,
 		client->wl_compositor =
 			wl_registry_bind(registry, id,
 					 &wl_compositor_interface, version);
+	} else if (strcmp(interface, wl_subcompositor_interface.name) == 0) {
+		client->wl_subcompositor =
+			wl_registry_bind(registry, id,
+					 &wl_subcompositor_interface, version);
 	} else if (strcmp(interface, "wl_seat") == 0) {
 		input = xzalloc(sizeof *input);
 		input->client = client;
@@ -901,6 +905,19 @@ handle_global(void *data, struct wl_registry *registry,
 					 &zwp_linux_dmabuf_v1_interface, 3);
 		zwp_linux_dmabuf_v1_add_listener(client->dmabuf,
 						 &dmabuf_listener, client);
+	} else if (strcmp(interface, wp_viewporter_interface.name) == 0) {
+		client->viewporter = wl_registry_bind(registry, id,
+						      &wp_viewporter_interface,
+						      1);
+	} else if (strcmp(interface, wp_presentation_interface.name) == 0) {
+		client->presentation =
+			wl_registry_bind(registry, id,
+					 &wp_presentation_interface, 1);
+	} else if (strcmp(interface, wp_single_pixel_buffer_manager_v1_interface.name) == 0) {
+		client->single_pixel_manager =
+			wl_registry_bind(registry, id,
+					 &wp_single_pixel_buffer_manager_v1_interface,
+					 1);
 	} else if (strcmp(interface, "wl_output") == 0) {
 		output = xzalloc(sizeof *output);
 		output->wl_output =
@@ -1226,8 +1243,16 @@ client_destroy(struct client *client)
 		wl_shm_destroy(client->wl_shm);
 	if (client->dmabuf)
 		zwp_linux_dmabuf_v1_destroy(client->dmabuf);
+	if (client->viewporter)
+		wp_viewporter_destroy(client->viewporter);
+	if (client->presentation)
+		wp_presentation_destroy(client->presentation);
+	if (client->single_pixel_manager)
+		wp_single_pixel_buffer_manager_v1_destroy(client->single_pixel_manager);
 	if (client->wl_compositor)
 		wl_compositor_destroy(client->wl_compositor);
+	if (client->wl_subcompositor)
+		wl_subcompositor_destroy(client->wl_subcompositor);
 	if (client->wl_registry)
 		wl_registry_destroy(client->wl_registry);
 
@@ -2291,15 +2316,11 @@ bind_to_singleton_global(struct client *client,
 struct wp_viewport *
 client_create_viewport(struct client *client)
 {
-	struct wp_viewporter *viewporter;
 	struct wp_viewport *viewport;
 
-	viewporter = bind_to_singleton_global(client,
-					      &wp_viewporter_interface, 1);
-	viewport = wp_viewporter_get_viewport(viewporter,
+	viewport = wp_viewporter_get_viewport(client->viewporter,
 					      client->surface->wl_surface);
 	test_assert_ptr_not_null(viewport);
-	wp_viewporter_destroy(viewporter);
 
 	return viewport;
 }

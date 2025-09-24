@@ -35,7 +35,9 @@
 
 #include <wayland-client-protocol.h>
 #include "linux-dmabuf-unstable-v1-client-protocol.h"
+#include "presentation-time-client-protocol.h"
 #include "shared/client-buffer-util.h"
+#include "single-pixel-buffer-v1-client-protocol.h"
 #include "weston-test-runner.h"
 #include "weston-test-client-protocol.h"
 #include "viewporter-client-protocol.h"
@@ -54,8 +56,13 @@ struct client {
 
 	struct wl_registry *wl_registry;
 	struct wl_compositor *wl_compositor;
+	struct wl_subcompositor *wl_subcompositor;
 	struct wl_shm *wl_shm;
 	struct zwp_linux_dmabuf_v1 *dmabuf;
+	struct wp_presentation *presentation;
+	struct wp_single_pixel_buffer_manager_v1 *single_pixel_manager;
+	struct wp_viewporter *viewporter;
+
 	struct test *test;
 	/* the seat that is actually used for input events */
 	struct input *input;

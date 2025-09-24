@@ -35,7 +35,6 @@
 #include "shared/xalloc.h"
 #include "shared/timespec-util.h"
 #include "weston-test-client-helper.h"
-#include "presentation-time-client-protocol.h"
 #include "weston-test-fixture-compositor.h"
 #include "weston-test-assert.h"
 

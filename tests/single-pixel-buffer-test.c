@@ -74,7 +74,6 @@ DECLARE_FIXTURE_SETUP_WITH_ARG(fixture_setup, my_setup_args, meta);
 TEST(solid_buffer_argb_u32)
 {
 	struct client *client;
-	struct wp_single_pixel_buffer_manager_v1 *mgr;
 	struct wp_viewport *viewport;
 	struct wl_buffer *buffer;
 	int done;
@@ -85,10 +84,7 @@ TEST(solid_buffer_argb_u32)
 	viewport = client_create_viewport(client);
 	wp_viewport_set_destination(viewport, 128, 128);
 
-	mgr = bind_to_singleton_global(client,
-				       &wp_single_pixel_buffer_manager_v1_interface,
-				       1);
-	buffer = wp_single_pixel_buffer_manager_v1_create_u32_rgba_buffer(mgr,
+	buffer = wp_single_pixel_buffer_manager_v1_create_u32_rgba_buffer(client->single_pixel_manager,
 									  0xcfffffff, /* r */
 									  0x8fffffff, /* g */
 									  0x4fffffff, /* b */
@@ -109,7 +105,6 @@ TEST(solid_buffer_argb_u32)
 
 	wl_buffer_destroy(buffer);
 	wp_viewport_destroy(viewport);
-	wp_single_pixel_buffer_manager_v1_destroy(mgr);
 	client_destroy(client);
 
 	return RESULT_OK;
