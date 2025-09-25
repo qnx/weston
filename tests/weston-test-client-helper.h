@@ -426,4 +426,7 @@ assert_surface_matches(struct wet_testsuite_data *suite_data,
 struct wl_subcompositor *
 client_get_subcompositor(struct client *client);
 
+struct wp_presentation *
+client_get_presentation(struct client *client);
+
 #endif

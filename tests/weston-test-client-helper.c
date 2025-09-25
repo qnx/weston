@@ -48,6 +48,7 @@
 #include "weston-test-assert.h"
 #include "image-iter.h"
 #include "weston-output-capture-client-protocol.h"
+#include "presentation-time-client-protocol.h"
 
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 #define min(a, b) (((a) > (b)) ? (b) : (a))
@@ -2624,4 +2625,33 @@ client_get_subcompositor(struct client *client)
 	test_assert_ptr_not_null(sub);
 
 	return sub;
+}
+
+struct wp_presentation *
+client_get_presentation(struct client *client)
+{
+	struct global *g;
+	struct global *global_pres = NULL;
+	struct wp_presentation *pres;
+
+	wl_list_for_each(g, &client->global_list, link) {
+		if (strcmp(g->interface, wp_presentation_interface.name))
+			continue;
+
+		if (global_pres)
+			test_assert_not_reached("multiple presentation objects");
+
+		global_pres = g;
+	}
+
+	test_assert_ptr_not_null(global_pres);
+
+	test_assert_u32_eq(global_pres->version, 1);
+
+	pres = wl_registry_bind(client->wl_registry, global_pres->name,
+				&wp_presentation_interface, 1);
+
+	test_assert_ptr_not_null(pres);
+
+	return pres;
 }

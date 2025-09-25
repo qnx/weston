@@ -51,34 +51,6 @@ fixture_setup(struct weston_test_harness *harness)
 }
 DECLARE_FIXTURE_SETUP(fixture_setup);
 
-static struct wp_presentation *
-get_presentation(struct client *client)
-{
-	struct global *g;
-	struct global *global_pres = NULL;
-	struct wp_presentation *pres;
-
-	wl_list_for_each(g, &client->global_list, link) {
-		if (strcmp(g->interface, wp_presentation_interface.name))
-			continue;
-
-		if (global_pres)
-			test_assert_not_reached("multiple presentation objects");
-
-		global_pres = g;
-	}
-
-	test_assert_ptr_not_null(global_pres);
-
-	test_assert_u32_eq(global_pres->version, 1);
-
-	pres = wl_registry_bind(client->wl_registry, global_pres->name,
-				&wp_presentation_interface, 1);
-	test_assert_ptr_not_null(pres);
-
-	return pres;
-}
-
 struct feedback {
 	struct client *client;
 	struct wp_presentation_feedback *obj;
@@ -232,7 +204,7 @@ TEST(test_presentation_feedback_simple)
 
 	client = create_client_and_test_surface(100, 50, 123, 77);
 	test_assert_ptr_not_null(client);
-	pres = get_presentation(client);
+	pres = client_get_presentation(client);
 
 	wl_surface_attach(client->surface->wl_surface,
 			  client->surface->buffer->proxy, 0, 0);
