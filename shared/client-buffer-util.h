@@ -37,8 +37,14 @@ struct zwp_linux_dmabuf_v1;
 
 #define MAX_DMABUF_PLANES 4
 
+enum client_buffer_type {
+	CLIENT_BUFFER_TYPE_SHM = 1,
+	CLIENT_BUFFER_TYPE_DMABUF,
+};
+
 struct client_buffer {
 	const struct pixel_format_info *fmt;
+	enum client_buffer_type type;
 	struct wl_buffer *wl_buffer;
 	void *data;
 	size_t bytes;

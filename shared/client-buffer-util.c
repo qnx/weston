@@ -231,6 +231,7 @@ client_buffer_util_create_shm_buffer(struct wl_shm *shm,
 
 	buf = xzalloc(sizeof *buf);
 	buf->fmt = fmt;
+	buf->type = CLIENT_BUFFER_TYPE_SHM;
 	buf->width = width;
 	buf->height = height;
 
@@ -321,6 +322,7 @@ client_buffer_util_create_dmabuf_buffer(struct wl_display *display,
 
 	buf = xzalloc(sizeof *buf);
 	buf->fmt = fmt;
+	buf->type = CLIENT_BUFFER_TYPE_DMABUF;
 	buf->width = width;
 	buf->height = height;
 
