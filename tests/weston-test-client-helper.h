@@ -35,6 +35,7 @@
 
 #include <wayland-client-protocol.h>
 #include "linux-dmabuf-unstable-v1-client-protocol.h"
+#include "shared/client-buffer-util.h"
 #include "weston-test-runner.h"
 #include "weston-test-client-protocol.h"
 #include "viewporter-client-protocol.h"
@@ -220,6 +221,10 @@ create_client_and_test_surface(int x, int y, int width, int height);
 
 bool
 support_shm_format(struct client *client, uint32_t shm_format);
+
+struct buffer *
+create_buffer(struct client *client, int width, int height, uint32_t drm_format,
+	      enum client_buffer_type buffer_type);
 
 struct buffer *
 create_shm_buffer(struct client *client, int width, int height,

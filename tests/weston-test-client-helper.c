@@ -39,7 +39,6 @@
 
 #include "test-config.h"
 #include "pixel-formats.h"
-#include "shared/client-buffer-util.h"
 #include "shared/weston-drm-fourcc.h"
 #include "shared/os-compatibility.h"
 #include "shared/string-helpers.h"
@@ -492,31 +491,44 @@ support_shm_format(struct client *client, uint32_t shm_format)
 }
 
 struct buffer *
-create_shm_buffer(struct client *client, int width, int height,
-		  uint32_t drm_format)
+create_buffer(struct client *client, int width, int height, uint32_t drm_format,
+	      enum client_buffer_type buffer_type)
 {
 	const struct pixel_format_info *pfmt;
-	struct wl_shm *shm = client->wl_shm;
 	struct buffer *buf;
-	uint32_t shm_format;
 
 	test_assert_int_gt(width, 0);
 	test_assert_int_gt(height, 0);
 
 	pfmt = pixel_format_get_info(drm_format);
 	test_assert_ptr_not_null(pfmt);
-	test_assert_uint_eq(pixel_format_get_plane_count(pfmt), 1);
-	shm_format = pixel_format_get_shm_format(pfmt);
-
-	if (!support_shm_format(client, shm_format))
-	    return NULL;
 
 	buf = xzalloc(sizeof *buf);
 
-	buf->buf = client_buffer_util_create_shm_buffer(shm,
-							pfmt,
-							width,
-							height);
+	if (buffer_type == CLIENT_BUFFER_TYPE_SHM) {
+		uint32_t shm_format;
+
+		shm_format = pixel_format_get_shm_format(pfmt);
+
+		if (!support_shm_format(client, shm_format))
+		    return NULL;
+
+		buf->buf = client_buffer_util_create_shm_buffer(client->wl_shm,
+								pfmt,
+								width,
+								height);
+	} else {
+		test_assert_true(buffer_type == CLIENT_BUFFER_TYPE_DMABUF);
+
+		if (!support_drm_format(client, drm_format, DRM_FORMAT_MOD_LINEAR))
+		    return NULL;
+
+		buf->buf = client_buffer_util_create_dmabuf_buffer(client->wl_display,
+								   client->dmabuf,
+								   pfmt,
+								   width,
+								   height);
+	}
 	test_assert_ptr_not_null(buf->buf);
 	buf->proxy = buf->buf->wl_buffer;
 	buf->len = buf->buf->bytes;
@@ -530,6 +542,14 @@ create_shm_buffer(struct client *client, int width, int height,
 	test_assert_ptr_not_null(buf->image);
 
 	return buf;
+}
+
+struct buffer *
+create_shm_buffer(struct client *client, int width, int height,
+		  uint32_t drm_format)
+{
+	return create_buffer(client, width, height, drm_format,
+			     CLIENT_BUFFER_TYPE_SHM);
 }
 
 struct buffer *
