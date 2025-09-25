@@ -434,6 +434,11 @@ lcms_curve_matches_any_tf(struct weston_compositor *compositor,
 	return weston_color_tf_info_from_parametric_curve(&curve);
 }
 
+static bool
+is_lcms_curve_param_eq(float a, float b)
+{
+	return fabsf(a - b) < 1e-5;
+}
 
 static bool
 init_curve_from_type_1(struct weston_compositor *compositor,
@@ -461,8 +466,8 @@ init_curve_from_type_1(struct weston_compositor *compositor,
 	/* This is a pure power-law with custom exp. If clamped_input == false
 	 * and all channels behave the same, this matches WESTON_TF_POWER. */
 	if (!clamped_input &&
-	    type_1_params[0][0] == type_1_params[1][0] &&
-	    type_1_params[0][0] == type_1_params[2][0]) {
+	    is_lcms_curve_param_eq(type_1_params[0][0], type_1_params[1][0]) &&
+	    is_lcms_curve_param_eq(type_1_params[0][0], type_1_params[2][0])) {
 		tf_info = weston_color_tf_info_from(compositor, WESTON_TF_POWER);
 		curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
 		enumerated->tf = (struct weston_color_tf){
@@ -537,9 +542,9 @@ init_curve_from_type_1_inverse(struct weston_compositor *compositor,
 	 * clamped_input == false and all channels behave the same,
 	 * this matches WESTON_TF_POWER. */
 	if (!clamped_input &&
-	    type_1_params[0][0] == type_1_params[1][0] &&
-	    type_1_params[0][0] == type_1_params[2][0]) {
-		if (type_1_params[0][0] == 0.0f) {
+	    is_lcms_curve_param_eq(type_1_params[0][0], type_1_params[1][0]) &&
+	    is_lcms_curve_param_eq(type_1_params[0][0], type_1_params[2][0])) {
+		if (is_lcms_curve_param_eq(type_1_params[0][0], 0.0f)) {
 			err_msg = "WARNING: xform has a LittleCMS type -1 curve " \
 				  "(inverse of pure power-law) with exponent 1 " \
 				  "divided by 0, which is invalid";
@@ -588,7 +593,7 @@ init_curve_from_type_1_inverse(struct weston_compositor *compositor,
 
 	for (i = 0; i < 3; i++) {
 		g = type_1_params[i][0];
-		if (g == 0.0f) {
+		if (is_lcms_curve_param_eq(g, 0.0f)) {
 			err_msg = "WARNING: xform has a LittleCMS type -1 curve " \
 				  "(inverse of pure power-law) with exponent 1 " \
 				  "divided by 0, which is invalid";
@@ -777,21 +782,21 @@ init_curve_from_type_4_inverse(struct weston_compositor *compositor,
 		c = type_4_params[i][3];
 		d = type_4_params[i][4];
 
-		if (g == 0.0f) {
+		if (is_lcms_curve_param_eq(g, 0.0f)) {
 			err_msg = "WARNING: xform has a LittleCMS type -4 curve " \
 				  "but the param g of the original type 4 curve " \
 				  "is zero, so the inverse is invalid";
 			goto err;
 		}
 
-		if (a == 0.0f) {
+		if (is_lcms_curve_param_eq(a, 0.0f)) {
 			err_msg = "WARNING: xform has a LittleCMS type -4 curve " \
 				  "but the param a of the original type 4 curve " \
 				  "is zero, so the inverse is invalid";
 			goto err;
 		}
 
-		if (c == 0.0f) {
+		if (is_lcms_curve_param_eq(c, 0.0f)) {
 			err_msg = "WARNING: xform has a LittleCMS type -4 curve " \
 				  "but the param c of the original type 4 curve " \
 				  "is zero, so the inverse is invalid";
