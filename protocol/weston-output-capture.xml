@@ -165,12 +165,6 @@
       <arg name="drm_format" type="uint" summary="DRM pixel format code"/>
     </event>
 
-    <event name="formats_done" since="2">
-      <description summary="sending formats is complete">
-        This event is sent after all formats have been sent.
-      </description>
-    </event>
-
     <event name="size">
       <description summary="dimensions for a buffer">
         This event delivers the size that should be used for the
@@ -219,6 +213,12 @@
       </description>
       <arg name="msg" type="string" allow-null="true"
            summary="human-readable hint"/>
+    </event>
+
+    <event name="formats_done" since="2">
+      <description summary="sending formats is complete">
+        This event is sent after all formats have been sent.
+      </description>
     </event>
   </interface>
 
