@@ -489,9 +489,15 @@ weston_output_pull_capture_task(struct weston_output *output,
 	assert(csi->height == height);
 
 	if (src == WESTON_OUTPUT_CAPTURE_SOURCE_WRITEBACK) {
-		assert(weston_drm_format_array_equal(&csi->writeback_formats,
-						     writeback_formats));
+		assert(!format);
+		if (writeback_formats) {
+			assert(weston_drm_format_array_equal(&csi->writeback_formats,
+							     writeback_formats));
+		} else {
+			assert(weston_drm_format_array_count_pairs(&csi->writeback_formats) == 0);
+		}
 	} else {
+		assert(format && !writeback_formats);
 		assert(csi->drm_format == format->format);
 	}
 
