@@ -115,7 +115,8 @@ TEST(drm_writeback_screenshot) {
 	/* take screenshot */
 	testlog("Taking a screenshot\n");
 	screenshot = client_capture_output(client, client->output,
-                                           WESTON_CAPTURE_V1_SOURCE_WRITEBACK);
+					   WESTON_CAPTURE_V1_SOURCE_WRITEBACK,
+					   CLIENT_BUFFER_TYPE_SHM);
 	test_assert_ptr_not_null(screenshot);
 	buffer_destroy(screenshot);
 
@@ -133,7 +134,8 @@ TEST(drm_writeback_screenshot) {
 	 * writeback state machine is working correctly */
 	testlog("Taking another screenshot\n");
 	second_screenshot = client_capture_output(client, client->output,
-                                           WESTON_CAPTURE_V1_SOURCE_WRITEBACK);
+						  WESTON_CAPTURE_V1_SOURCE_WRITEBACK,
+						  CLIENT_BUFFER_TYPE_SHM);
 	test_assert_ptr_not_null(screenshot);
 
 	/* load reference image */

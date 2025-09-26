@@ -311,7 +311,8 @@ capture_screenshot_of_output(struct client *client, const char *output_name);
 struct buffer *
 client_capture_output(struct client *client,
 		      struct output *output,
-		      enum weston_capture_v1_source src);
+		      enum weston_capture_v1_source src,
+		      enum client_buffer_type buffer_type);
 
 pixman_image_t *
 image_convert_to_a8r8g8b8(pixman_image_t *image);

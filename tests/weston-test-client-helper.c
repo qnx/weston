@@ -1920,7 +1920,8 @@ static const struct weston_capture_source_v1_listener output_capturer_source_han
 struct buffer *
 client_capture_output(struct client *client,
 		      struct output *output,
-		      enum weston_capture_v1_source src)
+		      enum weston_capture_v1_source src,
+		      enum client_buffer_type buffer_type)
 {
 	struct output_capturer capt = {};
 	struct buffer *buf;
@@ -1943,8 +1944,8 @@ client_capture_output(struct client *client,
 			 capt.formats_done &&
 			 "capture source not available");
 
-	buf = create_shm_buffer(client,
-				capt.width, capt.height, capt.drm_format);
+	buf = create_buffer(client, capt.width, capt.height, capt.drm_format,
+			    buffer_type);
 
 	weston_capture_source_v1_capture(capt.source, buf->proxy);
 	while (!capt.complete)
@@ -1998,7 +1999,8 @@ capture_screenshot_of_output(struct client *client, const char *output_name)
 	}
 
 	shm = client_capture_output(client, output,
-				    WESTON_CAPTURE_V1_SOURCE_FRAMEBUFFER);
+				    WESTON_CAPTURE_V1_SOURCE_FRAMEBUFFER,
+				    CLIENT_BUFFER_TYPE_SHM);
 	ih = image_header_from(shm->image);
 
 	if (ih.pixman_format == PIXMAN_a8r8g8b8)

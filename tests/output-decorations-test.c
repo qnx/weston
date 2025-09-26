@@ -89,7 +89,8 @@ TEST(output_decorations)
 	client = create_client();
 
 	shot = client_capture_output(client, client->output,
-				     WESTON_CAPTURE_V1_SOURCE_FULL_FRAMEBUFFER);
+				     WESTON_CAPTURE_V1_SOURCE_FULL_FRAMEBUFFER,
+				     CLIENT_BUFFER_TYPE_SHM);
 	img = image_convert_to_a8r8g8b8(shot->image);
 
 	match = verify_image(img, "output-decorations", 0, NULL, 0);
