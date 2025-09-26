@@ -524,8 +524,6 @@ void
 weston_surface_to_buffer_region(struct weston_surface *surface,
 				pixman_region32_t *surface_region,
 				pixman_region32_t *buffer_region);
-void
-weston_surface_schedule_repaint(struct weston_surface *surface);
 
 /* weston_spring */
 

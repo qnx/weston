@@ -423,6 +423,24 @@ weston_subsurface_parent_apply(struct weston_subsurface *sub)
 	return status;
 }
 
+
+/**
+ * \param surface  The surface to be repainted
+ *
+ * Marks the output(s) that the surface is shown on as needing to be
+ * repainted.  See weston_output_schedule_repaint().
+ */
+static void
+weston_surface_schedule_repaint(struct weston_surface *surface)
+{
+	struct weston_output *output;
+
+	wl_list_for_each(output, &surface->compositor->output_list, link) {
+		if (surface->output_mask & (1u << output->id))
+			weston_output_schedule_repaint(output);
+	}
+}
+
 static enum weston_surface_status
 weston_surface_apply(struct weston_surface *surface,
 		     struct weston_surface_state *state)
