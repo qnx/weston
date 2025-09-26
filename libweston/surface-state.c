@@ -272,6 +272,8 @@ weston_surface_apply_state(struct weston_surface *surface,
 	pixman_region32_t opaque;
 	enum weston_surface_status status = state->status;
 
+	assert(!surface->compositor->latched);
+
 	surface->flow_id = state->flow_id;
 	state->flow_id = 0;
 

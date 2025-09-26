@@ -99,6 +99,8 @@
     <enum name="breakpoint">
       <entry name="post_repaint" value="0"
              summary="after output repaint (filter type: wl_output)"/>
+      <entry name="post_latch" value="1"
+             summary="after output latch (filter type: wl_output)"/>
     </enum>
 
     <request name="client_break">

@@ -3615,6 +3615,21 @@ output_assign_planes(struct weston_output *output)
 	}
 }
 
+/* The "latch" point is the last possible instant before a repaint. After
+ * the latch, no more content updates can be applied by the compositor
+ * until after the scheduled repaint completes.
+ */
+static void
+weston_output_latch(struct weston_output *output)
+{
+	struct weston_compositor *compositor = output->compositor;
+
+	assert(!compositor->latched);
+	compositor->latched = true;
+
+	wl_signal_emit(&output->post_latch_signal, output);
+}
+
 static int
 weston_output_repaint(struct weston_output *output)
 {
@@ -3627,6 +3642,8 @@ weston_output_repaint(struct weston_output *output)
 	int r;
 	uint32_t frame_time_msec;
 	enum weston_hdcp_protection highest_requested = WESTON_HDCP_DISABLE;
+
+	weston_output_latch(output);
 
 	TL_POINT(ec, TLP_CORE_REPAINT_BEGIN, TLP_OUTPUT(output), TLP_END);
 
@@ -3696,6 +3713,7 @@ weston_output_repaint(struct weston_output *output)
 	output_accumulate_damage(output);
 
 	r = output->repaint(output);
+	ec->latched = false;
 
 	output->repaint_needed = false;
 	if (r == 0) {
@@ -8115,6 +8133,7 @@ weston_output_enable(struct weston_output *output)
 	output->original_scale = output->current_scale;
 
 	wl_signal_init(&output->frame_signal);
+	wl_signal_init(&output->post_latch_signal);
 	wl_signal_init(&output->destroy_signal);
 
 	weston_output_transform_scale_init(output, output->transform,

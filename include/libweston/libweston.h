@@ -438,6 +438,7 @@ struct weston_output {
 	struct wl_event_source *idle_repaint_source;
 
 	struct wl_signal frame_signal;
+	struct wl_signal post_latch_signal;
 	struct wl_signal destroy_signal;	/**< sent when disabled */
 	struct weston_coord_global move;
 	struct timespec frame_time; /* presentation timestamp */
@@ -1493,6 +1494,13 @@ struct weston_compositor {
 	uint32_t placeholder_color;
 
 	bool no_xwm_decorations;
+
+	/**
+	 * When set the compositor has latched content updates for the
+	 * upcoming repaint, and no more updates may be applied until after
+	 * that repaint occurs.
+	 */
+	bool latched;
 };
 
 struct weston_solid_buffer_values {
