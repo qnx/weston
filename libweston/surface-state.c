@@ -276,6 +276,9 @@ weston_surface_apply_state(struct weston_surface *surface,
 	/* wp_viewport.set_destination */
 	surface->buffer_viewport = state->buffer_viewport;
 
+	/* wp_presentation.feedback */
+	weston_presentation_feedback_discard_list(&surface->feedback_list);
+
 	/* wl_surface.attach */
 	if (status & WESTON_SURFACE_DIRTY_BUFFER) {
 		/* zwp_surface_synchronization_v1.set_acquire_fence */
@@ -284,9 +287,6 @@ weston_surface_apply_state(struct weston_surface *surface,
 		/* zwp_surface_synchronization_v1.get_release */
 		weston_buffer_release_move(&surface->buffer_release_ref,
 					   &state->buffer_release_ref);
-
-		/* wp_presentation.feedback */
-		weston_presentation_feedback_discard_list(&surface->feedback_list);
 
 		status |= weston_surface_attach(surface, state, status);
 	}
@@ -472,14 +472,14 @@ weston_surface_state_merge_from(struct weston_surface_state *dst,
 	dst->color_profile =
 		weston_color_profile_ref(src->color_profile);
 
+	weston_presentation_feedback_discard_list(&dst->feedback_list);
+
 	if (src->status & WESTON_SURFACE_DIRTY_BUFFER) {
 		weston_buffer_reference(&dst->buffer_ref,
 					src->buffer_ref.buffer,
 					src->buffer_ref.buffer ?
 						BUFFER_MAY_BE_ACCESSED :
 						BUFFER_WILL_NOT_BE_ACCESSED);
-		weston_presentation_feedback_discard_list(
-					&dst->feedback_list);
 		/* zwp_surface_synchronization_v1.set_acquire_fence */
 		fd_move(&dst->acquire_fence_fd,
 			&src->acquire_fence_fd);
