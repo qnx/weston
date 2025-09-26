@@ -44,6 +44,7 @@
 #include "weston-output-capture-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
 #include "weston-testsuite-data.h"
+#include "fifo-v1-client-protocol.h"
 
 struct client {
 	struct wl_display *wl_display;
@@ -64,6 +65,7 @@ struct client {
 	struct wp_viewporter *viewporter;
 
 	struct test *test;
+	struct wp_fifo_manager_v1 *fifo_manager;
 	/* the seat that is actually used for input events */
 	struct input *input;
 	/* server can have more wl_seats. We need keep them all until we

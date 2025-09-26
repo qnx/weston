@@ -31,6 +31,8 @@ lib_test_client = static_library(
 		'weston-test-client-helper.c',
 		'weston-test-fixture-compositor.c',
 		'xdg-client-helper.c',
+		fifo_v1_client_protocol_h,
+		fifo_v1_protocol_c,
 		presentation_time_client_protocol_h,
 		presentation_time_protocol_c,
 		single_pixel_buffer_v1_client_protocol_h,

@@ -934,6 +934,10 @@ handle_global(void *data, struct wl_registry *registry,
 					 &weston_test_interface, version);
 		weston_test_add_listener(test->weston_test, &test_listener, test);
 		client->test = test;
+	} else if (strcmp(interface, wp_fifo_manager_v1_interface.name) == 0) {
+		client->fifo_manager =
+			wl_registry_bind(registry, id,
+					 &wp_fifo_manager_v1_interface, 1);
 	}
 }
 
@@ -1200,6 +1204,9 @@ void
 client_destroy(struct client *client)
 {
 	int ret;
+
+	if (client->fifo_manager)
+		wp_fifo_manager_v1_destroy(client->fifo_manager);
 
 	if (client->surface)
 		surface_destroy(client->surface);
