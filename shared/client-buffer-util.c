@@ -427,7 +427,7 @@ error:
 void
 client_buffer_util_maybe_sync_dmabuf_start(struct client_buffer *buf)
 {
-	struct dma_buf_sync sync = { DMA_BUF_SYNC_START | DMA_BUF_SYNC_WRITE };
+	struct dma_buf_sync sync = { DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ | DMA_BUF_SYNC_WRITE };
 	int ret;
 
 	if (buf->dmabuf_fd == -1)
@@ -441,7 +441,7 @@ client_buffer_util_maybe_sync_dmabuf_start(struct client_buffer *buf)
 void
 client_buffer_util_maybe_sync_dmabuf_end(struct client_buffer *buf)
 {
-	struct dma_buf_sync sync = { DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE };
+	struct dma_buf_sync sync = { DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ | DMA_BUF_SYNC_WRITE };
 	int ret;
 
 	if (buf->dmabuf_fd == -1)
