@@ -211,9 +211,7 @@ TEST(drm_offload_fullscreen) {
 
 /*
  * Test that a fullscreen client with fullscreen-sized buffer and a fully
- * transparent overlay surface is *not* presented via direct-scanout.
- *
- * This should be optimized in the future.
+ * transparent overlay surface is presented via direct-scanout.
  */
 TEST(drm_offload_fullscreen_transparent_overlay) {
 	struct xdg_client *xdg_client;
@@ -278,7 +276,7 @@ TEST(drm_offload_fullscreen_transparent_overlay) {
 					      &result);
 	wl_surface_commit(surface);
 	presentation_wait_nofail(client, &result);
-	test_assert_enum(result, FB_PRESENTED);
+	test_assert_enum(result, FB_PRESENTED_ZERO_COPY);
 
 	wp_viewport_destroy(overlay_viewport);
 	wl_subsurface_destroy(overlay_subsurface);

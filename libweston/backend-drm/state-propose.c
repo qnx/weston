@@ -876,6 +876,13 @@ drm_output_propose_state(struct weston_output *output_base,
 			continue;
 		}
 
+		if (pnode->view->alpha == 0.0f ||
+		    (pnode->draw_solid && pnode->solid.a == 0.0f)) {
+			drm_debug(b, "\t\t\t\t[view] ignoring view %p " \
+				  "(fully transparent)\n", ev);
+			continue;
+		}
+
 		/* Ignore views we know to be totally occluded. */
 		pixman_region32_init(&clipped_view);
 		pixman_region32_intersect(&clipped_view,
