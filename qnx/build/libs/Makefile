@@ -11,6 +11,7 @@ EARLY_DIRS = \
 	weston \
 	weston-desktop \
 	weston-exec \
+	qnx-desktop-shell \
 	desktop-shell \
 	hmi-controller \
 	ivi-shell \

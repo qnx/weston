@@ -1,0 +1,67 @@
+<protocol name="qnx_weston_desktop_extension">
+
+  <interface name="qnx_weston_desktop_shell_extension" version="3">
+    <description summary="Extensions to the weston desktop shell for QNX">
+    </description>
+
+    <request name="set_taskbar">
+      <arg name="output" type="object" interface="wl_output"/>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+
+    <event name="configure">
+      <arg name="edges" type="uint"/>
+      <arg name="width" type="int"/>
+      <arg name="height" type="int"/>
+    </event>
+
+    <event name="surface_mapped">
+      <description summary="A new surface has been presented, notify clients to take action">
+      </description>
+      <arg name="surface_id" type="uint"/>
+      <arg name="name" type="string"/>
+    </event>
+
+    <enum name="surface_state_action">
+      <entry name="Activated" value="0"/>
+      <entry name="Destroyed" value="1"/>
+    </enum>
+
+    <event name="surface_state_changed">
+      <description summary="Notify the client of new surface state">
+      </description>
+      <arg name="surface_id" type="uint"/>
+      <arg name="surface_state" type="uint" enum="surface_state_action"/>
+    </event>
+
+    <enum name="taskbar_position">
+      <entry name="top" value="0"/>
+      <entry name="bottom" value="1"/>
+      <entry name="left" value="2"/>
+      <entry name="right" value="3"/>
+    </enum>
+
+    <request name="set_taskbar_position">
+      <description summary="set taskbar position">
+        Tell the shell which side of the screen the taskbar is
+        located. This is so that new windows do not overlap the taskbar
+        and maximized windows maximize properly.
+      </description>
+      <arg name="position" type="uint"/>
+    </request>
+
+    <enum name="surface_present_state">
+    <entry name="Toggle" value="0"/>
+    <entry name="Destroy" value="1"/>
+    </enum>
+
+    <request name="set_surface_present_state">
+      <description summary="set surface present state">
+        Pass inputs from desktop shell to compositor
+      </description>
+      <arg name="surface_id" type="uint"/>
+      <arg name="state"   type="uint" enum="surface_present_state"/>
+    </request>
+
+  </interface>
+</protocol>

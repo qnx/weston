@@ -3,7 +3,7 @@ QCONFIG=qconfig.mk
 endif
 include $(QCONFIG)
 
-NAME = weston-desktop-shell
+NAME = qnx-weston-desktop-shell
 
 INSTALLDIR = usr/libexec
 
@@ -23,8 +23,7 @@ EXTRA_LIBVPATH += $(PROJECT_ROOT)/../../libs/shared-cairo/$(OS)/$(CPU)/$(shell e
 EXTRA_LIBVPATH += $(PROJECT_ROOT)/../../libs/weston/$(OS)/$(CPU)/$(shell echo $(VARIANT1) | sed 's/^o\(.*\)$$/so\1/')
 EXTRA_LIBVPATH += $(PROJECT_ROOT)/../../libs/toytoolkit/$(OS)/$(CPU)/$(shell echo $(VARIANT1) | sed 's/^o\(.*\)$$/a.shared\1/')
 
-
-SRCS += desktop-shell.c weston-desktop-shell-protocol.c
+SRCS += qnx-desktop-shell.c weston-desktop-shell-protocol.c qnx-weston-desktop-shell-protocol.c
 
 LIBS += \
 	weston \

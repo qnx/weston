@@ -41,6 +41,10 @@
 #include <locale.h>
 #include <errno.h>
 
+#if defined(__QNX__)
+#include <libgen.h>
+#endif
+
 #include <linux/input.h>
 
 #include <wayland-client.h>
@@ -2949,8 +2953,19 @@ terminal_create(struct display *display)
 	terminal->widget = window_frame_create(terminal->window, terminal);
 	terminal->title = xstrdup("Wayland Terminal");
 	window_set_title(terminal->window, terminal->title);
+
+#if defined(__QNX__)
+	static const char* appid_option = "default";
+    char *appname = basename(option_shell);
+    if (appname != NULL) {
+        appid_option = appname;
+    } 
+	window_set_appid(terminal->window, appid_option);
+#else
 	window_set_appid(terminal->window,
 			 "org.freedesktop.weston.wayland-terminal");
+#endif
+	
 	widget_set_transparent(terminal->widget, 0);
 
 	init_state_machine(&terminal->state_machine);

@@ -30,7 +30,11 @@
 #include <stdio.h>
 #include <string.h>
 
+#if defined(__QNX__)
+#include "qnx-shell.h"
+#else
 #include "shell.h"
+#endif 
 #include "input-method-unstable-v1-server-protocol.h"
 #include "shared/helpers.h"
 
