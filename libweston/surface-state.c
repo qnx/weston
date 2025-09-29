@@ -462,17 +462,27 @@ weston_subsurface_parent_apply(struct weston_subsurface *sub)
 
 /**
  * \param surface  The surface to be repainted
+ * \param status The weston_surface_status last applied
  *
  * Marks the output(s) that the surface is shown on as needing to be
- * repainted.  See weston_output_schedule_repaint().
+ * repainted. Tries to avoid repaints on occluded surfaces when
+ * possible by checking surface status dirty bits.
+ *
+ * See weston_output_schedule_repaint().
  */
 static void
-weston_surface_schedule_repaint(struct weston_surface *surface)
+weston_surface_schedule_repaint(struct weston_surface *surface,
+				enum weston_surface_status status)
 {
 	struct weston_output *output;
+	uint32_t visible_mask;
 
+	if (status == WESTON_SURFACE_CLEAN)
+		return;
+
+	visible_mask = weston_surface_visibility_mask(surface);
 	wl_list_for_each(output, &surface->compositor->output_list, link) {
-		if (surface->output_mask & (1u << output->id))
+		if (visible_mask & (1u << output->id))
 			weston_output_schedule_repaint(output);
 	}
 }
@@ -483,10 +493,11 @@ weston_surface_apply(struct weston_surface *surface,
 {
 	WESTON_TRACE_FUNC_FLOW(&state->flow_id);
 	struct weston_subsurface *sub;
+	enum weston_surface_status status;
 
-	weston_surface_apply_state(surface, state);
+	status = weston_surface_apply_state(surface, state);
 
-	weston_surface_schedule_repaint(surface);
+	weston_surface_schedule_repaint(surface, status);
 
 	wl_list_for_each(sub, &surface->subsurface_list, parent_link) {
 		if (sub->surface != surface)
