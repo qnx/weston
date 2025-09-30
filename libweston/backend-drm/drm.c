@@ -2171,10 +2171,10 @@ drm_colorop_3x1d_lut_create(struct weston_color_transform *xform,
 	return lut;
 }
 
-static float *
+static struct weston_vec3f *
 lut_3x1d_from_blend_to_output(struct weston_compositor *compositor,
 			      struct weston_color_transform *xform,
-			      uint32_t len_lut, char **err_msg)
+			      size_t len_lut, char **err_msg)
 {
 	/**
 	 * We expect steps to be valid for blend-to-output, as LittleCMS is
@@ -2220,9 +2220,9 @@ drm_output_pick_blend_to_output(struct drm_output *output)
 	struct drm_colorop_3x1d_lut *colorop_lut;
 	struct weston_color_transform *xform;
 	struct drm_color_lut *drm_lut;
-	uint64_t lut_size;
+	size_t lut_size;
 	uint32_t gamma_lut_blob_id;
-	float *cm_lut;
+	struct weston_vec3f *cm_lut;
 	char *err_msg;
 	unsigned int i;
 	int ret;
@@ -2259,9 +2259,9 @@ drm_output_pick_blend_to_output(struct drm_output *output)
 
 	drm_lut = xzalloc(lut_size * sizeof(*drm_lut));
 	for (i = 0; i < lut_size; i++) {
-		drm_lut[i].red   = cm_lut[i] * 0xffff;
-		drm_lut[i].green = cm_lut[i + lut_size] * 0xffff;
-		drm_lut[i].blue  = cm_lut[i + 2 * lut_size] * 0xffff;
+		drm_lut[i].red   = cm_lut[i].r * 0xffff;
+		drm_lut[i].green = cm_lut[i].g * 0xffff;
+		drm_lut[i].blue  = cm_lut[i].b * 0xffff;
 	}
 	free(cm_lut);
 	ret = drmModeCreatePropertyBlob(device->drm.fd, drm_lut, lut_size * sizeof(*drm_lut),

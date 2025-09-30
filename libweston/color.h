@@ -245,12 +245,12 @@ struct weston_color_curve_lut_3x1d {
 	 *
 	 * \param xform This color transformation object.
 	 * \param len The number of elements in each 1D LUT.
-	 * \param values Array of 3 x len elements. First R channel
-	 * LUT, immediately followed by G channel LUT, and then B channel LUT.
+	 * \param values The destination array of length \c len for
+	 * receiving the three 1D LUTs.
 	 */
 	void
 	(*fill_in)(struct weston_color_transform *xform,
-		   float *values, unsigned len);
+		   struct weston_vec3f *values, unsigned len);
 
 	/** Optimal 1D LUT length for storage vs. precision */
 	unsigned optimal_len;
@@ -673,12 +673,12 @@ enum weston_color_precision {
 	WESTON_COLOR_PRECISION_CAREFUL,
 };
 
-float *
+struct weston_vec3f *
 weston_color_curve_to_3x1D_LUT(struct weston_compositor *compositor,
 			       struct weston_color_transform *xform,
 			       enum weston_color_curve_step step,
 			       enum weston_color_precision precision_mode,
-			       uint32_t lut_size, char **err_msg);
+			       size_t lut_size, char **err_msg);
 
 void
 find_neighbors(struct weston_compositor *compositor, uint32_t len, float *array,

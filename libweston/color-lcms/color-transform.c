@@ -63,11 +63,8 @@ cmlcms_reasonable_1D_points(void)
 }
 
 static void
-fill_in_curves(cmsToneCurve *curves[3], float *values, unsigned len)
+fill_in_curves(cmsToneCurve *curves[3], struct weston_vec3f *values, unsigned len)
 {
-	float *R_lut = values;
-	float *G_lut = R_lut + len;
-	float *B_lut = G_lut + len;
 	unsigned i;
 	cmsFloat32Number x;
 
@@ -77,15 +74,15 @@ fill_in_curves(cmsToneCurve *curves[3], float *values, unsigned len)
 
 	for (i = 0; i < len; i++) {
 		x = (double)i / (len - 1);
-		R_lut[i] = cmsEvalToneCurveFloat(curves[0], x);
-		G_lut[i] = cmsEvalToneCurveFloat(curves[1], x);
-		B_lut[i] = cmsEvalToneCurveFloat(curves[2], x);
+		values[i].r = cmsEvalToneCurveFloat(curves[0], x);
+		values[i].g = cmsEvalToneCurveFloat(curves[1], x);
+		values[i].b = cmsEvalToneCurveFloat(curves[2], x);
 	}
 }
 
 static void
 cmlcms_fill_in_pre_curve(struct weston_color_transform *xform_base,
-			 float *values, unsigned len)
+			 struct weston_vec3f *values, unsigned len)
 {
 	struct cmlcms_color_transform *xform = to_cmlcms_xform(xform_base);
 
@@ -94,7 +91,7 @@ cmlcms_fill_in_pre_curve(struct weston_color_transform *xform_base,
 
 static void
 cmlcms_fill_in_post_curve(struct weston_color_transform *xform_base,
-			 float *values, unsigned len)
+			  struct weston_vec3f *values, unsigned len)
 {
 	struct cmlcms_color_transform *xform = to_cmlcms_xform(xform_base);
 

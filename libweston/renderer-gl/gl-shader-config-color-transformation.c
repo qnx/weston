@@ -244,19 +244,26 @@ gl_color_curve_lut_3x1d(struct gl_renderer *gr,
 			const struct weston_color_curve *curve,
 			struct weston_color_transform *xform)
 {
-	const unsigned lut_len = curve->u.lut_3x1d.optimal_len;
+	const size_t lut_len = curve->u.lut_3x1d.optimal_len;
+	struct weston_vec3f *tmp;
 	float *lut;
 	bool ret;
 
-	lut = calloc(lut_len * 3, sizeof *lut);
-	if (!lut)
-		return false;
+	tmp = calloc(lut_len, sizeof *tmp);
+	lut = calloc(lut_len, 3 * sizeof *lut);
+	if (!tmp || !lut) {
+		ret = false;
+		goto out;
+	}
 
-	curve->u.lut_3x1d.fill_in(xform, lut, lut_len);
+	curve->u.lut_3x1d.fill_in(xform, tmp, lut_len);
+	weston_v3f_array_to_planar(lut, tmp, lut_len);
 
 	ret = gl_color_curve_lut_3x1d_init(gr, gl_curve, lut_len, lut);
 
+out:
 	free(lut);
+	free(tmp);
 
 	return ret;
 }

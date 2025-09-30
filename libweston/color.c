@@ -330,9 +330,9 @@ curve_to_lut_has_good_precision(struct weston_color_curve *curve)
  * returns a 3x1D LUT that corresponds to such curve. This only works for
  * transformations such that xform->steps_valid.
  *
- * The 3x1D LUT returned looks like this: the first lut_size elements compose
- * the LUT for the R channel, the next lut_size elements compose the LUT for the
- * G channel and the last lut_size elements compose the LUT for the B channel.
+ * The 3x1D LUT is returned as an array of vec3, where each 1D LUT occupies
+ * one channel of each vector. The first element corresponds to input value
+ * 0.0, and the last element corresponds to input value 1.0.
  *
  * @param compositor The Weston compositor.
  * @param xform The color transformation that owns the curve.
@@ -340,23 +340,24 @@ curve_to_lut_has_good_precision(struct weston_color_curve *curve)
  * @param precision_mode If WESTON_COLOR_PRECISION_CAREFUL, this fails if we
  * detect that we can't create a LUT from the curve without resulting in
  * precision issues. If WESTON_COLOR_PRECISION_CARELESS, we simply log a warning.
- * @param lut_size The size of each LUT.
+ * @param lut_size The length of each LUT, that is,
+ * the number of vec3 in the returned array.
  * @param err_msg Set on failure, untouched otherwise. Must be free()'d by caller.
- * @return NULL on failure, the 3x1D LUT on success.
+ * @return NULL on failure, newly allocate array of vec3 on success. Caller must
+ * free the array.
  */
-WL_EXPORT float *
+WL_EXPORT struct weston_vec3f *
 weston_color_curve_to_3x1D_LUT(struct weston_compositor *compositor,
 			       struct weston_color_transform *xform,
 			       enum weston_color_curve_step step,
 			       enum weston_color_precision precision_mode,
-			       uint32_t lut_size, char **err_msg)
+			       size_t lut_size, char **err_msg)
 {
 	struct weston_color_curve *curve;
 	float divider = lut_size - 1;
 	const char *step_str;
-	float *lut;
-	struct weston_vec3f *tmp;
-	unsigned int i;
+	struct weston_vec3f *lut;
+	size_t i;
 
 	switch(step) {
 	case WESTON_COLOR_CURVE_STEP_PRE:
@@ -389,12 +390,9 @@ weston_color_curve_to_3x1D_LUT(struct weston_compositor *compositor,
 			   "result in bad precision\n", xform->id, step_str);
 	}
 
-	lut = calloc(lut_size, 3 * sizeof *lut);
-	tmp = calloc(lut_size, sizeof *tmp);
-	if (!lut || !tmp) {
+	lut = calloc(lut_size, sizeof *lut);
+	if (!lut) {
 		/* lut_size could be big. */
-		free(lut);
-		free(tmp);
 		str_printf(err_msg, "Out of memory");
 		return NULL;
 	}
@@ -402,17 +400,14 @@ weston_color_curve_to_3x1D_LUT(struct weston_compositor *compositor,
 	switch(curve->type) {
 	case WESTON_COLOR_CURVE_TYPE_LUT_3x1D:
 		curve->u.lut_3x1d.fill_in(xform, lut, lut_size);
-		free(tmp);
 		return lut;
 	case WESTON_COLOR_CURVE_TYPE_ENUM:
 	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
 		for (i = 0; i < lut_size; i++) {
 			float x = (float)i / divider;
-			tmp[i] = WESTON_VEC3F(x, x, x);
+			lut[i] = WESTON_VEC3F(x, x, x);
 		}
-		weston_color_curve_sample(compositor, curve, tmp, tmp, lut_size);
-		weston_v3f_array_to_planar(lut, tmp, lut_size);
-		free(tmp);
+		weston_color_curve_sample(compositor, curve, lut, lut, lut_size);
 		return lut;
 	case WESTON_COLOR_CURVE_TYPE_IDENTITY:
 		weston_assert_not_reached(compositor,
