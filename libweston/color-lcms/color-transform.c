@@ -125,7 +125,8 @@ cmlcms_color_transform_destroy(struct cmlcms_color_transform *xform)
 
 	cmsFreeToneCurveTriple(xform->pre_curve);
 
-	cmsDeleteTransform(xform->cmap_3dlut);
+	if (xform->cmap_3dlut)
+		cmsDeleteTransform(xform->cmap_3dlut);
 
 	cmsFreeToneCurveTriple(xform->post_curve);
 
