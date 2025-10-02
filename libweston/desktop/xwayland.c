@@ -41,6 +41,7 @@ enum weston_desktop_xwayland_surface_state {
 	NONE,
 	TOPLEVEL,
 	MAXIMIZED,
+	MINIMIZED,
 	FULLSCREEN,
 	TRANSIENT,
 	XWAYLAND,
@@ -450,6 +451,7 @@ set_maximized(struct weston_desktop_xwayland_surface *surface)
 {
 	weston_desktop_xwayland_surface_change_state(surface, MAXIMIZED, NULL,
 						     NULL);
+
 	weston_desktop_api_maximized_requested(surface->desktop,
 					       surface->surface, true);
 }
@@ -457,6 +459,9 @@ set_maximized(struct weston_desktop_xwayland_surface *surface)
 static void
 set_minimized(struct weston_desktop_xwayland_surface *surface)
 {
+	weston_desktop_xwayland_surface_change_state(surface, MINIMIZED, NULL,
+						     NULL);
+
 	weston_desktop_api_minimized_requested(surface->desktop,
 					       surface->surface);
 }
