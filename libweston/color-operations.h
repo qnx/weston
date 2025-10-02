@@ -27,10 +27,15 @@
 #define WESTON_COLOR_OPERATIONS_H
 
 #include <libweston/libweston.h>
+#include <libweston/linalg-3.h>
 
-bool
+#include "color.h"
+
+void
 weston_color_curve_sample(struct weston_compositor *compositor,
 			  struct weston_color_curve *curve,
-			  uint32_t ch, uint32_t len, float *in, float *out);
+			  const struct weston_vec3f *in,
+			  struct weston_vec3f *out,
+			  size_t len);
 
 #endif /* WESTON_COLOR_OPERATIONS_H */

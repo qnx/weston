@@ -354,9 +354,9 @@ weston_color_curve_to_3x1D_LUT(struct weston_compositor *compositor,
 	struct weston_color_curve *curve;
 	float divider = lut_size - 1;
 	const char *step_str;
-	float *in, *lut;
-	unsigned int i, ch;
-	bool ret;
+	float *lut;
+	struct weston_vec3f *tmp;
+	unsigned int i;
 
 	switch(step) {
 	case WESTON_COLOR_CURVE_STEP_PRE:
@@ -389,30 +389,30 @@ weston_color_curve_to_3x1D_LUT(struct weston_compositor *compositor,
 			   "result in bad precision\n", xform->id, step_str);
 	}
 
+	lut = calloc(lut_size, 3 * sizeof *lut);
+	tmp = calloc(lut_size, sizeof *tmp);
+	if (!lut || !tmp) {
+		/* lut_size could be big. */
+		free(lut);
+		free(tmp);
+		str_printf(err_msg, "Out of memory");
+		return NULL;
+	}
+
 	switch(curve->type) {
 	case WESTON_COLOR_CURVE_TYPE_LUT_3x1D:
-		lut = xzalloc(3 * lut_size * sizeof(*lut));
 		curve->u.lut_3x1d.fill_in(xform, lut, lut_size);
+		free(tmp);
 		return lut;
 	case WESTON_COLOR_CURVE_TYPE_ENUM:
 	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
-		lut = xzalloc(3 * lut_size * sizeof(*lut));
-		in  = xzalloc(lut_size * sizeof(*lut));
-		for (i = 0; i < lut_size; i++)
-			in[i] = (float)i / divider;
-		for (ch = 0; ch < 3; ch++) {
-			ret = weston_color_curve_sample(compositor, curve, ch, lut_size,
-							in, &lut[ch * lut_size]);
-			if (!ret) {
-				free(lut);
-				lut = NULL;
-				str_printf(err_msg, "can't create color LUT from xform (id %u) " \
-						    "%s-curve, failed to sample color curve",
-						    xform->id, step_str);
-				break;
-			}
+		for (i = 0; i < lut_size; i++) {
+			float x = (float)i / divider;
+			tmp[i] = WESTON_VEC3F(x, x, x);
 		}
-		free(in);
+		weston_color_curve_sample(compositor, curve, tmp, tmp, lut_size);
+		weston_v3f_array_to_planar(lut, tmp, lut_size);
+		free(tmp);
 		return lut;
 	case WESTON_COLOR_CURVE_TYPE_IDENTITY:
 		weston_assert_not_reached(compositor,

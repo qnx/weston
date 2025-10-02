@@ -32,21 +32,6 @@
 #include "shared/helpers.h"
 #include "shared/weston-assert.h"
 
-/**
- * Clamp value to [0.0, 1.0], except pass NaN through.
- *
- * This function is not intended for hiding NaN.
- */
-static float
-ensure_unorm(float v)
-{
-	if (v <= 0.0f)
-		return 0.0f;
-	if (v > 1.0f)
-		return 1.0f;
-	return v;
-}
-
 static float
 linpow(float x, const union weston_color_curve_parametric_chan_data *p)
 {
@@ -61,18 +46,21 @@ linpow(float x, const union weston_color_curve_parametric_chan_data *p)
 }
 
 static void
-sample_linpow(const union weston_color_curve_parametric_chan_data *p,
-	      uint32_t len, bool clamp_input, float *in, float *out)
+sample_linpow(const union weston_color_curve_parametric_data *p,
+	      bool clamp_input, const struct weston_vec3f *in,
+	      struct weston_vec3f *out, size_t len)
 {
-	float x;
-	unsigned int i;
+	struct weston_vec3f tmp;
+	size_t i;
 
 	for (i = 0; i < len; i++) {
-		x = in[i];
+		tmp = in[i];
 		if (clamp_input)
-			x = ensure_unorm(x);
+			tmp = weston_v3f_clamp(tmp, 0.0f, 1.0f);
 
-		out[i] = linpow(x, p);
+		out[i] = WESTON_VEC3F(linpow(tmp.x, &p->chan[0]),
+				      linpow(tmp.y, &p->chan[1]),
+				      linpow(tmp.z, &p->chan[2]));
 	}
 }
 
@@ -90,19 +78,41 @@ powlin(float x, const union weston_color_curve_parametric_chan_data *p)
 }
 
 static void
-sample_powlin(const union weston_color_curve_parametric_chan_data *p,
-	      uint32_t len, bool clamp_input, float *in, float *out)
+sample_powlin(const union weston_color_curve_parametric_data *p,
+	      bool clamp_input, const struct weston_vec3f *in,
+	      struct weston_vec3f *out, size_t len)
 {
-	float x;
-	unsigned int i;
+	struct weston_vec3f tmp;
+	size_t i;
 
 	for (i = 0; i < len; i++) {
-		x = in[i];
+		tmp = in[i];
 		if (clamp_input)
-			x = ensure_unorm(x);
+			tmp = weston_v3f_clamp(tmp, 0.0f, 1.0f);
 
-		out[i] = powlin(x, p);
+		out[i] = WESTON_VEC3F(powlin(tmp.x, &p->chan[0]),
+				      powlin(tmp.y, &p->chan[1]),
+				      powlin(tmp.z, &p->chan[2]));
 	}
+}
+
+static void
+sample_parametric(struct weston_compositor *compositor,
+		  const struct weston_color_curve_parametric *param,
+		  const struct weston_vec3f *in,
+		  struct weston_vec3f *out,
+		  size_t len)
+{
+	switch (param->type) {
+	case WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW:
+		sample_linpow(&param->params, param->clamped_input, in, out, len);
+		return;
+	case WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN:
+		sample_powlin(&param->params, param->clamped_input, in, out, len);
+		return;
+	}
+
+	weston_assert_not_reached(compositor, "unknown parametric color curve");
 }
 
 static float
@@ -142,44 +152,52 @@ perceptual_quantizer_inverse(float x)
 }
 
 static void
-sample_pq(enum weston_tf_direction tf_direction, uint32_t ch, uint32_t len,
-	  float *in, float *out)
+sample_pq(enum weston_tf_direction tf_direction,
+	  const struct weston_vec3f *in,
+	  struct weston_vec3f *out,
+	  size_t len)
 {
-	unsigned int i;
-	float x;
+	struct weston_vec3f tmp;
+	size_t i;
 
-	for (i = 0; i < len; i++) {
-		/**
-		 * PQ and inverse PQ are always clamped, undefined for values
-		 * out of [0, 1] range.
-		 */
-		x = ensure_unorm(in[i]);
-
-		if (tf_direction == WESTON_FORWARD_TF)
-			out[i] = perceptual_quantizer(x);
-		else
-			out[i] = perceptual_quantizer_inverse(x);
+	switch (tf_direction) {
+	case WESTON_FORWARD_TF:
+		for (i = 0; i < len; i++) {
+			tmp = weston_v3f_clamp(in[i], 0.0f, 1.0f);
+			out[i] = WESTON_VEC3F(perceptual_quantizer(tmp.x),
+					      perceptual_quantizer(tmp.y),
+					      perceptual_quantizer(tmp.z));
+		}
+		break;
+	case WESTON_INVERSE_TF:
+		for (i = 0; i < len; i++) {
+			tmp = weston_v3f_clamp(in[i], 0.0f, 1.0f);
+			out[i] = WESTON_VEC3F(perceptual_quantizer_inverse(tmp.x),
+					      perceptual_quantizer_inverse(tmp.y),
+					      perceptual_quantizer_inverse(tmp.z));
+		}
+		break;
 	}
 }
 
 /**
-* Given a color curve and a channel, sample an input.
-*
-* This handles the parametric curves (LINPOW, POWLIN, etc) and enumerated color
-* curves. Others should result in failure.
-*
-* @param compositor The Weston compositor
-* @param curve The color curve to be used to sample
-* @param ch The curve color channel to sample from
-* @param len The in and out arrays length
-* @param in The input array to sample
-* @param out The resulting array from sampling
-* @returns True on success, false otherwise
-*/
-bool
+ * Evaluate a color curve on an array
+ *
+ * This handles the parametric curves (LINPOW, POWLIN, etc) and enumerated color
+ * curves. Others result in failure.
+ *
+ * @param compositor The Weston compositor
+ * @param curve The color curve to evaluate
+ * @param in The input array of length @c len .
+ * @param out The output array of length @c len .
+ * @param len The in and out arrays' length.
+ */
+void
 weston_color_curve_sample(struct weston_compositor *compositor,
 			  struct weston_color_curve *curve,
-			  uint32_t ch, uint32_t len, float *in, float *out)
+			  const struct weston_vec3f *in,
+			  struct weston_vec3f *out,
+			  size_t len)
 {
 	struct weston_color_curve_parametric parametric;
 	bool ret;
@@ -193,20 +211,19 @@ weston_color_curve_sample(struct weston_compositor *compositor,
 		 */
 		switch (curve->u.enumerated.tf.info->tf) {
 		case WESTON_TF_ST2084_PQ:
-			sample_pq(curve->u.enumerated.tf_direction, ch, len, in, out);
-			return true;
+			sample_pq(curve->u.enumerated.tf_direction, in, out, len);
+			return;
 		default:
 			ret = weston_color_curve_enum_get_parametric(compositor,
 								     &curve->u.enumerated,
 								     &parametric);
-			if (!ret)
-				return false;
-			goto param;
+			weston_assert_true(compositor, ret);
+			sample_parametric(compositor, &parametric, in, out, len);
+			return;
 		}
 	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
-		/* Parametric curve, let's copy it and we'll handle that below. */
-		parametric = curve->u.parametric;
-		goto param;
+		sample_parametric(compositor, &curve->u.parametric, in, out, len);
+		return;
 	case WESTON_COLOR_CURVE_TYPE_IDENTITY:
 		weston_assert_not_reached(compositor,
 					  "no need to sample identity");
@@ -216,19 +233,4 @@ weston_color_curve_sample(struct weston_compositor *compositor,
 	}
 
 	weston_assert_not_reached(compositor, "unknown color curve");
-
-param:
-	/* Sample from parametric curves. */
-	switch (parametric.type) {
-	case WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW:
-		sample_linpow(&parametric.params.chan[ch],
-			      len, parametric.clamped_input, in, out);
-		return true;
-	case WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN:
-		sample_powlin(&parametric.params.chan[ch],
-			      len, parametric.clamped_input, in, out);
-		return true;
-	}
-
-	weston_assert_not_reached(compositor, "unknown parametric color curve");
 }

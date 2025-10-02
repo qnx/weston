@@ -30,6 +30,7 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <math.h>
 
 #include <libweston/linalg-types.h>
@@ -93,6 +94,37 @@ static inline float
 weston_v3f_dot_v3f(struct weston_vec3f a, struct weston_vec3f b)
 {
 	return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+/**
+ * Convert an array of vec3f into planar format
+ *
+ * Takes an array of RGB triplets and converts it into a planar format where all R
+ * values come first, then all G values, then all B values.
+ *
+ * \param planar The destination array for planar data, must have space for 3 * len floats
+ * \param arr Array of RGB triplets as vec3f structs
+ * \param len Number of RGB triplets in the array
+ */
+static inline void
+weston_v3f_array_to_planar(float *planar, const struct weston_vec3f *arr, size_t len)
+{
+	size_t i;
+
+	for (i = 0; i < len; i++) {
+		planar[i          ] = arr[i].r;
+		planar[i +     len] = arr[i].g;
+		planar[i + 2 * len] = arr[i].b;
+	}
+}
+
+/** Clamp each element to the range [a, b], replacing NaN with a. */
+static inline struct weston_vec3f
+weston_v3f_clamp(struct weston_vec3f v, float a, float b)
+{
+	return WESTON_VEC3F(v.x >= a ? (v.x <= b ? v.x : b) : a,
+			    v.y >= a ? (v.y <= b ? v.y : b) : a,
+			    v.z >= a ? (v.z <= b ? v.z : b) : a);
 }
 
 /**
