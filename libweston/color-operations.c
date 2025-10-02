@@ -192,9 +192,9 @@ sample_pq(enum weston_tf_direction tf_direction,
  * @param out The output array of length @c len .
  * @param len The in and out arrays' length.
  */
-void
+WL_EXPORT void
 weston_color_curve_sample(struct weston_compositor *compositor,
-			  struct weston_color_curve *curve,
+			  const struct weston_color_curve *curve,
 			  const struct weston_vec3f *in,
 			  struct weston_vec3f *out,
 			  size_t len)
