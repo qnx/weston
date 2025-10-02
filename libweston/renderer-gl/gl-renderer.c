@@ -2012,6 +2012,37 @@ repaint_region(struct gl_renderer *gr,
 }
 
 static void
+clear_region(struct gl_renderer *gr, struct weston_paint_node *pnode,
+	     pixman_region32_t *repaint)
+{
+	struct weston_output *output = pnode->output;
+	struct gl_output_state *go = get_output_state(pnode->output);
+	EGLint *rects;
+	EGLint nrects;
+	int i;
+
+	pixman_region_to_egl(output, repaint, go->border_status,
+			     &rects, &nrects);
+	assert(nrects > 0);
+
+	/* We must be either fully transparent - punching a hole for an
+	 * underlay - or fully opaque, to use clear rather than blending. */
+	assert(pnode->solid.a == 0.0f || pnode->solid.a == 1.0f);
+	set_blend_state(gr, false);
+	glClearColor(pnode->solid.r, pnode->solid.g, pnode->solid.b,
+		     pnode->solid.a);
+
+	glEnable(GL_SCISSOR_TEST);
+	for (i = 0; i < nrects; i++) {
+		EGLint *r = &rects[i * 4];
+		glScissor(r[0], r[1], r[2], r[3]);
+		glClear(GL_COLOR_BUFFER_BIT);
+	}
+	glDisable(GL_SCISSOR_TEST);
+	free(rects);
+}
+
+static void
 draw_paint_node(struct weston_paint_node *pnode,
 		pixman_region32_t *damage /* in global coordinates */)
 {
@@ -2042,6 +2073,13 @@ draw_paint_node(struct weston_paint_node *pnode,
 	if (pnode->view->alpha == 0.0f ||
 	    (pnode->draw_solid && pnode->solid.a == 0.0f)) {
 		gs->used_in_output_repaint = true; /* sort of */
+		goto out;
+	}
+
+	if (!gr->debug_mode && pnode->draw_solid && pnode->is_fully_opaque &&
+	    pnode->view->alpha == 1.0f && !pnode->surf_xform.transform) {
+		clear_region(gr, pnode, &repaint);
+		gs->used_in_output_repaint = true;
 		goto out;
 	}
 
