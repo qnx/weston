@@ -51,9 +51,11 @@ static float
 linpow(float x, const union weston_color_curve_parametric_chan_data *p)
 {
 	/* See WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW for details about LINPOW. */
+	/* LINPOW uses mirroring for negative input values. */
+	float abs_x = fabsf(x);
 
-	if (x >= p->d)
-		return pow((p->a * x) + p->b, p->g);
+	if (abs_x >= p->d)
+		return copysign(pow((p->a * abs_x) + p->b, p->g), x);
 
 	return p->c * x;
 }
@@ -70,11 +72,7 @@ sample_linpow(const union weston_color_curve_parametric_chan_data *p,
 		if (clamp_input)
 			x = ensure_unorm(x);
 
-		/* LINPOW uses mirroring for negative input values. */
-		if (x < 0.0)
-			out[i] = -linpow(-x, p);
-		else
-			out[i] = linpow(x, p);
+		out[i] = linpow(x, p);
 	}
 }
 
@@ -82,9 +80,11 @@ static float
 powlin(float x, const union weston_color_curve_parametric_chan_data *p)
 {
 	/* See WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN for details about POWLIN. */
+	/* POWLIN uses mirroring for negative input values. */
+	float abs_x = fabsf(x);
 
-	if (x >= p->d)
-		return p->a * pow(x, p->g) + p->b;
+	if (abs_x >= p->d)
+		return copysign(p->a * pow(abs_x, p->g) + p->b, x);
 
 	return p->c * x;
 }
@@ -101,11 +101,7 @@ sample_powlin(const union weston_color_curve_parametric_chan_data *p,
 		if (clamp_input)
 			x = ensure_unorm(x);
 
-		/* POWLIN uses mirroring for negative input values. */
-		if (x < 0.0)
-			out[i] = -powlin(-x, p);
-		else
-			out[i] = powlin(x, p);
+		out[i] = powlin(x, p);
 	}
 }
 

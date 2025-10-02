@@ -298,67 +298,49 @@ unpack_params(const parametric_curve_t par, compile_const int chan)
 }
 
 float
-linpow(float x, const gabcd_t p)
+linpow(const gabcd_t p, float x)
 {
 	/* See WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW for details about LINPOW. */
-
-	if (x >= p.d)
-		return pow((p.a * x) + p.b, p.g);
-
-	return p.c * x;
-}
-
-float
-sample_linpow(const gabcd_t p, float x)
-{
 	if (p.clamp)
 		x = clamp(x, 0.0, 1.0);
 
 	/* We use mirroring for negative input values. */
-	if (x < 0.0)
-		return -linpow(-x, p);
+	float abs_x = abs(x);
+	if (abs_x >= p.d)
+		return sign(x) * pow((p.a * abs_x) + p.b, p.g);
 
-	return linpow(x, p);
+	return p.c * x;
 }
 
 vec3
 sample_linpow_vec3(const parametric_curve_t par, vec3 color)
 {
-	return vec3(sample_linpow(unpack_params(par, 0), color.r),
-		    sample_linpow(unpack_params(par, 1), color.g),
-		    sample_linpow(unpack_params(par, 2), color.b));
+	return vec3(linpow(unpack_params(par, 0), color.r),
+		    linpow(unpack_params(par, 1), color.g),
+		    linpow(unpack_params(par, 2), color.b));
 }
 
 float
-powlin(float x, const gabcd_t p)
+powlin(const gabcd_t p, float x)
 {
 	/* See WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN for details about POWLIN. */
-
-	if (x >= p.d)
-		return p.a * pow(x, p.g) + p.b;
-
-	return p.c * x;
-}
-
-float
-sample_powlin(const gabcd_t p, float x)
-{
 	if (p.clamp)
 		x = clamp(x, 0.0, 1.0);
 
 	/* We use mirroring for negative input values. */
-	if (x < 0.0)
-		return -powlin(-x, p);
+	float abs_x = abs(x);
+	if (abs_x >= p.d)
+		return sign(x) * (p.a * pow(abs_x, p.g) + p.b);
 
-	return powlin(x, p);
+	return p.c * x;
 }
 
 vec3
 sample_powlin_vec3(const parametric_curve_t par, vec3 color)
 {
-	return vec3(sample_powlin(unpack_params(par, 0), color.r),
-		    sample_powlin(unpack_params(par, 1), color.g),
-		    sample_powlin(unpack_params(par, 2), color.b));
+	return vec3(powlin(unpack_params(par, 0), color.r),
+		    powlin(unpack_params(par, 1), color.g),
+		    powlin(unpack_params(par, 2), color.b));
 }
 
 float
