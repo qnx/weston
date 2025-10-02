@@ -1509,6 +1509,142 @@ gl_shader_config_init_for_paint_node(struct gl_shader_config *sconf,
 	return true;
 }
 
+static int
+output_has_borders(struct weston_output *output)
+{
+	struct gl_output_state *go = get_output_state(output);
+
+	return go->borders_current[WESTON_RENDERER_BORDER_TOP].data ||
+	       go->borders_current[WESTON_RENDERER_BORDER_RIGHT].data ||
+	       go->borders_current[WESTON_RENDERER_BORDER_BOTTOM].data ||
+	       go->borders_current[WESTON_RENDERER_BORDER_LEFT].data;
+}
+
+static struct weston_geometry
+output_get_border_area(const struct gl_output_state *go,
+		       enum weston_renderer_border_side side)
+{
+	const struct weston_size *fb = &go->fb_size;
+	const struct weston_geometry *area = &go->area;
+
+	switch (side) {
+	case WESTON_RENDERER_BORDER_TOP:
+		return (struct weston_geometry){
+			.x = 0,
+			.y = 0,
+			.width = fb->width,
+			.height = area->y
+		};
+	case WESTON_RENDERER_BORDER_LEFT:
+		return (struct weston_geometry){
+			.x = 0,
+			.y = area->y,
+			.width = area->x,
+			.height = area->height
+		};
+	case WESTON_RENDERER_BORDER_RIGHT:
+		return (struct weston_geometry){
+			.x = area->x + area->width,
+			.y = area->y,
+			.width = fb->width - area->x - area->width,
+			.height = area->height
+		};
+	case WESTON_RENDERER_BORDER_BOTTOM:
+		return (struct weston_geometry){
+			.x = 0,
+			.y = area->y + area->height,
+			.width = fb->width,
+			.height = fb->height - area->y - area->height
+		};
+	}
+
+	assert(0);
+	return (struct weston_geometry){};
+}
+
+static void
+output_get_border_damage(struct weston_output *output,
+			 enum gl_border_status border_status,
+			 pixman_region32_t *damage)
+{
+	struct gl_output_state *go = get_output_state(output);
+	unsigned side;
+
+	for (side = 0; side < 4; side++) {
+		struct weston_geometry g;
+
+		if (!(border_status & (1 << side)))
+			continue;
+
+		g = output_get_border_area(go, side);
+		pixman_region32_union_rect(damage, damage,
+					   g.x, g.y, g.width, g.height);
+	}
+}
+
+/**
+ * Given a region in Weston's (top-left-origin) global co-ordinate space,
+ * translate it to the co-ordinate space used by GL for our output
+ * rendering. This requires shifting it into output co-ordinate space:
+ * translating for output offset within the global co-ordinate space,
+ * multiplying by output scale to get buffer rather than logical size.
+ *
+ * Finally, if borders are drawn around the output, we translate the area
+ * to account for the border region around the outside, and add any
+ * damage if the borders have been redrawn.
+ *
+ * @param output The output whose co-ordinate space we are after
+ * @param global_region The affected region in global co-ordinate space
+ * @param border_status The affected borders
+ * @param[out] rects quads in {x,y,w,h} order; caller must free
+ * @param[out] nrects Number of quads (4x number of co-ordinates)
+ */
+static void
+pixman_region_to_egl(struct weston_output *output,
+		     struct pixman_region32 *global_region,
+		     enum gl_border_status border_status,
+		     EGLint **rects,
+		     EGLint *nrects)
+{
+	struct gl_output_state *go = get_output_state(output);
+	pixman_region32_t transformed;
+	struct pixman_box32 *box;
+	EGLint *d;
+	int i;
+
+	/* Translate from global to output co-ordinate space. */
+	pixman_region32_init(&transformed);
+	weston_region_global_to_output(&transformed,
+				       output,
+				       global_region);
+
+	/* If we have borders drawn around the output, shift our output damage
+	 * to account for borders being drawn around the outside, adding any
+	 * damage resulting from borders being redrawn. */
+	if (output_has_borders(output)) {
+		pixman_region32_translate(&transformed,
+					  go->area.x, go->area.y);
+		output_get_border_damage(output, border_status, &transformed);
+	}
+
+	/* Convert from a Pixman region into {x,y,w,h} quads, potentially
+	 * flipping in the Y axis to account for GL's lower-left-origin
+	 * coordinate space if the output uses the GL coordinate space. */
+	box = pixman_region32_rectangles(&transformed, nrects);
+	*rects = malloc(*nrects * 4 * sizeof(EGLint));
+
+	d = *rects;
+	for (i = 0; i < *nrects; ++i) {
+		*d++ = box[i].x1;
+		*d++ = is_y_flipped(go) ?
+		       go->fb_size.height - box[i].y2 : box[i].y1;
+		*d++ = box[i].x2 - box[i].x1;
+		*d++ = box[i].y2 - box[i].y1;
+	}
+
+	pixman_region32_fini(&transformed);
+}
+
 /* A Pixman region is implemented as a "y-x-banded" array of rectangles sorted
  * first vertically and then horizontally. This means that if 2 rectangles with
  * different y coordinates share a group of scanlines, both rectangles will be
@@ -2190,59 +2326,6 @@ draw_output_border_texture(struct gl_renderer *gr,
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, indices);
 }
 
-static int
-output_has_borders(struct weston_output *output)
-{
-	struct gl_output_state *go = get_output_state(output);
-
-	return go->borders_current[WESTON_RENDERER_BORDER_TOP].data ||
-	       go->borders_current[WESTON_RENDERER_BORDER_RIGHT].data ||
-	       go->borders_current[WESTON_RENDERER_BORDER_BOTTOM].data ||
-	       go->borders_current[WESTON_RENDERER_BORDER_LEFT].data;
-}
-
-static struct weston_geometry
-output_get_border_area(const struct gl_output_state *go,
-		       enum weston_renderer_border_side side)
-{
-	const struct weston_size *fb = &go->fb_size;
-	const struct weston_geometry *area = &go->area;
-
-	switch (side) {
-	case WESTON_RENDERER_BORDER_TOP:
-		return (struct weston_geometry){
-			.x = 0,
-			.y = 0,
-			.width = fb->width,
-			.height = area->y
-		};
-	case WESTON_RENDERER_BORDER_LEFT:
-		return (struct weston_geometry){
-			.x = 0,
-			.y = area->y,
-			.width = area->x,
-			.height = area->height
-		};
-	case WESTON_RENDERER_BORDER_RIGHT:
-		return (struct weston_geometry){
-			.x = area->x + area->width,
-			.y = area->y,
-			.width = fb->width - area->x - area->width,
-			.height = area->height
-		};
-	case WESTON_RENDERER_BORDER_BOTTOM:
-		return (struct weston_geometry){
-			.x = 0,
-			.y = area->y + area->height,
-			.width = fb->width,
-			.height = fb->height - area->y - area->height
-		};
-	}
-
-	assert(0);
-	return (struct weston_geometry){};
-}
-
 static void
 draw_output_borders(struct weston_output *output,
 		    enum gl_border_status border_status)
@@ -2294,89 +2377,6 @@ draw_output_borders(struct weston_output *output,
 
 	glDisableVertexAttribArray(SHADER_ATTRIB_LOC_TEXCOORD);
 	glDisableVertexAttribArray(SHADER_ATTRIB_LOC_POSITION);
-}
-
-static void
-output_get_border_damage(struct weston_output *output,
-			 enum gl_border_status border_status,
-			 pixman_region32_t *damage)
-{
-	struct gl_output_state *go = get_output_state(output);
-	unsigned side;
-
-	for (side = 0; side < 4; side++) {
-		struct weston_geometry g;
-
-		if (!(border_status & (1 << side)))
-			continue;
-
-		g = output_get_border_area(go, side);
-		pixman_region32_union_rect(damage, damage,
-					   g.x, g.y, g.width, g.height);
-	}
-}
-
-/**
- * Given a region in Weston's (top-left-origin) global co-ordinate space,
- * translate it to the co-ordinate space used by GL for our output
- * rendering. This requires shifting it into output co-ordinate space:
- * translating for output offset within the global co-ordinate space,
- * multiplying by output scale to get buffer rather than logical size.
- *
- * Finally, if borders are drawn around the output, we translate the area
- * to account for the border region around the outside, and add any
- * damage if the borders have been redrawn.
- *
- * @param output The output whose co-ordinate space we are after
- * @param global_region The affected region in global co-ordinate space
- * @param border_status The affected borders
- * @param[out] rects quads in {x,y,w,h} order; caller must free
- * @param[out] nrects Number of quads (4x number of co-ordinates)
- */
-static void
-pixman_region_to_egl(struct weston_output *output,
-		     struct pixman_region32 *global_region,
-		     enum gl_border_status border_status,
-		     EGLint **rects,
-		     EGLint *nrects)
-{
-	struct gl_output_state *go = get_output_state(output);
-	pixman_region32_t transformed;
-	struct pixman_box32 *box;
-	EGLint *d;
-	int i;
-
-	/* Translate from global to output co-ordinate space. */
-	pixman_region32_init(&transformed);
-	weston_region_global_to_output(&transformed,
-				       output,
-				       global_region);
-
-	/* If we have borders drawn around the output, shift our output damage
-	 * to account for borders being drawn around the outside, adding any
-	 * damage resulting from borders being redrawn. */
-	if (output_has_borders(output)) {
-		pixman_region32_translate(&transformed,
-					  go->area.x, go->area.y);
-		output_get_border_damage(output, border_status, &transformed);
-	}
-
-	/* Convert from a Pixman region into {x,y,w,h} quads, potentially
-	 * flipping in the Y axis to account for GL's lower-left-origin
-	 * coordinate space if the output uses the GL coordinate space. */
-	box = pixman_region32_rectangles(&transformed, nrects);
-	*rects = malloc(*nrects * 4 * sizeof(EGLint));
-
-	d = *rects;
-	for (i = 0; i < *nrects; ++i) {
-		*d++ = box[i].x1;
-		*d++ = is_y_flipped(go) ?
-		       go->fb_size.height - box[i].y2 : box[i].y1;
-		*d++ = box[i].x2 - box[i].x1;
-		*d++ = box[i].y2 - box[i].y1;
-	}
-
-	pixman_region32_fini(&transformed);
 }
 
 static void
