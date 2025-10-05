@@ -96,8 +96,8 @@ static void create_graphics_pipeline(struct vulkan_renderer *vr,
 		req->input_is_premult
 	};
 	const VkSpecializationMapEntry fsc_entries[] = {
-		{ 0, 0, sizeof(fsc.c_variant) },
-		{ 1, 0, sizeof(fsc.c_input_is_premult) },
+		{ 0, offsetof(struct fs_specialization_consts, c_variant), sizeof(fsc.c_variant) },
+		{ 1, offsetof(struct fs_specialization_consts, c_input_is_premult), sizeof(fsc.c_input_is_premult) },
 	};
 	const VkSpecializationInfo fs_specialization = {
 		.mapEntryCount = ARRAY_LENGTH(fsc_entries),
