@@ -31,6 +31,7 @@
 #include "config.h"
 
 #include <fcntl.h>
+#include <linux/input.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -61,6 +62,12 @@
 #include "libweston/weston-log.h"
 
 #include <xf86drm.h> /* Physical device drm */
+
+enum vulkan_debug_mode {
+	DEBUG_MODE_NONE = 0,
+	DEBUG_MODE_FRAGMENT,
+	DEBUG_MODE_LAST,
+};
 
 enum vulkan_border_status {
 	BORDER_STATUS_CLEAN = 0,
@@ -1497,6 +1504,7 @@ static bool
 vulkan_pipeline_config_init_for_paint_node(struct vulkan_pipeline_config *pconf,
 					   struct weston_paint_node *pnode)
 {
+	struct vulkan_renderer *vr = get_renderer(pnode->surface->compositor);
 	struct vulkan_output_state *vo = get_output_state(pnode->output);
 	struct vulkan_surface_state *vs = get_surface_state(pnode->surface);
 	struct vulkan_buffer_state *vb = vs->buffer;
@@ -1509,6 +1517,7 @@ vulkan_pipeline_config_init_for_paint_node(struct vulkan_pipeline_config *pconf,
 		.req = {
 			.texcoord_input = SHADER_TEXCOORD_INPUT_SURFACE,
 			.renderpass = vo->renderpass,
+			.green_tint = (vr->debug_mode == DEBUG_MODE_FRAGMENT),
 		},
 		.projection = pnode->view->transform.matrix,
 		.surface_to_buffer =
@@ -2128,6 +2137,7 @@ draw_output_borders(struct weston_output *output,
 			.renderpass = vo->renderpass,
 			.variant = pipeline_variant,
 			.input_is_premult = true,
+			.green_tint = (vr->debug_mode == DEBUG_MODE_FRAGMENT),
 		},
 		.view_alpha = 1.0f,
 	};
@@ -4119,6 +4129,21 @@ populate_supported_shm_formats(struct weston_compositor *ec)
 	return 0;
 }
 
+static void
+debug_mode_binding(struct weston_keyboard *keyboard,
+		   const struct timespec *time,
+		   uint32_t key, void *data)
+{
+	struct weston_compositor *compositor = data;
+	struct vulkan_renderer *vr = get_renderer(compositor);
+	int mode;
+
+	mode = (vr->debug_mode + 1) % DEBUG_MODE_LAST;
+	vr->debug_mode = mode;
+
+	weston_compositor_damage_all(compositor);
+}
+
 /*
  * Add extension flags to the bitfield that 'flags_out' points to.
  * 'table' stores extension names and flags to check for and 'avail'
@@ -4441,6 +4466,10 @@ vulkan_renderer_display_create(struct weston_compositor *ec,
 	ec->read_format = pixel_format_get_info(DRM_FORMAT_ARGB8888);
 
 	create_texture_image_dummy(vr); /* Workaround for solids */
+
+	vr->debug_mode_binding =
+		weston_compositor_add_debug_binding(ec, KEY_M,
+						    debug_mode_binding, ec);
 
 	return 0;
 }

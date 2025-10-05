@@ -12,6 +12,7 @@ layout(location = 0) out vec4 fragcolor;
 
 layout(constant_id = 0) const int c_variant = 0;
 layout(constant_id = 1) const bool c_input_is_premult = false;
+layout(constant_id = 2) const bool c_green_tint = false;
 
 #define PIPELINE_VARIANT_RGBA     1
 #define PIPELINE_VARIANT_RGBX     2
@@ -52,6 +53,10 @@ void main() {
 		color.rgb *= color.a;
 
 	color *= ubo.view_alpha;
+
+	/* Fragment shader (composition) debug */
+	if (c_green_tint)
+		color = vec4(0.0, 0.3, 0.0, 0.2) + color * 0.8;
 
 	fragcolor = color;
 }

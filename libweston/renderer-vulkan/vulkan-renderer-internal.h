@@ -102,6 +102,7 @@ struct vulkan_pipeline_requirements
 	unsigned variant:4; /* enum vulkan_pipeline_texture_variant */
 	bool input_is_premult:1;
 	bool blend:1;
+	bool green_tint:1;
 	VkRenderPass renderpass;
 };
 
@@ -181,6 +182,10 @@ struct vulkan_renderer {
 	PFN_vkGetMemoryFdPropertiesKHR get_memory_fd_properties;
 	PFN_vkGetSemaphoreFdKHR get_semaphore_fd;
 	PFN_vkImportSemaphoreFdKHR import_semaphore_fd;
+
+	/* Debug modes. */
+	struct weston_binding *debug_mode_binding;
+	int debug_mode;
 
 	/* This can be removed if a different shader is defined
 	 * to avoid requiring a valid sampler descriptor to run

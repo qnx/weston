@@ -62,6 +62,7 @@ struct vertex_tc {
 struct fs_specialization_consts {
 	uint32_t c_variant;
 	uint32_t c_input_is_premult;
+	uint32_t c_green_tint;
 };
 
 static void create_graphics_pipeline(struct vulkan_renderer *vr,
@@ -93,11 +94,13 @@ static void create_graphics_pipeline(struct vulkan_renderer *vr,
 
 	const struct fs_specialization_consts fsc = {
 		req->variant,
-		req->input_is_premult
+		req->input_is_premult,
+		req->green_tint,
 	};
 	const VkSpecializationMapEntry fsc_entries[] = {
 		{ 0, offsetof(struct fs_specialization_consts, c_variant), sizeof(fsc.c_variant) },
 		{ 1, offsetof(struct fs_specialization_consts, c_input_is_premult), sizeof(fsc.c_input_is_premult) },
+		{ 2, offsetof(struct fs_specialization_consts, c_green_tint), sizeof(fsc.c_green_tint) },
 	};
 	const VkSpecializationInfo fs_specialization = {
 		.mapEntryCount = ARRAY_LENGTH(fsc_entries),
