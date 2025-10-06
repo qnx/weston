@@ -1705,44 +1705,89 @@ build_3d_lut(struct weston_compositor *compositor, cmsHTRANSFORM cmap_3dlut,
 	     unsigned int len_shaper, const float *shaper,
 	     unsigned int len_lut3d, float *lut3d)
 {
-	float divider = len_lut3d - 1;
-	float rgb_in[3], rgb_out[3];
-	uint32_t index, index_r, index_g, index_b;
-	const float *curves[3];
+	const float *const red_curve = &shaper[0];
+	const float *const green_curve = &shaper[len_shaper];
+	const float *const blue_curve = &shaper[2 * len_shaper];
+	uint32_t index_r, index_g, index_b;
+	uint32_t i;
+	float *tmp;
+	float *inverse_r;
+	float *inverse_g;
+	struct weston_vec3f *rgb_in;
 
-	curves[0] = &shaper[0];
-	curves[1] = &shaper[len_shaper];
-	curves[2] = &shaper[2 * len_shaper];
+	/*
+	 * Ensure the indices and byte counts cannot overflow,
+	 * and memory usage does not get ridiculous. Arbitrary limit.
+	 */
+	weston_assert_u32_lt(compositor, len_lut3d, 100);
 
+	/*
+	 * A temporary allocation that holds two 1D LUTs of length len_lut3d
+	 * and one scratch array of vec3f of length len_lut3d.
+	 */
+	const uint32_t bytes_per_elem = 2 * sizeof (float) + sizeof *rgb_in;
+	tmp = malloc(len_lut3d * bytes_per_elem);
+
+	inverse_r = &tmp[0];
+	inverse_g = &tmp[len_lut3d];
+	rgb_in = (struct weston_vec3f *)&tmp[2 * len_lut3d];
+
+	/*
+	 * For each channel, use the shaper to compute the value x such that
+	 * y(x) = index / (len - 1). As the shaper is a LUT, we find the closest
+	 * neighbors of such point (x, y) and then use linear interpolation to
+	 * estimate x.
+	 */
+	for (i = 0; i < len_lut3d; i++) {
+		float y = (float)i / (len_lut3d - 1);
+		inverse_r[i] = weston_inverse_evaluate_lut1d(compositor,
+							     len_shaper,
+							     red_curve,
+							     y);
+		inverse_g[i] = weston_inverse_evaluate_lut1d(compositor,
+							     len_shaper,
+							     green_curve,
+							     y);
+	}
+
+	/*
+	 * Fill in the 3D LUT: LUT(Rin, Gin, Bin) = { Rout, Gout, Bout }
+	 * Each of Rin, Gin and Bin varies from 0.0 to 1.0. The range [0.0, 1.0]
+	 * is evenly divided into len_lut3d number of sampling points. The
+	 * indices of the sampling points are index_r, index_g, index_b.
+	 *
+	 * To compute { Rout, Gout, Bout }, first Rin, Gin, Bin must go through
+	 * the shaper 1D LUTs in reverse. This was pre-computed into
+	 * inverse_r and inverse_g above, and inverse_b is computed below.
+	 * This was done one dimension (channel) at a time, because they are
+	 * separable.
+	 *
+	 * The next step is not separable, so we iterate through all points in
+	 * the 3D volume. The points are transformed len_lut3d points at a time
+	 * (rgb_in array) to strike a balance between the number of function
+	 * calls and the memory requirements.
+	 */
 	for (index_b = 0; index_b < len_lut3d; index_b++) {
+		float inverse_b = weston_inverse_evaluate_lut1d(compositor,
+								len_shaper,
+								blue_curve,
+								(float)index_b / (len_lut3d - 1));
+		for (i = 0; i < len_lut3d; i++)
+			rgb_in[i].b = inverse_b;
+
 		for (index_g = 0; index_g < len_lut3d; index_g++) {
 			for (index_r = 0; index_r < len_lut3d; index_r++) {
-				/**
-				 * For each channel, use the shaper to compute
-				 * the value x such that y(x) = index / divider.
-				 * As the shapper is a LUT, we find the closest
-				 * neighbors of such point (x, y) and then use
-				 * linear interpolation to estimate x.
-				 */
-				rgb_in[0] = weston_inverse_evaluate_lut1d(compositor,len_shaper,
-									  curves[0],
-									  (float)index_r / divider);
-				rgb_in[1] = weston_inverse_evaluate_lut1d(compositor, len_shaper,
-									  curves[1],
-									  (float)index_g / divider);
-				rgb_in[2] = weston_inverse_evaluate_lut1d(compositor, len_shaper,
-									  curves[2],
-									  (float)index_b / divider);
-
-				cmsDoTransform(cmap_3dlut, rgb_in, rgb_out, 1);
-
-				index = 3 * (index_r + len_lut3d * (index_g + len_lut3d * index_b));
-				lut3d[index    ] = rgb_out[0];
-				lut3d[index + 1] = rgb_out[1];
-				lut3d[index + 2] = rgb_out[2];
+				rgb_in[index_r].g = inverse_g[index_g];
+				rgb_in[index_r].r = inverse_r[index_r];
 			}
+
+			index_r = 0;
+			i = 3 * (index_r + len_lut3d * (index_g + len_lut3d * index_b));
+			cmsDoTransform(cmap_3dlut, rgb_in, &lut3d[i], len_lut3d);
 		}
 	}
+
+	free(tmp);
 
 	return true;
 }
