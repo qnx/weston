@@ -430,7 +430,7 @@ linear_interpolation(float x, float x0, float y0, float x1, float y1)
 }
 
 WESTON_EXPORT_FOR_TESTS void
-find_neighbors(struct weston_compositor *compositor, uint32_t len, float *array,
+find_neighbors(struct weston_compositor *compositor, uint32_t len, const float *array,
 	       float val, uint32_t *neigh_A_index, uint32_t *neigh_B_index)
 {
 	bool ascendent = (array[0] <= array[len - 1]);
@@ -469,7 +469,7 @@ find_neighbors(struct weston_compositor *compositor, uint32_t len, float *array,
  */
 WL_EXPORT float
 weston_inverse_evaluate_lut1d(struct weston_compositor *compositor,
-			      uint32_t len_lut, float *lut, float input)
+			      uint32_t len_lut, const float *lut, float input)
 {
 	float divider = len_lut - 1;
 	uint32_t neighbor_A_index, neighbor_B_index;

@@ -681,12 +681,12 @@ weston_color_curve_to_3x1D_LUT(struct weston_compositor *compositor,
 			       size_t lut_size, char **err_msg);
 
 void
-find_neighbors(struct weston_compositor *compositor, uint32_t len, float *array,
+find_neighbors(struct weston_compositor *compositor, uint32_t len, const float *array,
 	       float val, uint32_t *neigh_A_index, uint32_t *neigh_B_index);
 
 float
 weston_inverse_evaluate_lut1d(struct weston_compositor *compositor,
-			      uint32_t len_lut, float *lut, float input);
+			      uint32_t len_lut, const float *lut, float input);
 
 struct weston_color_transform *
 weston_color_transform_ref(struct weston_color_transform *xform);

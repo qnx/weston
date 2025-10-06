@@ -1702,13 +1702,13 @@ cmlcms_color_transform_recipe_string(const struct cmlcms_color_transform_recipe 
 
 static bool
 build_3d_lut(struct weston_compositor *compositor, cmsHTRANSFORM cmap_3dlut,
-	     unsigned int len_shaper, float *shaper,
+	     unsigned int len_shaper, const float *shaper,
 	     unsigned int len_lut3d, float *lut3d)
 {
 	float divider = len_lut3d - 1;
 	float rgb_in[3], rgb_out[3];
 	uint32_t index, index_r, index_g, index_b;
-	float *curves[3];
+	const float *curves[3];
 
 	curves[0] = &shaper[0];
 	curves[1] = &shaper[len_shaper];
