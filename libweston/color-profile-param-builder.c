@@ -758,9 +758,6 @@ validate_maxcll(struct weston_color_profile_param_builder *builder)
 			    maxCLL);
 	}
 
-	if (!(builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TARGET_LUMINANCE))
-		return;
-
 	if (builder->params.target_min_luminance >= maxCLL)
 		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
 			    "maxCLL (%f) should be greater than target min luminance (%f)",
@@ -782,9 +779,6 @@ validate_maxfall(struct weston_color_profile_param_builder *builder)
 			    "maxFALL (%f) must be in the range (0.0, 1e+6]",
 			    maxFALL);
 	}
-
-	if (!(builder->group_mask & WESTON_COLOR_PROFILE_PARAMS_TARGET_LUMINANCE))
-		return;
 
 	if (builder->params.target_min_luminance >= maxFALL)
 		store_error(builder, WESTON_COLOR_PROFILE_PARAM_BUILDER_ERROR_INVALID_LUMINANCE,
