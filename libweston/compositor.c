@@ -206,8 +206,6 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 	placeholder_color.b = ((color_tmp >> 0) & 0xff) / 255.0;
 	placeholder_color.a = 1.0;
 
-	pnode->draw_solid = false;
-	pnode->is_direct = false;
 	/* Check for content protection first, as we should always prevent
 	 * the rendering of protected content.
 	 */
@@ -221,6 +219,7 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 		pnode->solid = placeholder_color;
 		return;
 	}
+
 	/* Check if we need a hole before we check direct-display, otherwise
 	 * we'll end up drawing an opaque placeholder over direct_display
 	 * paint nodes when we place them on underlays.
@@ -235,6 +234,7 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 		               };
 		return;
 	}
+
 	if (buffer->direct_display) {
 		pnode->draw_solid = true;
 		pnode->is_direct = true;
@@ -243,6 +243,18 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 		pnode->solid = placeholder_color;
 		return;
 	}
+
+	if (buffer->type == WESTON_BUFFER_SOLID) {
+		pnode->draw_solid = true;
+		pnode->is_direct = false;
+		pnode->is_fully_opaque = (buffer->solid.a == 1.0f);
+		pnode->is_fully_blended = !pnode->is_fully_opaque;
+		pnode->solid = buffer->solid;
+		return;
+	}
+
+	pnode->draw_solid = false;
+	pnode->is_direct = false;
 }
 
 /* Paint nodes contain filter and transform information that needs to be
