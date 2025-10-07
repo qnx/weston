@@ -261,6 +261,9 @@ struct drm_backend {
 		struct wl_event_source *pageflip_timer_counter;
 		bool timer_armed;
 	} perf_page_flips_stats;
+
+	/* True if we need a workaround for some very old kernels */
+	bool stale_timestamp_workaround;
 };
 
 struct drm_mode {

@@ -992,17 +992,22 @@ drm_output_start_repaint_loop(struct weston_output *output_base)
 		 *
 		 * However, if we're using VRR, the time since the last
 		 * vblank could be the display's longest possible frame
-		 * time, which is longer than rfresh_nsec. That looks
+		 * time, which is longer than refresh_nsec. That looks
 		 * exactly like the bug we need to work around here, and
 		 * the page flip workaround would result in an unnecessary
 		 * delay.
 		 *
-		 * We know that the kernel bug was fixed in v4.1, before the
-		 * much later introduction of the vrr_capable property we
-		 * use to detect VRR. So we only need the bug fix if we don't
-		 * have VRR.
+		 * The workaround can cause other unexpected delays when
+		 * starting the repaint loop.
+		 *
+		 * We keep the workaround in place, based on the presence of
+		 * DRM_CAP_CRTC_IN_VBLANK_EVENT, which was introduced in
+		 * Linux 4.12, to keep things working for Very Old Kernels.
+		 *
+		 * Anyone needing precise frame timings is encouraged to
+		 * upgrade.
 		 */
-		if (output->base.vrr_mode == WESTON_VRR_MODE_NONE) {
+		if (output->backend->stale_timestamp_workaround) {
 			struct timespec vbl2now;
 			int64_t refresh_nsec;
 

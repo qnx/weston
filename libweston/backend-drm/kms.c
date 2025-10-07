@@ -1994,10 +1994,29 @@ init_kms_caps(struct drm_device *device)
 		return -1;
 	}
 
+	ret = drmGetCap(device->drm.fd, DRM_CAP_CRTC_IN_VBLANK_EVENT, &cap);
+	if (ret != 0)
+		cap = 0;
+
+	/* Between Linux 3.16 and Linux 4.1 there was a bug that
+	 * could result in a stale timestamp being returned.
+	 *
+	 * The workaround for this has can make it impossible
+	 * to display images with precise timing.
+	 *
+	 * It's somewhat difficult to determine whether we need
+	 * that workaround or not, but we know that the
+	 * DRM_CAP_CRTC_IN_VBLANK_EVENT drm cap exists in 4.12
+	 * and on. We'll use its presence to gate the workaround.
+	*/
+	if (!cap) {
+		weston_log("DRM Warning: stale timestamp workaround for Kernel older than 4.12\n");
+		device->backend->stale_timestamp_workaround = true;
+	} else {
+		device->backend->stale_timestamp_workaround = false;
+	}
+
 	if (!getenv("WESTON_DISABLE_ATOMIC")) {
-		ret = drmGetCap(device->drm.fd, DRM_CAP_CRTC_IN_VBLANK_EVENT, &cap);
-		if (ret != 0)
-			cap = 0;
 		ret = drmSetClientCap(device->drm.fd, DRM_CLIENT_CAP_ATOMIC, 1);
 		device->atomic_modeset = ((ret == 0) && (cap == 1));
 	}
