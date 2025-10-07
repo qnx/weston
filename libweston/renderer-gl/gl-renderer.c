@@ -1409,8 +1409,8 @@ ensure_surface_buffer_is_ready(struct gl_renderer *gr,
 }
 
 static void
-prepare_placeholder(struct gl_shader_config *sconf,
-		    struct weston_paint_node *pnode)
+prepare_solid_draw(struct gl_shader_config *sconf,
+		   struct weston_paint_node *pnode)
 {
 	struct weston_color_transform *ctransf;
 	struct weston_output *output = pnode->output;
@@ -1936,7 +1936,7 @@ draw_paint_node(struct weston_paint_node *pnode,
 				 &surface_opaque);
 
 	if (pnode->draw_solid)
-		prepare_placeholder(&sconf, pnode);
+		prepare_solid_draw(&sconf, pnode);
 
 	if (pixman_region32_not_empty(&surface_opaque)) {
 		transform_damage(pnode, &repaint, &quads, &nquads);
