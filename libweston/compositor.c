@@ -9560,11 +9560,21 @@ weston_compositor_print_scene_graph(struct weston_compositor *ec)
 
 		fprintf(fp, "\trepaint status: %s\n",
 			output_repaint_status_text(output));
-		if (output->repaint_status == REPAINT_SCHEDULED)
-			fprintf(fp, "\tnext repaint: %" PRId64 ".%09ld\n",
+		if (output->repaint_status == REPAINT_SCHEDULED) {
+			fprintf(fp, "\tnext repaint scheduled for: %" PRId64 ".%09ld\n",
 				(int64_t)output->next_repaint.tv_sec,
 				output->next_repaint.tv_nsec);
-
+			fprintf(fp, "\tto be presented at: %" PRId64 ".%09ld\n",
+				(int64_t)output->next_present.tv_sec,
+				output->next_present.tv_nsec);
+		} else if (output->repaint_status == REPAINT_AWAITING_COMPLETION) {
+			fprintf(fp, "\twaiting for repaint that occurred at: %" PRId64 ".%09ld\n",
+				(int64_t)output->next_repaint.tv_sec,
+				output->next_repaint.tv_nsec);
+			fprintf(fp, "\tto be presented at: %" PRId64 ".%09ld\n",
+				(int64_t)output->next_present.tv_sec,
+				output->next_present.tv_nsec);
+		}
 		wl_list_for_each(head, &output->head_list, output_link) {
 			fprintf(fp, "\tHead %d (%s): %sconnected\n",
 				head_idx++, head->name,
