@@ -491,6 +491,8 @@ static void
 print_usage_and_exit(void)
 {
 	printf("usage flags:\n"
+	       "\t'-h,--help'"
+	       "\n\t\tprint this help output\n"
 	       "\t'-v,--verbose'"
 	       "\n\t\tprint additional output\n"
 	       "\t'-f,--format=<>'"
@@ -527,6 +529,7 @@ main(int argc, char *argv[])
 	app.buffer_type = CLIENT_BUFFER_TYPE_SHM;
 
 	static struct option long_options[] = {
+		{"help",        no_argument,       NULL, 'h'},
 		{"verbose",     no_argument,       NULL, 'v'},
 		{"format",      required_argument, NULL, 'f'},
 		{"source-type",	required_argument, NULL, 's'},
