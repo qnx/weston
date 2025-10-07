@@ -433,6 +433,9 @@ struct weston_output {
 	/** If repaint_status is REPAINT_SCHEDULED, contains the time the
 	 *  next repaint should be run */
 	struct timespec next_repaint;
+	/** If repaint_statue is REPAINT_SCHEDULED, contains the time the
+	 *  next repaint should be displayed */
+	struct timespec next_present;
 
 	/** For cancelling the idle_repaint callback on output destruction. */
 	struct wl_event_source *idle_repaint_source;

@@ -4153,6 +4153,7 @@ weston_output_finish_frame(struct weston_output *output,
 	 * repaint as soon as possible so we can get on with it. */
 	if (!stamp) {
 		output->next_repaint = now;
+		output->next_present = now;
 		goto out;
 	}
 
@@ -4175,6 +4176,7 @@ weston_output_finish_frame(struct weston_output *output,
 	/* If we're tearing just repaint right away */
 	if (presented_flags & WESTON_FINISH_FRAME_TEARING) {
 		output->next_repaint = now;
+		output->next_present = now;
 		goto out;
 	}
 
@@ -4187,11 +4189,15 @@ weston_output_finish_frame(struct weston_output *output,
 	 */
 	if (output->vrr_mode == WESTON_VRR_MODE_GAME) {
 		output->next_repaint = now;
+		/* FIXME: we should figure out if we're in Vactive to give a
+		 * more accurate next_present time?
+		 */
+		output->next_present = now;
 		goto out;
 	}
 
-	timespec_add_nsec(&output->next_repaint, stamp, refresh_nsec);
-	timespec_add_msec(&output->next_repaint, &output->next_repaint,
+	timespec_add_nsec(&output->next_present, stamp, refresh_nsec);
+	timespec_add_msec(&output->next_repaint, &output->next_present,
 			  -compositor->repaint_msec);
 	msec_rel = timespec_sub_to_msec(&output->next_repaint, &now);
 
@@ -4203,6 +4209,7 @@ weston_output_finish_frame(struct weston_output *output,
 				 output->name, (long long) msec_rel);
 
 		output->next_repaint = now;
+		output->next_present = now;
 	}
 
 	/* Called from restart_repaint_loop and restart happens already after
@@ -4214,6 +4221,9 @@ weston_output_finish_frame(struct weston_output *output,
 		while (timespec_sub_to_nsec(&output->next_repaint, &now) < 0) {
 			timespec_add_nsec(&output->next_repaint,
 					  &output->next_repaint,
+					  refresh_nsec);
+			timespec_add_nsec(&output->next_present,
+					  &output->next_present,
 					  refresh_nsec);
 		}
 	}
