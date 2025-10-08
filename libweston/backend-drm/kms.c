@@ -1625,7 +1625,10 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
 
 	if (ret != 0) {
 		weston_log("atomic: couldn't compile atomic state\n");
-		goto out;
+		if (mode == DRM_STATE_TEST_ONLY)
+			goto out_test_only;
+		else
+			goto out;
 	}
 	if (may_tear)
 		tear_flag = DRM_MODE_PAGE_FLIP_ASYNC;
@@ -1643,12 +1646,8 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
 		if (ret == 0)
 			drm_pending_state_clear_tearing(pending_state);
 	}
-	/* Test commits do not take ownership of the state; return
-	 * without freeing here. */
-	if (mode == DRM_STATE_TEST_ONLY) {
-		drmModeAtomicFree(req);
-		return ret;
-	}
+	if (mode == DRM_STATE_TEST_ONLY)
+		goto out_test_only;
 
 	if (ret != 0) {
 		wl_list_for_each(output_state, &pending_state->output_list, link)
@@ -1669,8 +1668,11 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
 	assert(wl_list_empty(&pending_state->output_list));
 
 out:
-	drmModeAtomicFree(req);
 	drm_pending_state_free(pending_state);
+	/* Test commits do not take ownership of the state; return
+	 * without freeing here. */
+out_test_only:
+	drmModeAtomicFree(req);
 	return ret;
 }
 
