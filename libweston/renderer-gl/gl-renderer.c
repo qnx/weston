@@ -3899,12 +3899,12 @@ gl_renderer_buffer_init(struct weston_compositor *etc,
 }
 
 static uint32_t
-pack_color(pixman_format_code_t format, float *c)
+pack_color(pixman_format_code_t format, struct weston_solid_buffer_values *solid)
 {
-	uint8_t r = round(c[0] * 255.0f);
-	uint8_t g = round(c[1] * 255.0f);
-	uint8_t b = round(c[2] * 255.0f);
-	uint8_t a = round(c[3] * 255.0f);
+	uint8_t r = round(solid->r * 255.0f);
+	uint8_t g = round(solid->g * 255.0f);
+	uint8_t b = round(solid->b * 255.0f);
+	uint8_t a = round(solid->a * 255.0f);
 
 	switch (format) {
 	case PIXMAN_a8b8g8r8:
@@ -3963,7 +3963,7 @@ gl_renderer_surface_copy_content(struct weston_surface *surface,
 
 	switch (buffer->type) {
 	case WESTON_BUFFER_SOLID:
-		*(uint32_t *)target = pack_color(format, gb->color);
+		*(uint32_t *)target = pack_color(format, &buffer->solid);
 		return 0;
 	case WESTON_BUFFER_SHM:
 	case WESTON_BUFFER_DMABUF:
