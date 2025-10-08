@@ -2634,6 +2634,20 @@ client_get_subcompositor(struct client *client)
 	return sub;
 }
 
+static void
+presentation_clock_id(void *data, struct wp_presentation *presentation,
+		      uint32_t clk_id)
+{
+	struct client *client = data;
+
+	client->presentation_clock = clk_id;
+	client->has_presentation_clock = true;
+}
+
+static const struct wp_presentation_listener presentation_listener = {
+	presentation_clock_id
+};
+
 struct wp_presentation *
 client_get_presentation(struct client *client)
 {
@@ -2657,8 +2671,19 @@ client_get_presentation(struct client *client)
 
 	pres = wl_registry_bind(client->wl_registry, global_pres->name,
 				&wp_presentation_interface, 2);
+	wp_presentation_add_listener(pres, &presentation_listener, client);
 
 	test_assert_ptr_not_null(pres);
 
+	client_roundtrip(client);
+
 	return pres;
+}
+
+clockid_t
+client_get_presentation_clock(struct client *client)
+{
+	test_assert_true(client->has_presentation_clock);
+
+	return client->presentation_clock;
 }

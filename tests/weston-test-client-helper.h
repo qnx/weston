@@ -80,6 +80,9 @@ struct client {
 	struct wl_array drm_formats;
 	struct wl_list global_list;
 	struct wl_list output_list; /* struct output::link */
+
+	clockid_t presentation_clock;
+	bool has_presentation_clock;
 };
 
 struct global {
@@ -430,5 +433,8 @@ client_get_subcompositor(struct client *client);
 
 struct wp_presentation *
 client_get_presentation(struct client *client);
+
+clockid_t
+client_get_presentation_clock(struct client *client);
 
 #endif
