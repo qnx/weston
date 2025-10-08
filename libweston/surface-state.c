@@ -29,14 +29,17 @@
 #include "config.h"
 
 #include <libweston/libweston.h>
+#include <libweston/commit-timing.h>
 #include <libweston/fifo.h>
 #include "libweston-internal.h"
 
 #include "backend.h"
 #include "pixel-formats.h"
 #include "shared/fd-util.h"
+#include "shared/timespec-util.h"
 #include "shared/weston-assert.h"
 #include "shared/xalloc.h"
+#include <sys/timerfd.h>
 #include "timeline.h"
 #include "weston-trace.h"
 
@@ -155,6 +158,11 @@ weston_surface_state_init(struct weston_surface *surface,
 
 	state->fifo_barrier = false;
 	state->fifo_wait = false;
+
+	state->update_time.valid = false;
+	state->update_time.satisfied = false;
+	state->update_time.time.tv_sec = 0;
+	state->update_time.time.tv_nsec = 0;
 }
 
 void
@@ -491,6 +499,26 @@ weston_surface_apply_state(struct weston_surface *surface,
 	if (weston_surface_status_invalidates_visibility(status))
 		surface->output_visibility_dirty_mask |= surface->output_mask;
 
+	/* If we have a target time and a driving output, we can try to use
+	 * VRR to move the display time to hit it. If a repaint is already
+	 * scheduled, then its exact time was used to satisfy our time
+	 * constraint, so don't mess with it.
+	 *
+	 * We also need to make sure that if a bunch of updates become ready
+	 * all at once, that we keep forced_present monotonic, so nothing
+	 * is presented early.
+	 */
+	if (state->update_time.valid && surface->output &&
+	    surface->output->repaint_status != REPAINT_SCHEDULED) {
+		if (!surface->output->forced_present.valid ||
+		    timespec_sub_to_nsec(&state->update_time.time,
+					 &surface->output->forced_present.time) > 0) {
+			surface->output->forced_present = state->update_time;
+		}
+	}
+
+	weston_commit_timing_clear_target(&state->update_time);
+
 	state->status = WESTON_SURFACE_CLEAN;
 
 	return status;
@@ -644,6 +672,9 @@ weston_surface_state_merge_from(struct weston_surface_state *dst,
 	dst->fifo_wait = src->fifo_wait;
 	src->fifo_wait = false;
 
+	dst->update_time = src->update_time;
+	weston_commit_timing_clear_target(&src->update_time);
+
 	dst->status |= src->status;
 	src->status = WESTON_SURFACE_CLEAN;
 }
@@ -738,6 +769,7 @@ weston_surface_create_transaction(struct weston_compositor *comp,
 
 	struct weston_transaction *tr;
 	struct weston_transaction_queue *parent;
+	bool need_schedule = false;
 
 	tr = xzalloc(sizeof *tr);
 	tr->flow_id = transaction_flow_id;
@@ -755,9 +787,13 @@ weston_surface_create_transaction(struct weston_compositor *comp,
 		parent = xzalloc(sizeof *parent);
 		wl_list_init(&parent->transaction_list);
 		wl_list_insert(&comp->transaction_queue_list, &parent->link);
+		need_schedule = true;
 	}
 	tr->queue = parent;
 	wl_list_insert(parent->transaction_list.prev, &tr->link);
+
+	if (need_schedule)
+		weston_repaint_timer_arm(comp);
 }
 
 static bool
@@ -765,6 +801,9 @@ weston_surface_state_ready(struct weston_surface *surface,
 			   struct weston_surface_state *state)
 {
 	if (!weston_fifo_surface_state_ready(surface, state))
+		return false;
+
+	if (!weston_commit_timing_surface_state_ready(surface, state))
 		return false;
 
 	return true;
@@ -942,6 +981,48 @@ weston_compositor_apply_transactions(struct weston_compositor *compositor)
 		if (wl_list_empty(&tq->transaction_list)) {
 			wl_list_remove(&tq->link);
 			free(tq);
+		}
+	}
+}
+
+/** Update output nearest commit-timing target times
+ *
+ * \param compositor weston_compositor
+ *
+ * Updates the list of upcoming deferred content updates so every output
+ * with a deferred update has a stored copy of the nearest ready time.
+ */
+void
+weston_commit_timing_update_output_targets(struct weston_compositor *compositor)
+{
+	struct weston_transaction_queue *tq;
+	struct weston_output *output;
+
+	weston_commit_timing_clear_target(&compositor->requested_repaint_fallback);
+	wl_list_for_each(output, &compositor->output_list, link)
+		weston_commit_timing_clear_target(&output->requested_present);
+
+	wl_list_for_each(tq, &compositor->transaction_queue_list, link) {
+		/* First transaction only - it blocks the rest */
+		struct weston_transaction *tr = wl_container_of(tq->transaction_list.next, tr, link);
+		struct weston_content_update *cu;
+		struct weston_commit_timing_target *target;
+
+		wl_list_for_each(cu, &tr->content_update_list, link) {
+			if (!cu->state.update_time.valid)
+				continue;
+			if (cu->state.update_time.satisfied)
+				continue;
+
+			if (cu->surface->output)
+				target = &cu->surface->output->requested_present;
+			else
+				target = &cu->surface->compositor->requested_repaint_fallback;
+
+			if (!target->valid ||
+			    timespec_sub_to_nsec(&target->time,
+						 &cu->state.update_time.time) > 0)
+				*target = cu->state.update_time;
 		}
 	}
 }

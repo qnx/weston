@@ -91,6 +91,7 @@
 #include "weston-trace.h"
 #include "renderer-vulkan/vulkan-renderer.h"
 
+#include <libweston/commit-timing.h>
 #include <libweston/fifo.h>
 #include "weston-log-internal.h"
 
@@ -3933,6 +3934,12 @@ weston_output_repaint_from_present(const struct weston_output *output,
 	if (output->frame_flags & WESTON_FINISH_FRAME_TEARING)
 		return late ? *now : *present_time;
 
+	if (output->forced_present.valid &&
+	    output->vrr_mode == WESTON_VRR_MODE_GAME) {
+		actual_present_time = *present_time;
+		goto out;
+	}
+
 	/* At the start of the repaint loop with VRR enabled - we may
 	 * be able to paint early, so give it a try.
 	 */
@@ -3949,6 +3956,7 @@ weston_output_repaint_from_present(const struct weston_output *output,
 	frames_since = time_since / refresh_nsec;
 	timespec_add_nsec(&actual_present_time, &output->frame_time, refresh_nsec * (frames_since + 1));
 
+out:
 	/* Subtract the "repaint window" time to get the deadline for the presentation time */
 	timespec_add_msec(&repaint_time, &actual_present_time, -weston_output_repaint_msec(output));
 
@@ -3973,8 +3981,37 @@ weston_repaint_timer_arm(struct weston_compositor *compositor)
 
 	weston_compositor_read_presentation_clock(compositor, &now);
 
+	weston_commit_timing_update_output_targets(compositor);
+
+	/* If we have a timed content update on a surface with no output,
+	 * we'll update it based on wall clock time. We do that by firing
+	 * the repaint timer even if no output needs to repaint.
+	 */
+	if (compositor->requested_repaint_fallback.valid) {
+		nsec_to_next = timespec_sub_to_nsec(&compositor->requested_repaint_fallback.time,
+						    &now);
+		any_should_repaint = true;
+	}
+
 	wl_list_for_each(output, &compositor->output_list, link) {
 		int64_t nsec_to_this;
+
+		/* If we have a timed frame on this output, treat it like a
+		 * scheduled frame. If no repaint is scheduled when the
+		 * timer fires, transaction application will schedule one,
+		 * and we'll have a chance to deliver on time.
+		 */
+		if (output->requested_present.valid) {
+			struct timespec target_repaint =
+				weston_output_repaint_from_present(output, &now,
+								   &output->requested_present.time);
+
+			nsec_to_this = timespec_sub_to_nsec(&target_repaint, &now);
+			if (!any_should_repaint || nsec_to_this < nsec_to_next) {
+				nsec_to_next = nsec_to_this;
+				any_should_repaint = true;
+			}
+		}
 
 		if (output->repaint_status != REPAINT_SCHEDULED)
 			continue;
@@ -4288,6 +4325,12 @@ weston_output_finish_frame(struct weston_output *output,
 		goto out;
 	}
 
+	if (output->forced_present.valid &&
+	    output->vrr_mode == WESTON_VRR_MODE_GAME) {
+		output->next_present = output->forced_present.time;
+		goto out;
+	}
+
 	/* If we're doing game mode VRR, repainting right away
 	 * might be better than waiting, so try now.
 	 * TODO: Come up with some better handling...
@@ -4326,7 +4369,8 @@ weston_output_finish_frame(struct weston_output *output,
 	 * the repaint loop with VRR, because in that case we can potentially
 	 * just repaint right away.
 	 */
-	while (presented_flags == WP_PRESENTATION_FEEDBACK_INVALID &&
+	while (!output->forced_present.valid &&
+	       presented_flags == WP_PRESENTATION_FEEDBACK_INVALID &&
 	       output->vrr_mode != WESTON_VRR_MODE_GAME &&
 	       timespec_sub_to_msec(&output->next_present, &now) < weston_output_repaint_msec(output))
 		timespec_add_nsec(&output->next_present,
@@ -4336,6 +4380,7 @@ weston_output_finish_frame(struct weston_output *output,
 out:
 	output->next_repaint = weston_output_repaint_from_present(output, &now,
 								  &output->next_present);
+	output->forced_present.valid = false;
 	output->repaint_status = REPAINT_SCHEDULED;
 	weston_repaint_timer_arm(compositor);
 }
@@ -9843,6 +9888,9 @@ weston_compositor_create(struct wl_display *display,
 		goto fail;
 
 	if (fifo_setup(ec) != 0)
+		goto fail;
+
+	if (commit_timing_setup(ec) != 0)
 		goto fail;
 
 	if (weston_input_init(ec) != 0)

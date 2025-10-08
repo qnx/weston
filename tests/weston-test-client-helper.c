@@ -938,6 +938,10 @@ handle_global(void *data, struct wl_registry *registry,
 		client->fifo_manager =
 			wl_registry_bind(registry, id,
 					 &wp_fifo_manager_v1_interface, 1);
+	} else if (strcmp(interface, wp_commit_timing_manager_v1_interface.name) == 0) {
+		client->commit_timing_manager =
+			wl_registry_bind(registry, id,
+					 &wp_commit_timing_manager_v1_interface, 1);
 	}
 }
 
@@ -1207,6 +1211,9 @@ client_destroy(struct client *client)
 
 	if (client->fifo_manager)
 		wp_fifo_manager_v1_destroy(client->fifo_manager);
+
+	if (client->commit_timing_manager)
+		wp_commit_timing_manager_v1_destroy(client->commit_timing_manager);
 
 	if (client->surface)
 		surface_destroy(client->surface);

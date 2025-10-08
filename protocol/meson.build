@@ -17,6 +17,7 @@ install_data(
 
 generated_protocols = [
 	[ 'color-management', 'staging', 'v1' ],
+	[ 'commit-timing', 'staging', 'v1' ],
 	[ 'fifo', 'staging', 'v1' ],
 	[ 'fullscreen-shell', 'unstable', 'v1' ],
 	[ 'fractional-scale', 'staging', 'v1' ],

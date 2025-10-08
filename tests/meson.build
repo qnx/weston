@@ -30,7 +30,9 @@ lib_test_client = static_library(
 	[
 		'weston-test-client-helper.c',
 		'weston-test-fixture-compositor.c',
-		'xdg-client-helper.c',
+                'xdg-client-helper.c',
+		commit_timing_v1_client_protocol_h,
+		commit_timing_v1_protocol_c,
 		fifo_v1_client_protocol_h,
 		fifo_v1_protocol_c,
 		presentation_time_client_protocol_h,
@@ -138,6 +140,7 @@ tests = [
 			dep_libdisplay_info,
 		],
 	},
+	{	'name': 'commit-timing', },
 	{	'name': 'config-parser', },
 	{
 		'name': 'constraints',

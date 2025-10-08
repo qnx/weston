@@ -74,6 +74,12 @@ struct weston_point2d_device_normalized {
 	double y;
 };
 
+struct weston_commit_timing_target {
+	bool valid;
+	bool satisfied;
+	struct timespec time;
+};
+
 struct weston_compositor;
 struct weston_surface;
 struct weston_buffer;
@@ -436,6 +442,16 @@ struct weston_output {
 	/** If repaint_statue is REPAINT_SCHEDULED, contains the time the
 	 *  next repaint should be displayed */
 	struct timespec next_present;
+
+	/** commit-timing protocol will set this for the closest requested
+	 *  presentation time from a surface on this output. It's only
+	 *  valid during weston_repaint_timer_arm. */
+	struct weston_commit_timing_target requested_present;
+	/** commit-timing protocol will set this when state containing
+	 *  a target time is applied. Weston will try to hit this time if
+	 *  VRR is in use.
+	 */
+	struct weston_commit_timing_target forced_present;
 
 	/** For cancelling the idle_repaint callback on output destruction. */
 	struct wl_event_source *idle_repaint_source;
@@ -1512,6 +1528,11 @@ struct weston_compositor {
 	bool latched;
 
 	struct wl_list transaction_queue_list; /* weston_transaction_queue::link */
+
+	/** commit_timing_v1 - target repaint time for content updates for
+	 *  surfaces with no output
+	 */
+	struct weston_commit_timing_target requested_repaint_fallback;
 };
 
 struct weston_solid_buffer_values {
@@ -1808,6 +1829,9 @@ struct weston_surface_state {
 	/* wp_fifo_v1 */
 	bool fifo_barrier;
 	bool fifo_wait;
+
+	/* commit_timing_v1 */
+	struct weston_commit_timing_target update_time;
 };
 
 struct weston_surface_activation_data {
@@ -1992,6 +2016,9 @@ struct weston_surface {
 	struct weston_fifo *fifo;
 	bool fifo_barrier; /* Cleared after display */
 	struct wl_list fifo_barrier_link; /* output::fifo_barrier_surfaces */
+
+	/** commit_timing_v1 */
+	struct weston_commit_timer *commit_timer;
 };
 
 struct weston_subsurface {
