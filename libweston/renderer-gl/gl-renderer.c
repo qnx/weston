@@ -1912,12 +1912,11 @@ draw_paint_node(struct weston_paint_node *pnode,
 	if (!gl_shader_config_init_for_paint_node(&sconf, pnode))
 		goto out;
 
-	/* XXX: Should we be using ev->transform.opaque here? */
-	if (pnode->is_fully_opaque)
+	if (pnode->is_fully_opaque) {
 		pixman_region32_init_rect(&surface_opaque, 0, 0,
 					  pnode->surface->width,
 					  pnode->surface->height);
-	else {
+	} else {
 		pixman_region32_init(&surface_opaque);
 		pixman_region32_copy(&surface_opaque, &pnode->surface->opaque);
 	}
