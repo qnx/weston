@@ -254,8 +254,6 @@ struct yuv_format_descriptor {
 struct gl_buffer_state {
 	struct gl_renderer *gr;
 
-	GLfloat color[4];
-
 	bool needs_full_upload;
 	pixman_region32_t texture_damage;
 
@@ -1444,8 +1442,6 @@ gl_shader_config_set_input_textures(struct gl_shader_config *sconf,
 	sconf->req.variant = gb->shader_variant;
 	sconf->req.input_is_premult =
 		gl_shader_texture_variant_can_be_premult(gb->shader_variant);
-
-	copy_uniform4f(sconf->unicolor, gb->color);
 
 	sconf->input_param = gb->parameters;
 	sconf->input_tex = gb->textures;
@@ -3672,11 +3668,6 @@ gl_renderer_attach_solid(struct weston_surface *surface,
 	}
 
 	gs->buffer = gb;
-
-	gb->color[0] = pnode->solid.r;
-	gb->color[1] = pnode->solid.g;
-	gb->color[2] = pnode->solid.b;
-	gb->color[3] = pnode->solid.a;
 	gb->shader_variant = SHADER_VARIANT_SOLID;
 
 	return gb;
