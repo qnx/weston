@@ -73,6 +73,9 @@ xdg_surface_make_toplevel(struct xdg_surface_data *xdg_surface,
 void
 xdg_surface_wait_configure(struct xdg_surface_data *xdg_surface);
 
+void
+xdg_surface_maybe_ack_configure(struct xdg_surface_data *xdg_surface);
+
 struct xdg_surface_data *
 create_xdg_surface(struct xdg_client *xdg_client);
 

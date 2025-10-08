@@ -162,6 +162,17 @@ xdg_surface_wait_configure(struct xdg_surface_data *xdg_surface)
 }
 
 void
+xdg_surface_maybe_ack_configure(struct xdg_surface_data *xdg_surface)
+{
+	if (xdg_surface->configure.serial == 0)
+		return;
+
+	xdg_surface_ack_configure(xdg_surface->xdg_surface,
+				  xdg_surface->configure.serial);
+	xdg_surface->configure.serial = 0;
+}
+
+void
 xdg_surface_commit_solid(struct xdg_surface_data *xdg_surface,
 			 uint8_t r, uint8_t g, uint8_t b)
 {
@@ -191,11 +202,7 @@ xdg_surface_commit_solid(struct xdg_surface_data *xdg_surface,
 	wl_surface_damage_buffer(xdg_surface->surface->wl_surface,
 				 0, 0, width, height);
 
-	if (xdg_surface->configure.serial > 0) {
-		xdg_surface_ack_configure(xdg_surface->xdg_surface,
-					  xdg_surface->configure.serial);
-		xdg_surface->configure.serial = 0;
-	}
+	xdg_surface_maybe_ack_configure(xdg_surface);
 
 	xdg_surface->surface->width = width;
 	xdg_surface->surface->height = height;
