@@ -1341,7 +1341,8 @@ use_output(struct weston_output *output)
 
 static int
 ensure_surface_buffer_is_ready(struct gl_renderer *gr,
-			       struct gl_surface_state *gs)
+			       struct gl_surface_state *gs,
+			       struct weston_paint_node *pnode)
 {
 	EGLint attribs[] = {
 		EGL_SYNC_NATIVE_FENCE_FD_ANDROID,
@@ -1354,7 +1355,7 @@ ensure_surface_buffer_is_ready(struct gl_renderer *gr,
 	EGLint wait_ret;
 	EGLint destroy_ret;
 
-	if (!buffer)
+	if (!buffer || pnode->draw_solid)
 		return 0;
 
 	if (surface->acquire_fence_fd < 0)
@@ -1902,7 +1903,7 @@ draw_paint_node(struct weston_paint_node *pnode,
 	if (!pixman_region32_not_empty(&repaint))
 		goto out;
 
-	if (!pnode->draw_solid && ensure_surface_buffer_is_ready(gr, gs) < 0)
+	if (ensure_surface_buffer_is_ready(gr, gs, pnode) < 0)
 		goto out;
 
 	if (!gl_shader_config_init_for_paint_node(&sconf, pnode))
