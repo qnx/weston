@@ -3654,46 +3654,32 @@ gl_renderer_import_dmabuf(struct weston_compositor *ec,
 }
 
 static struct gl_buffer_state *
-ensure_renderer_gl_buffer_state(struct weston_surface *surface,
-				struct weston_buffer *buffer)
+gl_renderer_attach_solid(struct weston_surface *surface,
+			 struct weston_paint_node *pnode,
+			 struct weston_buffer *buffer)
 {
 	struct gl_renderer *gr = get_renderer(surface->compositor);
 	struct gl_surface_state *gs = get_surface_state(surface);
 	struct gl_buffer_state *gb = buffer->renderer_private;
 
-	if (gb) {
-		gs->buffer = gb;
-		return gb;
+	if (!gb) {
+		gb = zalloc(sizeof(*gb));
+		gb->gr = gr;
+		pixman_region32_init(&gb->texture_damage);
+		buffer->renderer_private = gb;
+		gb->destroy_listener.notify = handle_buffer_destroy;
+		wl_signal_add(&buffer->destroy_signal, &gb->destroy_listener);
 	}
-
-	gb = zalloc(sizeof(*gb));
-	gb->gr = gr;
-	pixman_region32_init(&gb->texture_damage);
-	buffer->renderer_private = gb;
-	gb->destroy_listener.notify = handle_buffer_destroy;
-	wl_signal_add(&buffer->destroy_signal, &gb->destroy_listener);
 
 	gs->buffer = gb;
 
-	return gb;
-}
-
-static void
-attach_direct_display_placeholder(struct weston_paint_node *pnode)
-{
-	struct weston_surface *surface = pnode->surface;
-	struct weston_buffer *buffer = surface->buffer_ref.buffer;
-	struct gl_buffer_state *gb;
-
-	gb = ensure_renderer_gl_buffer_state(surface, buffer);
-
-	/* uses the same color as the content-protection placeholder */
 	gb->color[0] = pnode->solid.r;
 	gb->color[1] = pnode->solid.g;
 	gb->color[2] = pnode->solid.b;
 	gb->color[3] = pnode->solid.a;
-
 	gb->shader_variant = SHADER_VARIANT_SOLID;
+
+	return gb;
 }
 
 static void
@@ -3795,22 +3781,6 @@ out:
 }
 
 static void
-gl_renderer_attach_solid(struct weston_surface *surface,
-			 struct weston_buffer *buffer)
-{
-	struct gl_buffer_state *gb;
-
-	gb = ensure_renderer_gl_buffer_state(surface, buffer);
-
-	gb->color[0] = buffer->solid.r;
-	gb->color[1] = buffer->solid.g;
-	gb->color[2] = buffer->solid.b;
-	gb->color[3] = buffer->solid.a;
-
-	gb->shader_variant = SHADER_VARIANT_SOLID;
-}
-
-static void
 gl_renderer_attach(struct weston_paint_node *pnode)
 {
 	struct weston_surface *es = pnode->surface;
@@ -3839,8 +3809,8 @@ gl_renderer_attach(struct weston_paint_node *pnode)
 	if (!buffer)
 		goto out;
 
-	if (pnode->is_direct) {
-		attach_direct_display_placeholder(pnode);
+	if (pnode->draw_solid) {
+		gl_renderer_attach_solid(es, pnode, buffer);
 		goto success;
 	}
 
@@ -3853,8 +3823,7 @@ gl_renderer_attach(struct weston_paint_node *pnode)
 		gl_renderer_attach_buffer(es, buffer);
 		break;
 	case WESTON_BUFFER_SOLID:
-		gl_renderer_attach_solid(es, buffer);
-		break;
+		unreachable("solid buffer should not get here");
 	default:
 		weston_log("unhandled buffer type!\n");
 		weston_buffer_send_server_error(buffer,
