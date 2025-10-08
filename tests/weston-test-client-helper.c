@@ -2653,10 +2653,10 @@ client_get_presentation(struct client *client)
 
 	test_assert_ptr_not_null(global_pres);
 
-	test_assert_u32_eq(global_pres->version, 1);
+	test_assert_u32_eq(global_pres->version, 2);
 
 	pres = wl_registry_bind(client->wl_registry, global_pres->name,
-				&wp_presentation_interface, 1);
+				&wp_presentation_interface, 2);
 
 	test_assert_ptr_not_null(pres);
 

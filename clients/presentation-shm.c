@@ -775,7 +775,7 @@ registry_handle_global(void *data, struct wl_registry *registry,
 	} else if (strcmp(interface, wp_presentation_interface.name) == 0) {
 		d->presentation =
 			wl_registry_bind(registry,
-					 name, &wp_presentation_interface, 1);
+					 name, &wp_presentation_interface, 2);
 		wp_presentation_add_listener(d->presentation,
 					     &presentation_listener, d);
 	}

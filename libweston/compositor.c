@@ -846,6 +846,7 @@ weston_presentation_feedback_present(
 	struct wl_client *client = wl_resource_get_client(feedback->resource);
 	struct weston_head *head;
 	struct wl_resource *o;
+	uint32_t version = wl_resource_get_version(feedback->resource);
 	uint32_t tv_sec_hi;
 	uint32_t tv_sec_lo;
 	uint32_t tv_nsec;
@@ -866,6 +867,10 @@ weston_presentation_feedback_present(
 		if (done)
 			break;
 	}
+
+	/* In version 1, inconsistent rate must give a 0 refresh_nsec */
+	if (version < 2 && output->vrr_mode == WESTON_VRR_MODE_GAME)
+		refresh_nsec = 0;
 
 	timespec_to_proto(ts, &tv_sec_hi, &tv_sec_lo, &tv_nsec);
 	wp_presentation_feedback_send_presented(feedback->resource,
@@ -9006,7 +9011,8 @@ presentation_feedback(struct wl_client *client,
 
 	feedback->resource = wl_resource_create(client,
 					&wp_presentation_feedback_interface,
-					1, callback);
+					wl_resource_get_version(presentation_resource),
+					callback);
 	if (!feedback->resource)
 		goto err_create;
 
@@ -9695,7 +9701,7 @@ weston_compositor_create(struct wl_display *display,
 			      ec, bind_xdg_output_manager))
 		goto fail;
 
-	if (!wl_global_create(ec->wl_display, &wp_presentation_interface, 1,
+	if (!wl_global_create(ec->wl_display, &wp_presentation_interface, 2,
 			      ec, bind_presentation))
 		goto fail;
 
