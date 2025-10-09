@@ -1463,7 +1463,7 @@ lua_shell_env_view_move_behind_other_view(struct lua_State *lua)
 	struct lua_shell *shell = shview->shell;
 	struct weston_compositor *wc = shell->compositor;
 
-	weston_assert_true(wc, &other_shview->view->layer_link.layer);
+	weston_assert_ptr_not_null(wc, other_shview->view->layer_link.layer);
 
 	weston_view_move_to_layer(shview->view,
 				  &other_shview->view->layer_link);
@@ -1479,7 +1479,7 @@ lua_shell_env_view_move_in_front_of_other_view(struct lua_State *lua)
 	struct lua_shell *shell = shview->shell;
 	struct weston_compositor *wc = shell->compositor;
 
-	weston_assert_true(wc, &other_shview->view->layer_link.layer);
+	weston_assert_ptr_not_null(wc, other_shview->view->layer_link.layer);
 
 	weston_view_move_before_layer_entry(shview->view,
 					    &other_shview->view->layer_link);
