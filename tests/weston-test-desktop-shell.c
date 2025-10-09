@@ -39,6 +39,7 @@
 #include "frontend/weston.h"
 #include <libweston/config-parser.h>
 #include "shared/helpers.h"
+#include "shared/xalloc.h"
 #include <libweston/shell-utils.h>
 #include <libweston/desktop.h>
 
@@ -49,33 +50,52 @@ struct desktest_shell {
 	struct weston_layer background_layer;
 	struct weston_curtain *background;
 	struct weston_layer layer;
+	struct weston_layer fullscreen_layer;
+};
+
+struct desktest_surface {
+	struct weston_desktop_surface *desktop_surface;
 	struct weston_view *view;
+	struct weston_curtain *fullscreen_black_curtain;
 };
 
 static void
 desktop_surface_added(struct weston_desktop_surface *desktop_surface,
 		      void *shell)
 {
-	struct desktest_shell *dts = shell;
+	struct desktest_surface *dtsurface;
 
-	assert(!dts->view);
-
-	dts->view = weston_desktop_surface_create_view(desktop_surface);
-
-	assert(dts->view);
+	dtsurface = xzalloc(sizeof *dtsurface);
+	dtsurface->view = weston_desktop_surface_create_view(desktop_surface);
+	weston_desktop_surface_set_user_data(desktop_surface, dtsurface);
 }
 
 static void
 desktop_surface_removed(struct weston_desktop_surface *desktop_surface,
 			void *shell)
 {
-	struct desktest_shell *dts = shell;
+	struct desktest_surface *dtsurface =
+		weston_desktop_surface_get_user_data(desktop_surface);
 
-	assert(dts->view);
+	if (dtsurface->fullscreen_black_curtain)
+		weston_shell_utils_curtain_destroy(dtsurface->fullscreen_black_curtain);
 
-	weston_desktop_surface_unlink_view(dts->view);
-	weston_view_destroy(dts->view);
-	dts->view = NULL;
+	weston_desktop_surface_set_user_data(desktop_surface, NULL);
+	weston_desktop_surface_unlink_view(dtsurface->view);
+	weston_view_destroy(dtsurface->view);
+	free(dtsurface);
+}
+
+static void
+black_surface_committed(struct weston_surface *es,
+			struct weston_coord_surface new_origin)
+{
+}
+
+static int
+black_surface_get_label(struct weston_surface *surface, char *buf, size_t len)
+{
+	return snprintf(buf, len, "fullscreen black background surface");
 }
 
 static void
@@ -83,25 +103,60 @@ desktop_surface_committed(struct weston_desktop_surface *desktop_surface,
 			  struct weston_coord_surface unused, void *shell)
 {
 	struct desktest_shell *dts = shell;
+	struct desktest_surface *dtsurface =
+		weston_desktop_surface_get_user_data(desktop_surface);
 	struct weston_surface *surface =
 		weston_desktop_surface_get_surface(desktop_surface);
 	struct weston_geometry geometry =
 		weston_desktop_surface_get_geometry(desktop_surface);
 	struct weston_coord_global pos;
 	struct weston_coord_surface offset;
+	struct weston_output *output;
+	bool fullscreen;
 
-	assert(dts->view);
+	assert(dtsurface->view);
 
+	/*
+	 * TODO: For now desktest_shell does not properly handle various changes
+	 * of the surface state once mapped. Tests will thus be more reliable
+	 * if they recreate surfaces/toplevels for every tested state.
+	 */
 	if (weston_surface_is_mapped(surface))
 		return;
 
 	weston_surface_map(surface);
 	pos.c = weston_coord(0, 0);
 	offset = weston_coord_surface(geometry.x, geometry.y,
-				      dts->view->surface);
+				      dtsurface->view->surface);
 	offset = weston_coord_surface_invert(offset);
-	weston_view_set_position_with_offset(dts->view, pos, offset);
-	weston_view_move_to_layer(dts->view, &dts->layer.view_list);
+	weston_view_set_position_with_offset(dtsurface->view, pos, offset);
+
+	fullscreen = weston_desktop_surface_get_fullscreen(desktop_surface);
+	if (!fullscreen) {
+		weston_view_move_to_layer(dtsurface->view, &dts->layer.view_list);
+		return;
+	}
+
+	output = weston_shell_utils_get_default_output(dts->compositor);
+	struct weston_curtain_params curtain_params = {
+		.r = 0.0, .g = 0.0, .b = 0.0, .a = 1.0,
+		.pos = output->pos,
+		.width = output->width, .height = output->height,
+		.surface_committed = black_surface_committed,
+		.get_label = black_surface_get_label,
+		.surface_private = dtsurface->view,
+		.capture_input = true,
+	};
+
+	weston_view_move_to_layer(dtsurface->view,
+				  &dts->fullscreen_layer.view_list);
+	weston_shell_utils_center_on_output(dtsurface->view, output);
+
+	assert(!dtsurface->fullscreen_black_curtain);
+	dtsurface->fullscreen_black_curtain =
+		weston_shell_utils_curtain_create(dts->compositor, &curtain_params);
+	weston_view_move_to_layer(dtsurface->fullscreen_black_curtain->view,
+				  &dtsurface->view->layer_link);
 }
 
 static void
@@ -122,6 +177,18 @@ desktop_surface_fullscreen_requested(struct weston_desktop_surface *desktop_surf
 				     bool fullscreen,
 				     struct weston_output *output, void *shell)
 {
+	struct desktest_shell *dts = shell;
+	int width = 0; int height = 0;
+
+	weston_desktop_surface_set_fullscreen(desktop_surface, fullscreen);
+	if (fullscreen) {
+		struct weston_output *output =
+			weston_shell_utils_get_default_output(dts->compositor);
+
+		width = output->width;
+		height = output->height;
+	}
+	weston_desktop_surface_set_size(desktop_surface, width, height);
 }
 
 static void
@@ -183,6 +250,7 @@ shell_destroy(struct wl_listener *listener, void *data)
 
 	weston_layer_fini(&dts->layer);
 	weston_layer_fini(&dts->background_layer);
+	weston_layer_fini(&dts->fullscreen_layer);
 
 	free(dts);
 }
@@ -225,7 +293,7 @@ wet_shell_init(struct weston_compositor *ec,
 	};
 	struct weston_coord_global pos;
 
-	dts = zalloc(sizeof *dts);
+	dts = xzalloc(sizeof *dts);
 	if (!dts)
 		return -1;
 
@@ -240,11 +308,14 @@ wet_shell_init(struct weston_compositor *ec,
 
 	weston_layer_init(&dts->layer, ec);
 	weston_layer_init(&dts->background_layer, ec);
+	weston_layer_init(&dts->fullscreen_layer, ec);
 
 	weston_layer_set_position(&dts->layer,
 				  WESTON_LAYER_POSITION_NORMAL);
 	weston_layer_set_position(&dts->background_layer,
 				  WESTON_LAYER_POSITION_BACKGROUND);
+	weston_layer_set_position(&dts->fullscreen_layer,
+				  WESTON_LAYER_POSITION_FULLSCREEN);
 
 	dts->background = weston_shell_utils_curtain_create(ec, &background_params);
 	if (dts->background == NULL)
