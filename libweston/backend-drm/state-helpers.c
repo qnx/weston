@@ -33,6 +33,7 @@
 #include <xf86drmMode.h>
 
 #include "drm-internal.h"
+#include "shared/weston-assert.h"
 #include "shared/weston-drm-fourcc.h"
 #include "shared/xalloc.h"
 
@@ -401,8 +402,12 @@ drm_output_state_duplicate(struct drm_output_state *src,
 			   struct drm_pending_state *pending_state,
 			   enum drm_output_state_duplicate_mode plane_mode)
 {
+	struct weston_compositor *compositor = src->output->base.compositor;
 	struct drm_output_state *dst = xmalloc(sizeof(*dst));
 	struct drm_plane_state *ps;
+
+	/* The reuse bit isn't stored in the state */
+	weston_assert_false(compositor, src->mode & DRM_OUTPUT_PROPOSE_STATE_REUSE);
 
 	/* Copy the whole structure, then individually modify the
 	 * pending_state, as well as the list link into our pending

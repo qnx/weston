@@ -54,13 +54,27 @@ static const char *const drm_output_propose_state_mode_as_string[] = {
 	[DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY]	= "plane-only state"
 };
 
+static const char *const drm_output_propose_reused_state_mode_as_string[] = {
+	[DRM_OUTPUT_PROPOSE_STATE_INVALID] = "reused invalid(uninitialized) state",
+	[DRM_OUTPUT_PROPOSE_STATE_MIXED] = "reused mixed state",
+	[DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR] = "reused renderer-and-cursor state",
+	[DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY] = "reused renderer-only state",
+	[DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY]	= "reused plane-only state",
+};
+
 static const char *
 drm_propose_state_mode_to_string(enum drm_output_propose_state_mode mode)
 {
+	bool reuse = mode & DRM_OUTPUT_PROPOSE_STATE_REUSE;
+
+	mode &= ~DRM_OUTPUT_PROPOSE_STATE_REUSE;
 	if (mode < 0 || mode >= ARRAY_LENGTH(drm_output_propose_state_mode_as_string))
 		return " unknown compositing mode";
 
-	return drm_output_propose_state_mode_as_string[mode];
+	if (reuse)
+		return drm_output_propose_reused_state_mode_as_string[mode];
+	else
+		return drm_output_propose_state_mode_as_string[mode];
 }
 
 static bool
@@ -1008,6 +1022,151 @@ debug_propose_fail(struct drm_output *output,
 }
 
 static struct drm_output_state *
+drm_output_propose_state_try_reuse(struct weston_output *output_base,
+				   struct drm_pending_state *pending_state,
+				   enum drm_output_propose_state_mode mode)
+{
+	struct drm_output *output = to_drm_output(output_base);
+	struct drm_device *device = output->device;
+	struct drm_backend *b = device->backend;
+	struct weston_compositor *compositor = b->compositor;
+	struct weston_paint_node *pnode;
+	struct drm_output_state *state;
+
+	/* These states are where we end up when we can't use planes
+	 * at all, sometimes simply because we don't have a renderer
+	 * fb yet. In that case we'd immediately get into a better
+	 * state on the next repaint, even with no scene graph
+	 * changes. But if we allow reuse we're stuck in a bad state
+	 * waiting for a scene graph change to move us out of it.
+	 *
+	 * Just disable this optimization for these suboptimal states.
+	 */
+	if (output->state_cur->mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY ||
+	    output->state_cur->mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR) {
+		debug_propose_fail(output, mode, "probable fallback state");
+		return NULL;
+	}
+
+	if (output->state_cur->mode == DRM_OUTPUT_PROPOSE_STATE_INVALID) {
+		debug_propose_fail(output, mode, "no previous state");
+		return NULL;
+	}
+
+	if (output_base->paint_node_changes & ~WESTON_PAINT_NODE_BUFFER_DIRTY) {
+		debug_propose_fail(output, mode, "state is outdated");
+		return NULL;
+	}
+
+	if (output->state_cur->planes_enabled != !output_base->disable_planes) {
+		debug_propose_fail(output, mode, "planes_enabled changed");
+		return NULL;
+	}
+
+	state = drm_output_state_duplicate(output->state_cur,
+					   pending_state,
+					   DRM_OUTPUT_STATE_PRESERVE_PLANES);
+	if (!state) {
+		debug_propose_fail(output, mode, "could not clone prior state");
+		return NULL;
+	}
+
+	wl_list_for_each(pnode, &output_base->paint_node_z_order_list,
+			 z_order_link) {
+		enum try_view_on_plane_failure_reasons reasons;
+		struct drm_plane_state *pstate;
+		struct drm_plane *plane;
+		struct drm_fb *fb;
+
+		/* we don't care about renderer views */
+		if (pnode->plane == &output_base->primary_plane) {
+			drm_debug(b, "\t\t[reuse] ignoring view %s on renderer plane\n", pnode->view->internal_name);
+			continue;
+		}
+		plane = (struct drm_plane *) pnode->plane;
+		pstate = drm_output_state_get_existing_plane(state, plane);
+		weston_assert_ptr_not_null(compositor, pstate);
+		pstate->ev = pnode->view;
+
+		/* cursor is handled out of band */
+		if (plane->type == WDRM_PLANE_TYPE_CURSOR) {
+			drm_debug(b, "\t\t[reuse] ignoring cursor plane for view %s\n", pnode->view->internal_name);
+			continue;
+		}
+
+		drm_debug(b, "\t\t[reuse] view %s has plane %d\n",
+			  pnode->view->internal_name, plane->plane_id);
+
+		/* FIXME: If we get here, there should be a valid weston_buffer, and that's
+		 * all we should ever need at this point. If the buffer is deleted while
+		 * attached to a surface right now weston_view_has_valid_buffer() sees the
+		 * buffer as invalid. We don't want that to be the case, but we also don't
+		 * want paint node DIRTY bits to track that. This will be cleaned up in the
+		 * future by chasing down remaining bugs in buffer lifecycle management, at
+		 * which point we replace this with a weston_assert() instead.
+		 */
+		if (!weston_view_has_valid_buffer(pnode->view)) {
+			drm_debug(b, "\t\t[reuse] view %s no longer has a valid buffer\n",
+				  pnode->view->internal_name);
+			drm_output_state_free(state);
+			return NULL;
+		}
+
+		fb = drm_fb_get_from_paint_node(state, pnode, &reasons);
+		if (!fb) {
+			char *fr_str = bits_to_str(pnode->try_view_on_plane_failure_reasons,
+						   weston_plane_failure_reasons_to_str);
+			char *msg;
+
+			str_printf(&msg, "couldn't get new FB: %s", fr_str);
+			debug_propose_fail(output, mode, msg);
+			free(msg);
+			free(fr_str);
+			drm_output_state_free(state);
+			return NULL;
+		}
+
+		drm_fb_unref(pstate->fb);
+		pstate->fb = fb;
+
+		pstate->in_fence_fd = pnode->surface->acquire_fence_fd;
+		drm_debug(b, "\t\t[reuse] successfully stole away pnode %s to reused plane\n", pnode->internal_name);
+		/* XXX: When we set non-default color states in DRM, make sure they match */
+		weston_buffer_reference(&pstate->fb_ref.buffer,
+					pnode->surface->buffer_ref.buffer,
+					BUFFER_MAY_BE_ACCESSED);
+		weston_buffer_release_reference(&pstate->fb_ref.release,
+						pnode->surface->buffer_release_ref.buffer_release);
+	}
+
+	if (drm_pending_state_test(pending_state) != 0) {
+		debug_propose_fail(output, mode, "atomic test not OK");
+		drm_output_state_free(state);
+		return NULL;
+	}
+
+	/* In any state with the renderer, we need to unreference and remove
+	 * the previous renderer fb.
+	 */
+	if (state->mode != DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY) {
+		struct drm_plane *scanout_plane = output->scanout_handle->plane;
+		struct drm_plane_state *pstate =
+			drm_output_state_get_existing_plane(state, scanout_plane);
+
+		/* drm_output_repaint expects to see this */
+		drm_debug(b, "\t\t[reuse] dropped reference on renderer fb %p\n", pstate->fb);
+		weston_assert_true(compositor,
+				   pstate->fb->type == BUFFER_GBM_SURFACE ||
+				   pstate->fb->type == BUFFER_PIXMAN_DUMB ||
+				   pstate->fb->type == BUFFER_DMABUF_BACKEND);
+		drm_fb_unref(pstate->fb);
+		pstate->fb = NULL;
+	}
+
+	return state;
+}
+
+static struct drm_output_state *
 drm_output_propose_state(struct weston_output *output_base,
 			 struct drm_pending_state *pending_state,
 			 enum drm_output_propose_state_mode mode)
@@ -1027,12 +1186,17 @@ drm_output_propose_state(struct weston_output *output_base,
 	pixman_region32_t background_region;
 	pixman_region32_t obscured_region;
 
-	bool renderer_ok = (mode != DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY);
 	int ret;
 	/* Record the current lowest zpos of the overlay planes */
 	uint64_t current_lowest_zpos_overlay = DRM_PLANE_ZPOS_INVALID_PLANE;
 	/* Record the current lowest zpos of the underlay plane */
 	uint64_t current_lowest_zpos_underlay = DRM_PLANE_ZPOS_INVALID_PLANE;
+
+	if (mode & DRM_OUTPUT_PROPOSE_STATE_REUSE) {
+		return drm_output_propose_state_try_reuse(output_base,
+							  pending_state,
+							  mode);
+	}
 
 	assert(!output->state_last);
 	state = drm_output_state_duplicate(output->state_cur,
@@ -1182,6 +1346,7 @@ drm_output_propose_state(struct weston_output *output_base,
 		struct drm_plane_state *ps = NULL;
 		bool need_underlay = false;
 		pixman_region32_t tmp;
+		bool renderer_ok = (mode != DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY);
 
 		drm_debug(b, "\t\t\t[view] evaluating view %s for plane "
 		             "assignment on output %s (%lu)\n",
@@ -1368,22 +1533,30 @@ drm_assign_planes(struct weston_output *output_base)
 	struct drm_device *device = output->device;
 	struct drm_backend *b = device->backend;
 	struct drm_pending_state *pending_state = device->repaint_data;
-	struct drm_output_state *state = NULL;
+	struct drm_output_state *state;
 	struct drm_plane_state *plane_state;
 	struct drm_writeback_state *wb_state = output->wb_state;
 	struct weston_paint_node *pnode;
 	struct weston_plane *primary = &output_base->primary_plane;
-	enum drm_output_propose_state_mode mode = DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY;
+	enum drm_output_propose_state_mode mode;
 
 	assert(output);
 
 	drm_debug(b, "\t[repaint] preparing state for output %s (%lu)\n",
 		  output_base->name, (unsigned long) output_base->id);
 
-	if (!device->disable_client_buffer_scanout &&
-	    !output_base->disable_planes &&
-	    !output->is_virtual && b->gbm) {
+	drm_debug(b, "\t[repaint] trying to reuse prior %s\n",
+		  drm_propose_state_mode_to_string(output->state_cur->mode));
+
+	mode = DRM_OUTPUT_PROPOSE_STATE_REUSE | output->state_cur->mode;
+	state = drm_output_propose_state(output_base, pending_state, mode);
+	if (!state)
+		drm_debug(b, "\t[repaint] could not reuse prior state\n");
+
+	if (!state && !device->disable_client_buffer_scanout &&
+	    !output_base->disable_planes && !output->is_virtual && b->gbm) {
 		drm_debug(b, "\t[repaint] trying planes-only build state\n");
+		mode = DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY;
 		state = drm_output_propose_state(output_base, pending_state, mode);
 		if (!state) {
 			drm_debug(b, "\t[repaint] could not build planes-only "
@@ -1393,7 +1566,7 @@ drm_assign_planes(struct weston_output *output_base)
 							 pending_state,
 							 mode);
 		}
-	} else {
+	} else if (!state) {
 		drm_debug(b, "\t[state] no hardware plane support\n");
 	}
 
