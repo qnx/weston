@@ -1280,7 +1280,7 @@ vnc_backend_create(struct weston_compositor *compositor,
 
 	backend->server = nvnc_open(config->bind_address, config->port);
 	if (!backend->server)
-		goto err_output;
+		goto err_aml;
 
 	nvnc_set_new_client_fn(backend->server, vnc_new_client);
 	nvnc_set_pointer_fn(backend->server, vnc_pointer_event);
@@ -1293,30 +1293,30 @@ vnc_backend_create(struct weston_compositor *compositor,
 	if (!config->disable_tls) {
 		if (!nvnc_has_auth()) {
 			weston_log("Neat VNC built without TLS support\n");
-			goto err_output;
+			goto err_nvnc;
 		}
 		if (!config->server_cert && !config->server_key) {
 			weston_log(
 				"The VNC backend requires a key and a "
 				"certificate for TLS security"
 				" (--vnc-tls-cert/--vnc-tls-key)\n");
-			goto err_output;
+			goto err_nvnc;
 		}
 		if (!config->server_cert) {
 			weston_log(
 				"Missing TLS certificate (--vnc-tls-cert)\n");
-			goto err_output;
+			goto err_nvnc;
 		}
 		if (!config->server_key) {
 			weston_log("Missing TLS key (--vnc-tls-key)\n");
-			goto err_output;
+			goto err_nvnc;
 		}
 
 		ret = nvnc_set_tls_creds(backend->server, config->server_key,
 					 config->server_cert);
 		if (ret) {
 			weston_log("Failed set TLS credentials\n");
-			goto err_output;
+			goto err_nvnc;
 		}
 
 		ret = nvnc_enable_auth(
@@ -1325,7 +1325,7 @@ vnc_backend_create(struct weston_compositor *compositor,
 			vnc_handle_auth, NULL);
 		if (ret) {
 			weston_log("Failed to enable TLS support\n");
-			goto err_output;
+			goto err_nvnc;
 		}
 
 		weston_log("TLS support activated\n");
@@ -1334,7 +1334,7 @@ vnc_backend_create(struct weston_compositor *compositor,
 				       vnc_handle_auth, NULL);
 		if (ret) {
 			weston_log("Failed to enable authentication\n");
-			goto err_output;
+			goto err_nvnc;
 		}
 
 		weston_log(
@@ -1346,11 +1346,15 @@ vnc_backend_create(struct weston_compositor *compositor,
 					 &api, sizeof(api));
 	if (ret < 0) {
 		weston_log("Failed to register output API.\n");
-		goto err_output;
+		goto err_nvnc;
 	}
 
 	return backend;
 
+err_nvnc:
+	nvnc_close(backend->server);
+err_aml:
+	aml_unref(backend->aml);
 err_output:
 	wl_list_for_each_safe(base, next, &compositor->head_list, compositor_link)
 		vnc_head_destroy(base);
