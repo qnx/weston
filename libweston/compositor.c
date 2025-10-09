@@ -122,7 +122,7 @@ weston_view_dirty_paint_nodes(struct weston_view *view)
 
 	wl_list_for_each(node, &view->paint_node_list, view_link) {
 		assert(node->surface == view->surface);
-		node->status |= PAINT_NODE_VIEW_DIRTY;
+		node->status |= WESTON_PAINT_NODE_VIEW_DIRTY;
 
 		/* We currently only place single surfaces on non-primary
 		 * planes, and those planes are positioned within the
@@ -140,7 +140,7 @@ weston_view_dirty_paint_nodes(struct weston_view *view)
 		 */
 		if (node->plane == &node->output->primary_plane ||
 		    !node->is_fully_blended)
-			node->status |= PAINT_NODE_VISIBILITY_DIRTY;
+			node->status |= WESTON_PAINT_NODE_VISIBILITY_DIRTY;
 	}
 }
 
@@ -152,7 +152,7 @@ weston_output_dirty_paint_nodes(struct weston_output *output)
 	wl_list_for_each(node, &output->paint_node_list, output_link) {
 		assert(node->output == output);
 
-		node->status |= PAINT_NODE_OUTPUT_DIRTY;
+		node->status |= WESTON_PAINT_NODE_OUTPUT_DIRTY;
 	}
 }
 
@@ -202,8 +202,8 @@ paint_node_update_early(struct weston_paint_node *pnode)
 	struct weston_matrix *mat = &pnode->buffer_to_output_matrix;
 	struct weston_output *output = pnode->output;
 	struct weston_surface *surface = pnode->surface;
-	bool view_dirty = pnode->status & PAINT_NODE_VIEW_DIRTY;
-	bool output_dirty = pnode->status & PAINT_NODE_OUTPUT_DIRTY;
+	bool view_dirty = pnode->status & WESTON_PAINT_NODE_VIEW_DIRTY;
+	bool output_dirty = pnode->status & WESTON_PAINT_NODE_OUTPUT_DIRTY;
 	bool recording_censor, unprotected_censor;
 	struct weston_buffer *buffer;
 
@@ -257,7 +257,8 @@ paint_node_update_early(struct weston_paint_node *pnode)
 		get_placeholder_color(pnode, &pnode->solid);
 	}
 
-	pnode->status &= ~(PAINT_NODE_VIEW_DIRTY | PAINT_NODE_OUTPUT_DIRTY);
+	pnode->status &= ~(WESTON_PAINT_NODE_VIEW_DIRTY | \
+			   WESTON_PAINT_NODE_OUTPUT_DIRTY);
 }
 
 /* This is for validating a paint node after early update, assign planes,
@@ -288,7 +289,7 @@ paint_node_validate_ready(struct weston_paint_node *pnode)
 	}
 
 	/* If the pnode is ready to paint, it must have no dirty bits */
-	weston_assert_true(comp, pnode->status == PAINT_NODE_CLEAN);
+	weston_assert_true(comp, pnode->status == WESTON_PAINT_NODE_CLEAN);
 }
 
 /* Update all the paint node data that needs to be handled after
@@ -300,9 +301,9 @@ paint_node_update_late(struct weston_paint_node *pnode)
 	WESTON_TRACE_FUNC_FLOW(&pnode->surface->flow_id);
 	struct weston_surface *surf = pnode->surface;
 	struct weston_buffer *buffer = surf->buffer_ref.buffer;
-	bool vis_dirty = pnode->status & PAINT_NODE_VISIBILITY_DIRTY;
-	bool plane_dirty = pnode->status & PAINT_NODE_PLANE_DIRTY;
-	bool buffer_dirty = pnode->status & PAINT_NODE_BUFFER_DIRTY;
+	bool vis_dirty = pnode->status & WESTON_PAINT_NODE_VISIBILITY_DIRTY;
+	bool plane_dirty = pnode->status & WESTON_PAINT_NODE_PLANE_DIRTY;
+	bool buffer_dirty = pnode->status & WESTON_PAINT_NODE_BUFFER_DIRTY;
 
 	/* The geoemtry may be shrinking, so we shouldn't just
 	 * add the old visible region to our damage region, because
@@ -361,9 +362,9 @@ paint_node_update_late(struct weston_paint_node *pnode)
 	if (buffer_dirty)
 		surf->compositor->renderer->attach(pnode);
 
-	pnode->status &= ~(PAINT_NODE_VISIBILITY_DIRTY |
-			   PAINT_NODE_PLANE_DIRTY |
-			   PAINT_NODE_BUFFER_DIRTY);
+	pnode->status &= ~(WESTON_PAINT_NODE_VISIBILITY_DIRTY |
+			   WESTON_PAINT_NODE_PLANE_DIRTY |
+			   WESTON_PAINT_NODE_BUFFER_DIRTY);
 
 	paint_node_validate_ready(pnode);
 }
@@ -417,7 +418,8 @@ weston_paint_node_create(struct weston_surface *surface,
 	pnode->plane_next = NULL;
 
 	pnode->need_hole = false;
-	pnode->status = PAINT_NODE_ALL_DIRTY & ~PAINT_NODE_PLANE_DIRTY;
+	pnode->status =
+		WESTON_PAINT_NODE_ALL_DIRTY & ~WESTON_PAINT_NODE_PLANE_DIRTY;
 
 	return pnode;
 }
@@ -1197,8 +1199,8 @@ weston_paint_node_move_to_plane(struct weston_paint_node *pnode,
 
 	pnode->plane_next = plane;
 
-	pnode->status |= PAINT_NODE_PLANE_DIRTY |
-			 PAINT_NODE_VISIBILITY_DIRTY;
+	pnode->status |= WESTON_PAINT_NODE_PLANE_DIRTY |
+			 WESTON_PAINT_NODE_VISIBILITY_DIRTY;
 }
 
 /** Send wl_surface.enter/leave events
@@ -3670,7 +3672,7 @@ weston_output_repaint(struct weston_output *output)
 		 * because the paint node status are cleared after the late
 		 * update and in the same time we'd still need to check for
 		 * paint node occlusion */
-		if (pnode->status & PAINT_NODE_BUFFER_DIRTY &&
+		if (pnode->status & WESTON_PAINT_NODE_BUFFER_DIRTY &&
 		    pixman_region32_not_empty(&pnode->visible))
 			pnode->surface->painted_frame_counter++;
 

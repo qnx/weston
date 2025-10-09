@@ -300,6 +300,17 @@ enum weston_output_power_state {
 	WESTON_OUTPUT_POWER_NORMAL
 };
 
+enum weston_paint_node_status {
+	WESTON_PAINT_NODE_CLEAN = 0,
+	WESTON_PAINT_NODE_OUTPUT_DIRTY = 1 << 0,
+	WESTON_PAINT_NODE_VIEW_DIRTY = 1 << 1,
+	WESTON_PAINT_NODE_VISIBILITY_DIRTY = 1 << 2,
+	WESTON_PAINT_NODE_PLANE_DIRTY = 1 << 3,
+	WESTON_PAINT_NODE_BUFFER_DIRTY = 1 << 4,
+	WESTON_PAINT_NODE_ALL_DIRTY = (1 << 5) - 1,
+};
+
+
 enum weston_vrr_mode {
 	/** No VRR */
 	WESTON_VRR_MODE_NONE = 0,

@@ -43,7 +43,7 @@ weston_surface_apply(struct weston_surface *surface,
 
 static void
 weston_surface_dirty_paint_nodes(struct weston_surface *surface,
-				 enum paint_node_status status)
+				 enum weston_paint_node_status status)
 {
 	struct weston_paint_node *node;
 
@@ -171,7 +171,7 @@ weston_surface_attach(struct weston_surface *surface,
 
 	status |= WESTON_SURFACE_DIRTY_BUFFER;
 	weston_surface_dirty_paint_nodes(surface,
-					 PAINT_NODE_BUFFER_DIRTY);
+					 WESTON_PAINT_NODE_BUFFER_DIRTY);
 	old_buffer = NULL;
 	weston_buffer_reference(&surface->buffer_ref, buffer,
 				BUFFER_MAY_BE_ACCESSED);
@@ -299,7 +299,7 @@ weston_surface_apply_state(struct weston_surface *surface,
 		weston_matrix_invert(&surface->buffer_to_surface_matrix,
 				     &surface->surface_to_buffer_matrix);
 		weston_surface_dirty_paint_nodes(surface,
-						 PAINT_NODE_VIEW_DIRTY);
+						 WESTON_PAINT_NODE_VIEW_DIRTY);
 		weston_surface_update_size(surface);
 	}
 
