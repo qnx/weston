@@ -407,6 +407,9 @@ drm_output_state_duplicate(struct drm_output_state *src,
 
 	assert(dst);
 
+	/* The reuse bit isn't stored in the state */
+	assert(!(src->mode & DRM_OUTPUT_PROPOSE_STATE_REUSE));
+
 	/* Copy the whole structure, then individually modify the
 	 * pending_state, as well as the list link into our pending
 	 * state. */
