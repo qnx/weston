@@ -34,6 +34,7 @@
 #include "weston-debug-server-protocol.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <unistd.h>
 #include <stdarg.h>
 #include <string.h>
@@ -958,8 +959,8 @@ weston_log_scope_timestamp(struct weston_log_scope *scope,
 			       "%Y-%m-%d %H:%M:%S", bdt);
 
 	if (ret > 0) {
-		snprintf(buf, len, "[%s.%03ld][%s]", string,
-			 tv.tv_usec / 1000,
+		snprintf(buf, len, "[%s.%03" PRId64 "][%s]", string,
+			 (int64_t)(tv.tv_usec / 1000),
 			 (scope) ? scope->name : "no scope");
 	} else {
 		snprintf(buf, len, "[?][%s]",
@@ -1012,8 +1013,8 @@ weston_log_timestamp(char *buf, size_t len, int *cached_tm_mday)
 
        strftime(timestr, sizeof(timestr), "%H:%M:%S", brokendown_time);
        /* if datestr is empty it prints only timestr*/
-       snprintf(buf, len, "%s[%s.%03li]", datestr,
-                timestr, (tv.tv_usec / 1000));
+       snprintf(buf, len, "%s[%s.%03" PRId64 "]", datestr,
+                timestr, (int64_t)(tv.tv_usec / 1000));
 
        return buf;
 }
