@@ -353,6 +353,9 @@ struct weston_output {
 	/* struct weston_paint_node::output_link */
 	struct wl_list paint_node_list;
 
+	/** Only valid during repaint: changes for this repaint */
+	enum weston_paint_node_status paint_node_changes;
+
 	/** From global to output buffer coordinates. */
 	struct weston_matrix matrix;
 	/** From output buffer to global coordinates. */

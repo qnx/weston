@@ -257,6 +257,7 @@ paint_node_update_early(struct weston_paint_node *pnode)
 		get_placeholder_color(pnode, &pnode->solid);
 	}
 
+	pnode->output->paint_node_changes |= pnode->status;
 	pnode->status &= ~(WESTON_PAINT_NODE_VIEW_DIRTY | \
 			   WESTON_PAINT_NODE_OUTPUT_DIRTY);
 }
@@ -3620,8 +3621,10 @@ weston_output_repaint(struct weston_output *output)
 	TL_POINT(ec, TLP_CORE_REPAINT_BEGIN, TLP_OUTPUT(output), TLP_END);
 
 	/* Rebuild the surface list and update surface transforms up front. */
-	if (ec->view_list_needs_rebuild)
+	if (ec->view_list_needs_rebuild) {
 		weston_compositor_build_view_list(ec);
+		output->paint_node_changes = WESTON_PAINT_NODE_ALL_DIRTY;
+	}
 
 	/* If the scene graph is empty, we could end up passing a buffer
 	 * we've never drawn into to a hardware plane later. If that hardware
@@ -3736,8 +3739,11 @@ weston_output_repaint(struct weston_output *output)
 	 * to trigger a new repaint, so drop it from repaint and hope
 	 * something schedules a successful repaint later.
 	 */
-	if (r != 0)
+	if (r == 0) {
+		output->paint_node_changes = WESTON_PAINT_NODE_CLEAN;
+	} else {
 		weston_output_schedule_repaint_reset(output);
+	}
 
 	return r;
 }
