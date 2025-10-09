@@ -282,15 +282,7 @@ wet_shell_init(struct weston_compositor *ec,
 	       int *argc, char *argv[])
 {
 	struct desktest_shell *dts;
-	struct weston_curtain_params background_params = {
-		.r = 0.16, .g = 0.32, .b = 0.48, .a = 1.0,
-		.pos.c = weston_coord(0, 0),
-		.width = 2000, .height = 2000,
-		.capture_input = true,
-		.surface_committed = NULL,
-		.get_label = background_get_label,
-		.surface_private = NULL,
-	};
+	struct weston_output *output;
 	struct weston_coord_global pos;
 
 	dts = xzalloc(sizeof *dts);
@@ -316,6 +308,17 @@ wet_shell_init(struct weston_compositor *ec,
 				  WESTON_LAYER_POSITION_BACKGROUND);
 	weston_layer_set_position(&dts->fullscreen_layer,
 				  WESTON_LAYER_POSITION_FULLSCREEN);
+
+	output = weston_shell_utils_get_default_output(dts->compositor);
+	struct weston_curtain_params background_params = {
+		.r = 0.16, .g = 0.32, .b = 0.48, .a = 1.0,
+		.pos = output->pos,
+		.width = output->width, .height = output->height,
+		.capture_input = true,
+		.surface_committed = NULL,
+		.get_label = background_get_label,
+		.surface_private = NULL,
+	};
 
 	dts->background = weston_shell_utils_curtain_create(ec, &background_params);
 	if (dts->background == NULL)
