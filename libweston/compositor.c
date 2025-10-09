@@ -9294,8 +9294,8 @@ weston_compositor_print_scene_graph(struct weston_compositor *ec)
 	assert(fp);
 
 	weston_compositor_read_presentation_clock(ec, &now);
-	fprintf(fp, "Weston scene graph at %ld.%09ld:\n\n",
-		now.tv_sec, now.tv_nsec);
+	fprintf(fp, "Weston scene graph at %" PRId64 ".%09ld:\n\n",
+		(int64_t)now.tv_sec, now.tv_nsec);
 
 	wl_list_for_each(output, &ec->output_list, link) {
 		struct weston_head *head;
@@ -9319,8 +9319,8 @@ weston_compositor_print_scene_graph(struct weston_compositor *ec)
 		fprintf(fp, "\trepaint status: %s\n",
 			output_repaint_status_text(output));
 		if (output->repaint_status == REPAINT_SCHEDULED)
-			fprintf(fp, "\tnext repaint: %ld.%09ld\n",
-				output->next_repaint.tv_sec,
+			fprintf(fp, "\tnext repaint: %" PRId64 ".%09ld\n",
+				(int64_t)output->next_repaint.tv_sec,
 				output->next_repaint.tv_nsec);
 
 		wl_list_for_each(head, &output->head_list, output_link) {
