@@ -4731,7 +4731,6 @@ surface_commit(struct wl_client *client, struct wl_resource *resource)
 {
 	struct weston_surface *surface = wl_resource_get_user_data(resource);
 	WESTON_TRACE_FUNC_FLOW(&surface->pending.flow_id);
-	enum weston_surface_status status;
 	struct weston_buffer *buffer;
 	int32_t tmp_w, tmp_h;
 
@@ -4828,10 +4827,7 @@ surface_commit(struct wl_client *client, struct wl_resource *resource)
 		return;
 	}
 
-	status = weston_surface_commit(surface);
-
-	if (status & WESTON_SURFACE_DIRTY_SUBSURFACE_CONFIG)
-		surface->compositor->view_list_needs_rebuild = true;
+	weston_surface_commit(surface);
 }
 
 static void

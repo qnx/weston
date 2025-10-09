@@ -38,7 +38,7 @@
 #include "timeline.h"
 #include "weston-trace.h"
 
-static enum weston_surface_status
+static void
 weston_surface_apply(struct weston_surface *surface,
 		     struct weston_surface_state *state);
 
@@ -186,6 +186,7 @@ weston_surface_attach(struct weston_surface *surface,
 static void
 weston_surface_apply_subsurface_order(struct weston_surface *surface)
 {
+	struct weston_compositor *comp = surface->compositor;
 	struct weston_subsurface *sub;
 	struct weston_view *view;
 
@@ -196,6 +197,7 @@ weston_surface_apply_subsurface_order(struct weston_surface *surface)
 		wl_list_for_each(view, &sub->surface->views, surface_link)
 			weston_view_geometry_dirty(view);
 	}
+	weston_assert_true(comp, comp->view_list_needs_rebuild);
 }
 
 /* Translate pending damage in buffer co-ordinates to surface
@@ -395,6 +397,9 @@ weston_surface_apply_state(struct weston_surface *surface,
 
 	wl_signal_emit(&surface->commit_signal, surface);
 
+	if (status & WESTON_SURFACE_DIRTY_SUBSURFACE_CONFIG)
+		weston_surface_apply_subsurface_order(surface);
+
 	/* Surface is now quiescent */
 	surface->is_unmapping = false;
 	surface->is_mapping = false;
@@ -403,10 +408,9 @@ weston_surface_apply_state(struct weston_surface *surface,
 	return status;
 }
 
-static enum weston_surface_status
+static void
 weston_subsurface_parent_apply(struct weston_subsurface *sub)
 {
-	enum weston_surface_status status = WESTON_SURFACE_CLEAN;
 	struct weston_view *view;
 
 	if (sub->position.changed) {
@@ -418,9 +422,7 @@ weston_subsurface_parent_apply(struct weston_subsurface *sub)
 	}
 
 	if (sub->effectively_synchronized)
-		status = weston_surface_apply(sub->surface, &sub->cached);
-
-	return status;
+		weston_surface_apply(sub->surface, &sub->cached);
 }
 
 
@@ -441,27 +443,21 @@ weston_surface_schedule_repaint(struct weston_surface *surface)
 	}
 }
 
-static enum weston_surface_status
+static void
 weston_surface_apply(struct weston_surface *surface,
 		     struct weston_surface_state *state)
 {
 	WESTON_TRACE_FUNC_FLOW(&state->flow_id);
-	enum weston_surface_status status;
 	struct weston_subsurface *sub;
 
-	status = weston_surface_apply_state(surface, state);
-
-	if (status & WESTON_SURFACE_DIRTY_SUBSURFACE_CONFIG)
-		weston_surface_apply_subsurface_order(surface);
+	weston_surface_apply_state(surface, state);
 
 	weston_surface_schedule_repaint(surface);
 
 	wl_list_for_each(sub, &surface->subsurface_list, parent_link) {
 		if (sub->surface != surface)
-			status |= weston_subsurface_parent_apply(sub);
+			weston_subsurface_parent_apply(sub);
 	}
-
-	return status;
 }
 
 static void
@@ -545,26 +541,24 @@ weston_surface_state_merge_from(struct weston_surface_state *dst,
 	src->status = WESTON_SURFACE_CLEAN;
 }
 
-enum weston_surface_status
+void
 weston_surface_commit(struct weston_surface *surface)
 {
 	WESTON_TRACE_FUNC_FLOW(&surface->pending.flow_id);
 	struct weston_subsurface *sub = weston_surface_to_subsurface(surface);
 	struct weston_surface_state *state = &surface->pending;
-	enum weston_surface_status status;
 
 	if (sub) {
 		weston_surface_state_merge_from(&sub->cached,
 						state,
 						surface);
 		if (sub->effectively_synchronized)
-			return WESTON_SURFACE_CLEAN;
+			return;
 
 		state = &sub->cached;
 	}
 
-	status = weston_surface_apply(surface, state);
-	return status;
+	weston_surface_apply(surface, state);
 }
 
 /** Recursively update effectively_synchronized state for a subsurface tree

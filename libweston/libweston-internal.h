@@ -847,7 +847,7 @@ weston_surface_update_size(struct weston_surface *surface);
 
 /* Surface state helpers from surface-state.c */
 
-enum weston_surface_status
+void
 weston_surface_commit(struct weston_surface *surface);
 
 void
