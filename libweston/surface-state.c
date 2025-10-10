@@ -34,6 +34,7 @@
 #include "backend.h"
 #include "pixel-formats.h"
 #include "shared/fd-util.h"
+#include "shared/weston-assert.h"
 #include "timeline.h"
 #include "weston-trace.h"
 
@@ -148,13 +149,12 @@ weston_surface_attach(struct weston_surface *surface,
 		struct weston_buffer_viewport *vp = &state->buffer_viewport;
 		int32_t old_width = surface->width_from_buffer;
 		int32_t old_height = surface->height_from_buffer;
+		bool size_ok;
 
-		convert_size_by_transform_scale(&surface->width_from_buffer,
-						&surface->height_from_buffer,
-						buffer->width,
-						buffer->height,
-						vp->buffer.transform,
-						vp->buffer.scale);
+		size_ok = convert_buffer_size_by_transform_scale(&surface->width_from_buffer,
+								 &surface->height_from_buffer,
+								 buffer, vp);
+		weston_assert_true(surface->compositor, size_ok);
 
 		if (surface->width_from_buffer != old_width ||
 		    surface->height_from_buffer != old_height) {

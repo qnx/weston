@@ -805,6 +805,26 @@ convert_size_by_transform_scale(int32_t *width_out, int32_t *height_out,
 	}
 }
 
+static inline bool
+convert_buffer_size_by_transform_scale(int32_t *width_out, int32_t *height_out,
+				       const struct weston_buffer *buf,
+				       const struct weston_buffer_viewport *vp)
+{
+	/* Buffer dimensions must be integer multiples of the scale */
+	if (buf->width % vp->buffer.scale ||
+	    buf->height % vp->buffer.scale)
+		return false;
+
+	convert_size_by_transform_scale(width_out, height_out,
+					buf->width, buf->height,
+					vp->buffer.transform,
+					vp->buffer.scale);
+	if (*width_out == 0 || *height_out == 0)
+		return false;
+
+	return true;
+}
+
 /* User authentication for remote backends */
 
 bool

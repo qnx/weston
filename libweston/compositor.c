@@ -4617,14 +4617,13 @@ weston_surface_is_pending_viewport_source_valid(
 	if ((pend->status & WESTON_SURFACE_DIRTY_BUFFER) ||
 		(pend->status & WESTON_SURFACE_DIRTY_SIZE)) {
 		if (pend->buffer_ref.buffer) {
+			bool size_ok;
 			struct weston_buffer *buf = pend->buffer_ref.buffer;
 
-			convert_size_by_transform_scale(&width_from_buffer,
-							&height_from_buffer,
-							buf->width,
-							buf->height,
-							vp->buffer.transform,
-							vp->buffer.scale);
+			size_ok = convert_buffer_size_by_transform_scale(&width_from_buffer,
+									 &height_from_buffer,
+									 buf, vp);
+			weston_assert_true(surface->compositor, size_ok);
 		} else {
 			/* No buffer: viewport is irrelevant. */
 			return true;
@@ -4686,6 +4685,48 @@ surface_commit(struct wl_client *client, struct wl_resource *resource)
 	struct weston_surface *surface = wl_resource_get_user_data(resource);
 	WESTON_TRACE_FUNC_FLOW(&surface->flow_id);
 	enum weston_surface_status status;
+	struct weston_buffer *buffer;
+	int32_t tmp_w, tmp_h;
+
+	buffer = surface->pending.buffer_ref.buffer;
+	if (buffer &&
+	    !convert_buffer_size_by_transform_scale(&tmp_w, &tmp_h,
+						    buffer,
+						    &surface->pending.buffer_viewport)) {
+		wl_resource_post_error(surface->resource,
+				       WL_SURFACE_ERROR_INVALID_SIZE,
+				       "surface size (%dx%d) was not an integer multiple of scale (%d)",
+				       buffer->width, buffer->height,
+				       surface->pending.buffer_viewport.buffer.scale);
+		return;
+	}
+	/* If there is no pending buffer, we could be trying to use new
+	 * scale with an old buffer, so test surface->*_from_buffer against
+	 * pending scale. The stored width/height have already been divided
+	 * by the current scale, so multiply that back in before testing
+	 * against the pending scale. We might actually be confusing width
+	 * and height here, as we're losing transform information, but that
+	 * has no impact on the test.
+	 *
+	 * If we've never had a buffer, we'll be testing 0 dimensions, which
+	 * will just magically look ok.
+	 */
+	if (!buffer) {
+		int32_t old_buffer_width = surface->width_from_buffer *
+					   surface->buffer_viewport.buffer.scale;
+		int32_t old_buffer_height = surface->height_from_buffer *
+					    surface->buffer_viewport.buffer.scale;
+
+		if (old_buffer_width % surface->pending.buffer_viewport.buffer.scale ||
+		    old_buffer_height % surface->pending.buffer_viewport.buffer.scale) {
+			wl_resource_post_error(surface->resource,
+					       WL_SURFACE_ERROR_INVALID_SIZE,
+					       "surface size (%dx%d) was not an integer multiple of scale (%d)",
+					       surface->width_from_buffer, surface->height_from_buffer,
+					       surface->pending.buffer_viewport.buffer.scale);
+			return;
+		}
+	}
 
 	if (!weston_surface_is_pending_viewport_source_valid(surface)) {
 		assert(surface->viewport_resource);
