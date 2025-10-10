@@ -179,7 +179,6 @@ struct output {
 
 struct buffer {
 	struct wl_buffer *proxy;
-	size_t len;
 	pixman_image_t *image;
 	struct client_buffer *buf;
 };

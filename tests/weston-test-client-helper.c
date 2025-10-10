@@ -531,7 +531,6 @@ create_buffer(struct client *client, int width, int height, uint32_t drm_format,
 	}
 	test_assert_ptr_not_null(buf->buf);
 	buf->proxy = buf->buf->wl_buffer;
-	buf->len = buf->buf->bytes;
 
 	buf->image = pixman_image_create_bits(pfmt->pixman_format,
 					      width, height,
