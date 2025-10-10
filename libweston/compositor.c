@@ -284,6 +284,7 @@ paint_node_update_early(struct weston_paint_node *pnode)
 		pnode->is_fully_blended = weston_view_is_fully_blended(pnode->view,
 								       &pnode->view->transform.boundingbox);
 	}
+	maybe_replace_paint_node(pnode);
 
 	pnode->status &= ~(PAINT_NODE_VIEW_DIRTY | PAINT_NODE_OUTPUT_DIRTY);
 }
@@ -335,7 +336,6 @@ paint_node_update_late(struct weston_paint_node *pnode)
 		pnode->plane_next = NULL;
 	}
 
-	maybe_replace_paint_node(pnode);
 	if (buffer_dirty)
 		surf->compositor->renderer->attach(pnode);
 
