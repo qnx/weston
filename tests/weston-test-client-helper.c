@@ -1179,7 +1179,6 @@ create_client_and_test_surface(int x, int y, int width, int height)
 	struct client *client;
 	struct surface *surface;
 	pixman_color_t color = { 16384, 16384, 16384, 16384 }; /* uint16_t */
-	pixman_image_t *solid;
 
 	client = create_client();
 
@@ -1190,17 +1189,7 @@ create_client_and_test_surface(int x, int y, int width, int height)
 	surface->width = width;
 	surface->height = height;
 	surface->buffer = create_shm_buffer_a8r8g8b8(client, width, height);
-
-	solid = pixman_image_create_solid_fill(&color);
-	pixman_image_composite32(PIXMAN_OP_SRC,
-				 solid, /* src */
-				 NULL, /* mask */
-				 surface->buffer->image, /* dst */
-				 0, 0, /* src x,y */
-				 0, 0, /* mask x,y */
-				 0, 0, /* dst x,y */
-				 width, height);
-	pixman_image_unref(solid);
+	fill_image_with_color(surface->buffer->image, &color);
 
 	move_client_frame_sync(client, x, y);
 
