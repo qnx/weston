@@ -2392,34 +2392,6 @@ fixed_round_up_to_int(wl_fixed_t f)
 	return wl_fixed_to_int(wl_fixed_from_int(1) - 1 + f);
 }
 
-WESTON_EXPORT_FOR_TESTS void
-convert_size_by_transform_scale(int32_t *width_out, int32_t *height_out,
-				int32_t width, int32_t height,
-				uint32_t transform,
-				int32_t scale)
-{
-	assert(scale > 0);
-
-	switch (transform) {
-	case WL_OUTPUT_TRANSFORM_NORMAL:
-	case WL_OUTPUT_TRANSFORM_180:
-	case WL_OUTPUT_TRANSFORM_FLIPPED:
-	case WL_OUTPUT_TRANSFORM_FLIPPED_180:
-		*width_out = width / scale;
-		*height_out = height / scale;
-		break;
-	case WL_OUTPUT_TRANSFORM_90:
-	case WL_OUTPUT_TRANSFORM_270:
-	case WL_OUTPUT_TRANSFORM_FLIPPED_90:
-	case WL_OUTPUT_TRANSFORM_FLIPPED_270:
-		*width_out = height / scale;
-		*height_out = width / scale;
-		break;
-	default:
-		assert(0 && "invalid transform");
-	}
-}
-
 void
 weston_surface_update_size(struct weston_surface *surface)
 {
