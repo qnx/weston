@@ -195,9 +195,9 @@ pixels_monotonic(const uint32_t *row, int x)
 }
 
 static void *
-get_middle_row(struct buffer *buf)
+get_middle_row(pixman_image_t *image)
 {
-	struct image_header ih = image_header_from(buf->image);
+	struct image_header ih = image_header_from(image);
 
 	test_assert_int_ge(ih.width, BLOCK_WIDTH * ALPHA_STEPS);
 	test_assert_int_ge(ih.height, BLOCK_WIDTH);
@@ -230,9 +230,9 @@ check_blend_pattern(struct buffer *bg, struct buffer *fg, struct buffer *shot,
 	 */
 	const float tolerance = 1.72f / 255.f;
 
-	uint32_t *bg_row = get_middle_row(bg);
-	uint32_t *fg_row = get_middle_row(fg);
-	uint32_t *shot_row = get_middle_row(shot);
+	uint32_t *bg_row = get_middle_row(bg->image);
+	uint32_t *fg_row = get_middle_row(fg->image);
+	uint32_t *shot_row = get_middle_row(shot->image);
 	struct rgb_diff_stat diffstat = { .dump = dump, };
 	bool ret = true;
 	int x;

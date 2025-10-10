@@ -564,9 +564,9 @@ static const int ALPHA_STEPS = 256;
 static const int BLOCK_WIDTH = 1;
 
 static void *
-get_middle_row(struct buffer *buf)
+get_middle_row(pixman_image_t *image)
 {
-	struct image_header ih = image_header_from(buf->image);
+	struct image_header ih = image_header_from(image);
 
 	test_assert_int_ge(ih.width, BLOCK_WIDTH * ALPHA_STEPS);
 	test_assert_int_ge(ih.height, BLOCK_WIDTH);
@@ -591,9 +591,9 @@ check_blend_pattern(struct buffer *bg_buf,
 	dump = fopen_dump_file(arg->meta.name);
 #endif
 
-	uint32_t *bg_row = get_middle_row(bg_buf);
-	uint32_t *fg_row = get_middle_row(fg_buf);
-	uint32_t *shot_row = get_middle_row(shot_buf);
+	uint32_t *bg_row = get_middle_row(bg_buf->image);
+	uint32_t *fg_row = get_middle_row(fg_buf->image);
+	uint32_t *shot_row = get_middle_row(shot_buf->image);
 	struct rgb_diff_stat diffstat = { .dump = dump };
 	int x;
 
