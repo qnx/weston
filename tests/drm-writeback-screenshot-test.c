@@ -160,7 +160,7 @@ TEST(drm_writeback_screenshot) {
 	second_screenshot = client_capture_output(client, client->output,
 						  WESTON_CAPTURE_V1_SOURCE_WRITEBACK,
 						  args->buffer_type);
-	test_assert_ptr_not_null(screenshot);
+	test_assert_ptr_not_null(second_screenshot);
 
 	/* load reference image */
 	fname = screenshot_reference_filename("drm-writeback-screenshot", 0);
