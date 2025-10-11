@@ -119,7 +119,6 @@ TEST(color_effects)
 	const struct setup_args *arg = &my_setup_args[seq_no];
 	struct client *client;
 	struct buffer *buffer;
-	struct buffer *screenshot;
 	struct wl_surface *surface;
 	const uint32_t width = WINDOW_WIDTH;
 	const uint32_t height = WINDOW_HEIGHT;
@@ -144,19 +143,14 @@ TEST(color_effects)
 	wl_surface_commit(surface);
 	frame_callback_wait(client, &frame);
 
-	/* take screenshot */
-	screenshot = capture_screenshot_of_output(client, NULL);
-	test_assert_ptr_not_null(screenshot);
-
-	/* compare to reference image, ignoring background (which also changes
-	 * with color effects, but let's make the test run faster) */
+	/* compare screenshot to reference image, ignoring background (which also
+	 * changes with color effects, but let's make the test run faster) */
 	clip.x = 0;
 	clip.y = 0;
 	clip.width = buffer->buf->width;
 	clip.height = buffer->buf->height;
-	verify_image(screenshot->image, arg->ref_image_prefix, seq_no, &clip, seq_no);
+	verify_screen_content(client, arg->ref_image_prefix, seq_no, &clip, seq_no, NULL);
 
-	buffer_destroy(screenshot);
 	buffer_destroy(buffer);
 	client_destroy(client);
 
