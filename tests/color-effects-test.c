@@ -152,8 +152,8 @@ TEST(color_effects)
 	 * with color effects, but let's make the test run faster) */
 	clip.x = 0;
 	clip.y = 0;
-	clip.width = pixman_image_get_width(buffer->image);
-	clip.height = pixman_image_get_height(buffer->image);
+	clip.width = buffer->buf->width;
+	clip.height = buffer->buf->height;
 	verify_image(screenshot->image, arg->ref_image_prefix, seq_no, &clip, seq_no);
 
 	buffer_destroy(screenshot);
