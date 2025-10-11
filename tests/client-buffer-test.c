@@ -1667,7 +1667,7 @@ test_client_buffer(const struct client_buffer_case *cb_case,
 
 		match = verify_screen_content(client, "client-buffer",
 					      cb_case->ref_seq_no, NULL, 0,
-					      NULL);
+					      NULL, NO_DECORATIONS);
 		res = match ? RESULT_OK : RESULT_FAIL;
 
 		client_buffer_util_destroy_buffer(buf);

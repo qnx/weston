@@ -120,7 +120,7 @@ TEST(internal_screenshot)
 
 	/* Take a snapshot.  Result will be in screenshot->wl_buffer. */
 	testlog("Taking a screenshot\n");
-	screenshot = capture_screenshot_of_output(client, NULL);
+	screenshot = capture_screenshot_of_output(client, NULL, NO_DECORATIONS);
 	test_assert_ptr_not_null(screenshot);
 
 	/* Load good reference image */

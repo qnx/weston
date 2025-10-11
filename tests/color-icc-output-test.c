@@ -502,7 +502,7 @@ TEST(opaque_pixel_conversion)
 	wl_surface_damage(surface, 0, 0, width, height);
 	wl_surface_commit(surface);
 
-	shot = capture_screenshot_of_output(client, NULL);
+	shot = capture_screenshot_of_output(client, NULL, NO_DECORATIONS);
 	test_assert_ptr_not_null(shot);
 
 	match = verify_image(shot->image, "shaper_matrix", arg->ref_image_index,
@@ -725,7 +725,7 @@ TEST(output_icc_alpha_blend)
 	/* attach, damage, commit background window */
 	move_client(client, 0, 0);
 
-	shot = capture_screenshot_of_output(client, NULL);
+	shot = capture_screenshot_of_output(client, NULL, NO_DECORATIONS);
 	test_assert_ptr_not_null(shot);
 	match = verify_image(shot->image, "output_icc_alpha_blend", arg->ref_image_index,
 			     NULL, seq_no);
@@ -760,23 +760,15 @@ TEST(output_icc_decorations)
 	int seq_no = get_test_fixture_index();
 	const struct setup_args *arg = &my_setup_args[seq_no];
 	struct client *client;
-	struct buffer *shot;
-	pixman_image_t *img;
 	bool match;
 
 	client = create_client();
 
-	shot = client_capture_output(client, client->output,
-				     WESTON_CAPTURE_V1_SOURCE_FULL_FRAMEBUFFER,
-				     CLIENT_BUFFER_TYPE_SHM);
-	img = image_convert_to_a8r8g8b8(shot->image);
-
-	match = verify_image(img, "output-icc-decorations",
-			     arg->ref_image_index, NULL, seq_no);
+	match = verify_screen_content(client, "output-icc-decorations",
+				      arg->ref_image_index, NULL, seq_no,
+				      client->output->name, INCLUDE_DECORATIONS);
 	test_assert_true(match);
 
-	pixman_image_unref(img);
-	buffer_destroy(shot);
 	client_destroy(client);
 
 	return RESULT_OK;

@@ -2037,16 +2037,21 @@ client_capture_output(struct client *client,
  * is ensured to be PIXMAN_a8r8g8b8.
  *
  * @param client a client instance, as created by create_client()
- * @param output_name the name of the output, as specified by wl_output.name
+ * @param output_name the name of the output, as specified by wl_output.name,
+ * or NULL to use the client-defined output
+ * @param include_decorations true if the screenshot should include output
+ * decorations, or false if it should include just the client content
  * @returns A new buffer object, that should be freed with buffer_destroy().
  */
 struct buffer *
-capture_screenshot_of_output(struct client *client, const char *output_name)
+capture_screenshot_of_output(struct client *client, const char *output_name,
+			     enum screenshot_decoration_mode include_decorations)
 {
 	struct image_header ih;
 	struct buffer *shm;
 	struct buffer *buf;
 	struct output *output = NULL;
+	enum weston_capture_v1_source source;
 
 	if (output_name) {
 		struct output *output_iter;
@@ -2063,8 +2068,12 @@ capture_screenshot_of_output(struct client *client, const char *output_name)
 		output = client->output;
 	}
 
-	shm = client_capture_output(client, output,
-				    WESTON_CAPTURE_V1_SOURCE_FRAMEBUFFER,
+	if (include_decorations == INCLUDE_DECORATIONS)
+		source = WESTON_CAPTURE_V1_SOURCE_FULL_FRAMEBUFFER;
+	else
+		source = WESTON_CAPTURE_V1_SOURCE_FRAMEBUFFER;
+
+	shm = client_capture_output(client, output, source,
 				    CLIENT_BUFFER_TYPE_SHM);
 	ih = image_header_from(shm->image);
 
@@ -2182,6 +2191,8 @@ verify_image(pixman_image_t *shot,
  * \param seq_no See verify_image().
  * \param output_name the output name as specified by wl_output.name. If NULL,
  * this is the last wl_output advertised by wl_registry.
+ * \param include_decorations true if the screenshot should include output
+ * decorations, or false if it should include just the client content
  * \return True if the screen contents matches the reference image,
  * false otherwise.
  */
@@ -2190,12 +2201,14 @@ verify_screen_content(struct client *client,
 		      const char *ref_image,
 		      int ref_seq_no,
 		      const struct rectangle *clip,
-		      int seq_no, const char *output_name)
+		      int seq_no, const char *output_name,
+		      enum screenshot_decoration_mode include_decorations)
 {
 	struct buffer *shot;
 	bool match;
 
-	shot = capture_screenshot_of_output(client, output_name);
+	shot = capture_screenshot_of_output(client, output_name,
+					    include_decorations);
 	test_assert_ptr_not_null(shot);
 	match = verify_image(shot->image, ref_image, ref_seq_no, clip, seq_no);
 	buffer_destroy(shot);

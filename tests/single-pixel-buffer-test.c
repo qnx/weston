@@ -100,7 +100,8 @@ TEST(solid_buffer_argb_u32)
 	wl_surface_commit(client->surface->wl_surface);
 	frame_callback_wait(client, &done);
 
-	match = verify_screen_content(client, "single-pixel-buffer", 0, NULL, 0, NULL);
+	match = verify_screen_content(client, "single-pixel-buffer", 0,
+				      NULL, 0, NULL, NO_DECORATIONS);
 	test_assert_true(match);
 
 	wl_buffer_destroy(buffer);

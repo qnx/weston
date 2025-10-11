@@ -149,7 +149,8 @@ TEST(color_effects)
 	clip.y = 0;
 	clip.width = buffer->buf->width;
 	clip.height = buffer->buf->height;
-	verify_screen_content(client, arg->ref_image_prefix, seq_no, &clip, seq_no, NULL);
+	verify_screen_content(client, arg->ref_image_prefix, seq_no, &clip,
+			      seq_no, NULL, NO_DECORATIONS);
 
 	buffer_destroy(buffer);
 	client_destroy(client);

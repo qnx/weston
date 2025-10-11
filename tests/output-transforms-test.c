@@ -151,7 +151,8 @@ TEST_P(output_transform, my_buffer_args)
 					bargs->transform);
 	move_client(client, 19, 19);
 
-	match = verify_screen_content(client, refname, 0, NULL, 0, NULL);
+	match = verify_screen_content(client, refname, 0, NULL, 0, NULL,
+				      NO_DECORATIONS);
 	test_assert_true(match);
 
 	client_destroy(client);

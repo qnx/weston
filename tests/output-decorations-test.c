@@ -82,22 +82,14 @@ DECLARE_FIXTURE_SETUP_WITH_ARG(fixture_setup, my_setup_args, meta);
 TEST(output_decorations)
 {
 	struct client *client;
-	struct buffer *shot;
-	pixman_image_t *img;
 	bool match;
 
 	client = create_client();
 
-	shot = client_capture_output(client, client->output,
-				     WESTON_CAPTURE_V1_SOURCE_FULL_FRAMEBUFFER,
-				     CLIENT_BUFFER_TYPE_SHM);
-	img = image_convert_to_a8r8g8b8(shot->image);
-
-	match = verify_image(img, "output-decorations", 0, NULL, 0);
+	match = verify_screen_content(client, "output-decorations", 0, NULL, 0,
+				      client->output->name, INCLUDE_DECORATIONS);
 	test_assert_true(match);
 
-	pixman_image_unref(img);
-	buffer_destroy(shot);
 	client_destroy(client);
 
 	return RESULT_OK;

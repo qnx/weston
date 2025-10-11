@@ -353,7 +353,7 @@ TEST(alpha_blend)
 	/* attach, damage, commit background window */
 	move_client(client, 0, 0);
 
-	shot = capture_screenshot_of_output(client, NULL);
+	shot = capture_screenshot_of_output(client, NULL, NO_DECORATIONS);
 	test_assert_ptr_not_null(shot);
 	match = verify_image(shot->image, "alpha_blend", seq_no, NULL, seq_no);
 	test_assert_true(check_blend_pattern(bg, fg, shot, space));

@@ -109,7 +109,7 @@ check_screen(struct client *client,
 	bool match;
 
 	match = verify_screen_content(client, ref_image, ref_seq_no, clip,
-				      seq_no, NULL);
+				      seq_no, NULL, NO_DECORATIONS);
 
 	return match ? 0 : -1;
 }

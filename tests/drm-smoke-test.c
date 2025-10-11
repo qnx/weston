@@ -94,7 +94,7 @@ TEST(drm_screenshot_no_damage) {
 	 */
 	for (i = 0; i < 5; i++) {
 		ret = verify_screen_content(client, "drm_screenshot_no_damage",
-					    0, NULL, i, NULL);
+					    0, NULL, i, NULL, NO_DECORATIONS);
 		test_assert_true(ret);
 	}
 

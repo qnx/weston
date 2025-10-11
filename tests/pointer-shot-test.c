@@ -155,7 +155,7 @@ TEST(pointer_cursor_retains_committed_buffer_after_reenter)
 			      client->input->pointer->serial,
 			      main_cursor_surface->wl_surface, 0, 0);
 	match = verify_screen_content(client, "pointer_cursor_reenter", 0,
-				      NULL, 0, NULL);
+				      NULL, 0, NULL, NO_DECORATIONS);
 	test_assert_true(match);
 
 	/* Move the cursor just outside the main surface. */
@@ -164,7 +164,7 @@ TEST(pointer_cursor_retains_committed_buffer_after_reenter)
 			      client->input->pointer->serial,
 			      back_cursor_surface->wl_surface, 0, 0);
 	match = verify_screen_content(client, "pointer_cursor_reenter", 1,
-				      NULL, 1, NULL);
+				      NULL, 1, NULL, NO_DECORATIONS);
 	test_assert_true(match);
 
 	/* And back in the main surface again. */
@@ -173,7 +173,7 @@ TEST(pointer_cursor_retains_committed_buffer_after_reenter)
 			      client->input->pointer->serial,
 			      main_cursor_surface->wl_surface, 0, 0);
 	match = verify_screen_content(client, "pointer_cursor_reenter", 2,
-				      NULL, 2, NULL);
+				      NULL, 2, NULL, NO_DECORATIONS);
 	test_assert_true(match);
 
 	surface_destroy(back_cursor_surface);

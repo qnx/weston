@@ -207,6 +207,11 @@ struct range {
 	int b;
 };
 
+enum screenshot_decoration_mode {
+	INCLUDE_DECORATIONS,
+	NO_DECORATIONS,
+};
+
 struct client *
 create_client(void);
 
@@ -318,7 +323,8 @@ pixman_image_t *
 load_image_from_png(const char *fname);
 
 struct buffer *
-capture_screenshot_of_output(struct client *client, const char *output_name);
+capture_screenshot_of_output(struct client *client, const char *output_name,
+			     enum screenshot_decoration_mode include_decorations);
 
 struct buffer *
 client_capture_output(struct client *client,
@@ -341,7 +347,8 @@ verify_screen_content(struct client *client,
 		      const char *ref_image,
 		      int ref_seq_no,
 		      const struct rectangle *clip,
-		      int seq_no, const char *output_name);
+		      int seq_no, const char *output_name,
+		      enum screenshot_decoration_mode include_decorations);
 
 struct buffer *
 client_buffer_from_image_file(struct client *client,
