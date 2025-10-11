@@ -57,9 +57,7 @@ TEST(drm_smoke) {
 	test_assert_ptr_not_null(client);
 
 	surface = client->surface->wl_surface;
-	buffer = create_shm_buffer_a8r8g8b8(client, 200, 200);
-
-	fill_image_with_color(buffer->image, &red);
+	buffer = create_shm_buffer_solid(client, 200, 200, &red);
 
 	for (i = 0; i < 5; i++) {
 		wl_surface_attach(surface, buffer->proxy, 0, 0);

@@ -84,8 +84,7 @@ TEST(viewport_upscale_solid)
 	client->surface = create_test_surface(client);
 	viewport = client_create_viewport(client);
 
-	client->surface->buffer = create_shm_buffer_a8r8g8b8(client, 2, 2);
-	fill_image_with_color(client->surface->buffer->image, &color);
+	client->surface->buffer = create_shm_buffer_solid(client, 2, 2, &color);
 
 	/* Needs output scale != buffer scale to hit bilinear filter. */
 	wl_surface_set_buffer_scale(client->surface->wl_surface, 2);

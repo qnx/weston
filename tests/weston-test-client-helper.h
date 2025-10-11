@@ -244,6 +244,10 @@ create_shm_buffer(struct client *client, int width, int height,
 struct buffer *
 create_shm_buffer_a8r8g8b8(struct client *client, int width, int height);
 
+struct buffer *
+create_shm_buffer_solid(struct client *client, int width, int height,
+			const pixman_color_t *solid);
+
 bool
 support_drm_format(struct client *client, uint32_t format, uint64_t modifier);
 

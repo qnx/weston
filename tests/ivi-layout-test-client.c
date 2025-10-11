@@ -463,6 +463,7 @@ TEST(ivi_layout_surface_configure_notification)
 	struct ivi_application *iviapp;
 	struct ivi_window *wind;
 	struct buffer *buffer;
+	pixman_color_t black;
 
 	client = create_client();
 	runner = client_create_runner(client);
@@ -472,7 +473,8 @@ TEST(ivi_layout_surface_configure_notification)
 
 	wind = client_create_ivi_window(client, iviapp, IVI_TEST_SURFACE_ID(0));
 
-	buffer = create_shm_buffer_a8r8g8b8(client, 200, 300);
+	color_rgb888(&black, 0, 0, 0);
+	buffer = create_shm_buffer_solid(client, 200, 300, &black);
 
 	wl_surface_attach(wind->wl_surface, buffer->proxy, 0, 0);
 	wl_surface_damage(wind->wl_surface, 0, 0, 20, 30);

@@ -273,10 +273,13 @@ TEST(get_release_after_commit_succeeds)
 	struct zwp_linux_surface_synchronization_v1 *surface_sync =
 		zwp_linux_explicit_synchronization_v1_get_synchronization(
 			sync, surface);
-	struct buffer *buf1 = create_shm_buffer_a8r8g8b8(client, 100, 100);
+	struct buffer *buf1;
+	pixman_color_t black;
 	struct zwp_linux_buffer_release_v1 *buffer_release1;
 	struct zwp_linux_buffer_release_v1 *buffer_release2;
 
+	color_rgb888(&black, 0, 0, 0);
+	buf1 = create_shm_buffer_solid(client, 100, 100, &black);
 	buffer_release1 =
 		zwp_linux_surface_synchronization_v1_get_release(surface_sync);
 	client_roundtrip(client);
@@ -335,14 +338,19 @@ TEST(get_release_events_are_emitted_for_different_buffers)
 	struct zwp_linux_surface_synchronization_v1 *surface_sync =
 		zwp_linux_explicit_synchronization_v1_get_synchronization(
 			sync, client->surface->wl_surface);
-	struct buffer *buf1 = create_shm_buffer_a8r8g8b8(client, 100, 100);
-	struct buffer *buf2 = create_shm_buffer_a8r8g8b8(client, 100, 100);
+	struct buffer *buf1;
+	struct buffer *buf2;
+	pixman_color_t black;
 	struct wl_surface *surface = client->surface->wl_surface;
 	struct zwp_linux_buffer_release_v1 *buffer_release1;
 	struct zwp_linux_buffer_release_v1 *buffer_release2;
 	int buf_released1 = 0;
 	int buf_released2 = 0;
 	int frame;
+
+	color_rgb888(&black, 0, 0, 0);
+	buf1 = create_shm_buffer_solid(client, 100, 100, &black);
+	buf2 = create_shm_buffer_solid(client, 100, 100, &black);
 
 	buffer_release1 =
 		zwp_linux_surface_synchronization_v1_get_release(surface_sync);
@@ -399,7 +407,8 @@ TEST(get_release_events_are_emitted_for_same_buffer_on_surface)
 	struct zwp_linux_surface_synchronization_v1 *surface_sync =
 		zwp_linux_explicit_synchronization_v1_get_synchronization(
 			sync, client->surface->wl_surface);
-	struct buffer *buf = create_shm_buffer_a8r8g8b8(client, 100, 100);
+	struct buffer *buf;
+	pixman_color_t black;
 	struct wl_surface *surface = client->surface->wl_surface;
 	struct zwp_linux_buffer_release_v1 *buffer_release1;
 	struct zwp_linux_buffer_release_v1 *buffer_release2;
@@ -407,6 +416,8 @@ TEST(get_release_events_are_emitted_for_same_buffer_on_surface)
 	int buf_released2 = 0;
 	int frame;
 
+	color_rgb888(&black, 0, 0, 0);
+	buf = create_shm_buffer_solid(client, 100, 100, &black);
 	buffer_release1 =
 		zwp_linux_surface_synchronization_v1_get_release(surface_sync);
 	zwp_linux_buffer_release_v1_add_listener(buffer_release1,
@@ -467,13 +478,18 @@ TEST(get_release_events_are_emitted_for_same_buffer_on_different_surfaces)
 	struct zwp_linux_surface_synchronization_v1 *surface_sync2 =
 		zwp_linux_explicit_synchronization_v1_get_synchronization(
 			sync, surface2);
-	struct buffer *buf1 = create_shm_buffer_a8r8g8b8(client, 100, 100);
-	struct buffer *buf2 = create_shm_buffer_a8r8g8b8(client, 100, 100);
+	struct buffer *buf1;
+	struct buffer *buf2;
+	pixman_color_t black;
 	struct zwp_linux_buffer_release_v1 *buffer_release1;
 	struct zwp_linux_buffer_release_v1 *buffer_release2;
 	int buf_released1 = 0;
 	int buf_released2 = 0;
 	int frame;
+
+	color_rgb888(&black, 0, 0, 0);
+	buf1 = create_shm_buffer_solid(client, 100, 100, &black);
+	buf2 = create_shm_buffer_solid(client, 100, 100, &black);
 
 	weston_test_move_surface(client->test->weston_test, surface2, 0, 0);
 

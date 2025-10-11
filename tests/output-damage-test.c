@@ -210,10 +210,8 @@ TEST(output_damage)
 	client->surface->width = width;
 	client->surface->height = height;
 
-	for (i = 0; i < COUNT_BUFS; i++) {
-		buf[i] = create_shm_buffer_a8r8g8b8(client, width, height);
-		fill_image_with_color(buf[i]->image, &colors[i]);
-	}
+	for (i = 0; i < COUNT_BUFS; i++)
+		buf[i] = create_shm_buffer_solid(client, width, height, &colors[i]);
 
 	client->surface->buffer = buf[0];
 	move_client_frame_sync(client, 19, 19);

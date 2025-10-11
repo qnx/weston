@@ -1188,8 +1188,7 @@ create_client_and_test_surface(int x, int y, int width, int height)
 
 	surface->width = width;
 	surface->height = height;
-	surface->buffer = create_shm_buffer_a8r8g8b8(client, width, height);
-	fill_image_with_color(surface->buffer->image, &color);
+	surface->buffer = create_shm_buffer_solid(client, width, height, &color);
 
 	move_client_frame_sync(client, x, y);
 
@@ -2349,6 +2348,20 @@ fill_image_with_color(pixman_image_t *image, const pixman_color_t *color)
 				 0, 0, /* dst x,y */
 				 width, height);
 	pixman_image_unref(solid);
+}
+
+struct buffer *
+create_shm_buffer_solid(struct client *client, int width, int height,
+			const pixman_color_t *color)
+{
+	struct buffer *buffer;
+
+	buffer = create_shm_buffer_a8r8g8b8(client, width, height);
+	if (!buffer)
+		return NULL;
+	fill_image_with_color(buffer->image, color);
+
+	return buffer;
 }
 
 /**

@@ -190,13 +190,11 @@ xdg_surface_commit_solid(struct xdg_surface_data *xdg_surface,
 	width = xdg_surface->configure.width;
 	height = xdg_surface->configure.height;
 
-	buf = create_shm_buffer_a8r8g8b8(xdg_surface->surface->client,
-					 width, height);
+	color_rgb888(&color, r, g, b);
+	buf = create_shm_buffer_solid(xdg_surface->surface->client,
+				      width, height, &color);
 	test_assert_ptr_not_null(buf);
 	xdg_surface->surface->buffer = buf;
-
-	color_rgb888(&color, r, g, b);
-	fill_image_with_color(buf->image, &color);
 
 	wl_surface_attach(xdg_surface->surface->wl_surface, buf->proxy, 0, 0);
 	wl_surface_damage_buffer(xdg_surface->surface->wl_surface,

@@ -136,22 +136,25 @@ TEST(buffer_release)
 	struct buffer *buf1;
 	struct buffer *buf2;
 	struct buffer *buf3;
+	pixman_color_t black;
 	int buf1_released = 0;
 	int buf2_released = 0;
 	int buf3_released = 0;
 	int frame;
 
+	color_rgb888(&black, 0, 0, 0);
+
 	client = create_client_and_test_surface(100, 100, 100, 100);
 	test_assert_ptr_not_null(client);
 	surface = client->surface->wl_surface;
 
-	buf1 = create_shm_buffer_a8r8g8b8(client, 100, 100);
+	buf1 = create_shm_buffer_solid(client, 100, 100, &black);
 	wl_buffer_add_listener(buf1->proxy, &buffer_listener, &buf1_released);
 
-	buf2 = create_shm_buffer_a8r8g8b8(client, 100, 100);
+	buf2 = create_shm_buffer_solid(client, 100, 100, &black);
 	wl_buffer_add_listener(buf2->proxy, &buffer_listener, &buf2_released);
 
-	buf3 = create_shm_buffer_a8r8g8b8(client, 100, 100);
+	buf3 = create_shm_buffer_solid(client, 100, 100, &black);
 	wl_buffer_add_listener(buf3->proxy, &buffer_listener, &buf3_released);
 
 	/*
