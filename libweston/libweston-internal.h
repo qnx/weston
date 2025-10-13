@@ -555,6 +555,9 @@ weston_view_takes_input_at_point(struct weston_view *view,
 				 struct weston_coord_surface surf_pos);
 
 void
+weston_view_geometry_dirty_internal(struct weston_view *view);
+
+void
 weston_paint_node_move_to_plane(struct weston_paint_node *pnode,
 				struct weston_plane *plane);
 void

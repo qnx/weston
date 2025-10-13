@@ -340,8 +340,10 @@ weston_surface_apply_state(struct weston_surface *surface,
 
 		if (!pixman_region32_equal(&opaque, &surface->opaque)) {
 			pixman_region32_copy(&surface->opaque, &opaque);
-			wl_list_for_each(view, &surface->views, surface_link)
-				weston_view_geometry_dirty(view);
+			wl_list_for_each(view, &surface->views, surface_link) {
+				weston_view_geometry_dirty_internal(view);
+				weston_view_update_transform(view);
+			}
 		}
 
 		pixman_region32_fini(&opaque);

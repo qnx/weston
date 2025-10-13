@@ -111,9 +111,6 @@ static void
 subsurface_committed(struct weston_surface *surface,
 		     struct weston_coord_surface new_origin);
 
-static void
-weston_view_geometry_dirty_internal(struct weston_view *view);
-
 static bool
 weston_view_is_fully_blended(struct weston_view *ev,
 			     pixman_region32_t *region);
@@ -1884,7 +1881,7 @@ weston_view_update_transform(struct weston_view *view)
 	}
 }
 
-static void
+void
 weston_view_geometry_dirty_internal(struct weston_view *view)
 {
 	struct weston_view *child;
@@ -1987,7 +1984,8 @@ weston_view_set_rel_position(struct weston_view *view,
 		return;
 
 	view->geometry.pos_offset = offset.c;
-	weston_view_geometry_dirty(view);
+	weston_view_geometry_dirty_internal(view);
+	weston_view_update_transform(view);
 }
 
 WL_EXPORT void
@@ -2002,7 +2000,8 @@ weston_view_set_position(struct weston_view *view,
 		return;
 
 	view->geometry.pos_offset = pos.c;
-	weston_view_geometry_dirty(view);
+	weston_view_geometry_dirty_internal(view);
+	weston_view_update_transform(view);
 }
 
 WL_EXPORT void
@@ -2373,7 +2372,7 @@ surface_set_size(struct weston_surface *surface, int32_t width, int32_t height)
 	surface->height = height;
 
 	wl_list_for_each(view, &surface->views, surface_link)
-		weston_view_geometry_dirty(view);
+		weston_view_geometry_dirty_internal(view);
 }
 
 WL_EXPORT void
