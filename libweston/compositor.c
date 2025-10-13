@@ -3526,13 +3526,12 @@ weston_output_put_back_feedback_list(struct weston_output *output)
 	wl_list_init(&output->feedback_list);
 }
 
-WL_EXPORT bool
+WL_EXPORT void
 weston_output_flush_damage_for_plane(struct weston_output *output,
 				     struct weston_plane *plane,
 				     pixman_region32_t *damage)
 {
 	struct weston_paint_node *pnode;
-	bool changed = false;
 
 	wl_list_for_each(pnode, &output->paint_node_z_order_list,
 			 z_order_link) {
@@ -3543,8 +3542,6 @@ weston_output_flush_damage_for_plane(struct weston_output *output,
 			if (!pnode->need_hole)
 				continue;
 		}
-		changed = true;
-
 		/* We can safely clip paint node damage to visible region
 		 * here, as we're only dealing with nodes on this output,
 		 * and the visibility regions for paint nodes on this
@@ -3555,7 +3552,6 @@ weston_output_flush_damage_for_plane(struct weston_output *output,
 		pixman_region32_clear(&pnode->damage);
 	}
 	pixman_region32_intersect(damage, damage, &output->region);
-	return changed;
 }
 
 WL_EXPORT void
