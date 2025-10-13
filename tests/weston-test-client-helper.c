@@ -2150,11 +2150,8 @@ verify_image(pixman_image_t *shot,
 	bool match = false;
 
 	shot_fname = output_filename_for_test_case("shot", seq_no, "png");
-
-	if (ref_image) {
-		ref_fname = screenshot_reference_filename(ref_image, ref_seq_no);
-		ref = load_image_from_png(ref_fname);
-	}
+	ref_fname = screenshot_reference_filename(ref_image, ref_seq_no);
+	ref = load_image_from_png(ref_fname);
 
 	if (ref) {
 		match = check_images_match(ref, shot, clip, &gl_fuzz);
