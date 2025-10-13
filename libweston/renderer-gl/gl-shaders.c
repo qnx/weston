@@ -1,6 +1,6 @@
 /*
  * Copyright 2012 Intel Corporation
- * Copyright 2015,2019,2021 Collabora, Ltd.
+ * Copyright 2015,2019,2021-2025 Collabora, Ltd.
  * Copyright 2016 NVIDIA Corporation
  * Copyright 2019 Harish Krupo
  * Copyright 2019 Intel Corporation
@@ -95,6 +95,8 @@ struct gl_shader {
 	union gl_shader_color_curve_uniforms color_pre_curve;
 	union gl_shader_color_mapping_uniforms color_mapping;
 	union gl_shader_color_curve_uniforms color_post_curve;
+	union gl_shader_color_curve_uniforms fb_fetch_curve;
+	union gl_shader_color_curve_uniforms fb_store_curve;
 	GLint yuv_offsets_uniform;
 	GLint yuv_coefficients_uniform;
 };
@@ -241,7 +243,7 @@ create_shader_description_string(const struct gl_shader_requirements *req)
 	int size;
 	char *str;
 
-	size = asprintf(&str, "%s %s %s %s %s %s %cinput_is_premult %ctint",
+	size = asprintf(&str, "%s %s %s %s %s %s %cinput_is_premult %ctint %cshader_blending (%s, %s)",
 			gl_shader_texcoord_input_to_string(req->texcoord_input),
 			gl_shader_texture_variant_to_string(req->variant),
 			gl_shader_color_effect_to_string(req->color_effect),
@@ -249,7 +251,10 @@ create_shader_description_string(const struct gl_shader_requirements *req)
 			gl_shader_color_mapping_to_string(req->color_mapping),
 			gl_shader_color_curve_to_string(req->color_post_curve),
 			req->input_is_premult ? '+' : '-',
-			req->tint ? '+' : '-');
+			req->tint ? '+' : '-',
+			req->shader_blending ? '+' : '-',
+			gl_shader_color_curve_to_string(req->fb_fetch_curve),
+			gl_shader_color_curve_to_string(req->fb_store_curve));
 	if (size < 0)
 		return NULL;
 	return str;
@@ -286,6 +291,9 @@ create_fragment_shader_config_string(const struct gl_shader_requirements *req)
 			"#define DEF_COLOR_PRE_CURVE %s\n"
 			"#define DEF_COLOR_MAPPING %s\n"
 			"#define DEF_COLOR_POST_CURVE %s\n"
+			"#define DEF_SHADER_BLENDING %s\n"
+			"#define DEF_FB_FETCH_CURVE %s\n"
+			"#define DEF_FB_STORE_CURVE %s\n"
 			"#define DEF_COLOR_EFFECT %s\n"
 			"#define DEF_VARIANT %s\n",
 			ARRAY_LENGTH(((union weston_color_curve_parametric_chan_data){}).data),
@@ -295,6 +303,9 @@ create_fragment_shader_config_string(const struct gl_shader_requirements *req)
 			gl_shader_color_curve_to_string(req->color_pre_curve),
 			gl_shader_color_mapping_to_string(req->color_mapping),
 			gl_shader_color_curve_to_string(req->color_post_curve),
+			req->shader_blending ? "1" : "0",
+			gl_shader_color_curve_to_string(req->fb_fetch_curve),
+			gl_shader_color_curve_to_string(req->fb_store_curve),
 			gl_shader_color_effect_to_string(req->color_effect),
 			gl_shader_texture_variant_to_string(req->variant));
 	if (size < 0)
@@ -505,8 +516,14 @@ gl_shader_create(struct gl_renderer *gr,
 	shader->yuv_offsets_uniform = glGetUniformLocation(shader->program,
 							   "yuv_offsets");
 
-	free(conf);
+	get_curve_uniform_locations(gr, &shader->fb_fetch_curve,
+				    requirements->fb_fetch_curve,
+				    shader->program, "fb_fetch_curve");
+	get_curve_uniform_locations(gr, &shader->fb_store_curve,
+				    requirements->fb_store_curve,
+				    shader->program, "fb_store_curve");
 
+	free(conf);
 	wl_list_insert(&gr->shader_list, &shader->link);
 
 	return shader;
@@ -918,6 +935,15 @@ gl_shader_load_config(struct gl_renderer *gr,
 
 	if (sconf->req.wireframe)
 		glUniform1i(shader->tex_uniform_wireframe, TEX_UNIT_WIREFRAME);
+
+	if (sconf->req.shader_blending) {
+		gl_shader_load_config_curve(gr->compositor, sconf->req.fb_fetch_curve,
+					    &sconf->fb_fetch_curve, &shader->fb_fetch_curve,
+					    TEX_UNIT_FB_FETCH_CURVE);
+		gl_shader_load_config_curve(gr->compositor, sconf->req.fb_store_curve,
+					    &sconf->fb_store_curve, &shader->fb_store_curve,
+					    TEX_UNIT_FB_STORE_CURVE);
+	}
 
 	glActiveTexture(GL_TEXTURE0);
 }

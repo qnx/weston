@@ -1,6 +1,6 @@
 /*
  * Copyright 2012 Intel Corporation
- * Copyright 2015,2019,2021 Collabora, Ltd.
+ * Copyright 2015,2019,2021-2025 Collabora, Ltd.
  * Copyright 2016 NVIDIA Corporation
  * Copyright 2021 Advanced Micro Devices, Inc.
  *
@@ -68,6 +68,10 @@
 #extension GL_OES_texture_3D : require
 #endif
 
+#if DEF_SHADER_BLENDING
+#extension GL_EXT_shader_framebuffer_fetch_non_coherent : require
+#endif
+
 #ifdef GL_FRAGMENT_PRECISION_HIGH
 #define HIGHPRECISION highp
 #else
@@ -84,6 +88,8 @@ compile_const int c_variant = DEF_VARIANT;
 compile_const int c_color_pre_curve = DEF_COLOR_PRE_CURVE;
 compile_const int c_color_mapping = DEF_COLOR_MAPPING;
 compile_const int c_color_post_curve = DEF_COLOR_POST_CURVE;
+compile_const int c_fb_fetch_curve = DEF_FB_FETCH_CURVE;
+compile_const int c_fb_store_curve = DEF_FB_STORE_CURVE;
 compile_const int c_color_effect = DEF_COLOR_EFFECT;
 
 compile_const bool c_input_is_premult = DEF_INPUT_IS_PREMULT;
@@ -159,6 +165,12 @@ uniform HIGHPRECISION mat3 color_mapping_matrix;
 uniform HIGHPRECISION vec3 color_mapping_offset;
 
 uniform HIGHPRECISION mat3 cvd_correction_matrix;
+
+uniform lut_2d_t fb_fetch_curve_lut;
+uniform parametric_curve_t fb_fetch_curve_par;
+
+uniform lut_2d_t fb_store_curve_lut;
+uniform parametric_curve_t fb_store_curve_par;
 
 /*
  * 2D texture sampler abstracting away the lack of swizzles on OpenGL ES 2. This
@@ -505,8 +517,8 @@ wireframe()
 	return vec4(clamp(edge1 + edge2 + edge3, 0.0, 1.0));
 }
 
-void
-main()
+vec4
+fragment_input_color_premult()
 {
 	vec4 color;
 
@@ -545,5 +557,41 @@ main()
 		color = color * vec4(1.0 - src.a) + src;
 	}
 
-	gl_FragColor = color;
+	return color;
 }
+
+#if DEF_SHADER_BLENDING
+
+layout(noncoherent) mediump vec4 gl_LastFragData[gl_MaxDrawBuffers];
+
+void
+main()
+{
+	vec4 src;
+	vec4 dst;
+
+	src = fragment_input_color_premult();
+
+	/* Framebuffer must have straight alpha. */
+	dst = gl_LastFragData[0];
+	dst.rgb = color_curve(c_fb_fetch_curve, fb_fetch_curve_lut,
+			      fb_fetch_curve_par, dst.rgb);
+
+	/* glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA); */
+	dst = src + (1.0 - src.a) * dst;
+
+	dst.rgb = color_curve(c_fb_store_curve, fb_store_curve_lut,
+			      fb_store_curve_par, dst.rgb);
+
+	gl_FragColor = dst;
+}
+
+#else
+
+void
+main()
+{
+	gl_FragColor = fragment_input_color_premult();
+}
+
+#endif /* DEF_SHADER_BLENDING */

@@ -339,6 +339,7 @@ static const struct gl_extension_table extension_table[] = {
 	EXT("GL_EXT_EGL_image_storage", EXTENSION_EXT_EGL_IMAGE_STORAGE),
 	EXT("GL_EXT_map_buffer_range", EXTENSION_EXT_MAP_BUFFER_RANGE),
 	EXT("GL_EXT_read_format_bgra", EXTENSION_EXT_READ_FORMAT_BGRA),
+	EXT("GL_EXT_shader_framebuffer_fetch_non_coherent", EXTENSION_EXT_SHADER_FB_FETCH_NC),
 	EXT("GL_EXT_texture_format_BGRA8888", EXTENSION_EXT_TEXTURE_FORMAT_BGRA8888),
 	EXT("GL_EXT_texture_norm16", EXTENSION_EXT_TEXTURE_NORM16),
 	EXT("GL_EXT_texture_rg", EXTENSION_EXT_TEXTURE_RG),
@@ -5452,6 +5453,10 @@ gl_renderer_setup(struct weston_compositor *ec)
 	}
 
 	gr->gl_version = get_gl_version();
+	glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS,
+		      &gr->max_texture_image_units);
+	glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS,
+		      &gr->max_combined_texture_image_units);
 	log_gl_info(gr);
 
 	extensions = (const char *) glGetString(GL_EXTENSIONS);
@@ -5594,6 +5599,14 @@ gl_renderer_setup(struct weston_compositor *ec)
 	if (gl_has_sized_bgra8_renderbuffer(gr))
 		gr->features |= FEATURE_SIZED_BGRA8_RENDERBUFFER;
 
+	/* Shader blending feature. */
+	if (gl_extensions_has(gr, EXTENSION_EXT_SHADER_FB_FETCH_NC) &&
+	    gr->max_texture_image_units >= TEX_UNIT_COUNT_OPTIONAL &&
+	    gr->max_combined_texture_image_units >= TEX_UNIT_COUNT_OPTIONAL) {
+		GET_PROC_ADDRESS(gr->framebuffer_fetch_barrier, "glFramebufferFetchBarrierEXT");
+		gr->features |= FEATURE_SHADER_BLENDING;
+	}
+
 	gr->bgra8_texture_support = gl_get_bgra8_texture_support(gr);
 
 	wl_list_init(&gr->pending_capture_list);
@@ -5637,6 +5650,8 @@ gl_renderer_setup(struct weston_compositor *ec)
 	weston_log_continue(STAMP_SPACE "Required precision: %s\n",
 			    yesno(gr->gl_version >= gl_version(3, 0) ||
 				  gl_extensions_has(gr, EXTENSION_OES_REQUIRED_INTERNALFORMAT)));
+	weston_log_continue(STAMP_SPACE "In-shader blending: %s\n",
+			    yesno(gl_features_has(gr, FEATURE_SHADER_BLENDING)));
 
 	return 0;
 }
