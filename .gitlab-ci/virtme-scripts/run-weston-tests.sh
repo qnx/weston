@@ -23,8 +23,6 @@ export HOME=/root
 export PATH=$HOME/.local/bin:$PATH
 export PATH=/usr/local/bin:$PATH
 
-export SEATD_LOGLEVEL=debug
-
 # Terrible hack, per comment in weston-test-runner.c's main(): find Mesa's
 # llvmpipe/lavapipe driver module location
 export WESTON_CI_LEAK_DL_HANDLES=$(find /usr/local -name swrast_dri.so -print 2>/dev/null || true):
