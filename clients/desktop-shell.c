@@ -806,6 +806,9 @@ background_draw(struct widget *widget, void *data)
 		uint32_t r8, g8, b8;
 		uint32_t r32, g32, b32;
 
+		/* Single pixel buffer must use scale 1 */
+		window_set_buffer_scale(background->window, 1);
+
 		sp_manager = display_get_single_pixel_buffer_manager(display);
 		assert(sp_manager);
 		wl_surface = widget_get_wl_surface(background->widget);
@@ -1379,10 +1382,11 @@ output_handle_scale(void *data,
                     int32_t scale)
 {
 	struct output *output = data;
+	struct background *background = output->background;
 
 	if (output->panel)
 		window_set_buffer_scale(output->panel->window, scale);
-	if (output->background)
+	if (background && !background->color)
 		window_set_buffer_scale(output->background->window, scale);
 }
 
