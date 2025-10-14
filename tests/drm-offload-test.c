@@ -348,6 +348,431 @@ TEST(drm_offload_fullscreen_black_background) {
 }
 
 /*
+ * Test that a fullscreen client with opaque-black single-pixel-buffer with a
+ * smaller-than-fullscreen-sized dmabuf subsurface above is *not* presented via
+ * direct-scanout.
+ *
+ * This should be optimized in the future.
+ */
+TEST(drm_offload_fullscreen_semi_transparent_black_background) {
+	struct xdg_client *xdg_client;
+	struct xdg_surface_data *xdg_surface;
+	struct client *client;
+	struct wl_buffer *buffer;
+	struct wl_surface *surface;
+	struct wl_surface *overlay_surface;
+	struct wl_subsurface *overlay_subsurface;
+	struct client_buffer *overlay_buffer;
+	struct wp_viewport *viewport;
+	const struct pixel_format_info *fmt_info;
+	struct wp_presentation_feedback *presentation_feedback;
+	enum feedback_result result;
+
+	fmt_info = pixel_format_get_info(DRM_FORMAT_ARGB8888);
+
+	xdg_client = create_xdg_client();
+	client = xdg_client->client;
+	xdg_surface = create_xdg_surface(xdg_client);
+	surface = xdg_surface->surface->wl_surface;
+
+	xdg_surface_make_toplevel(xdg_surface, "weston.test.drm-offload", "one");
+	xdg_toplevel_set_fullscreen(xdg_surface->xdg_toplevel, NULL);
+	xdg_surface_wait_configure(xdg_surface);
+
+	test_assert_true(xdg_surface->configure.fullscreen);
+	test_assert_int_gt(xdg_surface->configure.width, 0);
+	test_assert_int_gt(xdg_surface->configure.height, 0);
+
+	viewport = wp_viewporter_get_viewport(client->viewporter, surface);
+	wp_viewport_set_destination(viewport,
+				    xdg_surface->configure.width,
+				    xdg_surface->configure.height);
+	buffer =
+		wp_single_pixel_buffer_manager_v1_create_u32_rgba_buffer(client->single_pixel_manager,
+									 0x0, 0x0, 0x0, 0xffffffff);
+	wl_surface_attach(surface, buffer, 0, 0);
+	wl_buffer_add_listener(buffer, &overlay_buffer_listener, NULL);
+	wl_surface_damage_buffer(surface, 0, 0, 1, 1);
+	xdg_surface_maybe_ack_configure(xdg_surface);
+
+	overlay_surface = wl_compositor_create_surface(client->wl_compositor);
+	overlay_subsurface =
+		wl_subcompositor_get_subsurface(client->wl_subcompositor,
+						overlay_surface,
+						surface);
+	overlay_buffer =
+		client_buffer_util_create_dmabuf_buffer(client->wl_display,
+							client->dmabuf,
+							fmt_info,
+							100,
+							100);
+	wl_buffer_add_listener(overlay_buffer->wl_buffer, &buffer_listener, buffer);
+	wl_surface_attach(overlay_surface, overlay_buffer->wl_buffer, 0, 0);
+	wl_surface_damage_buffer(overlay_surface, 0, 0, INT32_MAX, INT32_MAX);
+
+	result = FB_PENDING;
+	presentation_feedback = wp_presentation_feedback(client->presentation,
+							 overlay_surface);
+	wp_presentation_feedback_add_listener(presentation_feedback,
+					      &presentation_feedback_listener,
+					      &result);
+	wl_surface_commit(overlay_surface);
+	wl_surface_commit(surface);
+	presentation_wait_nofail(client, &result);
+	test_assert_enum(result, FB_PRESENTED);
+
+	wp_viewport_destroy(viewport);
+	wl_subsurface_destroy(overlay_subsurface);
+	wl_surface_destroy(overlay_surface);
+
+	client_buffer_util_destroy_buffer(overlay_buffer);
+	destroy_xdg_surface(xdg_surface);
+	xdg_client_destroy(xdg_client);
+
+	return RESULT_OK;
+}
+
+/*
+ * Test that a fullscreen client with opaque-white single-pixel-buffer with a
+ * smaller-than-fullscreen-sized dmabuf subsurface above is *not* presented via
+ * direct-scanout.
+ *
+ * This should be optimized in the future.
+ */
+TEST(drm_offload_fullscreen_semi_transparent_white_background) {
+	struct xdg_client *xdg_client;
+	struct xdg_surface_data *xdg_surface;
+	struct client *client;
+	struct wl_buffer *buffer;
+	struct wl_surface *surface;
+	struct wl_surface *overlay_surface;
+	struct wl_subsurface *overlay_subsurface;
+	struct client_buffer *overlay_buffer;
+	struct wp_viewport *viewport;
+	const struct pixel_format_info *fmt_info;
+	struct wp_presentation_feedback *presentation_feedback;
+	enum feedback_result result;
+
+	fmt_info = pixel_format_get_info(DRM_FORMAT_ARGB8888);
+
+	xdg_client = create_xdg_client();
+	client = xdg_client->client;
+	xdg_surface = create_xdg_surface(xdg_client);
+	surface = xdg_surface->surface->wl_surface;
+
+	xdg_surface_make_toplevel(xdg_surface, "weston.test.drm-offload", "one");
+	xdg_toplevel_set_fullscreen(xdg_surface->xdg_toplevel, NULL);
+	xdg_surface_wait_configure(xdg_surface);
+
+	test_assert_true(xdg_surface->configure.fullscreen);
+	test_assert_int_gt(xdg_surface->configure.width, 0);
+	test_assert_int_gt(xdg_surface->configure.height, 0);
+
+	viewport = wp_viewporter_get_viewport(client->viewporter, surface);
+	wp_viewport_set_destination(viewport,
+				    xdg_surface->configure.width,
+				    xdg_surface->configure.height);
+	buffer =
+		wp_single_pixel_buffer_manager_v1_create_u32_rgba_buffer(client->single_pixel_manager,
+									 0xffffffff, 0xffffffff,
+									 0xffffffff, 0xffffffff);
+	wl_surface_attach(surface, buffer, 0, 0);
+	wl_buffer_add_listener(buffer, &overlay_buffer_listener, NULL);
+	wl_surface_damage_buffer(surface, 0, 0, 1, 1);
+	xdg_surface_maybe_ack_configure(xdg_surface);
+
+	overlay_surface = wl_compositor_create_surface(client->wl_compositor);
+	overlay_subsurface =
+		wl_subcompositor_get_subsurface(client->wl_subcompositor,
+						overlay_surface,
+						surface);
+	overlay_buffer =
+		client_buffer_util_create_dmabuf_buffer(client->wl_display,
+							client->dmabuf,
+							fmt_info,
+							100,
+							100);
+	wl_buffer_add_listener(overlay_buffer->wl_buffer, &buffer_listener, buffer);
+	wl_surface_attach(overlay_surface, overlay_buffer->wl_buffer, 0, 0);
+	wl_surface_damage_buffer(overlay_surface, 0, 0, INT32_MAX, INT32_MAX);
+
+	result = FB_PENDING;
+	presentation_feedback = wp_presentation_feedback(client->presentation,
+							 overlay_surface);
+	wp_presentation_feedback_add_listener(presentation_feedback,
+					      &presentation_feedback_listener,
+					      &result);
+	wl_surface_commit(overlay_surface);
+	wl_surface_commit(surface);
+	presentation_wait_nofail(client, &result);
+	test_assert_enum(result, FB_PRESENTED);
+
+	wp_viewport_destroy(viewport);
+	wl_subsurface_destroy(overlay_subsurface);
+	wl_surface_destroy(overlay_surface);
+
+	client_buffer_util_destroy_buffer(overlay_buffer);
+	destroy_xdg_surface(xdg_surface);
+	xdg_client_destroy(xdg_client);
+
+	return RESULT_OK;
+}
+
+/*
+ * Test that a fullscreen client with smaller-than-fullscreen-sized opaque-black
+ * single-pixel-buffer with an even smaller dmabuf subsurface above is *not*
+ * presented via direct-scanout.
+ *
+ * This should be optimized in the future.
+ */
+TEST(drm_offload_fullscreen_black_background_black_subsurface_underlay) {
+	struct xdg_client *xdg_client;
+	struct xdg_surface_data *xdg_surface;
+	struct client *client;
+	struct wl_buffer *buffer;
+	struct wl_surface *surface;
+	struct wl_surface *overlay_surface;
+	struct wl_subsurface *overlay_subsurface;
+	struct client_buffer *overlay_buffer;
+	struct wp_viewport *viewport;
+	const struct pixel_format_info *fmt_info;
+	struct wp_presentation_feedback *presentation_feedback;
+	enum feedback_result result;
+
+	fmt_info = pixel_format_get_info(DRM_FORMAT_XRGB8888);
+
+	xdg_client = create_xdg_client();
+	client = xdg_client->client;
+	xdg_surface = create_xdg_surface(xdg_client);
+	surface = xdg_surface->surface->wl_surface;
+
+	xdg_surface_make_toplevel(xdg_surface, "weston.test.drm-offload", "one");
+	xdg_toplevel_set_fullscreen(xdg_surface->xdg_toplevel, NULL);
+	xdg_surface_wait_configure(xdg_surface);
+
+	test_assert_true(xdg_surface->configure.fullscreen);
+	test_assert_int_gt(xdg_surface->configure.width, 0);
+	test_assert_int_gt(xdg_surface->configure.height, 0);
+
+	viewport = wp_viewporter_get_viewport(client->viewporter, surface);
+	wp_viewport_set_destination(viewport,
+				    xdg_surface->configure.width - 100,
+				    xdg_surface->configure.height - 100);
+	buffer =
+		wp_single_pixel_buffer_manager_v1_create_u32_rgba_buffer(client->single_pixel_manager,
+									 0x0, 0x0, 0x0, 0xffffffff);
+	wl_surface_attach(surface, buffer, 0, 0);
+	wl_buffer_add_listener(buffer, &overlay_buffer_listener, NULL);
+	wl_surface_damage_buffer(surface, 0, 0, 1, 1);
+	xdg_surface_maybe_ack_configure(xdg_surface);
+
+	overlay_surface = wl_compositor_create_surface(client->wl_compositor);
+	overlay_subsurface =
+		wl_subcompositor_get_subsurface(client->wl_subcompositor,
+						overlay_surface,
+						surface);
+	overlay_buffer =
+		client_buffer_util_create_dmabuf_buffer(client->wl_display,
+							client->dmabuf,
+							fmt_info,
+							100,
+							100);
+	wl_buffer_add_listener(overlay_buffer->wl_buffer, &buffer_listener, buffer);
+	wl_surface_attach(overlay_surface, overlay_buffer->wl_buffer, 0, 0);
+	wl_surface_damage_buffer(overlay_surface, 0, 0, INT32_MAX, INT32_MAX);
+
+	result = FB_PENDING;
+	presentation_feedback = wp_presentation_feedback(client->presentation,
+							 overlay_surface);
+	wp_presentation_feedback_add_listener(presentation_feedback,
+					      &presentation_feedback_listener,
+					      &result);
+	wl_surface_commit(overlay_surface);
+	wl_surface_commit(surface);
+	presentation_wait_nofail(client, &result);
+	test_assert_enum(result, FB_PRESENTED);
+
+	wp_viewport_destroy(viewport);
+	wl_subsurface_destroy(overlay_subsurface);
+	wl_surface_destroy(overlay_surface);
+
+	client_buffer_util_destroy_buffer(overlay_buffer);
+	destroy_xdg_surface(xdg_surface);
+	xdg_client_destroy(xdg_client);
+
+	return RESULT_OK;
+}
+
+/*
+ * Test that a fullscreen client with smaller-than-fullscreen-sized buffer
+ * with an overlapping opaque-black single-pixel-buffer subsurface above is
+ * *not* presented via direct-scanout. This test is meant to ensure that future
+ * optimizations for the above tests don't overreach.
+ */
+TEST(drm_offload_fullscreen_black_background_black_subsurface_overlay) {
+	struct xdg_client *xdg_client;
+	struct xdg_surface_data *xdg_surface;
+	struct client *client;
+	struct client_buffer *buffer;
+	struct wl_surface *surface;
+	struct wl_surface *overlay_surface;
+	struct wl_subsurface *overlay_subsurface;
+	struct wl_buffer *overlay_buffer;
+	struct wp_viewport *overlay_viewport;
+	const struct pixel_format_info *fmt_info;
+	struct wp_presentation_feedback *presentation_feedback;
+	enum feedback_result result;
+
+	fmt_info = pixel_format_get_info(DRM_FORMAT_XRGB8888);
+
+	xdg_client = create_xdg_client();
+	client = xdg_client->client;
+	xdg_surface = create_xdg_surface(xdg_client);
+	surface = xdg_surface->surface->wl_surface;
+
+	xdg_surface_make_toplevel(xdg_surface, "weston.test.drm-offload", "one");
+	xdg_toplevel_set_fullscreen(xdg_surface->xdg_toplevel, NULL);
+	xdg_surface_wait_configure(xdg_surface);
+
+	test_assert_true(xdg_surface->configure.fullscreen);
+	test_assert_int_gt(xdg_surface->configure.width, 0);
+	test_assert_int_gt(xdg_surface->configure.height, 0);
+
+	buffer = client_buffer_util_create_dmabuf_buffer(client->wl_display,
+							 client->dmabuf,
+							 fmt_info,
+							 xdg_surface->configure.width - 100,
+							 xdg_surface->configure.height - 100);
+	wl_buffer_add_listener(buffer->wl_buffer, &buffer_listener, buffer);
+	wl_surface_attach(surface, buffer->wl_buffer, 0, 0);
+	wl_surface_damage_buffer(surface, 0, 0, INT32_MAX, INT32_MAX);
+	xdg_surface_maybe_ack_configure(xdg_surface);
+
+	overlay_surface = wl_compositor_create_surface(client->wl_compositor);
+	overlay_subsurface =
+		wl_subcompositor_get_subsurface(client->wl_subcompositor,
+						overlay_surface,
+						surface);
+	overlay_viewport = wp_viewporter_get_viewport(client->viewporter,
+						      overlay_surface);
+	wp_viewport_set_destination(overlay_viewport, 100, 100);
+	overlay_buffer =
+		wp_single_pixel_buffer_manager_v1_create_u32_rgba_buffer(client->single_pixel_manager,
+									 0x0, 0x0, 0x0, 0xffffffff);
+	wl_surface_attach(overlay_surface, overlay_buffer, 0, 0);
+	wl_buffer_add_listener(overlay_buffer, &overlay_buffer_listener, NULL);
+	wl_surface_damage_buffer(overlay_surface, 0, 0, 1, 1);
+	wl_surface_commit(overlay_surface);
+
+	result = FB_PENDING;
+	presentation_feedback = wp_presentation_feedback(client->presentation,
+							 surface);
+	wp_presentation_feedback_add_listener(presentation_feedback,
+					      &presentation_feedback_listener,
+					      &result);
+	wl_surface_commit(surface);
+	presentation_wait_nofail(client, &result);
+	test_assert_enum(result, FB_PRESENTED);
+
+	wp_viewport_destroy(overlay_viewport);
+	wl_subsurface_destroy(overlay_subsurface);
+	wl_surface_destroy(overlay_surface);
+
+	client_buffer_util_destroy_buffer(buffer);
+	destroy_xdg_surface(xdg_surface);
+	xdg_client_destroy(xdg_client);
+
+	return RESULT_OK;
+}
+
+/*
+ * Test that a fullscreen client with smaller-than-fullscreen-sized opaque-red
+ * single-pixel-buffer with an even smaller dmabuf subsurface above is *not*
+ * presented via direct-scanout.
+ *
+ * This *might* be possible to get optimized in the future once the backend can
+ * support multiple solid color planes, see
+ * https://lore.kernel.org/dri-devel/20231027-solid-fill-v7-0-780188bfa7b2@quicinc.com/
+ */
+TEST(drm_offload_fullscreen_black_background_red_subsurface_underlay) {
+	struct xdg_client *xdg_client;
+	struct xdg_surface_data *xdg_surface;
+	struct client *client;
+	struct wl_buffer *buffer;
+	struct wl_surface *surface;
+	struct wl_surface *overlay_surface;
+	struct wl_subsurface *overlay_subsurface;
+	struct client_buffer *overlay_buffer;
+	struct wp_viewport *viewport;
+	const struct pixel_format_info *fmt_info;
+	struct wp_presentation_feedback *presentation_feedback;
+	enum feedback_result result;
+
+	fmt_info = pixel_format_get_info(DRM_FORMAT_XRGB8888);
+
+	xdg_client = create_xdg_client();
+	client = xdg_client->client;
+	xdg_surface = create_xdg_surface(xdg_client);
+	surface = xdg_surface->surface->wl_surface;
+
+	xdg_surface_make_toplevel(xdg_surface, "weston.test.drm-offload", "one");
+	xdg_toplevel_set_fullscreen(xdg_surface->xdg_toplevel, NULL);
+	xdg_surface_wait_configure(xdg_surface);
+
+	test_assert_true(xdg_surface->configure.fullscreen);
+	test_assert_int_gt(xdg_surface->configure.width, 0);
+	test_assert_int_gt(xdg_surface->configure.height, 0);
+
+	viewport = wp_viewporter_get_viewport(client->viewporter, surface);
+	wp_viewport_set_destination(viewport,
+				    xdg_surface->configure.width - 100,
+				    xdg_surface->configure.height - 100);
+	buffer =
+		wp_single_pixel_buffer_manager_v1_create_u32_rgba_buffer(client->single_pixel_manager,
+									 0xffffffff, 0x0, 0x0, 0xffffffff);
+	wl_surface_attach(surface, buffer, 0, 0);
+	wl_buffer_add_listener(buffer, &overlay_buffer_listener, NULL);
+	wl_surface_damage_buffer(surface, 0, 0, 1, 1);
+	xdg_surface_maybe_ack_configure(xdg_surface);
+
+	overlay_surface = wl_compositor_create_surface(client->wl_compositor);
+	overlay_subsurface =
+		wl_subcompositor_get_subsurface(client->wl_subcompositor,
+						overlay_surface,
+						surface);
+	overlay_buffer =
+		client_buffer_util_create_dmabuf_buffer(client->wl_display,
+							client->dmabuf,
+							fmt_info,
+							100,
+							100);
+	wl_buffer_add_listener(overlay_buffer->wl_buffer, &buffer_listener, buffer);
+	wl_surface_attach(overlay_surface, overlay_buffer->wl_buffer, 0, 0);
+	wl_surface_damage_buffer(overlay_surface, 0, 0, INT32_MAX, INT32_MAX);
+
+	result = FB_PENDING;
+	presentation_feedback = wp_presentation_feedback(client->presentation,
+							 overlay_surface);
+	wp_presentation_feedback_add_listener(presentation_feedback,
+					      &presentation_feedback_listener,
+					      &result);
+	wl_surface_commit(overlay_surface);
+	wl_surface_commit(surface);
+	presentation_wait_nofail(client, &result);
+	test_assert_enum(result, FB_PRESENTED);
+
+	wp_viewport_destroy(viewport);
+	wl_subsurface_destroy(overlay_subsurface);
+	wl_surface_destroy(overlay_surface);
+
+	client_buffer_util_destroy_buffer(overlay_buffer);
+	destroy_xdg_surface(xdg_surface);
+	xdg_client_destroy(xdg_client);
+
+	return RESULT_OK;
+}
+
+/*
  * Test that a windowed / not-fullscreen client on top of a solid background is
  * *not* presented via direct-scanout.
  *
