@@ -3125,7 +3125,7 @@ vulkan_renderer_attach(struct weston_paint_node *pnode)
 	if (!buffer)
 		goto out;
 
-	if (pnode->is_direct) {
+	if (buffer->direct_display) {
 		attach_direct_display_placeholder(pnode);
 		goto success;
 	}

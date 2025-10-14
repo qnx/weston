@@ -213,7 +213,6 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 	    WESTON_SURFACE_PROTECTION_MODE_ENFORCED &&
 	    (recording_censor || unprotected_censor)) {
 		pnode->draw_solid = true;
-		pnode->is_direct = buffer->direct_display;
 		pnode->is_fully_opaque = true;
 		pnode->is_fully_blended = false;
 		pnode->solid = placeholder_color;
@@ -226,7 +225,6 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 	 */
 	if (pnode->need_hole) {
 		pnode->draw_solid = true;
-		pnode->is_direct = buffer->direct_display;
 		pnode->is_fully_opaque = true;
 		pnode->is_fully_blended = false;
 		pnode->solid = (struct weston_solid_buffer_values) {
@@ -237,7 +235,6 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 
 	if (buffer->direct_display) {
 		pnode->draw_solid = true;
-		pnode->is_direct = true;
 		pnode->is_fully_opaque = true;
 		pnode->is_fully_blended = false;
 		pnode->solid = placeholder_color;
@@ -246,7 +243,6 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 
 	if (buffer->type == WESTON_BUFFER_SOLID) {
 		pnode->draw_solid = true;
-		pnode->is_direct = false;
 		pnode->is_fully_opaque = (buffer->solid.a == 1.0f);
 		pnode->is_fully_blended = !pnode->is_fully_opaque;
 		pnode->solid = buffer->solid;
@@ -254,7 +250,6 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 	}
 
 	pnode->draw_solid = false;
-	pnode->is_direct = false;
 }
 
 /* Paint nodes contain filter and transform information that needs to be
