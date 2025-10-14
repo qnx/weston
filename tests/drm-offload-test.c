@@ -291,9 +291,7 @@ TEST(drm_offload_fullscreen_transparent_overlay) {
 
 /*
  * Test that a fullscreen client with smaller-than-fullscreen-sized buffer is
- * *not* presented via direct-scanout.
- *
- * This should be optimized in the future.
+ * presented via direct-scanout.
  */
 TEST(drm_offload_fullscreen_black_background) {
 	struct xdg_client *xdg_client;
@@ -338,7 +336,7 @@ TEST(drm_offload_fullscreen_black_background) {
 					      &result);
 	wl_surface_commit(surface);
 	presentation_wait_nofail(client, &result);
-	test_assert_enum(result, FB_PRESENTED);
+	test_assert_enum(result, FB_PRESENTED_ZERO_COPY);
 
 	client_buffer_util_destroy_buffer(buffer);
 	destroy_xdg_surface(xdg_surface);
@@ -349,10 +347,8 @@ TEST(drm_offload_fullscreen_black_background) {
 
 /*
  * Test that a fullscreen client with opaque-black single-pixel-buffer with a
- * smaller-than-fullscreen-sized dmabuf subsurface above is *not* presented via
+ * smaller-than-fullscreen-sized dmabuf subsurface above is presented via
  * direct-scanout.
- *
- * This should be optimized in the future.
  */
 TEST(drm_offload_fullscreen_semi_transparent_black_background) {
 	struct xdg_client *xdg_client;
@@ -419,7 +415,7 @@ TEST(drm_offload_fullscreen_semi_transparent_black_background) {
 	wl_surface_commit(overlay_surface);
 	wl_surface_commit(surface);
 	presentation_wait_nofail(client, &result);
-	test_assert_enum(result, FB_PRESENTED);
+	test_assert_enum(result, FB_PRESENTED_ZERO_COPY);
 
 	wp_viewport_destroy(viewport);
 	wl_subsurface_destroy(overlay_subsurface);
@@ -520,10 +516,8 @@ TEST(drm_offload_fullscreen_semi_transparent_white_background) {
 
 /*
  * Test that a fullscreen client with smaller-than-fullscreen-sized opaque-black
- * single-pixel-buffer with an even smaller dmabuf subsurface above is *not*
- * presented via direct-scanout.
- *
- * This should be optimized in the future.
+ * single-pixel-buffer with an even smaller dmabuf subsurface above is presented
+ * via direct-scanout.
  */
 TEST(drm_offload_fullscreen_black_background_black_subsurface_underlay) {
 	struct xdg_client *xdg_client;
@@ -590,7 +584,9 @@ TEST(drm_offload_fullscreen_black_background_black_subsurface_underlay) {
 	wl_surface_commit(overlay_surface);
 	wl_surface_commit(surface);
 	presentation_wait_nofail(client, &result);
-	test_assert_enum(result, FB_PRESENTED);
+	test_assert_enum(result, FB_PRESENTED_ZERO_COPY);
+
+	//TODO: check the spb surface for FB_PRESENTED_ZERO_COPY, too (does not yet work).
 
 	wp_viewport_destroy(viewport);
 	wl_subsurface_destroy(overlay_subsurface);

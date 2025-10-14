@@ -122,13 +122,6 @@ drm_output_try_paint_node_on_plane(struct drm_plane *plane,
 
 	drm_plane_state_coords_for_paint_node(state, node, zpos);
 
-	/* Should've been ensured by weston_view_matches_entire_output. */
-	if (plane->type == WDRM_PLANE_TYPE_PRIMARY) {
-		assert(state->dest_x == 0 && state->dest_y == 0 &&
-		       state->dest_w == (unsigned) output->base.current_mode->width &&
-		       state->dest_h == (unsigned) output->base.current_mode->height);
-	}
-
 	/* We hold one reference for the lifetime of this function; from
 	 * calling drm_fb_get_from_paint_node() in
 	 * drm_output_prepare_plane_view(), so, we take another reference
@@ -496,11 +489,40 @@ try_pnode_on_cursor_plane(struct drm_output *output, struct weston_paint_node *p
 			FAILURE_REASONS_INCOMPATIBLE_TRANSFORM;
 }
 
+static bool
+view_with_region_matches_output_entirely(struct weston_view *ev,
+					 pixman_region32_t *region,
+					 struct weston_output *output)
+{
+	pixman_region32_t combined_region;
+	pixman_box32_t *extents;
+	bool res = true;
+
+	pixman_region32_init(&combined_region);
+	pixman_region32_union(&combined_region,
+			      &ev->transform.boundingbox,
+			      region);
+	extents = pixman_region32_extents(&combined_region);
+
+	assert(!ev->transform.dirty);
+
+	if (extents->x1 != (int32_t)output->pos.c.x ||
+	    extents->y1 != (int32_t)output->pos.c.y ||
+	    extents->x2 != (int32_t)output->pos.c.x + output->width ||
+	    extents->y2 != (int32_t)output->pos.c.y + output->height)
+		res = false;
+
+	pixman_region32_fini(&combined_region);
+
+	return res;
+}
+
 static struct drm_plane_state *
 drm_output_find_plane_for_view(struct drm_output_state *state,
 			       struct weston_paint_node *pnode,
 			       enum drm_output_propose_state_mode mode,
 			       struct drm_plane_state *scanout_state,
+			       pixman_region32_t *background_region,
 			       uint64_t current_lowest_zpos_overlay,
 			       uint64_t current_lowest_zpos_underlay,
 			       bool need_underlay)
@@ -588,7 +610,9 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 	}
 
 	view_matches_entire_output =
-		weston_view_matches_output_entirely(ev, &output->base);
+		view_with_region_matches_output_entirely(ev,
+							 background_region,
+							 &output->base);
 	scanout_has_view_assigned =
 		drm_output_check_plane_has_view_assigned(output->scanout_plane,
 							 state);
@@ -750,6 +774,92 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 	return ps;
 }
 
+static bool
+is_paint_node_solid_opaque_black(struct weston_paint_node *pnode)
+{
+	return pnode->draw_solid && pnode->is_fully_opaque &&
+	       pnode->valid_transform &&
+	       (pnode->surf_xform_valid && !pnode->surf_xform.transform) &&
+	       pnode->solid.r == 0.0f && pnode->solid.g == 0.0f &&
+	       pnode->solid.b == 0.0f;
+}
+
+static bool
+lower_solid_views_to_background_region(struct drm_output *output,
+				       struct wl_array *visible_pnodes,
+				       pixman_region32_t *background_region)
+{
+	struct drm_device *device = output->device;
+	struct drm_backend *b = device->backend;
+	struct weston_paint_node **visible_pnode;
+	struct wl_array visible_pnodes_new;
+
+	wl_array_init(&visible_pnodes_new);
+	wl_array_for_each(visible_pnode, visible_pnodes) {
+		struct weston_paint_node *pnode = *visible_pnode;
+		struct weston_paint_node **visible_pnode_new;
+		struct weston_view *ev = pnode->view;
+		pixman_region32_t tmp;
+
+		drm_debug(b, "\t\t\t[view] evaluating view %p for scene"
+			  "-graph optimization on output %s (%lu)\n",
+			  ev, output->base.name,
+			  (unsigned long) output->base.id);
+
+		if (is_paint_node_solid_opaque_black(pnode)) {
+			drm_debug(b, "\t\t\t\t[view] ignoring view %p " \
+				  "(opaque-black solid buffer r %f g %f b %f " \
+				  "a %f)\n",
+				  ev, pnode->solid.r, pnode->solid.g,
+				  pnode->solid.b, pnode->solid.a);
+
+			pixman_region32_union(background_region,
+					      background_region,
+					      &pnode->visible);
+			continue;
+		}
+
+		/* We can support this with the 'CRTC background colour'
+		 * property */
+		if (pnode->draw_solid) {
+			drm_debug(b, "\t\t\t\t[view] not assigning view %p to "
+                                  "a plane (non-opaque-black solid buffer r %f "
+                                  "g %f b %f a %f)\n",
+				  ev, pnode->solid.r, pnode->solid.g,
+				  pnode->solid.b, pnode->solid.a);
+			wl_array_release(&visible_pnodes_new);
+			return false;
+		}
+
+		/* Bail if parts of the view need to be occluded by the
+		 * background region as this would generally require a
+		 * solid-color plane on a higher z-pos.
+		 * Note: A special case that could be optimized in the future
+		 * is if the visible region of the view is a rectangle. In that
+		 * case we could crop the plane. */
+		pixman_region32_init(&tmp);
+		pixman_region32_intersect(&tmp,
+					  &pnode->clipped_view,
+					  background_region);
+		if (pixman_region32_not_empty(&tmp)) {
+			drm_debug(b, "\t\t\t\t[view] not assigning view %p to "
+                                  "a plane (occluded by solid buffer).\n", ev);
+			wl_array_release(&visible_pnodes_new);
+			pixman_region32_fini(&tmp);
+			return false;
+		}
+		pixman_region32_fini(&tmp);
+
+		visible_pnode_new = wl_array_add(&visible_pnodes_new,
+						 sizeof(pnode));
+		*visible_pnode_new = pnode;
+	}
+
+	wl_array_release(visible_pnodes);
+	*visible_pnodes = visible_pnodes_new;
+	return true;
+}
+
 static struct drm_output_state *
 drm_output_propose_state(struct weston_output *output_base,
 			 struct drm_pending_state *pending_state,
@@ -766,6 +876,7 @@ drm_output_propose_state(struct weston_output *output_base,
 	struct wl_array visible_pnodes;
 
 	pixman_region32_t renderer_region;
+	pixman_region32_t background_region;
 
 	bool renderer_ok = (mode != DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY);
 	int ret;
@@ -849,6 +960,8 @@ drm_output_propose_state(struct weston_output *output_base,
 			 z_order_link) {
 		struct weston_view *ev = pnode->view;
 
+		pnode->try_view_on_plane_failure_reasons = FAILURE_REASONS_NONE;
+
 		drm_debug(b, "\t\t\t[view] evaluating view %p for scene-graph "
 		             "building on output %s (%lu)\n",
 		          ev, output->base.name,
@@ -886,6 +999,28 @@ drm_output_propose_state(struct weston_output *output_base,
 	 * covered by the renderer and underlay region. */
 	pixman_region32_init(&renderer_region);
 
+	/* background_region contains the area that is covered by opaque
+	 * solid-black views. This area can be fully ignored in PLANES_ONLY mode
+	 * according to the DRM spec:
+	 *
+	 * "Unless explicitly specified (via CRTC property or otherwise), the
+	 * active area of a CRTC will be black by default. This means portions
+	 * of the active area which are not covered by a plane will be black,
+	 * and alpha blending of any planes with the CRTC background will blend
+	 * with black at the lowest zpos."
+	 *
+	 * See https://dri.freedesktop.org/docs/drm/gpu/drm-kms.html#plane-abstraction
+	 *
+	 * All said views can thus be ignored during plane assignment.
+	 */
+	pixman_region32_init(&background_region);
+
+	if (mode == DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY &&
+	    !lower_solid_views_to_background_region(output,
+						    &visible_pnodes,
+						    &background_region))
+		goto err_region;
+
 	/* Assign paint nodes to planes. */
 	wl_array_for_each(visible_pnode, &visible_pnodes) {
 		struct weston_paint_node *pnode = *visible_pnode;
@@ -893,8 +1028,6 @@ drm_output_propose_state(struct weston_output *output_base,
 		struct drm_plane_state *ps = NULL;
 		bool need_underlay = false;
 		pixman_region32_t tmp;
-
-		pnode->try_view_on_plane_failure_reasons = FAILURE_REASONS_NONE;
 
 		drm_debug(b, "\t\t\t[view] evaluating view %p for plane "
 		             "assignment on output %s (%lu)\n",
@@ -909,10 +1042,6 @@ drm_output_propose_state(struct weston_output *output_base,
 			pnode->try_view_on_plane_failure_reasons |=
 				FAILURE_REASONS_NO_BUFFER;
 
-		/* We can support this with the 'CRTC background colour' property,
-		 * if it is fullscreen (i.e. we disable the primary plane), and
-		 * opaque (as it is only shown in the absence of any covering
-		 * plane, not as a replacement for the primary plane per se). */
 		if (pnode->draw_solid)
 			pnode->try_view_on_plane_failure_reasons |=
 				FAILURE_REASONS_SOLID_SURFACE;
@@ -973,6 +1102,7 @@ drm_output_propose_state(struct weston_output *output_base,
 				      current_lowest_zpos_overlay);
 			ps = drm_output_find_plane_for_view(state, pnode, mode,
 							    scanout_state,
+							    &background_region,
 							    current_lowest_zpos_overlay,
 							    current_lowest_zpos_underlay,
 							    need_underlay);
@@ -1011,6 +1141,7 @@ drm_output_propose_state(struct weston_output *output_base,
 	}
 
 	pixman_region32_fini(&renderer_region);
+	pixman_region32_fini(&background_region);
 	wl_array_release(&visible_pnodes);
 
 	/* In renderer-only and renderer-and-cursor modes, we can't test the
@@ -1043,6 +1174,7 @@ drm_output_propose_state(struct weston_output *output_base,
 
 err_region:
 	pixman_region32_fini(&renderer_region);
+	pixman_region32_fini(&background_region);
 	wl_array_release(&visible_pnodes);
 err:
 	drm_output_state_free(state);

@@ -547,10 +547,6 @@ bool
 weston_view_has_valid_buffer(struct weston_view *ev);
 
 bool
-weston_view_matches_output_entirely(struct weston_view *ev,
-				    struct weston_output *output);
-
-bool
 weston_view_takes_input_at_point(struct weston_view *view,
 				 struct weston_coord_surface surf_pos);
 

@@ -2267,31 +2267,6 @@ weston_view_has_valid_buffer(struct weston_view *ev)
 	return true;
 }
 
-/** Check if the view matches the entire output
- *
- * @param ev The view to check.
- * @param output The output to check against.
- *
- * Returns true if the view does indeed matches the entire output.
- */
-WL_EXPORT bool
-weston_view_matches_output_entirely(struct weston_view *ev,
-				    struct weston_output *output)
-{
-	pixman_box32_t *extents =
-		pixman_region32_extents(&ev->transform.boundingbox);
-
-	assert(!ev->transform.dirty);
-
-	if (extents->x1 != (int32_t)output->pos.c.x ||
-	    extents->y1 != (int32_t)output->pos.c.y ||
-	    extents->x2 != (int32_t)output->pos.c.x + output->width ||
-	    extents->y2 != (int32_t)output->pos.c.y + output->height)
-		return false;
-
-	return true;
-}
-
 /** Find paint node for the given view and output
  */
 WL_EXPORT struct weston_paint_node *
