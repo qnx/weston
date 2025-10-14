@@ -101,81 +101,94 @@ struct gl_shader {
 	GLint yuv_coefficients_uniform;
 };
 
-static const char *
+struct gl_shader_enum_map {
+	const char *symbol;
+	const char *desc;
+};
+
+static const struct gl_shader_enum_map *
+gl_shader_enum_map_get_(const struct gl_shader_enum_map *map,
+		        size_t map_len,
+		        unsigned value)
+{
+	if (value >= map_len)
+		abort();
+
+	if (!map[value].symbol)
+		abort();
+
+	return &map[value];
+}
+
+#define gl_shader_enum_map_get(map, value) gl_shader_enum_map_get_((map), ARRAY_LENGTH(map), (value))
+
+#define ENUMVAL(sym, text) [sym] = { #sym, text }
+
+static const struct gl_shader_enum_map gl_shader_texcoord_input_mapping[] = {
+	ENUMVAL(SHADER_TEXCOORD_INPUT_SURFACE, "surf"),
+	ENUMVAL(SHADER_TEXCOORD_INPUT_ATTRIB, "attr"),
+};
+
+static const struct gl_shader_enum_map *
 gl_shader_texcoord_input_to_string(enum gl_shader_texcoord_input kind)
 {
-	switch (kind) {
-#define CASERET(x) case x: return #x;
-	CASERET(SHADER_TEXCOORD_INPUT_SURFACE)
-	CASERET(SHADER_TEXCOORD_INPUT_ATTRIB)
-#undef CASERET
-	}
-
-	return "!?!?"; /* never reached */
+	return gl_shader_enum_map_get(gl_shader_texcoord_input_mapping, kind);
 }
 
-static const char *
+static const struct gl_shader_enum_map gl_shader_texture_variant_mapping[] = {
+	ENUMVAL(SHADER_VARIANT_NONE, "none"),
+	ENUMVAL(SHADER_VARIANT_RGBA, "RGBA"),
+	ENUMVAL(SHADER_VARIANT_Y_U_V, "Y_U_V"),
+	ENUMVAL(SHADER_VARIANT_Y_UV, "Y_UV"),
+	ENUMVAL(SHADER_VARIANT_XYUV, "XYUV"),
+	ENUMVAL(SHADER_VARIANT_SOLID, "solid"),
+	ENUMVAL(SHADER_VARIANT_EXTERNAL, "external"),
+};
+
+static const struct gl_shader_enum_map *
 gl_shader_texture_variant_to_string(enum gl_shader_texture_variant v)
 {
-	switch (v) {
-#define CASERET(x) case x: return #x;
-	CASERET(SHADER_VARIANT_NONE)
-	CASERET(SHADER_VARIANT_RGBA)
-	CASERET(SHADER_VARIANT_Y_U_V)
-	CASERET(SHADER_VARIANT_Y_UV)
-	CASERET(SHADER_VARIANT_XYUV)
-	CASERET(SHADER_VARIANT_SOLID)
-	CASERET(SHADER_VARIANT_EXTERNAL)
-#undef CASERET
-	}
-
-	return "!?!?"; /* never reached */
+	return gl_shader_enum_map_get(gl_shader_texture_variant_mapping, v);
 }
 
-static const char *
+static const struct gl_shader_enum_map gl_shader_color_effect_mapping[] = {
+	ENUMVAL(SHADER_COLOR_EFFECT_NONE, "no"),
+	ENUMVAL(SHADER_COLOR_EFFECT_INVERSION, "inv"),
+	ENUMVAL(SHADER_COLOR_EFFECT_GRAYSCALE, "gray"),
+	ENUMVAL(SHADER_COLOR_EFFECT_CVD_CORRECTION, "CVD-corr"),
+};
+
+static const struct gl_shader_enum_map *
 gl_shader_color_effect_to_string(enum gl_shader_color_effect kind)
 {
-	switch(kind) {
-#define CASERET(x) case x: return #x;
-	CASERET(SHADER_COLOR_EFFECT_NONE)
-	CASERET(SHADER_COLOR_EFFECT_INVERSION)
-	CASERET(SHADER_COLOR_EFFECT_GRAYSCALE)
-	CASERET(SHADER_COLOR_EFFECT_CVD_CORRECTION)
-#undef CASERET
-	}
-
-	return "!?!?"; /* never reached */
+	return gl_shader_enum_map_get(gl_shader_color_effect_mapping, kind);
 }
 
-static const char *
+static const struct gl_shader_enum_map gl_shader_color_curve_mapping[] = {
+	ENUMVAL(SHADER_COLOR_CURVE_IDENTITY, "I"),
+	ENUMVAL(SHADER_COLOR_CURVE_LUT_3x1D, "3x1D"),
+	ENUMVAL(SHADER_COLOR_CURVE_LINPOW, "linpow"),
+	ENUMVAL(SHADER_COLOR_CURVE_POWLIN, "powlin"),
+	ENUMVAL(SHADER_COLOR_CURVE_PQ, "PQ"),
+	ENUMVAL(SHADER_COLOR_CURVE_PQ_INVERSE, "PQ⁻¹"),
+};
+
+static const struct gl_shader_enum_map *
 gl_shader_color_curve_to_string(enum gl_shader_color_curve kind)
 {
-	switch (kind) {
-#define CASERET(x) case x: return #x;
-	CASERET(SHADER_COLOR_CURVE_IDENTITY)
-	CASERET(SHADER_COLOR_CURVE_LUT_3x1D)
-	CASERET(SHADER_COLOR_CURVE_LINPOW)
-	CASERET(SHADER_COLOR_CURVE_POWLIN)
-	CASERET(SHADER_COLOR_CURVE_PQ)
-	CASERET(SHADER_COLOR_CURVE_PQ_INVERSE)
-#undef CASERET
-	}
-
-	return "!?!?"; /* never reached */
+	return gl_shader_enum_map_get(gl_shader_color_curve_mapping, kind);
 }
 
-static const char *
+static const struct gl_shader_enum_map gl_shader_color_mapping_mapping[] = {
+	ENUMVAL(SHADER_COLOR_MAPPING_IDENTITY, "I"),
+	ENUMVAL(SHADER_COLOR_MAPPING_3DLUT, "3DLUT"),
+	ENUMVAL(SHADER_COLOR_MAPPING_MATRIX, "M"),
+};
+
+static const struct gl_shader_enum_map *
 gl_shader_color_mapping_to_string(enum gl_shader_color_mapping kind)
 {
-	switch (kind) {
-#define CASERET(x) case x: return #x;
-	CASERET(SHADER_COLOR_MAPPING_IDENTITY)
-	CASERET(SHADER_COLOR_MAPPING_3DLUT)
-	CASERET(SHADER_COLOR_MAPPING_MATRIX)
-#undef CASERET
-	}
-
-	return "!?!?"; /* never reached */
+	return gl_shader_enum_map_get(gl_shader_color_mapping_mapping, kind);
 }
 
 static void
@@ -243,18 +256,18 @@ create_shader_description_string(const struct gl_shader_requirements *req)
 	int size;
 	char *str;
 
-	size = asprintf(&str, "%s %s %s %s %s %s %cinput_is_premult %ctint %cshader_blending (%s, %s)",
-			gl_shader_texcoord_input_to_string(req->texcoord_input),
-			gl_shader_texture_variant_to_string(req->variant),
-			gl_shader_color_effect_to_string(req->color_effect),
-			gl_shader_color_curve_to_string(req->color_pre_curve),
-			gl_shader_color_mapping_to_string(req->color_mapping),
-			gl_shader_color_curve_to_string(req->color_post_curve),
+	size = asprintf(&str, "%s tc, %s tex, %s effect, CP{ %s, %s, %s }, %cpremult_in %ctint %cshader_blending (%s, %s)",
+			gl_shader_texcoord_input_to_string(req->texcoord_input)->desc,
+			gl_shader_texture_variant_to_string(req->variant)->desc,
+			gl_shader_color_effect_to_string(req->color_effect)->desc,
+			gl_shader_color_curve_to_string(req->color_pre_curve)->desc,
+			gl_shader_color_mapping_to_string(req->color_mapping)->desc,
+			gl_shader_color_curve_to_string(req->color_post_curve)->desc,
 			req->input_is_premult ? '+' : '-',
 			req->tint ? '+' : '-',
 			req->shader_blending ? '+' : '-',
-			gl_shader_color_curve_to_string(req->fb_fetch_curve),
-			gl_shader_color_curve_to_string(req->fb_store_curve));
+			gl_shader_color_curve_to_string(req->fb_fetch_curve)->desc,
+			gl_shader_color_curve_to_string(req->fb_store_curve)->desc);
 	if (size < 0)
 		return NULL;
 	return str;
@@ -269,7 +282,7 @@ create_vertex_shader_config_string(const struct gl_shader_requirements *req)
 	size = asprintf(&str,
 			"#define DEF_TEXCOORD_INPUT %s\n"
 			"#define DEF_WIREFRAME %s\n",
-			gl_shader_texcoord_input_to_string(req->texcoord_input),
+			gl_shader_texcoord_input_to_string(req->texcoord_input)->symbol,
 			req->wireframe ? "true" : "false");
 
 	if (size < 0)
@@ -300,14 +313,14 @@ create_fragment_shader_config_string(const struct gl_shader_requirements *req)
 			req->tint ? "true" : "false",
 			req->input_is_premult ? "true" : "false",
 			req->wireframe ? "true" : "false",
-			gl_shader_color_curve_to_string(req->color_pre_curve),
-			gl_shader_color_mapping_to_string(req->color_mapping),
-			gl_shader_color_curve_to_string(req->color_post_curve),
+			gl_shader_color_curve_to_string(req->color_pre_curve)->symbol,
+			gl_shader_color_mapping_to_string(req->color_mapping)->symbol,
+			gl_shader_color_curve_to_string(req->color_post_curve)->symbol,
 			req->shader_blending ? "1" : "0",
-			gl_shader_color_curve_to_string(req->fb_fetch_curve),
-			gl_shader_color_curve_to_string(req->fb_store_curve),
-			gl_shader_color_effect_to_string(req->color_effect),
-			gl_shader_texture_variant_to_string(req->variant));
+			gl_shader_color_curve_to_string(req->fb_fetch_curve)->symbol,
+			gl_shader_color_curve_to_string(req->fb_store_curve)->symbol,
+			gl_shader_color_effect_to_string(req->color_effect)->symbol,
+			gl_shader_texture_variant_to_string(req->variant)->symbol);
 	if (size < 0)
 		return NULL;
 	return str;
