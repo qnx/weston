@@ -66,6 +66,11 @@ include:
     # we need a default case though, so all the rest still run
     - when: on_success
 
+default:
+  retry:
+    max: 2
+    when: runner_system_failure
+
 .merge-rules:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
