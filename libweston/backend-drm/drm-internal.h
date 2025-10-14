@@ -273,6 +273,7 @@ enum drm_fb_type {
 	BUFFER_INVALID = 0, /**< never used */
 	BUFFER_CLIENT, /**< directly sourced from client */
 	BUFFER_DMABUF, /**< imported from linux_dmabuf client */
+	BUFFER_DMABUF_BACKEND, /**< imported from dmabuf renderbuffer */
 	BUFFER_PIXMAN_DUMB, /**< internal Pixman rendering */
 	BUFFER_GBM_SURFACE, /**< internal EGL rendering */
 	BUFFER_CURSOR, /**< internal cursor buffer */
@@ -839,7 +840,7 @@ drm_can_scanout_dmabuf(struct weston_backend *backend,
 struct drm_fb *
 drm_fb_get_from_dmabuf_attributes(struct dmabuf_attributes *attributes,
 				  struct drm_device *device, bool is_opaque,
-				  bool direct_display,
+				  bool direct_display, bool is_internal,
 				  uint32_t *try_view_on_plane_failure_reasons);
 #else
 static inline struct drm_fb *

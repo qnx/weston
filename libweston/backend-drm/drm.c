@@ -526,7 +526,8 @@ drm_output_render(struct drm_output_state *state)
 	    !weston_output_has_renderer_capture_tasks(&output->base) &&
 	    scanout_plane->state_cur->fb &&
 	    (scanout_plane->state_cur->fb->type == BUFFER_GBM_SURFACE ||
-	     scanout_plane->state_cur->fb->type == BUFFER_PIXMAN_DUMB)) {
+	     scanout_plane->state_cur->fb->type == BUFFER_PIXMAN_DUMB ||
+	     scanout_plane->state_cur->fb->type == BUFFER_DMABUF_BACKEND)) {
 		fb = drm_fb_ref(scanout_plane->state_cur->fb);
 	} else if (c->renderer->type == WESTON_RENDERER_PIXMAN) {
 		fb = drm_output_render_pixman(state, &damage);

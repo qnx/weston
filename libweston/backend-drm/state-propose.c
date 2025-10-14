@@ -913,7 +913,8 @@ drm_output_propose_state(struct weston_output *output_base,
 
 		if (!scanout_fb ||
 		    (scanout_fb->type != BUFFER_GBM_SURFACE &&
-		     scanout_fb->type != BUFFER_PIXMAN_DUMB)) {
+		     scanout_fb->type != BUFFER_PIXMAN_DUMB &&
+		     scanout_fb->type != BUFFER_DMABUF_BACKEND)) {
 			drm_debug(b, "\t\t[state] cannot propose mixed mode: "
 			             "for output %s (%lu): no previous renderer "
 			             "fb\n",
@@ -1167,7 +1168,8 @@ drm_output_propose_state(struct weston_output *output_base,
 	 * remove it now. */
 	if (mode == DRM_OUTPUT_PROPOSE_STATE_MIXED) {
 		assert(scanout_state->fb->type == BUFFER_GBM_SURFACE ||
-		       scanout_state->fb->type == BUFFER_PIXMAN_DUMB);
+		       scanout_state->fb->type == BUFFER_PIXMAN_DUMB ||
+		       scanout_state->fb->type == BUFFER_DMABUF_BACKEND);
 		drm_plane_state_put_back(scanout_state);
 	}
 	return state;

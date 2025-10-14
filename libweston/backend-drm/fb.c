@@ -401,7 +401,7 @@ drm_fb_destroy_dmabuf(struct drm_fb *fb)
 struct drm_fb *
 drm_fb_get_from_dmabuf_attributes(struct dmabuf_attributes *attributes,
 				  struct drm_device *device, bool is_opaque,
-				  bool direct_display,
+				  bool direct_display, bool is_internal,
 				  uint32_t *try_view_on_plane_failure_reasons)
 {
 	struct drm_backend *backend = device->backend;
@@ -446,7 +446,7 @@ drm_fb_get_from_dmabuf_attributes(struct dmabuf_attributes *attributes,
 		return NULL;
 
 	fb->refcnt = 1;
-	fb->type = BUFFER_DMABUF;
+	fb->type = is_internal ? BUFFER_DMABUF_BACKEND : BUFFER_DMABUF;
 	fb->backend = device->backend;
 
 	ARRAY_COPY(import_mod.fds, attributes->fd);
@@ -543,6 +543,7 @@ drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf,
 	return drm_fb_get_from_dmabuf_attributes(&dmabuf->attributes,
 						 device, is_opaque,
 						 dmabuf->direct_display,
+						 false,
 						 try_view_on_plane_failure_reasons);
 }
 
@@ -640,6 +641,7 @@ drm_fb_unref(struct drm_fb *fb)
 		gbm_surface_release_buffer(fb->gbm_surface, fb->bo);
 		break;
 	case BUFFER_DMABUF:
+	case BUFFER_DMABUF_BACKEND:
 		drm_fb_destroy_dmabuf(fb);
 		break;
 #endif

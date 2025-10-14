@@ -774,7 +774,7 @@ drm_output_fini_vulkan(struct drm_output *output)
 
 	if (!b->compositor->shutting_down &&
 	    output->scanout_plane->state_cur->fb &&
-	    output->scanout_plane->state_cur->fb->type == BUFFER_DMABUF) {
+	    output->scanout_plane->state_cur->fb->type == BUFFER_DMABUF_BACKEND) {
 		drm_plane_reset_state(output->scanout_plane);
 	}
 
@@ -839,7 +839,8 @@ drm_output_render_vulkan(struct drm_output_state *state, pixman_region32_t *dama
 	/* Output transparent/opaque image according to the format required by
 	 * the client. */
 	ret = drm_fb_get_from_dmabuf_attributes(dmabuf->attributes, device,
-						!output->format->opaque_substitute, false, NULL);
+						!output->format->opaque_substitute,
+						false, true, NULL);
 	if (!ret) {
 		weston_log("failed to get drm_fb for dmabuf\n");
 		return NULL;
