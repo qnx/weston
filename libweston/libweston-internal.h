@@ -723,6 +723,14 @@ struct weston_paint_node {
 	uint32_t try_view_on_plane_failure_reasons;
 	bool is_fully_opaque;
 	bool is_fully_blended;
+
+	/* This node's contents are solid, either from a solid buffer or a
+	 * placeholder.
+	 *
+	 * Care is taken to ensure that it is correct both during
+	 * assign_planes and during render, even if the value is different
+	 * for each during a single repaint.
+	 */
 	bool draw_solid;
 
 	/* This node's buffer or view alpha causes it to be completely
@@ -735,7 +743,23 @@ struct weston_paint_node {
 	 * as a placeholder, and draw_solid must be set.
 	 */
 	bool censored;
+
+	/* Only valid when draw_solid is true, this is the solid color of
+	 * the paint node. It may simply be a copy of a solid buffer's
+	 * values, or it may be a placeholder used to replace a buffer's
+	 * content.
+	 *
+	 * It may change after assign_planes if plane assignment requires
+	 * the renderer to use a placeholder.
+	 */
 	struct weston_solid_buffer_values solid;
+
+	/* need_hole means this paint node has been placed on a plane beneath
+	 * the renderer's plane, so the renderer must draw a transparent hole
+	 * for the paint node.
+	 *
+	 * This is set in the backend assign_planes callback.
+	 */
 	bool need_hole;
 	uint32_t psf_flags; /* presentation-feedback flags */
 };
