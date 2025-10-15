@@ -730,6 +730,11 @@ struct weston_paint_node {
 	 * plane assignment.
 	 */
 	bool is_fully_transparent;
+
+	/* censored content must not be placed on a plane, it will be rendered
+	 * as a placeholder, and draw_solid must be set.
+	 */
+	bool censored;
 	struct weston_solid_buffer_values solid;
 	bool need_hole;
 	uint32_t psf_flags; /* presentation-feedback flags */

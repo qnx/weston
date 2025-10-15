@@ -227,6 +227,7 @@ paint_node_update_early(struct weston_paint_node *pnode)
 	buffer = pnode->surface->buffer_ref.buffer;
 	pnode->draw_solid = false;
 	pnode->is_fully_transparent = false;
+	pnode->censored = false;
 	if (buffer->type == WESTON_BUFFER_SOLID) {
 		pnode->draw_solid = true;
 		pnode->is_fully_opaque = (buffer->solid.a == 1.0f);
@@ -252,6 +253,7 @@ paint_node_update_early(struct weston_paint_node *pnode)
 	    WESTON_SURFACE_PROTECTION_MODE_ENFORCED &&
 	    (recording_censor || unprotected_censor)) {
 		pnode->draw_solid = true;
+		pnode->censored = true;
 		pnode->is_fully_opaque = true;
 		pnode->is_fully_blended = false;
 		get_placeholder_color(pnode, &pnode->solid);
@@ -271,6 +273,16 @@ static void
 paint_node_validate_ready(struct weston_paint_node *pnode)
 {
 	struct weston_compositor *comp = pnode->surface->compositor;
+	struct weston_output *output = pnode->output;
+
+	/* A censored pnode must not have a plane assigned, and must be
+	 * rendered solid, or we could leak protected content.
+	 */
+	if (pnode->censored) {
+		weston_assert_true(comp,
+				   pnode->plane == &output->primary_plane);
+		weston_assert_true(comp, pnode->draw_solid);
+	}
 
 	/* If the pnode is ready to paint, it must have no dirty bits */
 	weston_assert_true(comp, pnode->status == PAINT_NODE_CLEAN);
@@ -336,7 +348,7 @@ paint_node_update_late(struct weston_paint_node *pnode)
 		pnode->solid = (struct weston_solid_buffer_values) {
 			               0.0, 0.0, 0.0, 0.0
 		               };
-	} else if (buffer->direct_display) {
+	} else if (buffer->direct_display && !pnode->censored) {
 		pnode->draw_solid = true;
 		pnode->is_fully_opaque = true;
 		pnode->is_fully_blended = false;

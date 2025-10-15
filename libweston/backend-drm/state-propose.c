@@ -960,8 +960,7 @@ drm_output_propose_state(struct weston_output *output_base,
 		/* In case of enforced mode of content-protection do not
 		 * assign planes for a protected surface on an unsecured output.
 		 */
-		if (ev->surface->protection_mode == WESTON_SURFACE_PROTECTION_MODE_ENFORCED &&
-		    ev->surface->desired_protection > output_base->current_protection)
+		if (pnode->censored)
 			pnode->try_view_on_plane_failure_reasons |=
 				FAILURE_REASONS_INADEQUATE_CONTENT_PROTECTION;
 
