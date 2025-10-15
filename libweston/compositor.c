@@ -284,6 +284,22 @@ paint_node_update_early(struct weston_paint_node *pnode)
 	pnode->status &= ~(PAINT_NODE_VIEW_DIRTY | PAINT_NODE_OUTPUT_DIRTY);
 }
 
+/* This is for validating a paint node after early update, assign planes,
+ * and late update have all taken place, so we can catch mistakes that
+ * could lead to broken plane composition or leaked protected content.
+ *
+ * Since these conditions are all egregious bugs, we just assert out
+ * of this instead of trying any kind of recovery.
+ */
+static void
+paint_node_validate_ready(struct weston_paint_node *pnode)
+{
+	struct weston_compositor *comp = pnode->surface->compositor;
+
+	/* If the pnode is ready to paint, it must have no dirty bits */
+	weston_assert_true(comp, pnode->status == PAINT_NODE_CLEAN);
+}
+
 /* Update all the paint node data that needs to be handled after
  * assign_planes() completes.
  */
@@ -338,10 +354,7 @@ paint_node_update_late(struct weston_paint_node *pnode)
 			   PAINT_NODE_PLANE_DIRTY |
 			   PAINT_NODE_BUFFER_DIRTY);
 
-	/* Nothing should be able to flip "early" bits between
-	 * the early and late updates.
-	 */
-	assert(pnode->status == PAINT_NODE_CLEAN);
+	paint_node_validate_ready(pnode);
 }
 
 static struct weston_paint_node *
