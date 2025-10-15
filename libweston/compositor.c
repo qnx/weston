@@ -275,6 +275,11 @@ paint_node_validate_ready(struct weston_paint_node *pnode)
 	struct weston_compositor *comp = pnode->surface->compositor;
 	struct weston_output *output = pnode->output;
 
+	/* A punch hole must have a plane assigned */
+	if (pnode->need_hole)
+		weston_assert_true(comp,
+				   pnode->plane != &output->primary_plane);
+
 	/* A censored pnode must not have a plane assigned, and must be
 	 * rendered solid, or we could leak protected content.
 	 */
