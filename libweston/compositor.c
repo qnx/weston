@@ -179,6 +179,19 @@ paint_node_damage_below(struct weston_paint_node *pnode)
 	}
 }
 
+static void
+get_placeholder_color(struct weston_paint_node *pnode,
+		      struct weston_solid_buffer_values *color)
+{
+	struct weston_compositor *compositor = pnode->surface->compositor;
+	uint32_t color_tmp = compositor->placeholder_color;
+
+	color->r = ((color_tmp >> 16) & 0xff) / 255.0;
+	color->g = ((color_tmp >> 8) & 0xff) / 255.0;
+	color->b = ((color_tmp >> 0) & 0xff) / 255.0;
+	color->a = 1.0;
+}
+
  /* Checks if a paint node should be replaced by a solid placeholder
   * Checks for 2 types of censor requirements
   * - recording_censor: Censor protected view when a
@@ -198,13 +211,6 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 		(surface->desired_protection > WESTON_HDCP_DISABLE);
 	bool unprotected_censor =
 		(surface->desired_protection > output->current_protection);
-	struct weston_solid_buffer_values placeholder_color;
-	uint32_t color_tmp = output->compositor->placeholder_color;
-
-	placeholder_color.r = ((color_tmp >> 16) & 0xff) / 255.0;
-	placeholder_color.g = ((color_tmp >> 8) & 0xff) / 255.0;
-	placeholder_color.b = ((color_tmp >> 0) & 0xff) / 255.0;
-	placeholder_color.a = 1.0;
 
 	/* Check for content protection first, as we should always prevent
 	 * the rendering of protected content.
@@ -215,7 +221,7 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 		pnode->draw_solid = true;
 		pnode->is_fully_opaque = true;
 		pnode->is_fully_blended = false;
-		pnode->solid = placeholder_color;
+		get_placeholder_color(pnode, &pnode->solid);
 		return;
 	}
 
@@ -237,7 +243,7 @@ maybe_replace_paint_node(struct weston_paint_node *pnode)
 		pnode->draw_solid = true;
 		pnode->is_fully_opaque = true;
 		pnode->is_fully_blended = false;
-		pnode->solid = placeholder_color;
+		get_placeholder_color(pnode, &pnode->solid);
 		return;
 	}
 
