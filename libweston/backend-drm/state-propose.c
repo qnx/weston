@@ -627,12 +627,12 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 			/* if the view covers the whole output, put it in the
 			 * scanout plane, not overlay */
 			if (view_matches_entire_output &&
-			    weston_view_is_opaque(ev, &ev->transform.boundingbox) &&
+			    pnode->is_fully_opaque &&
 			    !scanout_has_view_assigned)
 				continue;
 			/* for alpha views, avoid placing them on the HW planes that
 			 * are below the primary plane. */
-			if (mm_underlay_only && !weston_view_is_opaque(ev, &ev->transform.boundingbox))
+			if (mm_underlay_only && !pnode->is_fully_opaque)
 				continue;
 			break;
 		default:
@@ -952,8 +952,7 @@ drm_output_propose_state(struct weston_output *output_base,
 		/* If need_underlay, but view contains alpha, then it needs to
 		 * be rendered. Only fully-opaque views can go on an underlay.
 		 */
-		if (need_underlay &&
-		    !weston_view_is_opaque(ev, &ev->transform.boundingbox))
+		if (need_underlay && !pnode->is_fully_opaque)
 			pnode->try_view_on_plane_failure_reasons |=
 				FAILURE_REASONS_OCCLUDED_BY_RENDERER;
 
@@ -1018,7 +1017,7 @@ drm_output_propose_state(struct weston_output *output_base,
 		 * entire clipped area if the whole view is known to be
 		 * opaque) does not necessarily occlude what's behind it, as
 		 * it could be alpha-blended. */
-		if (!weston_view_is_opaque(ev, &clipped_view))
+		if (!pnode->is_fully_opaque)
 			pixman_region32_intersect(&clipped_view,
 						  &clipped_view,
 						  &ev->transform.opaque);
