@@ -2076,7 +2076,8 @@ draw_paint_node(struct weston_paint_node *pnode,
 	}
 
 	if (!gr->debug_mode && pnode->draw_solid && pnode->is_fully_opaque &&
-	    pnode->view->alpha == 1.0f && !pnode->surf_xform.transform) {
+	    pnode->view->alpha == 1.0f && pnode->valid_transform &&
+	    (pnode->surf_xform_valid && !pnode->surf_xform.transform)) {
 		clear_region(gr, pnode, &repaint);
 		gs->used_in_output_repaint = true;
 		goto out;
