@@ -876,8 +876,7 @@ drm_output_propose_state(struct weston_output *output_base,
 			continue;
 		}
 
-		if (pnode->view->alpha == 0.0f ||
-		    (pnode->draw_solid && pnode->solid.a == 0.0f)) {
+		if (pnode->is_fully_transparent) {
 			drm_debug(b, "\t\t\t\t[view] ignoring view %p " \
 				  "(fully transparent)\n", ev);
 			continue;

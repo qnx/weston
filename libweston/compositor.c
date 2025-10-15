@@ -226,12 +226,18 @@ paint_node_update_early(struct weston_paint_node *pnode)
 
 	buffer = pnode->surface->buffer_ref.buffer;
 	pnode->draw_solid = false;
+	pnode->is_fully_transparent = false;
 	if (buffer->type == WESTON_BUFFER_SOLID) {
 		pnode->draw_solid = true;
 		pnode->is_fully_opaque = (buffer->solid.a == 1.0f);
 		pnode->is_fully_blended = !pnode->is_fully_opaque;
 		pnode->solid = buffer->solid;
+		if (pnode->solid.a == 0.0f)
+			pnode->is_fully_transparent = true;
 	}
+
+	if (pnode->view->alpha == 0.0f)
+		pnode->is_fully_transparent = true;
 
 	/* Check for 2 types of censor requirements
 	 * - recording_censor: Censor protected view when a
@@ -326,6 +332,7 @@ paint_node_update_late(struct weston_paint_node *pnode)
 		pnode->draw_solid = true;
 		pnode->is_fully_opaque = true;
 		pnode->is_fully_blended = false;
+		pnode->is_fully_transparent = false;
 		pnode->solid = (struct weston_solid_buffer_values) {
 			               0.0, 0.0, 0.0, 0.0
 		               };

@@ -724,6 +724,12 @@ struct weston_paint_node {
 	bool is_fully_opaque;
 	bool is_fully_blended;
 	bool draw_solid;
+
+	/* This node's buffer or view alpha causes it to be completely
+	 * transparent, so it can be optimized away or skipped for
+	 * plane assignment.
+	 */
+	bool is_fully_transparent;
 	struct weston_solid_buffer_values solid;
 	bool need_hole;
 	uint32_t psf_flags; /* presentation-feedback flags */

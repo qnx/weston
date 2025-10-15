@@ -2070,8 +2070,7 @@ draw_paint_node(struct weston_paint_node *pnode,
 	if (!pixman_region32_not_empty(&repaint))
 		goto out;
 
-	if (pnode->view->alpha == 0.0f ||
-	    (pnode->draw_solid && pnode->solid.a == 0.0f)) {
+	if (pnode->is_fully_transparent) {
 		gs->used_in_output_repaint = true; /* sort of */
 		goto out;
 	}
