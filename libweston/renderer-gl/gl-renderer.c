@@ -1407,33 +1407,39 @@ ensure_surface_buffer_is_ready(struct gl_renderer *gr,
 	return (wait_ret == EGL_TRUE && destroy_ret == EGL_TRUE) ? 0 : -1;
 }
 
-static void
+static bool
 prepare_solid_draw(struct gl_shader_config *sconf,
 		   struct weston_paint_node *pnode)
 {
 	struct weston_color_transform *ctransf;
 	struct weston_output *output = pnode->output;
+	struct gl_output_state *go = get_output_state(pnode->output);
 	struct gl_renderer *gr = get_renderer(output->compositor);
-	struct gl_shader_config alt = {
+
+	*sconf = (struct gl_shader_config) {
 		.req = {
 			.variant = SHADER_VARIANT_SOLID,
 			.input_is_premult = true,
 		},
-		.projection = sconf->projection,
-		.view_alpha = sconf->view_alpha,
+		.projection = pnode->view->transform.matrix,
+		.view_alpha = pnode->view->alpha,
 		.unicolor = { pnode->solid.r,
 			      pnode->solid.g,
 			      pnode->solid.b,
 			      pnode->solid.a,
 		},
 	};
+
+	weston_matrix_multiply(&sconf->projection, &go->output_matrix);
+
 	ctransf = output->color_outcome->from_sRGB_to_blend;
-	if (!gl_shader_config_set_color_transform(gr, &alt, ctransf)) {
+	if (!gl_shader_config_set_color_transform(gr, sconf, ctransf)) {
 		weston_log("GL-renderer: %s failed to generate a color transformation.\n",
 			   __func__);
+		return false;
 	}
 
-	*sconf = alt;
+	return true;
 }
 
 static void
