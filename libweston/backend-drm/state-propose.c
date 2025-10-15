@@ -857,6 +857,7 @@ drm_output_propose_state(struct weston_output *output_base,
 		struct drm_plane_state *ps = NULL;
 		pixman_region32_t clipped_view;
 		pixman_region32_t visible_view;
+		pixman_region32_t tmp;
 		bool totally_occluded = false;
 		bool need_underlay = false;
 
@@ -933,9 +934,10 @@ drm_output_propose_state(struct weston_output *output_base,
 		 * the view intersects the calculated renderer region, it must
 		 * be part of, or occluded by, it, and cannot go on an overlay
 		 * plane. */
-		pixman_region32_intersect(&visible_view, &renderer_region,
+		pixman_region32_init(&tmp);
+		pixman_region32_intersect(&tmp, &renderer_region,
 					  &clipped_view);
-		if (pixman_region32_not_empty(&visible_view)) {
+		if (pixman_region32_not_empty(&tmp)) {
 			if (b->has_underlay) {
 				need_underlay = true;
 			} else {
@@ -947,7 +949,8 @@ drm_output_propose_state(struct weston_output *output_base,
 					     current_lowest_zpos_underlay);
 			}
 		}
-		pixman_region32_fini(&visible_view);
+		pixman_region32_fini(&tmp);
+		pixman_region32_fini(&clipped_view);
 
 		/* If need_underlay, but view contains alpha, then it needs to
 		 * be rendered. Only fully-opaque views can go on an underlay.
@@ -993,7 +996,7 @@ drm_output_propose_state(struct weston_output *output_base,
 			drm_debug(b, "\t\t[view] failing state generation: "
 				      "placing view %p to renderer not allowed\n",
 				  ev);
-			pixman_region32_fini(&clipped_view);
+			pixman_region32_fini(&visible_view);
 			goto err_region;
 		} else if (!ps) {
 			char *fr_str = bits_to_str(pnode->try_view_on_plane_failure_reasons,
@@ -1005,11 +1008,11 @@ drm_output_propose_state(struct weston_output *output_base,
 		}
 
 		if (!ps || drm_mixed_mode_check_underlay(mode, scanout_state, ps->zpos)) {
-			/* clipped_view contains the area that's going to be
+			/* visible_view contains the area that's going to be
 			 * visible on screen; add this to the renderer region */
 			pixman_region32_union(&renderer_region,
 					      &renderer_region,
-					      &clipped_view);
+					      &visible_view);
 		}
 
 		/* Opaque areas of our clipped view occlude areas behind it;
@@ -1018,14 +1021,14 @@ drm_output_propose_state(struct weston_output *output_base,
 		 * opaque) does not necessarily occlude what's behind it, as
 		 * it could be alpha-blended. */
 		if (!pnode->is_fully_opaque)
-			pixman_region32_intersect(&clipped_view,
-						  &clipped_view,
+			pixman_region32_intersect(&visible_view,
+						  &visible_view,
 						  &ev->transform.opaque);
 		pixman_region32_union(&occluded_region,
 				      &occluded_region,
-				      &clipped_view);
+				      &visible_view);
 
-		pixman_region32_fini(&clipped_view);
+		pixman_region32_fini(&visible_view);
 	}
 
 	pixman_region32_fini(&renderer_region);
