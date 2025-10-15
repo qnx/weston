@@ -192,72 +192,6 @@ get_placeholder_color(struct weston_paint_node *pnode,
 	color->a = 1.0;
 }
 
- /* Checks if a paint node should be replaced by a solid placeholder
-  * Checks for 2 types of censor requirements
-  * - recording_censor: Censor protected view when a
-  *   protected view is captured.
-  * - unprotected_censor: Censor regions of protected views
-  *   when displayed on an output which has lower protection capability.
-  * Checks if direct_display is in use.
-  */
-static void
-maybe_replace_paint_node(struct weston_paint_node *pnode)
-{
-	struct weston_output *output = pnode->output;
-	struct weston_surface *surface = pnode->surface;
-	struct weston_buffer *buffer = pnode->surface->buffer_ref.buffer;
-	bool recording_censor =
-		(output->disable_planes > 0) &&
-		(surface->desired_protection > WESTON_HDCP_DISABLE);
-	bool unprotected_censor =
-		(surface->desired_protection > output->current_protection);
-
-	/* Check for content protection first, as we should always prevent
-	 * the rendering of protected content.
-	 */
-	if (surface->protection_mode ==
-	    WESTON_SURFACE_PROTECTION_MODE_ENFORCED &&
-	    (recording_censor || unprotected_censor)) {
-		pnode->draw_solid = true;
-		pnode->is_fully_opaque = true;
-		pnode->is_fully_blended = false;
-		get_placeholder_color(pnode, &pnode->solid);
-		return;
-	}
-
-	/* Check if we need a hole before we check direct-display, otherwise
-	 * we'll end up drawing an opaque placeholder over direct_display
-	 * paint nodes when we place them on underlays.
-	 */
-	if (pnode->need_hole) {
-		pnode->draw_solid = true;
-		pnode->is_fully_opaque = true;
-		pnode->is_fully_blended = false;
-		pnode->solid = (struct weston_solid_buffer_values) {
-			               0.0, 0.0, 0.0, 0.0
-		               };
-		return;
-	}
-
-	if (buffer->direct_display) {
-		pnode->draw_solid = true;
-		pnode->is_fully_opaque = true;
-		pnode->is_fully_blended = false;
-		get_placeholder_color(pnode, &pnode->solid);
-		return;
-	}
-
-	if (buffer->type == WESTON_BUFFER_SOLID) {
-		pnode->draw_solid = true;
-		pnode->is_fully_opaque = (buffer->solid.a == 1.0f);
-		pnode->is_fully_blended = !pnode->is_fully_opaque;
-		pnode->solid = buffer->solid;
-		return;
-	}
-
-	pnode->draw_solid = false;
-}
-
 /* Paint nodes contain filter and transform information that needs to be
  * up to date before assign_planes() is called. But there are also
  * damage related bits that must be updated after assign_planes()
@@ -269,8 +203,12 @@ paint_node_update_early(struct weston_paint_node *pnode)
 {
 	WESTON_TRACE_FUNC_FLOW(&pnode->surface->flow_id);
 	struct weston_matrix *mat = &pnode->buffer_to_output_matrix;
+	struct weston_output *output = pnode->output;
+	struct weston_surface *surface = pnode->surface;
 	bool view_dirty = pnode->status & PAINT_NODE_VIEW_DIRTY;
 	bool output_dirty = pnode->status & PAINT_NODE_OUTPUT_DIRTY;
+	bool recording_censor, unprotected_censor;
+	struct weston_buffer *buffer;
 
 	if (view_dirty || output_dirty) {
 		weston_view_buffer_to_output_matrix(pnode->view,
@@ -285,7 +223,33 @@ paint_node_update_early(struct weston_paint_node *pnode)
 		pnode->is_fully_blended = weston_view_is_fully_blended(pnode->view,
 								       &pnode->view->transform.boundingbox);
 	}
-	maybe_replace_paint_node(pnode);
+
+	buffer = pnode->surface->buffer_ref.buffer;
+	pnode->draw_solid = false;
+	if (buffer->type == WESTON_BUFFER_SOLID) {
+		pnode->draw_solid = true;
+		pnode->is_fully_opaque = (buffer->solid.a == 1.0f);
+		pnode->is_fully_blended = !pnode->is_fully_opaque;
+		pnode->solid = buffer->solid;
+	}
+
+	/* Check for 2 types of censor requirements
+	 * - recording_censor: Censor protected view when a
+	 *   protected view is captured.
+	 * - unprotected_censor: Censor regions of protected views
+	 *   when displayed on an output which has lower protection capability.
+	 */
+	recording_censor = (output->disable_planes > 0) &&
+			   (surface->desired_protection > WESTON_HDCP_DISABLE);
+	unprotected_censor = (surface->desired_protection > output->current_protection);
+	if (surface->protection_mode ==
+	    WESTON_SURFACE_PROTECTION_MODE_ENFORCED &&
+	    (recording_censor || unprotected_censor)) {
+		pnode->draw_solid = true;
+		pnode->is_fully_opaque = true;
+		pnode->is_fully_blended = false;
+		get_placeholder_color(pnode, &pnode->solid);
+	}
 
 	pnode->status &= ~(PAINT_NODE_VIEW_DIRTY | PAINT_NODE_OUTPUT_DIRTY);
 }
@@ -314,6 +278,7 @@ paint_node_update_late(struct weston_paint_node *pnode)
 {
 	WESTON_TRACE_FUNC_FLOW(&pnode->surface->flow_id);
 	struct weston_surface *surf = pnode->surface;
+	struct weston_buffer *buffer = surf->buffer_ref.buffer;
 	bool vis_dirty = pnode->status & PAINT_NODE_VISIBILITY_DIRTY;
 	bool plane_dirty = pnode->status & PAINT_NODE_PLANE_DIRTY;
 	bool buffer_dirty = pnode->status & PAINT_NODE_BUFFER_DIRTY;
@@ -351,6 +316,24 @@ paint_node_update_late(struct weston_paint_node *pnode)
 
 		pnode->plane = pnode->plane_next;
 		pnode->plane_next = NULL;
+	}
+
+	/* Check if we need a hole before we check direct-display, otherwise
+	 * we'll end up drawing an opaque placeholder over direct_display
+	 * paint nodes when we place them on underlays.
+	 */
+	if (pnode->need_hole) {
+		pnode->draw_solid = true;
+		pnode->is_fully_opaque = true;
+		pnode->is_fully_blended = false;
+		pnode->solid = (struct weston_solid_buffer_values) {
+			               0.0, 0.0, 0.0, 0.0
+		               };
+	} else if (buffer->direct_display) {
+		pnode->draw_solid = true;
+		pnode->is_fully_opaque = true;
+		pnode->is_fully_blended = false;
+		get_placeholder_color(pnode, &pnode->solid);
 	}
 
 	if (buffer_dirty)
