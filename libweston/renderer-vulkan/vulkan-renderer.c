@@ -1804,7 +1804,6 @@ draw_paint_node(struct weston_paint_node *pnode,
 			      image_view, sampler,
 			      &vb->descriptor_set);
 
-	/* XXX: Should we be using ev->transform.opaque here? */
 	if (pnode->is_fully_opaque) {
 		pixman_region32_init_rect(&surface_opaque, 0, 0,
 					  pnode->surface->width,
