@@ -240,8 +240,6 @@ struct shell_output {
 	struct weston_surface *background_surface;
 	struct weston_view *background_view;
 	struct wl_listener background_surface_listener;
-
-	struct weston_curtain *temporary_curtain;
 };
 
 struct weston_desktop;
