@@ -547,9 +547,9 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 	}
 
 	buffer = ev->surface->buffer_ref.buffer;
-	if (buffer->type == WESTON_BUFFER_SOLID) {
+	if (pnode->draw_solid) {
 		pnode->try_view_on_plane_failure_reasons |=
-			FAILURE_REASONS_BUFFER_TYPE;
+			FAILURE_REASONS_SOLID_SURFACE;
 	} else if (buffer->type == WESTON_BUFFER_SHM) {
 		try_pnode_on_cursor_plane(output, pnode);
 
@@ -916,8 +916,7 @@ drm_output_propose_state(struct weston_output *output_base,
 		 * if it is fullscreen (i.e. we disable the primary plane), and
 		 * opaque (as it is only shown in the absence of any covering
 		 * plane, not as a replacement for the primary plane per se). */
-		if (ev->surface->buffer_ref.buffer &&
-		    ev->surface->buffer_ref.buffer->type == WESTON_BUFFER_SOLID)
+		if (pnode->draw_solid)
 			pnode->try_view_on_plane_failure_reasons |=
 				FAILURE_REASONS_SOLID_SURFACE;
 
