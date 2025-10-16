@@ -1426,6 +1426,9 @@ struct weston_compositor {
 	/* Whether to let the compositor run without any input device. */
 	bool require_input;
 
+	/* Ignore all libinput-based input devices */
+	bool disable_input;
+
 	/* Whether to load multiple backends. */
 	bool multi_backend;
 

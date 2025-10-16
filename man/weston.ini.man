@@ -335,6 +335,9 @@ For devices with \fBscroll-method\fR set to \fIbutton\fR. Specifies the
 button that will trigger scrolling. See /usr/include/linux/input-event-codes.h
 for the complete list of possible values.
 .TP 7
+.BI "disable-input=" false
+Ignore all libinput-based input devices.
+.TP 7
 .BI "touchscreen_calibrator=" true
 Advertise the touchscreen calibrator interface to all clients. This is a
 potential denial-of-service attack vector, so it should only be enabled on

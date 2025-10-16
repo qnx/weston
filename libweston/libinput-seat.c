@@ -345,6 +345,10 @@ udev_input_init(struct udev_input *input, struct weston_compositor *c,
 
 	input->compositor = c;
 	input->configure_device = configure_device;
+	if (c->disable_input) {
+		weston_log("Frontend disabled all input devices.\n");
+		return 0;
+	}
 
 	log_priority = getenv("WESTON_LIBINPUT_LOG_PRIORITY");
 
