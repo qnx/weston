@@ -353,6 +353,8 @@ fs_output_create(struct fullscreen_shell *shell, struct weston_output *output)
 		}
 	}
 
+	weston_output_set_ready(output);
+
 	return fsout;
 }
 

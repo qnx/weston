@@ -353,6 +353,7 @@ create_ivi_screen(struct ivi_layout *layout, struct weston_output *output)
 				  &layout->layout_layer.view_list);
 	weston_view_set_output(iviscrn->temporary_curtain->view, output);
 
+	weston_output_set_ready(output);
 }
 
 static void

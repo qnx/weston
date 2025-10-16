@@ -2662,6 +2662,7 @@ background_committed(struct weston_surface *es,
 				 sh_output->output->pos);
 	weston_view_move_to_layer(sh_output->background_view,
 				  &shell->background_layer.view_list);
+	weston_output_set_ready(sh_output->output);
 }
 
 static void

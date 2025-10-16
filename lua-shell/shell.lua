@@ -95,6 +95,9 @@ function my_output_create(output)
 
   pd.background_view = bv
   output:set_private(pd)
+
+  -- Must set ready or no repaints will take place
+  output:set_ready()
 end
 
 function output_moved(output, move_x, move_y)

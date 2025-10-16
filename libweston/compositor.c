@@ -3904,6 +3904,9 @@ output_repaint_timer_handler(void *data)
 	compositor->last_repaint_start = now;
 
 	wl_list_for_each(output, &compositor->output_list, link) {
+		if (!output->ready)
+			continue;
+
 		if (!weston_output_check_repaint(output, &now)) {
 			output->will_repaint = false;
 			continue;
@@ -4335,6 +4338,9 @@ weston_output_schedule_repaint(struct weston_output *output)
 {
 	struct weston_compositor *compositor = output->compositor;
 	struct wl_event_loop *loop;
+
+	if (!output->ready)
+		return;
 
 	if (compositor->state == WESTON_COMPOSITOR_SLEEPING ||
 	    compositor->state == WESTON_COMPOSITOR_OFFSCREEN)
@@ -10494,4 +10500,31 @@ weston_get_backend_type(struct weston_backend *backend)
 {
 	assert(backend);
 	return backend->backend_type;
+}
+
+/** Inform the compositor that an output is ready for its first repaint
+ *
+ * When a new output is added, it may not have any content to be
+ * displayed. This could lead to strange flickers or hangs at
+ * startup if uninitialized buffers become attached for
+ * scanout. To prevent this, we assert that the output has
+ * content to display.
+ *
+ * The shell must inform the compositor when content such as a
+ * background is in the scene graph and this output can safely
+ * be repainted.
+ *
+ * Only needs to be called once per output, and an output
+ * can never become unready.
+ *
+ * \param output the output that has become ready
+ * \ingroup output
+ */
+WL_EXPORT void
+weston_output_set_ready(struct weston_output *output)
+{
+	if (!output->ready) {
+		output->ready = true;
+		weston_output_schedule_repaint(output);
+	}
 }

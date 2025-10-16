@@ -824,6 +824,7 @@ kiosk_shell_output_create(struct kiosk_shell *shell, struct weston_output *outpu
 
 	kiosk_shell_output_recreate_background(shoutput);
 	kiosk_shell_output_configure(shoutput);
+	weston_output_set_ready(output);
 
 	return shoutput;
 }

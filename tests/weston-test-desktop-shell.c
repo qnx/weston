@@ -338,6 +338,7 @@ wet_shell_init(struct weston_compositor *ec,
 	screenshooter_create(ec);
 
 	desktest_shell_add_bindings(dts);
+	weston_output_set_ready(output);
 
 	return 0;
 

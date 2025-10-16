@@ -541,6 +541,12 @@ struct weston_output {
 	enum weston_vrr_mode vrr_mode;
 
 	enum weston_color_format color_format;
+
+	/**
+	 * Set by the shell to indicate there's some content for this
+	 * output to display.
+	 */
+	bool ready;
 };
 
 enum weston_pointer_motion_mask {
@@ -2714,6 +2720,9 @@ weston_output_set_color_format(struct weston_output *output,
 
 uint32_t
 weston_output_get_supported_color_formats(struct weston_output *output);
+
+void
+weston_output_set_ready(struct weston_output *output);
 
 #ifdef  __cplusplus
 }

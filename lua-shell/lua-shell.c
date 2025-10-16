@@ -922,6 +922,15 @@ lua_shell_env_output_is_enabled(struct lua_State *lua)
 }
 
 static int
+lua_shell_env_output_set_ready(struct lua_State *lua)
+{
+	struct lua_shell_output *shoutput = get_output_from_arg(lua, 1);
+
+	weston_output_set_ready(shoutput->output);
+	return 0;
+}
+
+static int
 lua_shell_env_output_set_private(struct lua_State *lua)
 {
 	struct lua_shell_output *shoutput = get_output_from_arg(lua, 1);
@@ -954,6 +963,7 @@ lua_shell_env_init_output(struct lua_shell *shell)
 		{ "is_enabled", lua_shell_env_output_is_enabled },
 		{ "set_private", lua_shell_env_output_set_private },
 		{ "get_private", lua_shell_env_output_get_private },
+		{ "set_ready", lua_shell_env_output_set_ready },
 		{ NULL, NULL }
 	};
 
