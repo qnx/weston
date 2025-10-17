@@ -3635,9 +3635,9 @@ weston_output_repaint(struct weston_output *output)
 			 z_order_link)
 		paint_node_update_early(pnode);
 
-	output_assign_planes(output);
-
 	output_update_visibility(output);
+
+	output_assign_planes(output);
 
 	wl_list_for_each(pnode, &output->paint_node_z_order_list,
 			 z_order_link) {
