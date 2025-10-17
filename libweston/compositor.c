@@ -406,6 +406,7 @@ weston_paint_node_create(struct weston_surface *surface,
 	pixman_region32_init(&pnode->damage);
 	pixman_region32_init(&pnode->visible);
 	pixman_region32_init(&pnode->visible_previous);
+	pixman_region32_init(&pnode->clipped_view);
 	pixman_region32_copy(&pnode->visible, &view->transform.boundingbox);
 
 	pnode->plane = &pnode->output->primary_plane;
@@ -434,6 +435,7 @@ weston_paint_node_destroy(struct weston_paint_node *pnode)
 	pixman_region32_fini(&pnode->damage);
 	pixman_region32_fini(&pnode->visible);
 	pixman_region32_fini(&pnode->visible_previous);
+	pixman_region32_fini(&pnode->clipped_view);
 	free(pnode);
 }
 
@@ -3223,13 +3225,13 @@ paint_node_update_visible(struct weston_paint_node *pnode,
 
 	pixman_region32_copy(&pnode->visible_previous, &pnode->visible);
 
-	pixman_region32_subtract(&pnode->visible, &view->transform.boundingbox,
+	pixman_region32_intersect(&pnode->clipped_view,
+				  &view->transform.boundingbox,
+				  &pnode->output->region);
+
+	pixman_region32_subtract(&pnode->visible, &pnode->clipped_view,
 				 opaque);
 	pixman_region32_union(opaque, opaque, &view->transform.opaque);
-
-	pixman_region32_intersect(&pnode->visible,
-				  &pnode->visible,
-				  &pnode->output->region);
 }
 
 

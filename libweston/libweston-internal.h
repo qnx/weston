@@ -706,6 +706,7 @@ struct weston_paint_node {
 
 	pixman_region32_t visible_previous;
 	pixman_region32_t visible;
+	pixman_region32_t clipped_view;
 	pixman_region32_t damage; /* In global coordinates */
 	struct weston_plane *plane;
 	struct weston_plane *plane_next;
