@@ -704,8 +704,8 @@ struct weston_paint_node {
 	/* struct weston_output::paint_node_z_order_list */
 	struct wl_list z_order_link;
 
+	pixman_region32_t visible_previous;
 	pixman_region32_t visible;
-	pixman_region32_t visible_next;
 	pixman_region32_t damage; /* In global coordinates */
 	struct weston_plane *plane;
 	struct weston_plane *plane_next;

@@ -316,15 +316,7 @@ paint_node_update_late(struct weston_paint_node *pnode)
 	 * we update visibility.
 	 */
 	if (vis_dirty || plane_dirty)
-		paint_node_damage_below(pnode, &pnode->visible);
-
-	/* Even if our geometry didn't change, our visible region may
-	 * have been updated by some other node changing. Keep the
-	 * visible region up to date.
-	 */
-	pixman_region32_intersect(&pnode->visible,
-				  &pnode->visible_next,
-				  &pnode->output->region);
+		paint_node_damage_below(pnode, &pnode->visible_previous);
 
 	/* If our visible region was dirty, we should damage the entire
 	 * new visible region to ensure a redraw of our content.
@@ -413,7 +405,7 @@ weston_paint_node_create(struct weston_surface *surface,
 
 	pixman_region32_init(&pnode->damage);
 	pixman_region32_init(&pnode->visible);
-	pixman_region32_init(&pnode->visible_next);
+	pixman_region32_init(&pnode->visible_previous);
 	pixman_region32_copy(&pnode->visible, &view->transform.boundingbox);
 
 	pnode->plane = &pnode->output->primary_plane;
@@ -441,7 +433,7 @@ weston_paint_node_destroy(struct weston_paint_node *pnode)
 	weston_surface_color_transform_fini(&pnode->surf_xform);
 	pixman_region32_fini(&pnode->damage);
 	pixman_region32_fini(&pnode->visible);
-	pixman_region32_fini(&pnode->visible_next);
+	pixman_region32_fini(&pnode->visible_previous);
 	free(pnode);
 }
 
@@ -3229,9 +3221,15 @@ paint_node_update_visible(struct weston_paint_node *pnode,
 
 	assert(!view->transform.dirty);
 
-	pixman_region32_subtract(&pnode->visible_next, &view->transform.boundingbox,
+	pixman_region32_copy(&pnode->visible_previous, &pnode->visible);
+
+	pixman_region32_subtract(&pnode->visible, &view->transform.boundingbox,
 				 opaque);
 	pixman_region32_union(opaque, opaque, &view->transform.opaque);
+
+	pixman_region32_intersect(&pnode->visible,
+				  &pnode->visible,
+				  &pnode->output->region);
 }
 
 
