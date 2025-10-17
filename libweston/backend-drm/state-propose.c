@@ -856,7 +856,7 @@ drm_output_propose_state(struct weston_output *output_base,
 		struct weston_view *ev = pnode->view;
 		struct drm_plane_state *ps = NULL;
 		pixman_region32_t clipped_view;
-		pixman_region32_t surface_overlap;
+		pixman_region32_t visible_view;
 		bool totally_occluded = false;
 		bool need_underlay = false;
 
@@ -888,17 +888,17 @@ drm_output_propose_state(struct weston_output *output_base,
 					  &ev->transform.boundingbox,
 					  &output->base.region);
 
-		pixman_region32_init(&surface_overlap);
-		pixman_region32_subtract(&surface_overlap, &clipped_view,
+		pixman_region32_init(&visible_view);
+		pixman_region32_subtract(&visible_view, &clipped_view,
 					 &occluded_region);
 		/* if the view is completely occluded then ignore that
 		 * view; includes the case where occluded_region covers
 		 * the entire output */
-		totally_occluded = !pixman_region32_not_empty(&surface_overlap);
+		totally_occluded = !pixman_region32_not_empty(&visible_view);
 		if (totally_occluded) {
 			drm_debug(b, "\t\t\t\t[view] ignoring view %p "
 			             "(occluded on our output)\n", ev);
-			pixman_region32_fini(&surface_overlap);
+			pixman_region32_fini(&visible_view);
 			pixman_region32_fini(&clipped_view);
 			continue;
 		}
@@ -933,9 +933,9 @@ drm_output_propose_state(struct weston_output *output_base,
 		 * the view intersects the calculated renderer region, it must
 		 * be part of, or occluded by, it, and cannot go on an overlay
 		 * plane. */
-		pixman_region32_intersect(&surface_overlap, &renderer_region,
+		pixman_region32_intersect(&visible_view, &renderer_region,
 					  &clipped_view);
-		if (pixman_region32_not_empty(&surface_overlap)) {
+		if (pixman_region32_not_empty(&visible_view)) {
 			if (b->has_underlay) {
 				need_underlay = true;
 			} else {
@@ -947,7 +947,7 @@ drm_output_propose_state(struct weston_output *output_base,
 					     current_lowest_zpos_underlay);
 			}
 		}
-		pixman_region32_fini(&surface_overlap);
+		pixman_region32_fini(&visible_view);
 
 		/* If need_underlay, but view contains alpha, then it needs to
 		 * be rendered. Only fully-opaque views can go on an underlay.
