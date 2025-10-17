@@ -157,7 +157,8 @@ weston_output_dirty_paint_nodes(struct weston_output *output)
 }
 
 static void
-paint_node_damage_below(struct weston_paint_node *pnode)
+paint_node_damage_below(struct weston_paint_node *pnode,
+			pixman_region32_t *visible_region)
 {
 	struct weston_paint_node *lower_node;
 
@@ -172,7 +173,7 @@ paint_node_damage_below(struct weston_paint_node *pnode)
 			break;
 
 		pixman_region32_union(&lower_node->damage, &lower_node->damage,
-				      &pnode->visible);
+				      visible_region);
 	}
 }
 
@@ -315,7 +316,7 @@ paint_node_update_late(struct weston_paint_node *pnode)
 	 * we update visibility.
 	 */
 	if (vis_dirty || plane_dirty)
-		paint_node_damage_below(pnode);
+		paint_node_damage_below(pnode, &pnode->visible);
 
 	/* Even if our geometry didn't change, our visible region may
 	 * have been updated by some other node changing. Keep the
@@ -430,7 +431,7 @@ weston_paint_node_destroy(struct weston_paint_node *pnode)
 {
 	assert(pnode->view->surface == pnode->surface);
 
-	paint_node_damage_below(pnode);
+	paint_node_damage_below(pnode, &pnode->visible);
 
 	wl_list_remove(&pnode->surface_link);
 	wl_list_remove(&pnode->view_link);
