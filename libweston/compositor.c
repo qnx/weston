@@ -3240,21 +3240,15 @@ output_update_visibility(struct weston_output *output)
 {
 	WESTON_TRACE_FUNC();
 	struct weston_paint_node *pnode;
-	pixman_region32_t opaque, clip;
-
-	pixman_region32_init(&clip);
+	pixman_region32_t opaque;
 
 	pixman_region32_init(&opaque);
 
 	wl_list_for_each(pnode, &output->paint_node_z_order_list,
-			 z_order_link) {
+			 z_order_link)
 		paint_node_update_visible(pnode, &opaque);
 
-		pixman_region32_union(&clip, &clip, &opaque);
-	}
-
 	pixman_region32_fini(&opaque);
-	pixman_region32_fini(&clip);
 }
 
 static void
