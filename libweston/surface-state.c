@@ -167,6 +167,8 @@ weston_surface_attach(struct weston_surface *surface,
 	    buffer->format_modifier != old_buffer->format_modifier) {
 		surface->is_opaque = pixel_format_is_opaque(buffer->pixel_format);
 		status |= WESTON_SURFACE_DIRTY_BUFFER_PARAMS;
+		weston_surface_dirty_paint_nodes(surface,
+						 WESTON_PAINT_NODE_BUFFER_PARAMS_DIRTY);
 	}
 
 	status |= WESTON_SURFACE_DIRTY_BUFFER;

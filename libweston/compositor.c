@@ -265,7 +265,8 @@ paint_node_update_early(struct weston_paint_node *pnode)
 	pnode->output->paint_node_changes |= pnode->status;
 	pnode->status &= ~(WESTON_PAINT_NODE_VIEW_DIRTY | \
 			   WESTON_PAINT_NODE_OUTPUT_DIRTY |
-			   WESTON_PAINT_NODE_BUFFER_DIRTY);
+			   WESTON_PAINT_NODE_BUFFER_DIRTY |
+			   WESTON_PAINT_NODE_BUFFER_PARAMS_DIRTY);
 }
 
 /* This is for validating a paint node after early update, assign planes,
