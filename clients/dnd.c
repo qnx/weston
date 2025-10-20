@@ -515,7 +515,7 @@ create_drag_source(struct dnd *dnd,
 		dnd_drag->drag_surface =
 			wl_compositor_create_surface(compositor);
 
-		if (display_get_data_device_manager_version(display) <
+		if (dnd->self_only || display_get_data_device_manager_version(display) <
 		    WL_DATA_SOURCE_SET_ACTIONS_SINCE_VERSION) {
 			/* Data sources version < 3 will not get action
 			 * nor dnd_finished events, as we can't honor
@@ -546,11 +546,11 @@ create_drag_source(struct dnd *dnd,
 					     flower_mime_type);
 			wl_data_source_offer(dnd_drag->data_source,
 					     text_mime_type);
-		}
 
-		if (display_get_data_device_manager_version(display) >=
-		    WL_DATA_SOURCE_SET_ACTIONS_SINCE_VERSION) {
-			wl_data_source_set_actions(dnd_drag->data_source, actions);
+			if (display_get_data_device_manager_version(display) >=
+				WL_DATA_SOURCE_SET_ACTIONS_SINCE_VERSION) {
+				wl_data_source_set_actions(dnd_drag->data_source, actions);
+			}
 		}
 
 		wl_data_device_start_drag(input_get_data_device(input),
