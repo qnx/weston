@@ -205,6 +205,7 @@ paint_node_update_early(struct weston_paint_node *pnode)
 	struct weston_surface *surface = pnode->surface;
 	bool view_dirty = pnode->status & WESTON_PAINT_NODE_VIEW_DIRTY;
 	bool output_dirty = pnode->status & WESTON_PAINT_NODE_OUTPUT_DIRTY;
+	bool buffer_dirty = pnode->status & WESTON_PAINT_NODE_BUFFER_DIRTY;
 	bool recording_censor, unprotected_censor;
 	struct weston_buffer *buffer;
 
@@ -258,9 +259,13 @@ paint_node_update_early(struct weston_paint_node *pnode)
 		get_placeholder_color(pnode, &pnode->solid);
 	}
 
+	if (buffer_dirty)
+		surface->compositor->renderer->attach(pnode);
+
 	pnode->output->paint_node_changes |= pnode->status;
 	pnode->status &= ~(WESTON_PAINT_NODE_VIEW_DIRTY | \
-			   WESTON_PAINT_NODE_OUTPUT_DIRTY);
+			   WESTON_PAINT_NODE_OUTPUT_DIRTY |
+			   WESTON_PAINT_NODE_BUFFER_DIRTY);
 }
 
 /* This is for validating a paint node after early update, assign planes,
@@ -305,7 +310,6 @@ paint_node_update_late(struct weston_paint_node *pnode)
 	struct weston_buffer *buffer = surf->buffer_ref.buffer;
 	bool vis_dirty = pnode->status & WESTON_PAINT_NODE_VISIBILITY_DIRTY;
 	bool plane_dirty = pnode->status & WESTON_PAINT_NODE_PLANE_DIRTY;
-	bool buffer_dirty = pnode->status & WESTON_PAINT_NODE_BUFFER_DIRTY;
 
 	/* The geoemtry may be shrinking, so we shouldn't just
 	 * add the old visible region to our damage region, because
@@ -353,12 +357,8 @@ paint_node_update_late(struct weston_paint_node *pnode)
 		get_placeholder_color(pnode, &pnode->solid);
 	}
 
-	if (buffer_dirty)
-		surf->compositor->renderer->attach(pnode);
-
 	pnode->status &= ~(WESTON_PAINT_NODE_VISIBILITY_DIRTY |
-			   WESTON_PAINT_NODE_PLANE_DIRTY |
-			   WESTON_PAINT_NODE_BUFFER_DIRTY);
+			   WESTON_PAINT_NODE_PLANE_DIRTY);
 
 	paint_node_validate_ready(pnode);
 }
