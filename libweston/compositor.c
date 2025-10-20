@@ -2369,8 +2369,10 @@ surface_set_size(struct weston_surface *surface, int32_t width, int32_t height)
 	surface->width = width;
 	surface->height = height;
 
-	wl_list_for_each(view, &surface->views, surface_link)
+	wl_list_for_each(view, &surface->views, surface_link) {
 		weston_view_geometry_dirty_internal(view);
+		weston_view_update_transform(view);
+	}
 }
 
 WL_EXPORT void
