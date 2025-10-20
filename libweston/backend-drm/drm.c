@@ -856,9 +856,10 @@ drm_output_repaint(struct weston_output *output_base)
 							   output->cursor_plane);
 	if (cursor_state && cursor_state->fb) {
 		pixman_region32_t damage;
+		struct drm_fb *old_fb = cursor_state->fb;
 
 		assert(cursor_state->plane == output->cursor_plane);
-		assert(cursor_state->fb == output->gbm_cursor_fb[0]);
+		assert(old_fb->type == BUFFER_CURSOR);
 
 		pixman_region32_init(&damage);
 		weston_output_flush_damage_for_plane(&output->base,
@@ -873,8 +874,9 @@ drm_output_repaint(struct weston_output *output_base)
 		}
 		pixman_region32_fini(&damage);
 
-		cursor_state->fb = drm_fb_ref(output->gbm_cursor_fb[output->current_cursor]);
-		drm_fb_unref(output->gbm_cursor_fb[0]);
+		cursor_state->fb =
+			drm_fb_ref(output->gbm_cursor_fb[output->current_cursor]);
+		drm_fb_unref(old_fb);
 	}
 
 
