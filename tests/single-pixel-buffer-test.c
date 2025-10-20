@@ -111,6 +111,46 @@ TEST(solid_buffer_argb_u32)
 	return RESULT_OK;
 }
 
+TEST(solid_buffer_argb_u32_semi_transparent)
+{
+	struct client *client;
+	struct wp_viewport *viewport;
+	struct wl_buffer *buffer;
+	int done;
+	bool match;
+
+	client = create_client();
+	client->surface = create_test_surface(client);
+	viewport = client_create_viewport(client);
+	wp_viewport_set_destination(viewport, 128, 128);
+
+	buffer = wp_single_pixel_buffer_manager_v1_create_u32_rgba_buffer(client->single_pixel_manager,
+									  0xcfffffff, /* r */
+									  0x8fffffff, /* g */
+									  0x4fffffff, /* b */
+									  0x7fffffff /* a */);
+	test_assert_ptr_not_null(buffer);
+
+	weston_test_move_surface(client->test->weston_test,
+				 client->surface->wl_surface,
+				 64, 64);
+	wl_surface_attach(client->surface->wl_surface, buffer, 0, 0);
+	wl_surface_damage_buffer(client->surface->wl_surface, 0, 0, 1, 1);
+	frame_callback_set(client->surface->wl_surface, &done);
+	wl_surface_commit(client->surface->wl_surface);
+	frame_callback_wait(client, &done);
+
+	match = verify_screen_content(client, "single-pixel-buffer-semi-transparent", 0,
+				      NULL, 0, NULL, NO_DECORATIONS);
+	test_assert_true(match);
+
+	wl_buffer_destroy(buffer);
+	wp_viewport_destroy(viewport);
+	client_destroy(client);
+
+	return RESULT_OK;
+}
+
 TEST(solid_buffer_argb_u32_scaled)
 {
 	struct client *client;
