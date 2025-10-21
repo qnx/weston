@@ -3239,7 +3239,11 @@ paint_node_update_visible(struct weston_paint_node *pnode,
 
 	pixman_region32_subtract(&pnode->visible, &pnode->clipped_view,
 				 opaque);
-	pixman_region32_union(opaque, opaque, &view->transform.opaque);
+
+	if (pnode->is_fully_opaque)
+		pixman_region32_union(opaque, opaque, &pnode->visible);
+	else if (view->alpha == 1.0)
+		pixman_region32_union(opaque, opaque, &view->transform.opaque);
 }
 
 
