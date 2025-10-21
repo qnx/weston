@@ -1450,8 +1450,8 @@ gl_shader_config_set_input_textures(struct gl_shader_config *sconf,
 }
 
 static bool
-gl_shader_config_init_for_paint_node(struct gl_shader_config *sconf,
-				     struct weston_paint_node *pnode)
+prepare_textured_draw(struct gl_shader_config *sconf,
+		      struct weston_paint_node *pnode)
 {
 	struct gl_renderer *gr = get_renderer(pnode->surface->compositor);
 	struct gl_surface_state *gs = get_surface_state(pnode->surface);
@@ -1460,9 +1460,6 @@ gl_shader_config_init_for_paint_node(struct gl_shader_config *sconf,
 	struct weston_buffer *buffer = gs->buffer_ref.buffer;
 	GLint filter;
 	int i;
-
-	if (!pnode->surf_xform_valid)
-		return false;
 
 	*sconf = (struct gl_shader_config) {
 		.req.texcoord_input = SHADER_TEXCOORD_INPUT_SURFACE,
@@ -1506,6 +1503,16 @@ gl_shader_config_init_for_paint_node(struct gl_shader_config *sconf,
 	}
 
 	return true;
+}
+
+static bool
+gl_shader_config_init_for_paint_node(struct gl_shader_config *sconf,
+				     struct weston_paint_node *pnode)
+{
+	if (!pnode->surf_xform_valid)
+		return false;
+
+	return prepare_textured_draw(sconf, pnode);
 }
 
 static int
