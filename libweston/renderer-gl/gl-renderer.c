@@ -1518,7 +1518,10 @@ gl_shader_config_init_for_paint_node(struct gl_shader_config *sconf,
 	if (!pnode->surf_xform_valid)
 		return false;
 
-	return prepare_textured_draw(sconf, pnode);
+	if (pnode->draw_solid)
+		return prepare_solid_draw(sconf, pnode);
+	else
+		return prepare_textured_draw(sconf, pnode);
 }
 
 static int
@@ -2123,9 +2126,6 @@ draw_paint_node(struct weston_paint_node *pnode,
 					  &pnode->view->geometry.scissor);
 	pixman_region32_subtract(&surface_blend, &surface_blend,
 				 &surface_opaque);
-
-	if (pnode->draw_solid)
-		prepare_solid_draw(&sconf, pnode);
 
 	if (pixman_region32_not_empty(&surface_opaque)) {
 		transform_damage(pnode, &repaint, &quads, &nquads);
