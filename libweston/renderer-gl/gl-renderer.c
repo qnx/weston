@@ -1485,8 +1485,6 @@ gl_shader_config_init_for_paint_node(struct gl_shader_config *sconf,
 		weston_matrix_translate(&sconf->surface_to_buffer, 0, 1, 0);
 	}
 
-	gl_shader_config_set_input_textures(sconf, gb);
-
 	filter = pnode->needs_filtering ? GL_LINEAR : GL_NEAREST;
 	for (i = 0; i < gb->num_textures; i++) {
 		if (filter != gb->parameters[i].filters.min) {
@@ -1495,6 +1493,7 @@ gl_shader_config_init_for_paint_node(struct gl_shader_config *sconf,
 			gb->parameters[i].flags |= TEXTURE_FILTERS_DIRTY;
 		}
 	}
+	gl_shader_config_set_input_textures(sconf, gb);
 
 	if (!gl_shader_config_set_color_transform(gr, sconf, pnode->surf_xform.transform)) {
 		weston_log("GL-renderer: failed to generate a color transformation.\n");
