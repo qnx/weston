@@ -1455,6 +1455,8 @@ ivi_hmi_controller_UI_ready(struct wl_client *client,
 	hmi_ctrl->interface->commit_changes();
 
 	ivi_hmi_controller_add_launchers(hmi_ctrl, 256);
+
+	hmi_ctrl->interface->screen_ready(hmi_ctrl->workspace_background_output);
 	hmi_ctrl->is_initialized = 1;
 }
 

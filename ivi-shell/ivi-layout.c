@@ -91,8 +91,6 @@ struct ivi_layout_screen {
 		int dirty;
 		struct wl_list layer_list;	/* ivi_layout_layer::order.link */
 	} order;
-
-	struct weston_curtain *temporary_curtain;
 };
 
 struct ivi_rectangle
@@ -282,8 +280,6 @@ destroy_screen(struct ivi_layout_screen *iviscrn)
 
 	assert(wl_list_empty(&iviscrn->order.layer_list));
 
-	weston_shell_utils_curtain_destroy(iviscrn->temporary_curtain);
-
 	wl_list_remove(&iviscrn->link);
 	free(iviscrn);
 }
@@ -318,42 +314,10 @@ create_screen(struct weston_output *output)
 	return iviscrn;
 }
 
-static int
-ivi_shell_temporary_curtain_get_label(struct weston_surface *surface,
-					  char *buf, size_t len)
-{
-	return snprintf(buf, len, "ivi-shell background placeholder");
-}
-
 static void
 create_ivi_screen(struct ivi_layout *layout, struct weston_output *output)
 {
-	struct weston_curtain_params curtain_params = {};
-	struct ivi_layout_screen *iviscrn = NULL;
-
-	iviscrn = create_screen(output);
-
-	curtain_params.a = 1.0;
-	curtain_params.pos = output->pos;
-	curtain_params.width = output->width;
-	curtain_params.height = output->height;
-	curtain_params.capture_input = true;
-	curtain_params.get_label = ivi_shell_temporary_curtain_get_label;
-
-	iviscrn->temporary_curtain =
-		weston_shell_utils_curtain_create(output->compositor,
-						  &curtain_params);
-
-	weston_surface_set_role(iviscrn->temporary_curtain->view->surface,
-				"ivi-shell-background-placeholder", NULL, 0);
-
-	iviscrn->temporary_curtain->view->surface->output = output;
-
-	weston_view_move_to_layer(iviscrn->temporary_curtain->view,
-				  &layout->layout_layer.view_list);
-	weston_view_set_output(iviscrn->temporary_curtain->view, output);
-
-	weston_output_set_ready(output);
+	create_screen(output);
 }
 
 static void
@@ -1609,6 +1573,12 @@ ivi_layout_screen_set_render_order(struct weston_output *output,
 	iviscrn->order.dirty = 1;
 }
 
+static void
+ivi_layout_set_screen_ready(struct weston_output *output)
+{
+	weston_output_set_ready(output);
+}
+
 /**
  * This function is used by the additional ivi-module because of dumping ivi_surface sceenshot.
  * The ivi-module, e.g. ivi-controller.so, is in wayland-ivi-extension of Genivi's Layer Management.
@@ -2277,6 +2247,7 @@ static struct ivi_layout_interface ivi_layout_interface = {
 	.screen_add_layer		= ivi_layout_screen_add_layer,
 	.screen_remove_layer		= ivi_layout_screen_remove_layer,
 	.screen_set_render_order	= ivi_layout_screen_set_render_order,
+	.screen_ready			= ivi_layout_set_screen_ready,
 
 	/**
 	 * animation

@@ -647,6 +647,12 @@ struct ivi_layout_interface {
 	 * See add_listener_show_input_panel for more details.
 	 */
 	void (*add_listener_update_input_panel)(struct wl_listener *listener);
+
+	/**
+	 * \brief Set weston_output ready to be painted
+	 */
+	void (*screen_ready)(struct weston_output *output);
+
 };
 
 static inline const struct ivi_layout_interface *

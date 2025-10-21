@@ -86,7 +86,8 @@ the surface was added to. However, the views are not provided to the IVI
 controller.
 
 After configuring all expected changes, the controller must call the
-``commit_changes`` to atomically update the display layout.
+``commit_changes`` to atomically update the display layout and call
+``screen_ready`` to inform the compositor that it can start issueing repaints.
 
 IVI-shell example implementation
 --------------------------------
