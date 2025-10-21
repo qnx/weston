@@ -1825,17 +1825,14 @@ weston_view_update_transform_enable(struct weston_view *view)
 	return 0;
 }
 
-WL_EXPORT void
-weston_view_update_transform(struct weston_view *view)
+static void
+weston_view_update_transform_internal(struct weston_view *view)
 {
 	WESTON_TRACE_FUNC();
 	struct weston_view *parent = view->geometry.parent;
 	struct weston_view *child;
 	struct weston_layer *layer;
 	pixman_region32_t mask;
-
-	if (!view->transform.dirty)
-		return;
 
 	if (parent)
 		weston_view_update_transform(parent);
@@ -1877,6 +1874,15 @@ weston_view_update_transform(struct weston_view *view)
 			 geometry.parent_link) {
 		weston_view_update_transform(child);
 	}
+}
+
+WL_EXPORT void
+weston_view_update_transform(struct weston_view *view)
+{
+	if (!view->transform.dirty)
+		return;
+
+	weston_view_update_transform_internal(view);
 }
 
 void
