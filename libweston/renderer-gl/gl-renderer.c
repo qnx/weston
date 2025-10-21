@@ -1919,7 +1919,7 @@ draw_mesh(struct gl_renderer *gr,
 
 	/* Prevent translucent surfaces from punching holes through the
 	 * renderbuffer. */
-	if (gb->shader_variant == SHADER_VARIANT_RGBA) {
+	if (!pnode->draw_solid && gb->shader_variant == SHADER_VARIANT_RGBA) {
 		swizzle_a = opaque ? GL_ONE : gb->texture_format[0].swizzles.a;
 		if (gb->parameters[0].swizzles.a != swizzle_a) {
 			gb->parameters[0].swizzles.a = swizzle_a;
@@ -2063,8 +2063,6 @@ draw_paint_node(struct weston_paint_node *pnode,
 {
 	struct gl_renderer *gr = get_renderer(pnode->surface->compositor);
 	struct gl_surface_state *gs = get_surface_state(pnode->surface);
-	struct gl_buffer_state *gb = gs->buffer;
-	struct weston_buffer *buffer = gs->buffer_ref.buffer;
 	/* repaint bounding region in global coordinates: */
 	pixman_region32_t repaint;
 	/* opaque region in surface coordinates: */
@@ -2074,10 +2072,6 @@ draw_paint_node(struct weston_paint_node *pnode,
 	struct gl_shader_config sconf;
 	struct clipper_quad *quads = NULL;
 	int nquads;
-
-	if (gb->shader_variant == SHADER_VARIANT_NONE &&
-	    !buffer->direct_display)
-		return;
 
 	pixman_region32_init(&repaint);
 	pixman_region32_intersect(&repaint, &pnode->visible, damage);
@@ -3706,30 +3700,6 @@ gl_renderer_import_dmabuf(struct weston_compositor *ec,
 	return true;
 }
 
-static struct gl_buffer_state *
-gl_renderer_attach_solid(struct weston_surface *surface,
-			 struct weston_paint_node *pnode,
-			 struct weston_buffer *buffer)
-{
-	struct gl_renderer *gr = get_renderer(surface->compositor);
-	struct gl_surface_state *gs = get_surface_state(surface);
-	struct gl_buffer_state *gb = buffer->renderer_private;
-
-	if (!gb) {
-		gb = zalloc(sizeof(*gb));
-		gb->gr = gr;
-		pixman_region32_init(&gb->texture_damage);
-		buffer->renderer_private = gb;
-		gb->destroy_listener.notify = handle_buffer_destroy;
-		wl_signal_add(&buffer->destroy_signal, &gb->destroy_listener);
-	}
-
-	gs->buffer = gb;
-	gb->shader_variant = SHADER_VARIANT_SOLID;
-
-	return gb;
-}
-
 static void
 gl_renderer_attach_buffer(struct weston_surface *surface,
 			  struct weston_buffer *buffer)
@@ -3857,10 +3827,8 @@ gl_renderer_attach(struct weston_paint_node *pnode)
 	if (!buffer)
 		goto out;
 
-	if (pnode->draw_solid) {
-		gl_renderer_attach_solid(es, pnode, buffer);
+	if (buffer->direct_display)
 		goto success;
-	}
 
 	switch (buffer->type) {
 	case WESTON_BUFFER_SHM:
@@ -3871,7 +3839,7 @@ gl_renderer_attach(struct weston_paint_node *pnode)
 		gl_renderer_attach_buffer(es, buffer);
 		break;
 	case WESTON_BUFFER_SOLID:
-		unreachable("solid buffer should not get here");
+		break;
 	default:
 		weston_log("unhandled buffer type!\n");
 		weston_buffer_send_server_error(buffer,
