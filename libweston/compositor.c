@@ -4154,6 +4154,7 @@ weston_output_finish_frame(struct weston_output *output,
 	if (!stamp) {
 		output->next_repaint = now;
 		output->next_present = now;
+		output->frame_flags = 0;
 		goto out;
 	}
 
@@ -4172,6 +4173,7 @@ weston_output_finish_frame(struct weston_output *output,
 	}
 
 	output->frame_time = *stamp;
+	output->frame_flags = presented_flags;
 
 	/* If we're tearing just repaint right away */
 	if (presented_flags & WESTON_FINISH_FRAME_TEARING) {

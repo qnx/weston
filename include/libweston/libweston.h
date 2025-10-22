@@ -445,6 +445,7 @@ struct weston_output {
 	struct wl_signal destroy_signal;	/**< sent when disabled */
 	struct weston_coord_global move;
 	struct timespec frame_time; /* presentation timestamp */
+	uint32_t frame_flags; /* presentation flags */
 	uint64_t msc;        /* media stream counter */
 	int disable_planes;
 	int destroying;
