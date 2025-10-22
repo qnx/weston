@@ -3907,20 +3907,20 @@ output_repaint_timer_arm(struct weston_compositor *compositor)
 	bool any_should_repaint = false;
 	struct timespec now;
 	struct itimerspec next_time_its = { 0 };
-	int64_t msec_to_next = INT64_MAX;
+	int64_t nsec_to_next = INT64_MAX;
 
 	weston_compositor_read_presentation_clock(compositor, &now);
 
 	wl_list_for_each(output, &compositor->output_list, link) {
-		int64_t msec_to_this;
+		int64_t nsec_to_this;
 
 		if (output->repaint_status != REPAINT_SCHEDULED)
 			continue;
 
-		msec_to_this = timespec_sub_to_msec(&output->next_repaint,
+		nsec_to_this = timespec_sub_to_nsec(&output->next_repaint,
 						    &now);
-		if (!any_should_repaint || msec_to_this < msec_to_next)
-			msec_to_next = msec_to_this;
+		if (!any_should_repaint || nsec_to_this < nsec_to_next)
+			nsec_to_next = nsec_to_this;
 
 		any_should_repaint = true;
 	}
@@ -3928,16 +3928,16 @@ output_repaint_timer_arm(struct weston_compositor *compositor)
 	if (!any_should_repaint)
 		return;
 
-	/* Even if we should repaint immediately, add the minimum 1 ms delay.
+	/* Even if we should repaint immediately, add the minimum 1 ns delay.
 	 * This is a workaround to allow coalescing multiple output repaints
 	 * particularly from weston_output_finish_frame()
 	 * into the same call, which would not happen if we called
 	 * output_repaint_timer_handler() directly.
 	 */
-	if (msec_to_next < 1)
-		msec_to_next = 1;
+	if (nsec_to_next < 1)
+		nsec_to_next = 1;
 
-	timespec_from_msec(&next_time_its.it_value, msec_to_next);
+	timespec_from_nsec(&next_time_its.it_value, nsec_to_next);
 	timerfd_settime(compositor->repaint_timer_fd, 0, &next_time_its, NULL);
 }
 
