@@ -38,6 +38,7 @@
 #include <assert.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/timerfd.h>
 #include <sys/wait.h>
 #include <sys/socket.h>
 #include <sys/utsname.h>
@@ -3905,6 +3906,7 @@ output_repaint_timer_arm(struct weston_compositor *compositor)
 	struct weston_output *output;
 	bool any_should_repaint = false;
 	struct timespec now;
+	struct itimerspec next_time_its = { 0 };
 	int64_t msec_to_next = INT64_MAX;
 
 	weston_compositor_read_presentation_clock(compositor, &now);
@@ -3935,7 +3937,8 @@ output_repaint_timer_arm(struct weston_compositor *compositor)
 	if (msec_to_next < 1)
 		msec_to_next = 1;
 
-	wl_event_source_timer_update(compositor->repaint_timer, msec_to_next);
+	timespec_from_msec(&next_time_its.it_value, msec_to_next);
+	timerfd_settime(compositor->repaint_timer_fd, 0, &next_time_its, NULL);
 }
 
 WL_EXPORT void
@@ -4045,7 +4048,7 @@ surface_statistics_timer_handler(void *data)
 }
 
 static int
-output_repaint_timer_handler(void *data)
+output_repaint_timer_handler(int fd, uint32_t mask, void *data)
 {
 	WESTON_TRACE_FUNC();
 	struct weston_compositor *compositor = data;
@@ -4053,6 +4056,9 @@ output_repaint_timer_handler(void *data)
 	struct weston_output *output;
 	struct timespec now;
 	int ret = 0;
+	uint64_t e;
+
+	read(compositor->repaint_timer_fd, &e, sizeof e);
 
 	/* We may have transactions with constraints that cleared after
 	 * the last repaint. That repaint would have unconditionally
@@ -9811,9 +9817,14 @@ weston_compositor_create(struct wl_display *display,
 
 	loop = wl_display_get_event_loop(ec->wl_display);
 	ec->idle_source = wl_event_loop_add_timer(loop, idle_handler, ec);
-	ec->repaint_timer =
-		wl_event_loop_add_timer(loop, output_repaint_timer_handler,
-					ec);
+
+	ec->repaint_timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
+	if (ec->repaint_timer_fd < 0)
+		goto fail;
+	ec->repaint_timer_source =
+		wl_event_loop_add_fd(loop, ec->repaint_timer_fd,
+				     WL_EVENT_READABLE,
+				     output_repaint_timer_handler, ec);
 
 	weston_compositor_create_surface_counter_fps(ec, DEFAULT_FRAME_RATE_INTERVAL);
 
@@ -9858,7 +9869,9 @@ weston_compositor_shutdown(struct weston_compositor *ec)
 	ec->shutting_down = true;
 
 	wl_event_source_remove(ec->idle_source);
-	wl_event_source_remove(ec->repaint_timer);
+	wl_event_source_remove(ec->repaint_timer_source);
+	close(ec->repaint_timer_fd);
+
 	wl_event_source_remove(ec->perf_surface_stats.frame_counter_timer);
 
 	if (ec->touch_calibration)

@@ -1394,7 +1394,8 @@ struct weston_compositor {
 	struct wl_event_source *idle_source;
 	uint32_t idle_inhibit;
 	int idle_time;			/* timeout, s */
-	struct wl_event_source *repaint_timer;
+	int repaint_timer_fd;
+	struct wl_event_source *repaint_timer_source;
 
 	const struct weston_pointer_grab_interface *default_pointer_grab;
 
