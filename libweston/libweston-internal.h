@@ -869,6 +869,9 @@ weston_surface_visibility_mask(struct weston_surface *surface);
 void
 weston_compositor_apply_transactions(struct weston_compositor *compositor);
 
+void
+weston_repaint_timer_arm(struct weston_compositor *compositor);
+
 struct timespec
 weston_output_repaint_from_present(const struct weston_output *output,
 				   const struct timespec *now,

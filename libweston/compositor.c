@@ -3900,8 +3900,15 @@ weston_output_repaint_from_present(const struct weston_output *output,
 	return repaint_time;
 }
 
-static void
-output_repaint_timer_arm(struct weston_compositor *compositor)
+/** Arm the output repaint timer
+ *
+ * \param compositor The compositor instance
+ *
+ * Walk the output list and set the compositor repaint timer to fire at the
+ * next best time to repaint.
+ */
+void
+weston_repaint_timer_arm(struct weston_compositor *compositor)
 {
 	struct weston_output *output;
 	bool any_should_repaint = false;
@@ -3951,7 +3958,7 @@ weston_output_schedule_repaint_restart(struct weston_output *output)
 	output->repaint_status = REPAINT_SCHEDULED;
 	TL_POINT(output->compositor, TLP_CORE_REPAINT_RESTART,
 		 TLP_OUTPUT(output), TLP_END);
-	output_repaint_timer_arm(output->compositor);
+	weston_repaint_timer_arm(output->compositor);
 	weston_output_damage(output);
 }
 
@@ -4129,7 +4136,7 @@ output_repaint_timer_handler(int fd, uint32_t mask, void *data)
 	wl_list_for_each(output, &compositor->output_list, link)
 		output->repainted = false;
 
-	output_repaint_timer_arm(compositor);
+	weston_repaint_timer_arm(compositor);
 
 	return 0;
 }
@@ -4275,7 +4282,7 @@ out:
 	output->next_repaint = weston_output_repaint_from_present(output, &now,
 								  &output->next_present);
 	output->repaint_status = REPAINT_SCHEDULED;
-	output_repaint_timer_arm(compositor);
+	weston_repaint_timer_arm(compositor);
 }
 
 
