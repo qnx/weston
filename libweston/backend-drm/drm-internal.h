@@ -354,6 +354,7 @@ struct drm_output_state {
 	enum weston_hdcp_protection protection;
 	struct wl_list plane_list;
 	bool tear;
+	bool planes_enabled;
 };
 
 /**

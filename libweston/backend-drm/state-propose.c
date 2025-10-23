@@ -890,6 +890,7 @@ drm_output_propose_state(struct weston_output *output_base,
 					   pending_state,
 					   DRM_OUTPUT_STATE_CLEAR_PLANES);
 	state->dpms = WESTON_DPMS_ON;
+	state->planes_enabled = !output_base->disable_planes;
 
 	/* Start with the assumption that we're going to do a tearing commit,
 	 * if the hardware supports it and we're not compositing with the
@@ -1249,6 +1250,8 @@ drm_assign_planes(struct weston_output *output_base)
 	}
 
 	assert(state);
+	assert(state->planes_enabled == !output_base->disable_planes);
+
 	drm_debug(b, "\t[repaint] Using %s composition\n",
 		  drm_propose_state_mode_to_string(mode));
 
