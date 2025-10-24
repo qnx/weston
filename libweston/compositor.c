@@ -3611,12 +3611,14 @@ weston_output_put_back_feedback_list(struct weston_output *output)
 	wl_list_init(&output->feedback_list);
 }
 
-WL_EXPORT void
+WL_EXPORT struct weston_paint_node *
 weston_output_flush_damage_for_plane(struct weston_output *output,
 				     struct weston_plane *plane,
 				     pixman_region32_t *damage)
 {
+	struct weston_paint_node *driving_node;
 	struct weston_paint_node *pnode;
+	int nodes_on_plane = 0;
 
 	wl_list_for_each(pnode, &output->paint_node_z_order_list,
 			 z_order_link) {
@@ -3635,8 +3637,15 @@ weston_output_flush_damage_for_plane(struct weston_output *output,
 		pixman_region32_intersect(&pnode->damage, &pnode->damage, &pnode->visible);
 		pixman_region32_union(damage, damage, &pnode->damage);
 		pixman_region32_clear(&pnode->damage);
+		nodes_on_plane++;
+		driving_node = pnode;
 	}
 	pixman_region32_intersect(damage, damage, &output->region);
+
+	if (nodes_on_plane == 1)
+		return driving_node;
+
+	return NULL;
 }
 
 WL_EXPORT void
