@@ -979,7 +979,6 @@ drm_output_apply_state_legacy(struct drm_output_state *state)
 	return 0;
 
 err:
-	drm_output_set_cursor_view(output, NULL);
 	drm_output_state_free(state);
 	return -1;
 }

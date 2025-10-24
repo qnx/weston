@@ -250,7 +250,6 @@ drm_output_prepare_cursor_paint_node(struct drm_output_state *output_state,
 		goto err;
 	}
 
-	drm_output_set_cursor_view(output, ev);
 	plane_state->ev = ev;
 	/* We always test with cursor fb 0. There are two potential fbs, and
 	 * they are identically allocated for cursor use specifically, so if
@@ -1380,55 +1379,6 @@ drm_assign_planes(struct weston_output *output_base)
 		}
 	}
 
-	/* We rely on output->cursor_view being both an accurate reflection of
-	 * the cursor plane's state, but also being maintained across repaints
-	 * to avoid unnecessary damage uploads, per the comment in
-	 * drm_output_prepare_cursor_paint_node. In the event that we go from
-	 * having a cursor view to not having a cursor view, we need to clear
-	 * it. */
-	if (output->cursor_view) {
-		plane_state =
-			drm_output_state_get_existing_plane(state,
-							    output->cursor_plane);
-		if (!plane_state || !plane_state->fb)
-			drm_output_set_cursor_view(output, NULL);
-	}
-
 	if (drm_output_get_writeback_state(output) == DRM_OUTPUT_WB_SCREENSHOT_PREPARE_COMMIT)
 		drm_writeback_reference_planes(wb_state, &state->plane_list);
-}
-
-static void
-drm_output_handle_cursor_view_destroy(struct wl_listener *listener, void *data)
-{
-	struct drm_output *output =
-		container_of(listener, struct drm_output,
-			     cursor_view_destroy_listener);
-
-	drm_output_set_cursor_view(output, NULL);
-}
-
-/** Set the current cursor view used for an output.
- *
- * Ensure the stored value will be properly cleared if the view is destroyed.
- * The stored cursor view helps avoid unnecessary uploads of cursor data to
- * cursor plane buffer objects (see drm_output_prepare_cursor_paint_node).
- */
-void
-drm_output_set_cursor_view(struct drm_output *output, struct weston_view *ev)
-{
-	if (output->cursor_view == ev)
-		return;
-
-	if (output->cursor_view)
-		wl_list_remove(&output->cursor_view_destroy_listener.link);
-
-	output->cursor_view = ev;
-
-	if (ev) {
-		output->cursor_view_destroy_listener.notify =
-			drm_output_handle_cursor_view_destroy;
-		wl_signal_add(&ev->destroy_signal,
-			      &output->cursor_view_destroy_listener);
-	}
 }

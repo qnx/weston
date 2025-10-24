@@ -918,20 +918,21 @@ drm_output_repaint(struct weston_output *output_base)
 	if (cursor_state && cursor_state->fb) {
 		pixman_region32_t damage;
 		struct drm_fb *old_fb = cursor_state->fb;
+		struct weston_paint_node *cursor_node;
 
 		assert(cursor_state->plane == output->cursor_plane);
 		assert(old_fb->type == BUFFER_CURSOR);
 
 		pixman_region32_init(&damage);
-		weston_output_flush_damage_for_plane(&output->base,
-						     &output->cursor_plane->base,
-						     &damage);
+		cursor_node = weston_output_flush_damage_for_plane(&output->base,
+								   &output->cursor_plane->base,
+								   &damage);
 		if (pixman_region32_not_empty(&damage)) {
 			output->current_cursor++;
 			output->current_cursor =
 				output->current_cursor %
 					ARRAY_LENGTH(output->gbm_cursor_fb);
-			cursor_bo_update(output, output->cursor_view);
+			cursor_bo_update(output, cursor_node->view);
 		}
 		pixman_region32_fini(&damage);
 
@@ -2909,8 +2910,6 @@ drm_output_destroy(struct weston_output *base)
 				   "destroying it now\n", base->name, base->id);
 		}
 	}
-
-	drm_output_set_cursor_view(output, NULL);
 
 	if (output->base.enabled)
 		drm_output_deinit(&output->base);

@@ -591,8 +591,6 @@ struct drm_output {
 	uint32_t gbm_cursor_handle[2];
 	struct drm_fb *gbm_cursor_fb[2];
 	struct drm_plane *cursor_plane;
-	struct weston_view *cursor_view;
-	struct wl_listener cursor_view_destroy_listener;
 	int current_cursor;
 
 	struct gbm_surface *gbm_surface;
@@ -848,9 +846,6 @@ drm_fb_get_from_dmabuf(struct linux_dmabuf_buffer *dmabuf,
 struct drm_fb *
 drm_fb_get_from_bo(struct gbm_bo *bo, struct drm_device *device,
 		   bool is_opaque, enum drm_fb_type type);
-
-void
-drm_output_set_cursor_view(struct drm_output *output, struct weston_view *ev);
 
 int
 drm_output_ensure_hdr_output_metadata_blob(struct drm_output *output);
