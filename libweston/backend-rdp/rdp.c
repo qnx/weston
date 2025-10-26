@@ -908,6 +908,10 @@ struct rdp_to_xkb_keyboard_layout {
 	UINT32 rdpLayoutCode;
 	const char *xkbLayout;
 	const char *xkbVariant;
+	/* options are comma-separated key-value pairs that are colon- */
+	/* delimited, e.g. "caps:shift,lv3:ralt_alt". use the command  */
+	/* `xprop -root _XKB_RULES_NAMES | cut -d, -f5-` to see which  */
+	/* options that are currently set on your desktop.             */
 	const char *xkbOptions;
 };
 
