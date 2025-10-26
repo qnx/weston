@@ -1078,9 +1078,9 @@ convert_rdp_keyboard_to_xkb_rule_names(UINT32 KeyboardType,
 		xkbRuleNames->variant = 0;
 	}
 
-	weston_log("%s: matching model=%s layout=%s variant=%s\n",
+	weston_log("%s: matching model=%s layout=%s variant=%s options=%s\n",
 		   __func__, xkbRuleNames->model, xkbRuleNames->layout,
-		   xkbRuleNames->variant);
+		   xkbRuleNames->variant, xkbRuleNames->options);
 }
 
 static void
