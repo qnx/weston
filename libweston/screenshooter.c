@@ -508,6 +508,8 @@ weston_recorder_start(struct weston_output *output, const char *filename)
 		return NULL;
 	}
 
+	weston_log("WARNING: libweston recording is deprecated and will be"
+		   "removed.\n");
 	weston_log("starting recorder for output %s, file %s\n",
 		   output->name, filename);
 	return weston_recorder_create(output, filename);
