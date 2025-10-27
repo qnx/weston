@@ -65,7 +65,8 @@ if get_option('renderer-vulkan')
 	config_h.set('BUILD_DRM_GBM', '1')
 endif
 
-if get_option('backend-drm-screencast-vaapi')
+if get_option('deprecated-backend-drm-screencast-vaapi')
+        warning('deprecated-backend-drm-screencast-vaapi enabled. This option will be removed in future versions.')
 	foreach name : [ 'libva', 'libva-drm' ]
 		d = dependency(name, version: '>= 0.34.0', required: false)
 		if not d.found()
