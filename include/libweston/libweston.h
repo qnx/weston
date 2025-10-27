@@ -547,6 +547,9 @@ struct weston_output {
 	 * output to display.
 	 */
 	bool ready;
+
+	/** Needs to rebuild the paint node z ordered list */
+	bool paint_node_list_needs_rebuild;
 };
 
 enum weston_pointer_motion_mask {

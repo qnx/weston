@@ -1536,6 +1536,23 @@ weston_surface_assign_output(struct weston_surface *es)
 	weston_surface_update_preferred_color_profile(es);
 }
 
+static void
+weston_view_set_output_mask(struct weston_view *ev, uint32_t new_mask)
+{
+	struct weston_output *output;
+	struct weston_compositor *ec = ev->surface->compositor;
+	uint32_t old_mask = ev->output_mask;
+
+	/* verify which outputs have actually changed to trigger a paint
+	 * re-order build on them */
+	wl_list_for_each(output, &ec->output_list, link) {
+		if ((1u << output->id) & (old_mask ^ new_mask))
+			output->paint_node_list_needs_rebuild = true;
+	}
+
+	ev->output_mask = new_mask;
+}
+
 /** Recalculate which output(s) the view is displayed on
  *
  * \param ev  The view to remap to outputs
@@ -1599,8 +1616,8 @@ weston_view_assign_output(struct weston_view *ev)
 	}
 	pixman_region32_fini(&region);
 
+	weston_view_set_output_mask(ev, mask);
 	weston_view_set_output(ev, new_output);
-	ev->output_mask = mask;
 
 	weston_surface_assign_output(ev->surface);
 
@@ -2499,7 +2516,7 @@ weston_view_unmap(struct weston_view *view)
 	view->layer_link.layer = NULL;
 	wl_list_remove(&view->link);
 	wl_list_init(&view->link);
-	view->output_mask = 0;
+	weston_view_set_output_mask(view, 0x0);
 	weston_surface_assign_output(view->surface);
 
 	if (!weston_surface_is_mapped(view->surface)) {
@@ -3414,6 +3431,8 @@ weston_output_build_z_order_list(struct weston_compositor *compositor,
 		pnode = view_ensure_paint_node(view, output);
 		add_to_z_order_list(output, pnode);
 	}
+
+	output->paint_node_list_needs_rebuild = false;
 }
 
 static void
@@ -3434,8 +3453,17 @@ weston_compositor_build_view_list(struct weston_compositor *compositor)
 		}
 	}
 
+	/* while rebuilding the view list would implicitly need a paint node
+	 * rebuild list as well, the other way around is not true.
+	 * Separating these two allows other call sites to just issue a paint
+	 * node reorder without triggering a rebuild of the view list, allowing
+	 * to decouple the two lists rebuilds.
+	 *
+	 * Here we just mark it accordingly while another spot is when the
+	 * view's output_mask has changed.
+	 */
 	wl_list_for_each(output, &compositor->output_list, link)
-		weston_output_build_z_order_list(compositor, output);
+		output->paint_node_list_needs_rebuild = true;
 
 	compositor->view_list_needs_rebuild = false;
 }
@@ -3580,6 +3608,9 @@ weston_output_repaint(struct weston_output *output)
 		weston_compositor_build_view_list(ec);
 		output->paint_node_changes = WESTON_PAINT_NODE_ALL_DIRTY;
 	}
+
+	if (output->paint_node_list_needs_rebuild)
+		weston_output_build_z_order_list(ec, output);
 
 	/* If the scene graph is empty, we could end up passing a buffer
 	 * we've never drawn into to a hardware plane later. If that hardware
