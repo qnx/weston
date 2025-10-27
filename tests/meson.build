@@ -142,6 +142,21 @@ tests = [
 			dep_libdisplay_info,
 		],
 	},
+	{	'name': 'color-representation-drm',
+		'sources': [
+			'color-representation-common.c',
+			'color-representation-common.h',
+			'color-representation-drm-test.c',
+		],
+		'run_exclusive': true
+	},
+	{	'name': 'color-representation-renderer',
+		'sources': [
+			'color-representation-common.c',
+			'color-representation-common.h',
+			'color-representation-renderer-test.c',
+		],
+	},
 	{	'name': 'commit-timing', },
 	{	'name': 'config-parser', },
 	{
