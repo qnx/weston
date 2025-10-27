@@ -2475,9 +2475,9 @@ draw_paint_node(struct weston_paint_node *pnode,
 				 &surface_opaque);
 
 	gl_log_paint_node_bbox_and_region(gr, "repaint region", &repaint);
+	transform_damage(pnode, &repaint, &quads, &nquads);
 
 	if (pixman_region32_not_empty(&surface_opaque)) {
-		transform_damage(pnode, &repaint, &quads, &nquads);
 		gl_log_paint_node_bbox_and_region(gr, "opaque region", &surface_opaque);
 		repaint_region(gr, pnode, quads, nquads, &surface_opaque,
 			       &sconf, true);
@@ -2485,15 +2485,13 @@ draw_paint_node(struct weston_paint_node *pnode,
 	}
 
 	if (pixman_region32_not_empty(&surface_blend)) {
-		transform_damage(pnode, &repaint, &quads, &nquads);
 		gl_log_paint_node_bbox_and_region(gr, "blended region", &surface_blend);
 		repaint_region(gr, pnode, quads, nquads, &surface_blend, &sconf,
 			       false);
 		gs->used_in_output_repaint = true;
 	}
 
-	if (quads)
-		free(quads);
+	free(quads);
 
 	pixman_region32_fini(&surface_blend);
 	pixman_region32_fini(&surface_opaque);
