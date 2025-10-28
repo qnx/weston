@@ -4715,8 +4715,11 @@ gl_renderer_resize_output(struct weston_output *output,
 
 	/* Discard renderbuffers as a last step in order to emit discarded
 	 * callbacks once the renderer has correctly been updated. */
-	if (!gl_renderer_discard_renderbuffers(go, false))
+	if (!gl_renderer_discard_renderbuffers(go, false)) {
+		weston_log("Output %s failed to discard renderbuffers.\n",
+			   output->name);
 		return false;
+	}
 
 	if (!shfmt)
 		return true;
@@ -4729,6 +4732,11 @@ gl_renderer_resize_output(struct weston_output *output,
 				  &go->shadow_tex);
 	gl_texture_parameters_init(gr, &go->shadow_param, GL_TEXTURE_2D, NULL,
 				   NULL, NULL, false);
+
+	if (!ret) {
+		weston_log("Output %s failed to create %s shadow.\n",
+			   output->name, shfmt->drm_format_name);
+	}
 
 	return ret;
 }
@@ -4817,16 +4825,14 @@ gl_renderer_output_create(struct weston_output *output,
 	output->renderer_state = go;
 
 	if (!gl_renderer_resize_output(output, fb_size, area)) {
-		weston_log("Output %s failed to create 16F shadow.\n",
-			   output->name);
 		output->renderer_state = NULL;
 		free(go);
 		return -1;
 	}
 
 	if (shadow_exists(go)) {
-		weston_log("Output %s uses 16F shadow.\n",
-			   output->name);
+		weston_log("Output %s uses %s shadow.\n",
+			   output->name, go->shadow_format->drm_format_name);
 	}
 
 	return 0;
