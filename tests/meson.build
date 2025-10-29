@@ -157,6 +157,7 @@ tests = [
 			'color-representation-renderer-test.c',
 		],
 	},
+	{	'name': 'color-representation-protocol', },
 	{	'name': 'commit-timing', },
 	{	'name': 'config-parser', },
 	{
