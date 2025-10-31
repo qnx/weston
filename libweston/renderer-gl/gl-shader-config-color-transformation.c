@@ -292,6 +292,26 @@ gl_color_curve_init(struct gl_renderer *gr,
 }
 
 static void
+gl_color_mapping_init(struct gl_renderer *gr,
+		      struct gl_renderer_color_mapping *gl_mapping,
+		      const struct weston_color_mapping *mapping)
+{
+	switch (mapping->type) {
+	case WESTON_COLOR_MAPPING_TYPE_IDENTITY:
+		*gl_mapping = (struct gl_renderer_color_mapping){
+			.type = SHADER_COLOR_MAPPING_IDENTITY,
+		};
+		return;
+	case WESTON_COLOR_MAPPING_TYPE_MATRIX:
+		gl_mapping->type = SHADER_COLOR_MAPPING_MATRIX;
+		gl_mapping->u.mat = mapping->u.mat;
+		return;
+	}
+
+	weston_assert_not_reached(gr->compositor, "invalid weston_color_mapping_type");
+}
+
+static void
 gl_color_mapping_lut_3d_init(struct gl_renderer *gr,
 			     struct gl_renderer_color_mapping *gl_mapping,
 			     uint32_t dim_size, float *lut)
@@ -318,13 +338,7 @@ static const struct gl_renderer_color_transform *
 gl_renderer_color_transform_create_steps(struct gl_renderer *gr,
 					 struct weston_color_transform *xform)
 {
-	static const struct gl_renderer_color_transform no_op_gl_xform = {
-		.pre_curve.type = SHADER_COLOR_CURVE_IDENTITY,
-		.mapping.type = SHADER_COLOR_MAPPING_IDENTITY,
-		.post_curve.type = SHADER_COLOR_CURVE_IDENTITY,
-	};
 	struct gl_renderer_color_transform *gl_xform;
-	bool ok = false;
 
 	gl_xform = gl_renderer_color_transform_create(xform);
 	if (!gl_xform)
@@ -336,21 +350,7 @@ gl_renderer_color_transform_create_steps(struct gl_renderer *gr,
 		return NULL;
 	}
 
-	switch (xform->mapping.type) {
-	case WESTON_COLOR_MAPPING_TYPE_IDENTITY:
-		gl_xform->mapping = no_op_gl_xform.mapping;
-		ok = true;
-		break;
-	case WESTON_COLOR_MAPPING_TYPE_MATRIX:
-		gl_xform->mapping.type = SHADER_COLOR_MAPPING_MATRIX;
-		gl_xform->mapping.u.mat = xform->mapping.u.mat;
-		ok = true;
-		break;
-	}
-	if (!ok) {
-		gl_renderer_color_transform_destroy(gl_xform);
-		return NULL;
-	}
+	gl_color_mapping_init(gr, &gl_xform->mapping, &xform->mapping);
 
 	if (!gl_color_curve_init(gr, &gl_xform->post_curve,
 				 &xform->post_curve, xform)) {
