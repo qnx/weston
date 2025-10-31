@@ -268,6 +268,29 @@ out:
 	return ret;
 }
 
+static bool
+gl_color_curve_init(struct gl_renderer *gr,
+		    struct gl_renderer_color_curve *gl_curve,
+		    const struct weston_color_curve *curve,
+		    struct weston_color_transform *xform)
+{
+	switch (curve->type) {
+	case WESTON_COLOR_CURVE_TYPE_IDENTITY:
+		*gl_curve = (struct gl_renderer_color_curve){
+			.type = SHADER_COLOR_CURVE_IDENTITY,
+		};
+		return true;
+	case WESTON_COLOR_CURVE_TYPE_LUT_3x1D:
+		return gl_color_curve_lut_3x1d(gr, gl_curve, curve, xform);
+	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
+		return gl_color_curve_parametric(gr, gl_curve, curve);
+	case WESTON_COLOR_CURVE_TYPE_ENUM:
+		return gl_color_curve_enum(gr, gl_curve, curve);
+	}
+
+	weston_assert_not_reached(gr->compositor, "invalid weston_color_curve_type");
+}
+
 static void
 gl_color_mapping_lut_3d_init(struct gl_renderer *gr,
 			     struct gl_renderer_color_mapping *gl_mapping,
@@ -307,25 +330,8 @@ gl_renderer_color_transform_create_steps(struct gl_renderer *gr,
 	if (!gl_xform)
 		return NULL;
 
-	switch (xform->pre_curve.type) {
-	case WESTON_COLOR_CURVE_TYPE_IDENTITY:
-		gl_xform->pre_curve = no_op_gl_xform.pre_curve;
-		ok = true;
-		break;
-	case WESTON_COLOR_CURVE_TYPE_LUT_3x1D:
-		ok = gl_color_curve_lut_3x1d(gr, &gl_xform->pre_curve,
-					     &xform->pre_curve, xform);
-		break;
-	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
-		ok = gl_color_curve_parametric(gr, &gl_xform->pre_curve,
-					       &xform->pre_curve);
-		break;
-	case WESTON_COLOR_CURVE_TYPE_ENUM:
-		ok = gl_color_curve_enum(gr, &gl_xform->pre_curve,
-					 &xform->pre_curve);
-		break;
-	}
-	if (!ok) {
+	if (!gl_color_curve_init(gr, &gl_xform->pre_curve,
+				 &xform->pre_curve, xform)) {
 		gl_renderer_color_transform_destroy(gl_xform);
 		return NULL;
 	}
@@ -346,25 +352,8 @@ gl_renderer_color_transform_create_steps(struct gl_renderer *gr,
 		return NULL;
 	}
 
-	switch (xform->post_curve.type) {
-	case WESTON_COLOR_CURVE_TYPE_IDENTITY:
-		gl_xform->post_curve = no_op_gl_xform.post_curve;
-		ok = true;
-		break;
-	case WESTON_COLOR_CURVE_TYPE_LUT_3x1D:
-		ok = gl_color_curve_lut_3x1d(gr, &gl_xform->post_curve,
-					     &xform->post_curve, xform);
-		break;
-	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
-		ok = gl_color_curve_parametric(gr, &gl_xform->post_curve,
-					       &xform->post_curve);
-		break;
-	case WESTON_COLOR_CURVE_TYPE_ENUM:
-		ok = gl_color_curve_enum(gr, &gl_xform->post_curve,
-					 &xform->post_curve);
-		break;
-	}
-	if (!ok) {
+	if (!gl_color_curve_init(gr, &gl_xform->post_curve,
+				 &xform->post_curve, xform)) {
 		gl_renderer_color_transform_destroy(gl_xform);
 		return NULL;
 	}
