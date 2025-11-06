@@ -1,6 +1,6 @@
 /*
  * Copyright © 2012 Intel Corporation
- * Copyright © 2015,2019,2021 Collabora, Ltd.
+ * Copyright © 2015,2019,2021,2026 Collabora, Ltd.
  * Copyright © 2016 NVIDIA Corporation
  *
  * Permission is hereby granted, free of charge, to any person obtaining
@@ -181,6 +181,8 @@ struct gl_output_state {
 	struct gl_texture_parameters shadow_param;
 	GLuint shadow_tex;
 	GLuint shadow_fb;
+
+	struct gl_shader_blender *shader_blender;
 
 	/* struct gl_renderbuffer::link */
 	struct wl_list renderbuffer_list;
@@ -1745,6 +1747,8 @@ prepare_solid_draw(struct gl_shader_config *sconf,
 		return false;
 	}
 
+	gl_shader_config_set_blender(gr, sconf, go->shader_blender);
+
 	return true;
 }
 
@@ -1952,6 +1956,8 @@ prepare_textured_draw(struct gl_shader_config *sconf,
 		weston_log("GL-renderer: %s failed to generate a color effect.\n", __func__);
 		return false;
 	}
+
+	gl_shader_config_set_blender(gr, sconf, go->shader_blender);
 
 	color_rep =
 		weston_fill_color_representation(&pnode->surface->color_representation,
@@ -2364,12 +2370,13 @@ draw_mesh(struct gl_renderer *gr,
 	  bool opaque)
 {
 	struct gl_surface_state *gs = get_surface_state(pnode->surface);
+	struct gl_output_state *go = get_output_state(pnode->output);
 	struct gl_buffer_state *gb = gs->buffer;
 	GLint swizzle_a;
 
 	assert(nidx > 0);
 
-	set_blend_state(gr, !opaque || pnode->view->alpha < 1.0);
+	set_blend_state(gr, (!opaque || pnode->view->alpha < 1.0) && !go->shader_blender);
 
 	/* Prevent translucent surfaces from punching holes through the
 	 * renderbuffer. */
@@ -2684,6 +2691,16 @@ out:
 }
 
 static void
+maybe_framebuffer_fetch_barrier(struct weston_output *output)
+{
+	struct gl_renderer *gr = get_renderer(output->compositor);
+	struct gl_output_state *go = get_output_state(output);
+
+	if (go->shader_blender)
+		gr->framebuffer_fetch_barrier();
+}
+
+static void
 repaint_views(struct weston_output *output, pixman_region32_t *damage)
 {
 	struct gl_renderer *gr = get_renderer(output->compositor);
@@ -2697,8 +2714,10 @@ repaint_views(struct weston_output *output, pixman_region32_t *damage)
 	wl_list_for_each_reverse(pnode, &output->paint_node_z_order_list,
 				 z_order_link) {
 		if (pnode->plane == &output->primary_plane ||
-		    pnode->need_hole)
+		    pnode->need_hole) {
+			maybe_framebuffer_fetch_barrier(output);
 			draw_paint_node(pnode, damage);
+		}
 	}
 
 	glDisableVertexAttribArray(SHADER_ATTRIB_LOC_POSITION);
@@ -3090,6 +3109,7 @@ gl_renderer_repaint_output(struct weston_output *output,
 	assert(renderbuffer || go->egl_surface != EGL_NO_SURFACE);
 	assert(output->from_blend_to_output_by_backend ||
 	       output->color_outcome->from_blend_to_output == NULL ||
+	       go->shader_blender ||
 	       shadow_exists(go));
 
 	area_y = is_y_flipped(go) ?
@@ -4783,6 +4803,8 @@ gl_renderer_output_create(struct weston_output *output,
 	struct gl_output_state *go;
 	struct gl_renderer *gr = get_renderer(output->compositor);
 	const struct weston_testsuite_quirks *quirks;
+	bool needs_fb_curves;
+	bool needs_shadow;
 	int i;
 
 	assert(!get_output_state(output));
@@ -4811,14 +4833,23 @@ gl_renderer_output_create(struct weston_output *output,
 
 	go->render_sync = EGL_NO_SYNC_KHR;
 
-	if ((output->color_outcome->from_blend_to_output != NULL &&
-	     output->from_blend_to_output_by_backend == false) ||
-	    quirks->gl_force_full_redraw_of_shadow_fb) {
-		assert(gl_features_has(gr, FEATURE_COLOR_TRANSFORMS));
+	needs_shadow = quirks->gl_force_full_redraw_of_shadow_fb;
+	needs_fb_curves = output->color_outcome->from_blend_to_output &&
+			  !output->from_blend_to_output_by_backend;
 
-		go->shadow_format =
-			pixel_format_get_info(DRM_FORMAT_ABGR16161616F);
+	if (needs_fb_curves)
+		weston_assert_true(gr->compositor, gl_features_has(gr, FEATURE_COLOR_TRANSFORMS));
+
+	if (!needs_shadow && needs_fb_curves) {
+		go->shader_blender = gl_shader_blender_create(gr, output);
+		if (go->shader_blender)
+			weston_log("Output %s uses in-shader blending.\n", output->name);
+		else
+			needs_shadow = true;
 	}
+
+	if (needs_shadow)
+		go->shadow_format = pixel_format_get_info(DRM_FORMAT_ABGR16161616F);
 
 	wl_list_init(&go->renderbuffer_list);
 
@@ -4980,6 +5011,8 @@ gl_renderer_output_destroy(struct weston_output *output)
 
 	if (shadow_exists(go))
 		gl_fbo_texture_fini(&go->shadow_fb, &go->shadow_tex);
+
+	gl_shader_blender_destroy(go->shader_blender);
 
 	eglMakeCurrent(gr->egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE,
 		       gr->egl_context);

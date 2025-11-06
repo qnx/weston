@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Collabora, Ltd.
+ * Copyright 2025-2026 Collabora, Ltd.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -31,6 +31,7 @@
 
 #include "shared/helpers.h"
 #include "shared/weston-assert.h"
+#include "shared/xalloc.h"
 
 static float
 linpow(float x, const union weston_color_curve_parametric_chan_data *p)
@@ -233,4 +234,212 @@ weston_color_curve_sample(struct weston_compositor *compositor,
 	}
 
 	weston_assert_not_reached(compositor, "unknown color curve");
+}
+
+/** Reduce a color transform into a curve
+ *
+ * @param xform The color transform to inspect.
+ * @return A pointer to a curve step in the given color transform,
+ * or NULL if the whole color transform cannot be reduced into one curve step.
+ */
+WL_EXPORT const struct weston_color_curve *
+weston_color_transform_as_single_curve(const struct weston_color_transform *xform)
+{
+	const struct weston_color_curve *curve = NULL;
+
+	if (!xform->steps_valid)
+		return NULL;
+
+	if (xform->pre_curve.type != WESTON_COLOR_CURVE_TYPE_IDENTITY)
+		curve = &xform->pre_curve;
+
+	if (xform->mapping.type != WESTON_COLOR_MAPPING_TYPE_IDENTITY)
+		return NULL;
+
+	if (curve) {
+		if (xform->post_curve.type != WESTON_COLOR_CURVE_TYPE_IDENTITY)
+			return NULL;
+	} else {
+		curve = &xform->post_curve;
+	}
+
+	return curve;
+}
+
+static bool
+invert_linpow(union weston_color_curve_parametric_chan_data *inv,
+	      const union weston_color_curve_parametric_chan_data *orig)
+{
+	/*
+	 * LINPOW is defined as:
+	 * y = (a * x + b) ^ g | x >= d
+	 * y = c * x           | 0 <= x < d
+	 *
+	 * First, compute y for the cross-over point x=d, get
+	 * y1 = c * d and y1 = (a * d + b) ^ g. If y1 and y2 are not equal,
+	 * the curve is not continuous, and cannot be inverted. Since they must
+	 * be equal, choose the cross-over point as y = c * d.
+	 *
+	 * Solve x from the first equation:
+	 * x = (y ^ (1/g) - b) / a = 1/a * y ^ (1/g) - b/a
+	 *
+	 * Solve x from the second equation:
+	 * x = y / c
+	 *
+	 * The result can be parametrized into POWLIN.
+	 */
+
+	/* Ensure the inequalities do not need reversing, and invertibility */
+	if (orig->c < 1e-6f)
+		return false;
+
+	/* Invertibility conditions */
+	if (fabsf(orig->a) < 1e-6f)
+		return false;
+
+	if (fabsf(orig->g) < 1e-6f)
+		return false;
+
+	/* Continuity condition */
+	float y1 = orig->c * orig->d;
+	float y2 = powf(orig->a * orig->d + orig->b, orig->g);
+	if (!(fabsf(y1 - y2) < 1e-5))
+		return false;
+
+	/* inv is a POWLIN curve, orig is LINPOW */
+	inv->a = 1.0f / orig->a;
+	inv->b = -orig->b / orig->a;
+	inv->c = 1.0f / orig->c;
+	inv->d = orig->c * orig->d;
+	inv->g = 1.0f / orig->g;
+
+	return true;
+}
+
+static bool
+invert_powlin(union weston_color_curve_parametric_chan_data *inv,
+	      const union weston_color_curve_parametric_chan_data *orig)
+{
+	/*
+	 * POWLIN is defined as:
+	 * y = a * x ^ g + b | x >= d
+	 * y = c * x         | 0 <= x < d
+	 *
+	 * First, compute y for the cross-over point x=d, get
+	 * y1 = c * d and y1 = a * d ^ g + b. If y1 and y2 are not equal,
+	 * the curve is not continuous, and cannot be inverted. Since they must
+	 * be equal, choose the cross-over point as y = c * d.
+	 *
+	 * Solve x from the first equation:
+	 * x = ((y - b) / a) ^ (1/g) = (1/a * y - b/a) ^ (1/g)
+	 *
+	 * Solve x from the second equation:
+	 * x = y / c
+	 *
+	 * The result can be parametrized into LINPOW.
+	 */
+
+	/* Ensure the inequalities do not need reversing, and invertibility */
+	if (orig->c < 1e-6f)
+		return false;
+
+	/* Invertibility conditions */
+	if (fabsf(orig->a) < 1e-6f)
+		return false;
+
+	if (fabsf(orig->g) < 1e-6f)
+		return false;
+
+	/* Continuity condition */
+	float y1 = orig->c * orig->d;
+	float y2 = orig->a * powf(orig->d, orig->g) + orig->b;
+	if (!(fabsf(y1 - y2) < 1e-5))
+		return false;
+
+	/* inv is a LINPOW curve, orig is POWLIN */
+	inv->a = 1.0f / orig->a;
+	inv->b = -orig->b / orig->a;
+	inv->c = 1.0f / orig->c;
+	inv->d = orig->c * orig->d;
+	inv->g = 1.0f / orig->g;
+
+	return true;
+}
+
+static bool
+weston_color_curve_parametric_inverse(struct weston_color_curve_parametric *inv,
+				      const struct weston_color_curve_parametric *orig)
+{
+	unsigned i;
+
+	/*
+	 * Just an assumption that for clamped curves the domain equals range.
+	 * Would be difficult to express otherwise.
+	 */
+	inv->clamped_input = orig->clamped_input;
+
+	switch (orig->type) {
+	case WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW:
+		inv->type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN;
+		for (i = 0; i < ARRAY_LENGTH(inv->params.chan); i++) {
+			if (!invert_linpow(&inv->params.chan[i], &orig->params.chan[i]))
+				return false;
+		}
+		break;
+	case WESTON_COLOR_CURVE_PARAMETRIC_TYPE_POWLIN:
+		inv->type = WESTON_COLOR_CURVE_PARAMETRIC_TYPE_LINPOW;
+		for (i = 0; i < ARRAY_LENGTH(inv->params.chan); i++) {
+			if (!invert_powlin(&inv->params.chan[i], &orig->params.chan[i]))
+				return false;
+		}
+		break;
+	}
+
+	return true;
+}
+
+/** Invert an enumerated or parametric curve
+ *
+ * @param curve The curve to be inverted, must be of type identity, enum or
+ * parametric. LUT_3x1D will fail.
+ * @return A newly malloc'd curve, or NULL on failure to invert the given curve.
+ * The resulting curve is of the same type as the given curve. The caller is
+ * responsible for freeing the returned pointer.
+ */
+WL_EXPORT struct weston_color_curve *
+weston_color_curve_create_inverse(const struct weston_color_curve *curve)
+{
+	struct weston_color_curve *invcurve;
+
+	invcurve = xzalloc(sizeof *invcurve);
+
+	switch (curve->type) {
+	case WESTON_COLOR_CURVE_TYPE_IDENTITY:
+		invcurve->type = WESTON_COLOR_CURVE_TYPE_IDENTITY;
+		return invcurve;
+	case WESTON_COLOR_CURVE_TYPE_LUT_3x1D:
+		/* These may not be possible to invert precisely enough */
+		break;
+	case WESTON_COLOR_CURVE_TYPE_ENUM:
+		invcurve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
+		invcurve->u.enumerated.tf = curve->u.enumerated.tf;
+		switch (curve->u.enumerated.tf_direction) {
+		case WESTON_FORWARD_TF:
+			invcurve->u.enumerated.tf_direction = WESTON_INVERSE_TF;
+			return invcurve;
+		case WESTON_INVERSE_TF:
+			invcurve->u.enumerated.tf_direction = WESTON_FORWARD_TF;
+			return invcurve;
+		}
+		break;
+	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
+		invcurve->type = WESTON_COLOR_CURVE_TYPE_PARAMETRIC;
+		if (weston_color_curve_parametric_inverse(&invcurve->u.parametric,
+							  &curve->u.parametric))
+			return invcurve;
+		break;
+	}
+
+	free(invcurve);
+	return NULL;
 }

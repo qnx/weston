@@ -353,6 +353,7 @@ struct gl_texture_parameters {
 };
 
 struct gl_shader;
+struct gl_shader_blender;
 struct weston_color_transform;
 struct dmabuf_allocator;
 
@@ -781,5 +782,16 @@ gl_shader_config_set_color_effect(struct gl_renderer *gr,
 				  struct weston_output_color_effect *effect);
 const char *
 weston_output_cvd_type_to_str(struct weston_cvd_correction cvd);
+
+void
+gl_shader_blender_destroy(struct gl_shader_blender *shader_blender);
+
+struct gl_shader_blender *
+gl_shader_blender_create(struct gl_renderer *gr, struct weston_output *output);
+
+void
+gl_shader_config_set_blender(struct gl_renderer *gr,
+			     struct gl_shader_config *sconf,
+			     const struct gl_shader_blender *shader_blender);
 
 #endif /* GL_RENDERER_INTERNAL_H */

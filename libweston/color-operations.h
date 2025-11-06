@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Collabora, Ltd.
+ * Copyright 2025-2026 Collabora, Ltd.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -37,5 +37,11 @@ weston_color_curve_sample(struct weston_compositor *compositor,
 			  const struct weston_vec3f *in,
 			  struct weston_vec3f *out,
 			  size_t len);
+
+const struct weston_color_curve *
+weston_color_transform_as_single_curve(const struct weston_color_transform *xform);
+
+struct weston_color_curve *
+weston_color_curve_create_inverse(const struct weston_color_curve *curve);
 
 #endif /* WESTON_COLOR_OPERATIONS_H */

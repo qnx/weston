@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Collabora, Ltd.
+ * Copyright 2021,2026 Collabora, Ltd.
  * Copyright 2021 Advanced Micro Devices, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining
@@ -31,10 +31,12 @@
 
 #include <libweston/libweston.h>
 #include "color.h"
+#include "color-operations.h"
 #include "color-properties.h"
 #include "gl-renderer.h"
 #include "gl-renderer-internal.h"
 
+#include "shared/xalloc.h"
 #include "shared/weston-assert.h"
 #include "shared/weston-egl-ext.h"
 
@@ -61,6 +63,12 @@ struct gl_renderer_color_effect {
 	struct wl_listener destroy_listener;
 	enum gl_shader_color_effect type;
 	union gl_shader_config_color_effect u;
+};
+
+/** for in-shader blending */
+struct gl_shader_blender {
+	struct gl_renderer_color_curve fb_fetch_curve;
+	struct gl_renderer_color_curve fb_store_curve;
 };
 
 static void
@@ -281,6 +289,7 @@ gl_color_curve_init(struct gl_renderer *gr,
 		};
 		return true;
 	case WESTON_COLOR_CURVE_TYPE_LUT_3x1D:
+		weston_assert_ptr_not_null(gr->compositor, xform);
 		return gl_color_curve_lut_3x1d(gr, gl_curve, curve, xform);
 	case WESTON_COLOR_CURVE_TYPE_PARAMETRIC:
 		return gl_color_curve_parametric(gr, gl_curve, curve);
@@ -565,4 +574,72 @@ gl_shader_config_set_color_effect(struct gl_renderer *gr,
 			     SHADER_COLOR_EFFECT_NONE);
 
 	return true;
+}
+
+void
+gl_shader_blender_destroy(struct gl_shader_blender *shader_blender)
+{
+	if (!shader_blender)
+		return;
+
+	gl_renderer_color_curve_fini(&shader_blender->fb_fetch_curve);
+	gl_renderer_color_curve_fini(&shader_blender->fb_store_curve);
+	free(shader_blender);
+}
+
+struct gl_shader_blender *
+gl_shader_blender_create(struct gl_renderer *gr, struct weston_output *output)
+{
+	struct gl_shader_blender *shader_blender;
+	struct weston_color_curve *fb_fetch;
+	const struct weston_color_curve *fb_store;
+	const struct weston_color_transform *xform;
+	bool ok;
+
+	if (!gl_features_has(gr, FEATURE_SHADER_BLENDING))
+		return NULL;
+
+	xform = output->color_outcome->from_blend_to_output;
+	if (!xform)
+		return NULL;
+
+	fb_store = weston_color_transform_as_single_curve(xform);
+	if (!fb_store)
+		return NULL;
+
+	fb_fetch = weston_color_curve_create_inverse(fb_store);
+	if (!fb_fetch)
+		return NULL;
+
+	shader_blender = xzalloc(sizeof *shader_blender);
+	ok = gl_color_curve_init(gr, &shader_blender->fb_store_curve, fb_store, NULL) &&
+	     gl_color_curve_init(gr, &shader_blender->fb_fetch_curve, fb_fetch, NULL);
+	free(fb_fetch);
+
+	if (!ok) {
+		free(shader_blender);
+		return NULL;
+	}
+
+	return shader_blender;
+}
+
+void
+gl_shader_config_set_blender(struct gl_renderer *gr,
+			     struct gl_shader_config *sconf,
+			     const struct gl_shader_blender *shader_blender)
+{
+	if (shader_blender) {
+		sconf->req.shader_blending = true;
+
+		sconf->req.fb_fetch_curve = shader_blender->fb_fetch_curve.type;
+		sconf->fb_fetch_curve = shader_blender->fb_fetch_curve.u;
+
+		sconf->req.fb_store_curve = shader_blender->fb_store_curve.type;
+		sconf->fb_store_curve = shader_blender->fb_store_curve.u;
+	} else {
+		sconf->req.shader_blending = false;
+		sconf->req.fb_fetch_curve = SHADER_COLOR_CURVE_IDENTITY;
+		sconf->req.fb_store_curve = SHADER_COLOR_CURVE_IDENTITY;
+	}
 }
