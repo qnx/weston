@@ -150,8 +150,9 @@ window is longer than the output refresh period, the repaint will be done
 immediately when the previous repaint finishes, not processing client requests
 in between. If the repaint window is too short, the compositor may miss the
 target vertical blank, increasing output latency. The default value is 7
-milliseconds. The allowed range is from -10 to 1000 milliseconds. Using a
-negative value will force the compositor to always miss the target vblank.
+milliseconds. The allowed range is from 1 to 1000 milliseconds, but the
+compositor will reduce large values to 1 millisecond less than the current
+refresh rate.
 .TP 7
 .BI "idle-time="seconds
 sets Weston's idle timeout in seconds. This idle timeout is the time

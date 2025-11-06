@@ -3860,6 +3860,49 @@ out:
 	return false;
 }
 
+static int
+weston_output_repaint_msec(const struct weston_output *output)
+{
+	int refresh_nsec = millihz_to_nsec(output->current_mode->refresh);
+	int refresh_msec = refresh_nsec / 1000000;
+	int repaint_msec;
+
+	repaint_msec = output->compositor->repaint_msec;
+
+	/* repaint_msec is, roughly speaking, the amount of time the compositor
+	 * reserves before presentation to complete a repaint.
+	 *
+	 * If we reserve more time than a full refresh of the display, we'll
+	 * always end up trying to schedule our next update in the past, which
+	 * leads to every repaint immediately following the previous
+	 * presentation.
+	 *
+	 * Beginning the repaint immediately after presentation leads to all
+	 * client requests being processed after the repaint deadline for
+	 * the current presentation 100% of the time, forcing an extra frame
+	 * of latency.
+	 *
+	 * To avoid this forced latency, always ensure that repaint_msec is
+	 * at least 1ms shorter than the refresh duration.
+	 */
+	if (repaint_msec > refresh_msec)
+		repaint_msec = refresh_msec - 1;
+
+	/* If we don't reserve enough time to repaint, we could miss the
+	 * intended presentation time entirely.
+	 *
+	 * Negative values would ensure the next repaint is always after
+	 * the next possible presentation time, forcing us to miss
+	 * opportunities to present new content.
+	 *
+	 * Make sure we leave at least 1ms of time to repaint.
+	 */
+	if (repaint_msec < 1)
+		repaint_msec = 1;
+
+	return repaint_msec;
+}
+
 /** Calculate when we should start a repaint to hit a presentation time
  *
  * \param output The output
@@ -3895,7 +3938,7 @@ weston_output_repaint_from_present(const struct weston_output *output,
 		return late ? *now : *present_time;
 
 	timespec_add_msec(&repaint_time, present_time,
-			  -output->compositor->repaint_msec);
+			  -weston_output_repaint_msec(output));
 
 	return repaint_time;
 }
@@ -4273,7 +4316,7 @@ weston_output_finish_frame(struct weston_output *output,
 	 */
 	while (presented_flags == WP_PRESENTATION_FEEDBACK_INVALID &&
 	       output->vrr_mode != WESTON_VRR_MODE_GAME &&
-	       timespec_sub_to_msec(&output->next_present, &now) < compositor->repaint_msec)
+	       timespec_sub_to_msec(&output->next_present, &now) < weston_output_repaint_msec(output))
 		timespec_add_nsec(&output->next_present,
 				  &output->next_present,
 				  refresh_nsec);
