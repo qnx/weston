@@ -3885,7 +3885,12 @@ weston_output_repaint_from_present(const struct weston_output *output,
 	if (output->frame_flags & WESTON_FINISH_FRAME_TEARING)
 		return late ? *now : *present_time;
 
-	if (output->vrr_mode == WESTON_VRR_MODE_GAME)
+	/* At the start of the repaint loop with VRR enabled - we may
+	 * be able to paint early, so give it a try.
+	 */
+	if (output->repaint_status == REPAINT_AWAITING_COMPLETION &&
+	    output->frame_flags & WP_PRESENTATION_FEEDBACK_INVALID &&
+	    output->vrr_mode == WESTON_VRR_MODE_GAME)
 		return late ? *now : *present_time;
 
 	timespec_add_msec(&repaint_time, present_time,
@@ -4222,7 +4227,8 @@ weston_output_finish_frame(struct weston_output *output,
 	 * if we're scheduling a repaint during the vactive display
 	 * period, but try to render immediately if we're not.
 	 */
-	if (output->vrr_mode == WESTON_VRR_MODE_GAME) {
+	if (output->vrr_mode == WESTON_VRR_MODE_GAME &&
+	    presented_flags & WP_PRESENTATION_FEEDBACK_INVALID) {
 		/* FIXME: we should figure out if we're in Vactive to give a
 		 * more accurate next_present time?
 		 */
@@ -4248,8 +4254,12 @@ weston_output_finish_frame(struct weston_output *output,
 	 * worth of time between the repaint and the presentation.
 	 *
 	 * Delay the deadline of the next frame, to give clients a more predictable
-	 * timing of the repaint cycle to lock on. */
+	 * timing of the repaint cycle to lock on. We don't bother when starting
+	 * the repaint loop with VRR, because in that case we can potentially
+	 * just repaint right away.
+	 */
 	while (presented_flags == WP_PRESENTATION_FEEDBACK_INVALID &&
+	       output->vrr_mode != WESTON_VRR_MODE_GAME &&
 	       timespec_sub_to_msec(&output->next_present, &now) < compositor->repaint_msec)
 		timespec_add_nsec(&output->next_present,
 				  &output->next_present,
