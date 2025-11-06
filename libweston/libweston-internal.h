@@ -869,4 +869,7 @@ weston_surface_visibility_mask(struct weston_surface *surface);
 void
 weston_compositor_apply_transactions(struct weston_compositor *compositor);
 
+struct timespec
+weston_output_repaint_from_present(const struct weston_output *output,
+				   const struct timespec *present_time);
 #endif
