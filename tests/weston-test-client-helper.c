@@ -2013,7 +2013,8 @@ client_capture_output(struct client *client,
 
 	weston_capture_source_v1_capture(capt.source, buf->proxy);
 	while (!capt.complete)
-		test_assert_int_ge(wl_display_dispatch(client->wl_display), 0);
+		if (!test_assert_int_ge(wl_display_dispatch(client->wl_display), 0))
+			break;
 
 	weston_capture_source_v1_destroy(capt.source);
 	weston_capture_v1_destroy(capt.factory);
