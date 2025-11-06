@@ -4152,7 +4152,6 @@ weston_output_finish_frame(struct weston_output *output,
 	 * timebase to work against, so any delay just wastes time. Push a
 	 * repaint as soon as possible so we can get on with it. */
 	if (!stamp) {
-		output->next_repaint = now;
 		output->next_present = now;
 		output->frame_flags = 0;
 		goto out;
@@ -4177,7 +4176,6 @@ weston_output_finish_frame(struct weston_output *output,
 
 	/* If we're tearing just repaint right away */
 	if (presented_flags & WESTON_FINISH_FRAME_TEARING) {
-		output->next_repaint = now;
 		output->next_present = now;
 		goto out;
 	}
@@ -4190,7 +4188,6 @@ weston_output_finish_frame(struct weston_output *output,
 	 * period, but try to render immediately if we're not.
 	 */
 	if (output->vrr_mode == WESTON_VRR_MODE_GAME) {
-		output->next_repaint = now;
 		/* FIXME: we should figure out if we're in Vactive to give a
 		 * more accurate next_present time?
 		 */
@@ -4199,38 +4196,39 @@ weston_output_finish_frame(struct weston_output *output,
 	}
 
 	timespec_add_nsec(&output->next_present, stamp, refresh_nsec);
-	timespec_add_msec(&output->next_repaint, &output->next_present,
-			  -compositor->repaint_msec);
-	msec_rel = timespec_sub_to_msec(&output->next_repaint, &now);
+	msec_rel = timespec_sub_to_msec(&output->next_present, &now);
 
 	if (msec_rel < -1000 || msec_rel > 1000) {
 		weston_log_paced(&output->repaint_delay_pacer,
 				 5, 60 * 60 * 1000,
-				 "Warning: computed repaint delay for output "
+				 "Warning: time until next presentation for output "
 				 "[%s] is abnormal: %lld msec\n",
 				 output->name, (long long) msec_rel);
 
-		output->next_repaint = now;
 		output->next_present = now;
 	}
 
-	/* Called from restart_repaint_loop and restart happens already after
-	 * the deadline given by repaint_msec? In that case we delay until
-	 * the deadline of the next frame, to give clients a more predictable
+	/* We're just starting the repaint loop, but we're too close to the
+	 * next possible presentation time to allow a full repaint-window
+	 * worth of time between the repaint and the presentation.
+	 *
+	 * Delay the deadline of the next frame, to give clients a more predictable
 	 * timing of the repaint cycle to lock on. */
-	if (presented_flags == WP_PRESENTATION_FEEDBACK_INVALID &&
-	    msec_rel < 0) {
-		while (timespec_sub_to_nsec(&output->next_repaint, &now) < 0) {
-			timespec_add_nsec(&output->next_repaint,
-					  &output->next_repaint,
-					  refresh_nsec);
-			timespec_add_nsec(&output->next_present,
-					  &output->next_present,
-					  refresh_nsec);
-		}
-	}
+	while (presented_flags == WP_PRESENTATION_FEEDBACK_INVALID &&
+	       timespec_sub_to_msec(&output->next_present, &now) < compositor->repaint_msec)
+		timespec_add_nsec(&output->next_present,
+				  &output->next_present,
+				  refresh_nsec);
 
 out:
+	if (presented_flags & WESTON_FINISH_FRAME_TEARING) {
+		output->next_repaint = output->next_present;
+	} else if (output->vrr_mode == WESTON_VRR_MODE_GAME) {
+		output->next_repaint = output->next_present;
+	} else {
+		timespec_add_msec(&output->next_repaint, &output->next_present,
+				  -compositor->repaint_msec);
+	}
 	output->repaint_status = REPAINT_SCHEDULED;
 	output_repaint_timer_arm(compositor);
 }
