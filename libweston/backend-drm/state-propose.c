@@ -860,6 +860,23 @@ lower_solid_views_to_background_region(struct drm_output *output,
 	return true;
 }
 
+static void
+debug_propose_fail(struct drm_output *output,
+		   enum drm_output_propose_state_mode mode,
+		   const char *reason)
+{
+	struct drm_device *device = output->device;
+	struct drm_backend *b = device->backend;
+	const char *mode_str = drm_propose_state_mode_to_string(mode);
+
+	drm_debug(b, "\t\t[state] cannot propose %s "
+	             "for output %s (%lu): %s\n",
+		  mode_str,
+		  output->base.name,
+		  (unsigned long) output->base.id,
+		  reason);
+}
+
 static struct drm_output_state *
 drm_output_propose_state(struct weston_output *output_base,
 			 struct drm_pending_state *pending_state,
@@ -916,22 +933,16 @@ drm_output_propose_state(struct weston_output *output_base,
 		    (scanout_fb->type != BUFFER_GBM_SURFACE &&
 		     scanout_fb->type != BUFFER_PIXMAN_DUMB &&
 		     scanout_fb->type != BUFFER_DMABUF_BACKEND)) {
-			drm_debug(b, "\t\t[state] cannot propose mixed mode: "
-			             "for output %s (%lu): no previous renderer "
-			             "fb\n",
-				  output->base.name,
-				  (unsigned long) output->base.id);
+			debug_propose_fail(output, mode,
+					   "no previous renderer fb");
 			drm_output_state_free(state);
 			return NULL;
 		}
 
 		if (scanout_fb->width != output_base->current_mode->width ||
 		    scanout_fb->height != output_base->current_mode->height) {
-			drm_debug(b, "\t\t[state] cannot propose mixed mode "
-			             "for output %s (%lu): previous fb has "
-				     "different size\n",
-				  output->base.name,
-				  (unsigned long) output->base.id);
+			debug_propose_fail(output, mode,
+					   "previous fb has different size");
 			drm_output_state_free(state);
 			return NULL;
 		}
@@ -1158,8 +1169,7 @@ drm_output_propose_state(struct weston_output *output_base,
 	/* Check to see if this state will actually work. */
 	ret = drm_pending_state_test(state->pending_state);
 	if (ret != 0) {
-		drm_debug(b, "\t\t[view] failing state generation: "
-			     "atomic test not OK\n");
+		debug_propose_fail(output, mode, "atomic test not OK");
 		goto err;
 	}
 
