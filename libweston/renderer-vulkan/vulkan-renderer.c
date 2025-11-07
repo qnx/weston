@@ -3332,7 +3332,7 @@ import_dmabuf(struct vulkan_renderer *vr,
 		.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS,
 	};
 	if (vulkan_device_has(vr, EXTENSION_KHR_DEDICATED_ALLOCATION))
-		pnext(&mem_reqs_info, &mem_dedicated_req);
+		pnext(&mem_reqs, &mem_dedicated_req);
 
 	vr->get_image_memory_requirements2(vr->dev, &mem_reqs_info, &mem_reqs);
 
