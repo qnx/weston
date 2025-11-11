@@ -272,8 +272,6 @@ struct gl_buffer_state {
 	GLuint textures[3];
 	int num_textures;
 
-	bool specified;
-
 	struct wl_listener destroy_listener;
 };
 
@@ -1445,6 +1443,37 @@ prepare_solid_draw(struct gl_shader_config *sconf,
 }
 
 static void
+recreate_and_specify_textures(struct gl_buffer_state *gb)
+{
+	struct gl_renderer *gr = gb->gr;
+	GLenum target;
+
+	if (gb->num_textures > 0)
+		glDeleteTextures(gb->num_textures, gb->textures);
+
+	glGenTextures(gb->num_images, gb->textures);
+	gb->num_textures = gb->num_images;
+
+	target = gl_shader_texture_variant_get_target(gb->shader_variant);
+
+	for (int i = 0; i < gb->num_images; i++) {
+		gl_texture_parameters_init(gb->gr, &gb->parameters[i], target,
+			NULL, NULL, gb->texture_format[i].swizzles.array, false);
+	}
+
+	for (int i = 0; i < gb->num_images; ++i) {
+		glBindTexture(gb->parameters[i].target, gb->textures[i]);
+		if (gl_extensions_has(gr, EXTENSION_EXT_EGL_IMAGE_STORAGE)) {
+			gr->image_target_tex_storage(gb->parameters[i].target,
+				gb->images[i], NULL);
+		} else {
+			gr->image_target_texture_2d(gb->parameters[i].target,
+				gb->images[i]);
+		}
+	}
+}
+
+static void
 gl_shader_config_set_input_textures(struct gl_shader_config *sconf,
 				    struct gl_buffer_state *gb)
 {
@@ -1469,6 +1498,10 @@ prepare_textured_draw(struct gl_shader_config *sconf,
 	struct weston_color_representation color_rep;
 	GLint filter;
 	int i;
+
+	/* Ensure we create and bind textures. */
+	if (gb->num_textures == 0)
+		recreate_and_specify_textures(gb);
 
 	*sconf = (struct gl_shader_config) {
 		.req.texcoord_input = SHADER_TEXCOORD_INPUT_SURFACE,
@@ -2909,23 +2942,6 @@ handle_buffer_destroy(struct wl_listener *listener, void *data)
 }
 
 static void
-ensure_textures(struct gl_buffer_state *gb, GLenum target, int num_textures)
-{
-	int i;
-
-	assert(gb->num_textures == 0);
-
-	glGenTextures(num_textures, gb->textures);
-	gb->num_textures = num_textures;
-
-	for (i = 0; i < num_textures; i++)
-		gl_texture_parameters_init(gb->gr, &gb->parameters[i], target,
-					   NULL, NULL,
-					   gb->texture_format[i].swizzles.array,
-					   false);
-}
-
-static void
 gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer)
 {
 	struct weston_compositor *ec = es->compositor;
@@ -3086,7 +3102,6 @@ gl_renderer_fill_buffer_info(struct weston_compositor *ec,
 	struct gl_buffer_state *gb;
 	EGLint format;
 	uint32_t fourcc;
-	GLenum target;
 	EGLint y_inverted;
 	bool rgb, ret = true;
 	int i;
@@ -3203,9 +3218,6 @@ gl_renderer_fill_buffer_info(struct weston_compositor *ec,
 			goto err_img;
 		}
 	}
-
-	target = gl_shader_texture_variant_get_target(gb->shader_variant);
-	ensure_textures(gb, target, gb->num_images);
 
 	buffer->renderer_private = gb;
 	gb->destroy_listener.notify = handle_buffer_destroy;
@@ -3377,7 +3389,6 @@ import_yuv_dmabuf(struct gl_renderer *gr, struct gl_buffer_state *gb,
 	const struct yuv_format_descriptor *format = NULL;
 	const struct pixel_format_info *info;
 	int plane_count;
-	GLenum target;
 	char fmt[4];
 
 	for (i = 0; i < ARRAY_LENGTH(yuv_formats); ++i) {
@@ -3427,9 +3438,6 @@ import_yuv_dmabuf(struct gl_renderer *gr, struct gl_buffer_state *gb,
 
 	gb->num_images = format->output_planes;
 	gb->shader_variant = format->shader_variant;
-
-	target = gl_shader_texture_variant_get_target(gb->shader_variant);
-	ensure_textures(gb, target, gb->num_images);
 
 	return true;
 }
@@ -3561,8 +3569,6 @@ import_dmabuf(struct gl_renderer *gr,
 		default:
 			gb->shader_variant = SHADER_VARIANT_EXTERNAL;
 		}
-
-		ensure_textures(gb, target, gb->num_images);
 
 		return gb;
 	}
@@ -3713,30 +3719,12 @@ static void
 gl_renderer_attach_buffer(struct weston_surface *surface,
 			  struct weston_buffer *buffer)
 {
-	struct gl_renderer *gr = get_renderer(surface->compositor);
 	struct gl_surface_state *gs = get_surface_state(surface);
 	struct gl_buffer_state *gb;
-	int i;
 
 	assert(buffer->renderer_private);
 	gb = buffer->renderer_private;
-
 	gs->buffer = gb;
-
-	if (gb->specified)
-		return;
-
-	for (i = 0; i < gb->num_images; ++i) {
-		glBindTexture(gb->parameters[i].target, gb->textures[i]);
-		if (gl_extensions_has(gr, EXTENSION_EXT_EGL_IMAGE_STORAGE))
-			gr->image_target_tex_storage(gb->parameters[i].target,
-						     gb->images[i], NULL);
-		else
-			gr->image_target_texture_2d(gb->parameters[i].target,
-						    gb->images[i]);
-	}
-
-	gb->specified = true;
 }
 
 static const struct weston_drm_format_array *
