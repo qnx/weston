@@ -4039,10 +4039,12 @@ weston_output_finish_frame(struct weston_output *output,
 		 TLP_VBLANK(&vblank_monotonic), TLP_END);
 
 	refresh_nsec = millihz_to_nsec(output->current_mode->refresh);
-	weston_presentation_feedback_present_list(&output->feedback_list,
-						  output, refresh_nsec, stamp,
-						  output->msc,
-						  presented_flags);
+	if (!(presented_flags & WP_PRESENTATION_FEEDBACK_INVALID)) {
+		weston_presentation_feedback_present_list(&output->feedback_list,
+							  output, refresh_nsec, stamp,
+							  output->msc,
+							  presented_flags);
+	}
 
 	output->frame_time = *stamp;
 
