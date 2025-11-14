@@ -421,16 +421,35 @@ weston_paint_node_create(struct weston_surface *surface,
 }
 
 static void
+weston_paint_node_remove_z_order_link(struct weston_paint_node *pnode)
+{
+	/* We don't need to rebuild the z order list on removal, because a
+	 * removal still leaves a nicely z sorted list.
+	 */
+	if (!wl_list_empty(&pnode->z_order_link))
+		paint_node_damage_below(pnode, &pnode->visible);
+
+	/* Clear damage related variables to as-new state */
+	pnode->plane = NULL;
+	pixman_region32_clear(&pnode->visible_previous);
+	pixman_region32_clear(&pnode->visible);
+	pixman_region32_clear(&pnode->clipped_view);
+	pixman_region32_clear(&pnode->damage);
+	pnode->status = WESTON_PAINT_NODE_CLEAN;
+	wl_list_remove(&pnode->z_order_link);
+	wl_list_init(&pnode->z_order_link);
+}
+
+static void
 weston_paint_node_destroy(struct weston_paint_node *pnode)
 {
 	assert(pnode->view->surface == pnode->surface);
 
-	paint_node_damage_below(pnode, &pnode->visible);
+	weston_paint_node_remove_z_order_link(pnode);
 
 	wl_list_remove(&pnode->surface_link);
 	wl_list_remove(&pnode->view_link);
 	wl_list_remove(&pnode->output_link);
-	wl_list_remove(&pnode->z_order_link);
 	assert(pnode->surf_xform_valid || !pnode->surf_xform.transform);
 	weston_surface_color_transform_fini(&pnode->surf_xform);
 	pixman_region32_fini(&pnode->damage);
@@ -1542,14 +1561,28 @@ weston_view_set_output_mask(struct weston_view *ev, uint32_t new_mask)
 	struct weston_output *output;
 	struct weston_compositor *ec = ev->surface->compositor;
 	uint32_t old_mask = ev->output_mask;
+	uint32_t removed_mask = old_mask & ~new_mask;
+	uint32_t added_mask = new_mask & ~old_mask;
 
-	/* verify which outputs have actually changed to trigger a paint
-	 * re-order build on them */
-	wl_list_for_each(output, &ec->output_list, link) {
-		if ((1u << output->id) & (old_mask ^ new_mask))
-			output->paint_node_list_needs_rebuild = true;
+	/* Adding a view to an output requires a rebuild of the paint node
+	 * z order list to put the view's paint node in the right place.
+	 */
+	if (added_mask) {
+		wl_list_for_each(output, &ec->output_list, link)
+			if ((1u << output->id) & (added_mask))
+				output->paint_node_list_needs_rebuild = true;
 	}
 
+	/* Removing a view from an output requires us to pull its paint node
+	 * from the z order list.
+	 */
+	if (removed_mask) {
+		struct weston_paint_node *pnode, *pntmp;
+
+		wl_list_for_each_safe(pnode, pntmp, &ev->paint_node_list, view_link)
+			if ((1u << pnode->output->id) & removed_mask)
+				weston_paint_node_remove_z_order_link(pnode);
+	}
 	ev->output_mask = new_mask;
 }
 
@@ -1569,7 +1602,6 @@ weston_view_assign_output(struct weston_view *ev)
 {
 	struct weston_compositor *ec = ev->surface->compositor;
 	struct weston_output *output, *new_output;
-	struct weston_paint_node *pnode, *pntmp;
 	pixman_region32_t region;
 	uint32_t new_output_area, area, mask;
 	pixman_box32_t *e;
@@ -1620,12 +1652,6 @@ weston_view_assign_output(struct weston_view *ev)
 	weston_view_set_output(ev, new_output);
 
 	weston_surface_assign_output(ev->surface);
-
-	/* Destroy any paint nodes that no longer appear on their output */
-	wl_list_for_each_safe(pnode, pntmp, &ev->paint_node_list, view_link) {
-		if (!(pnode->view->output_mask & (1u << pnode->output->id)))
-			weston_paint_node_destroy(pnode);
-	}
 }
 
 static void
@@ -5784,8 +5810,8 @@ weston_plane_release(struct weston_plane *plane)
 	struct weston_output *output;
 
 	/* We might be releasing a primary plane, so we can't just casually
-	 * reassign paint nodes to another plane here - delete them and
-	 * force a rebuild.
+	 * reassign paint nodes to another plane here - remove them from the
+	 * z order list.
 	 */
 	wl_list_for_each(output, &plane->compositor->output_list, link) {
 		struct weston_paint_node *node, *pntmp;
@@ -5795,8 +5821,12 @@ weston_plane_release(struct weston_plane *plane)
 			if (node->plane != plane)
 				continue;
 
-			output->compositor->view_list_needs_rebuild = true;
-			weston_paint_node_destroy(node);
+			weston_paint_node_remove_z_order_link(node);
+			/* We've pulled the node from the z order list because
+			 * its plane disappeared, but it's still on this output,
+			 * so rebuild the paint node list to reinsert it.
+			 */
+			output->paint_node_list_needs_rebuild = true;
 		}
 	}
 
