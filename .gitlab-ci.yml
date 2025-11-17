@@ -43,7 +43,7 @@
 variables:
   FDO_UPSTREAM_REPO: wayland/weston
   FDO_REPO_SUFFIX: "$BUILD_OS-$FDO_DISTRIBUTION_VERSION/$BUILD_ARCH"
-  FDO_DISTRIBUTION_TAG: '2025-09-24-linux-drm-misc-next-2025-09-04-and-mesa-25.3-kms-dri-sw-vulkan-vkms'
+  FDO_DISTRIBUTION_TAG: '2025-11-17-mesa-25.3.0'
 
 
 include:

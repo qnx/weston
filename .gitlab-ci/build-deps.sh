@@ -181,11 +181,17 @@ make install
 cd ../..
 rm -rf libx11
 
-git clone --single-branch --branch main https://gitlab.freedesktop.org/mesa/mesa.git
+# Needed for Mesa >= 25.3
+git clone --branch 12.2.0 --depth=1 https://github.com/KhronosGroup/glslang
+cd glslang
+cmake -G Ninja -B build
+ninja ${NINJAFLAGS} -C build install
+cd ..
+rm -rf glslang
+
+# The first stable release where the Vulkan backend works with vkms+lavapipe.
+git clone --branch mesa-25.3.0 --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
 cd mesa
-# Last commit needed to make the Vulkan backend work with vkms+lavapipe, will be
-# released in 25.3.
-git checkout -b snapshot 45dc8b4d979aa2275f20db399a4430f0224799f5
 meson setup build --wrap-mode=nofallback -Dauto_features=disabled \
 	-Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast -Dvideo-codecs= \
 	-Degl=enabled -Dgbm=enabled -Dgles2=enabled -Dllvm=enabled \
