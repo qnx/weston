@@ -159,27 +159,6 @@ fdo_log_section_end install_vulkan_headers
 # please be prepared for some of the tests to change output, which will need to
 # be manually inspected for correctness.
 fdo_log_section_start_collapsed install_mesa "install_mesa"
-wget https://ftp.gnu.org/gnu/autoconf/autoconf-2.72.tar.xz
-tar -xJf autoconf-2.72.tar.xz
-cd autoconf-2.72
-./configure
-make
-make install
-cd ..
-rm -rf autoconf-2.72*
-
-# Mesa >= 25.2 depends on libX11 >= 1.8, which is not available in the Debian
-# LTS images.
-git clone --branch libX11-1.8.12 --depth=1 https://gitlab.freedesktop.org/xorg/lib/libx11.git
-cd libx11
-autoreconf -ivf
-mkdir _builddir
-cd _builddir
-../configure --disable-silent-rules --enable-specs
-make ${MAKEFLAGS}
-make install
-cd ../..
-rm -rf libx11
 
 # Needed for Mesa >= 25.3
 git clone --branch 12.2.0 --depth=1 https://github.com/KhronosGroup/glslang
@@ -195,7 +174,7 @@ cd mesa
 meson setup build --wrap-mode=nofallback -Dauto_features=disabled \
 	-Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast -Dvideo-codecs= \
 	-Degl=enabled -Dgbm=enabled -Dgles2=enabled -Dllvm=enabled \
-	-Dshared-glapi=enabled
+	-Dshared-glapi=enabled -Dglx=disabled
 ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf mesa

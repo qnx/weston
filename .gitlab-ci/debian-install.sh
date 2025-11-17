@@ -29,12 +29,8 @@ MESA_DEV_PKGS="
 # These get temporarily installed for other build dependencies and then
 # force-removed.
 # cmake is used by Vulkan-Headers
-# wget is used by autoconf
-# xutils-dev is used by libX11
 BUILD_DEV_PKGS="
 	cmake
-	wget
-	xutils-dev
 "
 
 # Needed for running the custom-built mesa
