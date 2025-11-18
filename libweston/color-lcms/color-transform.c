@@ -1431,7 +1431,7 @@ init_blend_to_parametric(struct cmlcms_color_transform *xform)
 
 struct rendering_intent_flags {
 	bool black_point_compensation;
-	bool white_point_adaptation;
+	bool chromatic_adaptation;
 	bool perceptual;
 	bool saturate;
 };
@@ -1445,19 +1445,19 @@ rendering_intent_to_flags(enum weston_render_intent intent)
 	case WESTON_RENDER_INTENT_ABSOLUTE:
 		break;
 	case WESTON_RENDER_INTENT_RELATIVE:
-		flags.white_point_adaptation = true;
+		flags.chromatic_adaptation = true;
 		break;
 	case WESTON_RENDER_INTENT_RELATIVE_BPC:
-		flags.white_point_adaptation = true;
+		flags.chromatic_adaptation = true;
 		flags.black_point_compensation = true;
 		break;
 	case WESTON_RENDER_INTENT_PERCEPTUAL:
-		flags.white_point_adaptation = true;
+		flags.chromatic_adaptation = true;
 		flags.black_point_compensation = true;
 		flags.perceptual = true;
 		break;
 	case WESTON_RENDER_INTENT_SATURATION:
-		flags.white_point_adaptation = true;
+		flags.chromatic_adaptation = true;
 		flags.black_point_compensation = true;
 		flags.saturate = true;
 		break;
@@ -1522,7 +1522,7 @@ rgb_to_rgb_matrix(struct weston_mat4f *mat,
 	}
 
 	p2p = npm_in;
-	if (flags.white_point_adaptation) {
+	if (flags.chromatic_adaptation) {
 		struct weston_mat3f chad =
 			weston_bradford_adaptation(in->primaries.white_point,
 						   out->primaries.white_point);
