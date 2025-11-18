@@ -984,8 +984,8 @@ CIExy_to_z(struct weston_CIExy c)
 	return 1.0f - (c.x + c.y);
 }
 
-static struct weston_vec3f
-CIExy_to_XYZ(struct weston_CIExy c)
+WL_EXPORT struct weston_vec3f
+weston_CIExy_to_XYZ(struct weston_CIExy c)
 {
 	return WESTON_VEC3F(c.x / c.y, 1.0f, CIExy_to_z(c) / c.y);
 }
@@ -1024,7 +1024,7 @@ weston_normalized_primary_matrix_init(struct weston_mat3f *npm,
 	if (!weston_m3f_invert(&Pinv, P))
 		return false;
 
-	struct weston_vec3f c = weston_m3f_mul_v3f(Pinv, CIExy_to_XYZ(w));
+	struct weston_vec3f c = weston_m3f_mul_v3f(Pinv, weston_CIExy_to_XYZ(w));
 
 	switch (dir) {
 	case WESTON_NPM_FORWARD:
@@ -1064,8 +1064,8 @@ weston_bradford_adaptation(struct weston_CIExy from, struct weston_CIExy to)
 	struct weston_mat3f tmp;
 
 	weston_m3f_invert(&inv, bradford);
-	from_cr = weston_m3f_mul_v3f(bradford, CIExy_to_XYZ(from));
-	to_cr = weston_m3f_mul_v3f(bradford, CIExy_to_XYZ(to));
+	from_cr = weston_m3f_mul_v3f(bradford, weston_CIExy_to_XYZ(from));
+	to_cr = weston_m3f_mul_v3f(bradford, weston_CIExy_to_XYZ(to));
 	r = WESTON_VEC3F(to_cr.x / from_cr.x,
 			 to_cr.y / from_cr.y,
 			 to_cr.z / from_cr.z);
