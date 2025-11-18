@@ -1432,6 +1432,7 @@ init_blend_to_parametric(struct cmlcms_color_transform *xform)
 struct rendering_intent_flags {
 	bool black_point_compensation;
 	bool chromatic_adaptation;
+	bool media_white_point_scaling;
 	bool perceptual;
 	bool saturate;
 };
@@ -1447,18 +1448,22 @@ rendering_intent_to_flags(enum weston_render_intent intent)
 		break;
 	case WESTON_RENDER_INTENT_RELATIVE:
 		flags.chromatic_adaptation = true;
+		flags.media_white_point_scaling = true;
 		break;
 	case WESTON_RENDER_INTENT_RELATIVE_BPC:
 		flags.chromatic_adaptation = true;
+		flags.media_white_point_scaling = true;
 		flags.black_point_compensation = true;
 		break;
 	case WESTON_RENDER_INTENT_PERCEPTUAL:
 		flags.chromatic_adaptation = true;
+		flags.media_white_point_scaling = true;
 		flags.black_point_compensation = true;
 		flags.perceptual = true;
 		break;
 	case WESTON_RENDER_INTENT_SATURATION:
 		flags.chromatic_adaptation = true;
+		flags.media_white_point_scaling = true;
 		flags.black_point_compensation = true;
 		flags.saturate = true;
 		break;
@@ -1475,6 +1480,19 @@ rgb_to_rgb_matrix(struct weston_mat4f *mat,
 		  char **errmsg)
 {
 	struct rendering_intent_flags flags = rendering_intent_to_flags(intent);
+	static const struct weston_CIExy PCS_wp = { 0.3457, 0.3585 }; /* D50 */
+
+	/*
+	 * "A viewer, who is viewing the display defined by the resulting image
+	 * description (the viewing environment included), is assumed to be fully
+	 * adapted to the primary color volume's white point."
+	 *
+	 * - wp_image_description_creator_params_v1
+	 */
+	struct weston_vec3f in_medium_wp = weston_CIExy_to_XYZ(in->primaries.white_point);
+	struct weston_CIExy in_adapted_wp = in->primaries.white_point;
+	struct weston_vec3f out_medium_wp = weston_CIExy_to_XYZ(out->primaries.white_point);
+	struct weston_CIExy out_adapted_wp = out->primaries.white_point;
 
 	/**
 	 * The matrix input is optical where RGB 0,0,0 corresponds to
@@ -1525,8 +1543,42 @@ rgb_to_rgb_matrix(struct weston_mat4f *mat,
 	p2p = npm_in;
 	if (flags.chromatic_adaptation) {
 		struct weston_mat3f chad =
-			weston_bradford_adaptation(in->primaries.white_point,
-						   out->primaries.white_point);
+			weston_bradford_adaptation(in_adapted_wp, PCS_wp);
+		p2p = weston_m3f_mul_m3f(chad, p2p);
+
+		/* Media white points must be chromatically adapted too. */
+		in_medium_wp = weston_m3f_mul_v3f(chad, in_medium_wp);
+		chad = weston_bradford_adaptation(out_adapted_wp, PCS_wp);
+		out_medium_wp = weston_m3f_mul_v3f(chad, out_medium_wp);
+
+		/*
+		 * If the adapted white point is the same as the medium white point,
+		 * and they are as seen at the top of this function, then the
+		 * medium white point adapted to PCS is by definition the PCS
+		 * white point. IOW, the above could be replaced with
+		 *
+		 * in_medium_wp = out_medium_wp = weston_CIExy_to_XYZ(PCS_wp);
+		 *
+		 * This is equivalent to the ICC Display class profile
+		 * requirement of setting mediaWhitePointTag to D50.
+		 */
+	}
+	if (flags.media_white_point_scaling) {
+		struct weston_vec3f s = WESTON_VEC3F(
+			out_medium_wp.x / in_medium_wp.x,
+			out_medium_wp.y / in_medium_wp.y,
+			out_medium_wp.z / in_medium_wp.z);
+		p2p = weston_m3f_mul_m3f(weston_m3f_diag(s), p2p);
+
+		/*
+		 * If the adapted white point is the same as the medium white
+		 * point for each of in and out profiles, and chromatic
+		 * adaptation is used, then this step is a no-op.
+		 */
+	}
+	if (flags.chromatic_adaptation) {
+		struct weston_mat3f chad =
+			weston_bradford_adaptation(PCS_wp, out_adapted_wp);
 		p2p = weston_m3f_mul_m3f(chad, p2p);
 	}
 	p2p = weston_m3f_mul_m3f(npm_out_inv, p2p);
