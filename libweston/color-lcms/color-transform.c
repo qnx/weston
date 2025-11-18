@@ -1443,6 +1443,7 @@ rendering_intent_to_flags(enum weston_render_intent intent)
 
 	switch (intent) {
 	case WESTON_RENDER_INTENT_ABSOLUTE:
+		flags.chromatic_adaptation = true;
 		break;
 	case WESTON_RENDER_INTENT_RELATIVE:
 		flags.chromatic_adaptation = true;
