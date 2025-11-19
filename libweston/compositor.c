@@ -3432,6 +3432,7 @@ weston_output_build_z_order_list(struct weston_compositor *compositor,
 		add_to_z_order_list(output, pnode);
 	}
 
+	output->paint_node_changes = WESTON_PAINT_NODE_ALL_DIRTY;
 	output->paint_node_list_needs_rebuild = false;
 }
 
@@ -3604,10 +3605,8 @@ weston_output_repaint(struct weston_output *output)
 	TL_POINT(ec, TLP_CORE_REPAINT_BEGIN, TLP_OUTPUT(output), TLP_END);
 
 	/* Rebuild the surface list and update surface transforms up front. */
-	if (ec->view_list_needs_rebuild) {
+	if (ec->view_list_needs_rebuild)
 		weston_compositor_build_view_list(ec);
-		output->paint_node_changes = WESTON_PAINT_NODE_ALL_DIRTY;
-	}
 
 	if (output->paint_node_list_needs_rebuild)
 		weston_output_build_z_order_list(ec, output);
