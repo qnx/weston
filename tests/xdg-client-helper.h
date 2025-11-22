@@ -69,6 +69,11 @@ xdg_client_destroy(struct xdg_client *xdg_client);
 void
 xdg_surface_make_toplevel(struct xdg_surface_data *xdg_surface,
 			  const char *app_id, const char *title);
+void
+xdg_surface_set_fullscreen(struct xdg_surface_data *xdg_surface);
+
+void
+xdg_surface_set_maximized(struct xdg_surface_data *xdg_surface);
 
 void
 xdg_surface_wait_configure(struct xdg_surface_data *xdg_surface);

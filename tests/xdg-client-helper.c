@@ -154,6 +154,20 @@ xdg_surface_make_toplevel(struct xdg_surface_data *xdg_surface,
 }
 
 void
+xdg_surface_set_fullscreen(struct xdg_surface_data *xdg_surface)
+{
+	test_assert_ptr_not_null(xdg_surface->xdg_toplevel);
+	xdg_toplevel_set_fullscreen(xdg_surface->xdg_toplevel, NULL);
+}
+
+void
+xdg_surface_set_maximized(struct xdg_surface_data *xdg_surface)
+{
+	test_assert_ptr_not_null(xdg_surface->xdg_toplevel);
+	xdg_toplevel_set_maximized(xdg_surface->xdg_toplevel);
+}
+
+void
 xdg_surface_wait_configure(struct xdg_surface_data *xdg_surface)
 {
 	wl_surface_commit(xdg_surface->surface->wl_surface);

@@ -75,6 +75,7 @@ struct weston_desktop_xdg_surface {
 	struct weston_desktop *desktop;
 	struct weston_surface *surface;
 	struct weston_desktop_surface *desktop_surface;
+	bool committed;
 	bool configured;
 	struct wl_event_source *configure_idle;
 	struct wl_list configure_list; /* weston_desktop_xdg_surface_configure::link */
@@ -128,7 +129,6 @@ struct weston_desktop_xdg_popup {
 	struct weston_desktop_xdg_surface base;
 
 	struct wl_resource *resource;
-	bool committed;
 	struct weston_desktop_xdg_surface *parent;
 	struct weston_desktop_seat *seat;
 	struct weston_geometry geometry;
@@ -1285,7 +1285,7 @@ weston_desktop_xdg_popup_protocol_grab(struct wl_client *wl_client,
 		return;
 	}
 
-	if (popup->committed) {
+	if (popup->base.committed) {
 		wl_resource_post_error(popup->resource,
 				       XDG_POPUP_ERROR_INVALID_GRAB,
 				       "xdg_popup already is mapped");
@@ -1353,8 +1353,7 @@ weston_desktop_xdg_popup_protocol_reposition(struct wl_client *wl_client,
 							   parent_dsurface);
 	popup->pending_reposition = true;
 	popup->pending_reposition_token = token;
-	if (popup->committed)
-		weston_desktop_xdg_surface_schedule_configure(&popup->base);
+	weston_desktop_xdg_surface_schedule_configure(&popup->base);
 }
 
 static void
@@ -1386,9 +1385,6 @@ weston_desktop_xdg_popup_committed(struct weston_desktop_xdg_popup *popup)
 	wl_list_for_each(view, &wsurface->views, surface_link)
 		weston_view_update_transform(view);
 
-	if (!popup->committed)
-		weston_desktop_xdg_surface_schedule_configure(&popup->base);
-	popup->committed = true;
 	weston_desktop_xdg_popup_update_position(popup->base.desktop_surface,
 						 popup);
 
@@ -1579,6 +1575,9 @@ weston_desktop_xdg_surface_schedule_configure(struct weston_desktop_xdg_surface 
 	struct wl_display *display = weston_desktop_get_display(surface->desktop);
 	struct wl_event_loop *loop = wl_display_get_event_loop(display);
 	bool pending_same = false;
+
+	if (!surface->committed)
+		return;
 
 	switch (surface->role) {
 	case WESTON_DESKTOP_XDG_SURFACE_ROLE_NONE:
@@ -1888,6 +1887,11 @@ weston_desktop_xdg_surface_committed(struct weston_desktop_surface *dsurface,
 		surface->has_next_geometry = false;
 		weston_desktop_surface_set_geometry(surface->desktop_surface,
 						    surface->next_geometry);
+	}
+
+	if (!surface->committed) {
+		surface->committed = true;
+		weston_desktop_xdg_surface_schedule_configure(surface);
 	}
 
 	switch (surface->role) {
