@@ -199,7 +199,19 @@ weston_view_animation_frame(struct weston_animation *base,
 	struct weston_compositor *compositor =
 		animation->view->surface->compositor;
 
-	if (base->frame_counter <= 1)
+	/* Animations are created with timestamp 0, so we need to set a
+	 * real time base on the first repaint.
+	 *
+	 * In some cases, such as when the repaint loop has just started
+	 * for a new display, the time we're given could be 0 for our
+	 * second call - but this is ok because weston_spring_update() will
+	 * do nothing as long as spring.timestamp == time.
+	 *
+	 * We can safely just keep updating the timestamp until we get
+	 * something non-zero, and the spring will start updating after
+	 * that.
+	 */
+	if (!timespec_to_msec(&animation->spring.timestamp))
 		animation->spring.timestamp = *time;
 
 	weston_spring_update(&animation->spring, time);
@@ -275,7 +287,6 @@ weston_view_animation_run(struct weston_view_animation *animation)
 {
 	struct timespec zero_time = { 0 };
 
-	animation->animation.frame_counter = 0;
 	weston_view_animation_frame(&animation->animation, NULL, &zero_time);
 }
 

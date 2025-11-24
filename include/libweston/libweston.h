@@ -160,7 +160,6 @@ struct weston_animation {
 	void (*frame)(struct weston_animation *animation,
 		      struct weston_output *output,
 		      const struct timespec *time);
-	int frame_counter;
 	struct wl_list link;
 };
 

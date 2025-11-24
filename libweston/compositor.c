@@ -3737,10 +3737,8 @@ weston_output_repaint(struct weston_output *output)
 		wl_resource_destroy(cb);
 	}
 
-	wl_list_for_each_safe(animation, next, &output->animation_list, link) {
-		animation->frame_counter++;
+	wl_list_for_each_safe(animation, next, &output->animation_list, link)
 		animation->frame(animation, output, &output->frame_time);
-	}
 
 	weston_output_capture_info_repaint_done(output->capture_info);
 
