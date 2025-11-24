@@ -9794,7 +9794,15 @@ static void
 debug_scene_graph_cb(struct weston_log_subscription *sub, void *data)
 {
 	struct weston_compositor *ec = data;
-	char *str = weston_compositor_print_scene_graph(ec);
+	char *str;
+
+	/* If the presentation_clock is CLOCK_REALTIME, then it is
+	 * uninitialized.  This means no back-end is loaded yet, so we can't
+	 * dump the scene graph. */
+	if (ec->presentation_clock == CLOCK_REALTIME)
+		return;
+
+	str = weston_compositor_print_scene_graph(ec);
 
 	weston_log_subscription_printf(sub, "%s", str);
 	free(str);
