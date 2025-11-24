@@ -117,7 +117,7 @@ rm -rf wayland
 # Keep this version in sync with our dependency in meson.build. If you wish to
 # raise a MR against custom protocol, please change this reference to clone
 # your relevant tree, and make sure you bump $FDO_DISTRIBUTION_TAG.
-git clone --branch 1.44 --depth=1 https://gitlab.freedesktop.org/wayland/wayland-protocols
+git clone --branch 1.46 --depth=1 https://gitlab.freedesktop.org/wayland/wayland-protocols
 cd wayland-protocols
 git show -s HEAD
 meson setup build --wrap-mode=nofallback -Dtests=false
