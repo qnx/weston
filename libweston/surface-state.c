@@ -29,6 +29,7 @@
 #include "config.h"
 
 #include <libweston/libweston.h>
+#include <libweston/fifo.h>
 #include "libweston-internal.h"
 
 #include "backend.h"
@@ -151,6 +152,9 @@ weston_surface_state_init(struct weston_surface *surface,
 
 	state->color_profile = NULL;
 	state->render_intent = NULL;
+
+	state->fifo_barrier = false;
+	state->fifo_wait = false;
 }
 
 void
@@ -480,6 +484,10 @@ weston_surface_apply_state(struct weston_surface *surface,
 	surface->is_unmapping = false;
 	surface->is_mapping = false;
 
+	if (state->fifo_barrier)
+		weston_fifo_surface_set_barrier(surface);
+	state->fifo_barrier = false;
+
 	if (weston_surface_status_invalidates_visibility(status))
 		surface->output_visibility_dirty_mask |= surface->output_mask;
 
@@ -522,6 +530,9 @@ weston_surface_schedule_repaint(struct weston_surface *surface,
 {
 	struct weston_output *output;
 	uint32_t visible_mask;
+
+	if (surface->output && surface->fifo_barrier)
+		weston_output_schedule_repaint(surface->output);
 
 	if (status == WESTON_SURFACE_CLEAN)
 		return;
@@ -627,6 +638,11 @@ weston_surface_state_merge_from(struct weston_surface_state *dst,
 	wl_list_insert_list(&dst->feedback_list,
 			    &src->feedback_list);
 	wl_list_init(&src->feedback_list);
+
+	dst->fifo_barrier = src->fifo_barrier;
+	src->fifo_barrier = false;
+	dst->fifo_wait = src->fifo_wait;
+	src->fifo_wait = false;
 
 	dst->status |= src->status;
 	src->status = WESTON_SURFACE_CLEAN;
@@ -748,6 +764,9 @@ static bool
 weston_surface_state_ready(struct weston_surface *surface,
 			   struct weston_surface_state *state)
 {
+	if (!weston_fifo_surface_state_ready(surface, state))
+		return false;
+
 	return true;
 }
 

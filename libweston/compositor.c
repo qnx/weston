@@ -90,6 +90,7 @@
 #include "weston-trace.h"
 #include "renderer-vulkan/vulkan-renderer.h"
 
+#include <libweston/fifo.h>
 #include "weston-log-internal.h"
 
 /**
@@ -1005,6 +1006,8 @@ weston_surface_create(struct weston_compositor *compositor)
 
 	/* Also part of the CM&HDR protocol extension implementation. */
 	weston_surface_update_preferred_color_profile(surface);
+
+	wl_list_init(&surface->fifo_barrier_link);
 
 	return surface;
 }
@@ -2722,6 +2725,8 @@ weston_surface_unref(struct weston_surface *surface)
 	if (surface->cm_surface)
 		wl_resource_set_user_data(surface->cm_surface, NULL);
 
+	wl_list_remove(&surface->fifo_barrier_link);
+
 	free(surface);
 }
 
@@ -3652,6 +3657,13 @@ weston_output_latch(struct weston_output *output)
 	compositor->latched = true;
 
 	wl_signal_emit(&output->post_latch_signal, output);
+
+	/* We have now latched. It doesn't matter that the repaint
+	 * hasn't happened yet - it is inevitable. We can now clear
+	 * fifo barriers, but must not apply transactions again
+	 * until after the repaint.
+	 */
+	weston_fifo_output_clear_barriers(output);
 }
 
 static int
@@ -3819,8 +3831,9 @@ weston_output_check_repaint(struct weston_output *output, struct timespec *now)
 	    compositor->state == WESTON_COMPOSITOR_OFFSCREEN)
 		goto out;
 
-	/* We don't actually need to repaint this output; drop it from
-	 * repaint until something causes damage. */
+	if (weston_fifo_output_has_barriers(output))
+		output->repaint_needed = true;
+
 	if (!output->repaint_needed)
 		goto out;
 
@@ -7604,6 +7617,8 @@ weston_compositor_remove_output(struct weston_output *output)
 
 	weston_output_capture_info_destroy(&output->capture_info);
 
+	weston_fifo_output_clear_barriers(output);
+
 	compositor->output_id_pool &= ~(1u << output->id);
 	output->id = 0xffffffff; /* invalid */
 }
@@ -8040,6 +8055,8 @@ weston_output_init(struct weston_output *output,
 	output->gpu_track_id = 0;
 	output->paint_track_id = 0;
 	output->presentation_track_id = 0;
+
+	wl_list_init(&output->fifo_barrier_surfaces);
 }
 
 /** Adds weston_output object to pending output list.
@@ -9690,6 +9707,9 @@ weston_compositor_create(struct wl_display *display,
 	if (!wl_global_create(ec->wl_display,
 			      &wp_tearing_control_manager_v1_interface, 1,
 			      ec, bind_tearing_controller))
+		goto fail;
+
+	if (fifo_setup(ec) != 0)
 		goto fail;
 
 	if (weston_input_init(ec) != 0)

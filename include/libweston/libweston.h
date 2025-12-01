@@ -556,6 +556,9 @@ struct weston_output {
 
 	/** Needs to rebuild the paint node z ordered list */
 	bool paint_node_list_needs_rebuild;
+
+	/** fifo_v1 - list of surfaces to clear next repaint */
+	struct wl_list fifo_barrier_surfaces;
 };
 
 enum weston_pointer_motion_mask {
@@ -1796,6 +1799,10 @@ struct weston_surface_state {
 	 * color_management_surface_v1_interface.unset_image_description */
 	struct weston_color_profile *color_profile;
 	const struct weston_render_intent_info *render_intent;
+
+	/* wp_fifo_v1 */
+	bool fifo_barrier;
+	bool fifo_wait;
 };
 
 struct weston_surface_activation_data {
@@ -1975,6 +1982,11 @@ struct weston_surface {
 	 * calculations when considering this surface's visibility.
 	 */
 	uint32_t output_visibility_dirty_mask;
+
+	/** fifo_v1 */
+	struct weston_fifo *fifo;
+	bool fifo_barrier; /* Cleared after display */
+	struct wl_list fifo_barrier_link; /* output::fifo_barrier_surfaces */
 };
 
 struct weston_subsurface {
