@@ -1390,9 +1390,13 @@ weston_color_curve_set_from_params(struct weston_color_curve *curve,
 				   const struct weston_color_profile_params *p,
 				   enum weston_tf_direction dir)
 {
-	curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
-	curve->u.enumerated.tf = p->tf;
-	curve->u.enumerated.tf_direction = dir;
+	if (p->tf.info->tf == WESTON_TF_EXT_LINEAR) {
+		curve->type = WESTON_COLOR_CURVE_TYPE_IDENTITY;
+	} else {
+		curve->type = WESTON_COLOR_CURVE_TYPE_ENUM;
+		curve->u.enumerated.tf = p->tf;
+		curve->u.enumerated.tf_direction = dir;
+	}
 }
 
 static void
