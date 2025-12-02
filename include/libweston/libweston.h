@@ -347,6 +347,17 @@ struct weston_plane {
 	struct wl_list link;
 };
 
+/** State of the repaint loop
+ *
+ * \ingroup output
+ */
+enum weston_repaint_status {
+	REPAINT_NOT_SCHEDULED = 0, /**< idle; no repaint will occur */
+	REPAINT_BEGIN_FROM_IDLE, /**< start_repaint_loop scheduled */
+	REPAINT_SCHEDULED, /**< repaint is scheduled to occur */
+	REPAINT_AWAITING_COMPLETION, /**< last repaint not yet finished */
+};
+
 /** Content producer for heads
  *
  * \rst
@@ -417,12 +428,7 @@ struct weston_output {
 	bool repaint_only_on_capture;
 
 	/** State of the repaint loop */
-	enum {
-		REPAINT_NOT_SCHEDULED = 0, /**< idle; no repaint will occur */
-		REPAINT_BEGIN_FROM_IDLE, /**< start_repaint_loop scheduled */
-		REPAINT_SCHEDULED, /**< repaint is scheduled to occur */
-		REPAINT_AWAITING_COMPLETION, /**< last repaint not yet finished */
-	} repaint_status;
+	enum weston_repaint_status repaint_status;
 
 	/** If repaint_status is REPAINT_SCHEDULED, contains the time the
 	 *  next repaint should be run */
