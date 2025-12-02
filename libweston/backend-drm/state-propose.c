@@ -900,6 +900,7 @@ drm_output_propose_state(struct weston_output *output_base,
 	state = drm_output_state_duplicate(output->state_cur,
 					   pending_state,
 					   DRM_OUTPUT_STATE_CLEAR_PLANES);
+	state->mode = mode;
 	state->dpms = WESTON_DPMS_ON;
 	state->planes_enabled = !output_base->disable_planes;
 

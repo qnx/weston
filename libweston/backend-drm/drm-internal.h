@@ -357,6 +357,7 @@ enum drm_output_propose_state_mode {
 struct drm_output_state {
 	struct drm_pending_state *pending_state;
 	struct drm_output *output;
+	enum drm_output_propose_state_mode mode;
 	struct wl_list link;
 	enum dpms_enum dpms;
 	enum weston_hdcp_protection protection;
