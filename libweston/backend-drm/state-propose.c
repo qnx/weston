@@ -46,6 +46,7 @@
 #include "shared/weston-assert.h"
 
 static const char *const drm_output_propose_state_mode_as_string[] = {
+	[DRM_OUTPUT_PROPOSE_STATE_INVALID] = "invalid(uninitialized) state",
 	[DRM_OUTPUT_PROPOSE_STATE_MIXED] = "mixed state",
 	[DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR] = "renderer-and-cursor state",
 	[DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY] = "renderer-only state",

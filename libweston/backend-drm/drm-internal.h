@@ -337,6 +337,7 @@ struct drm_pending_state {
 };
 
 enum drm_output_propose_state_mode {
+	DRM_OUTPUT_PROPOSE_STATE_INVALID = 0, /**< Invalid state */
 	DRM_OUTPUT_PROPOSE_STATE_MIXED, /**< mix renderer & planes */
 	DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR, /**< only assign to renderer & cursor plane */
 	DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY, /**< only assign to renderer */
