@@ -1434,6 +1434,9 @@ init_blend_to_parametric(struct cmlcms_color_transform *xform)
 	xform->base.post_curve.type = WESTON_COLOR_CURVE_TYPE_IDENTITY;
 	xform->base.steps_valid = true;
 
+	xform->transformer.curve1 = xform->base.pre_curve;
+	xform->transformer.element_mask = CMLCMS_TRANSFORMER_CURVE1;
+
 	return true;
 }
 
@@ -1651,6 +1654,8 @@ init_parametric_to_parametric(struct cmlcms_color_transform *xform)
 	 */
 	weston_color_curve_set_from_params(&xform->base.pre_curve,
 					   recipe->input_profile->params, WESTON_FORWARD_TF);
+	xform->transformer.curve1 = xform->base.pre_curve;
+	xform->transformer.element_mask = CMLCMS_TRANSFORMER_CURVE1;
 
 	if (!rgb_to_rgb_matrix(&mat,
 			       recipe->input_profile->params,
@@ -1663,6 +1668,14 @@ init_parametric_to_parametric(struct cmlcms_color_transform *xform)
 	}
 
 	weston_color_mapping_set_from_m4f(&xform->base.mapping, mat);
+	switch (xform->base.mapping.type) {
+	case WESTON_COLOR_MAPPING_TYPE_IDENTITY:
+		break;
+	case WESTON_COLOR_MAPPING_TYPE_MATRIX:
+		xform->transformer.lin1 = xform->base.mapping.u.mat;
+		xform->transformer.element_mask |= CMLCMS_TRANSFORMER_LIN1;
+		break;
+	}
 
 	/* TODO: Use HLG OOTF for gamma correction? */
 	/* TODO: try https://gitlab.freedesktop.org/pq/color-and-hdr/-/issues/45 */
@@ -1675,6 +1688,8 @@ init_parametric_to_parametric(struct cmlcms_color_transform *xform)
 		weston_color_curve_set_from_params(&xform->base.post_curve,
 						   recipe->output_profile->params,
 						   WESTON_INVERSE_TF);
+		xform->transformer.curve2 = xform->base.post_curve;
+		xform->transformer.element_mask |= CMLCMS_TRANSFORMER_CURVE2;
 		break;
 	case CMLCMS_CATEGORY_BLEND_TO_OUTPUT:
 		weston_assert_not_reached(xform->base.cm->compositor,
