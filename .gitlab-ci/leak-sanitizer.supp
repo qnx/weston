@@ -20,3 +20,7 @@ leak:perfetto
 # apparently a known issue. (Also when ASan creates threads ...)
 leak:vkEnumeratePhysicalDevices
 leak:asan_thread_start
+
+# glib/pangoft for Trixie update
+leak:libpangoft2
+leak:libglib
