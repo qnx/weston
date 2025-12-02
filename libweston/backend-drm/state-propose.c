@@ -45,13 +45,6 @@
 #include "shared/string-helpers.h"
 #include "shared/weston-assert.h"
 
-enum drm_output_propose_state_mode {
-	DRM_OUTPUT_PROPOSE_STATE_MIXED, /**< mix renderer & planes */
-	DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR, /**< only assign to renderer & cursor plane */
-	DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY, /**< only assign to renderer */
-	DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY, /**< no renderer use, only planes */
-};
-
 static const char *const drm_output_propose_state_mode_as_string[] = {
 	[DRM_OUTPUT_PROPOSE_STATE_MIXED] = "mixed state",
 	[DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR] = "renderer-and-cursor state",

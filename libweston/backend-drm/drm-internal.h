@@ -336,6 +336,13 @@ struct drm_pending_state {
 	struct wl_list output_list;
 };
 
+enum drm_output_propose_state_mode {
+	DRM_OUTPUT_PROPOSE_STATE_MIXED, /**< mix renderer & planes */
+	DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR, /**< only assign to renderer & cursor plane */
+	DRM_OUTPUT_PROPOSE_STATE_RENDERER_ONLY, /**< only assign to renderer */
+	DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY, /**< no renderer use, only planes */
+};
+
 /*
  * Output state holds the dynamic state for one Weston output, i.e. a KMS CRTC,
  * plus >= 1 each of encoder/connector/plane. Since everything but the planes
