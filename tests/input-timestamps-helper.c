@@ -79,8 +79,8 @@ input_timestamp(void *data,
 	timespec_from_proto(timestamp, tv_sec_hi, tv_sec_lo,
 			    tv_nsec);
 
-	testlog("test-client: got input timestamp %ld.%ld\n",
-		timestamp->tv_sec, timestamp->tv_nsec);
+	testlog("test-client: got input timestamp %" PRIu64 ".%ld\n",
+		(uint64_t) timestamp->tv_sec, timestamp->tv_nsec);
 }
 
 static const struct zwp_input_timestamps_v1_listener
