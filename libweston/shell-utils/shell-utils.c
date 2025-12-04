@@ -204,10 +204,13 @@ weston_shell_utils_curtain_create(struct weston_compositor *compositor,
 	curtain->view = view;
 	curtain->buffer_ref = buffer_ref;
 
-	weston_surface_set_label_func(surface, params->get_label);
+	/* the get_label callback might depend on committed_private, so set
+	 * committed_private before setting the label_func so the callback is
+	 * always safe. */
 	surface->committed = params->surface_committed;
 	surface->committed_private = params->surface_private;
 
+	weston_surface_set_label_func(surface, params->get_label);
 	weston_surface_attach_solid(surface, buffer_ref, params->width,
 				    params->height);
 
