@@ -784,7 +784,8 @@ wait_until_image_description_ready(struct client *client,
 				   struct image_description *image_descr)
 {
 	while (image_descr->status == CM_IMAGE_DESC_NOT_CREATED)
-		test_assert_int_ge(wl_display_dispatch(client->wl_display), 0);
+		if (!test_assert_int_ge(wl_display_dispatch(client->wl_display), 0))
+			break;
 
 	test_assert_enum(image_descr->status, CM_IMAGE_DESC_READY);
 }

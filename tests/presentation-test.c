@@ -165,7 +165,8 @@ static void
 feedback_wait(struct feedback *fb)
 {
 	while (fb->result == FB_PENDING) {
-		test_assert_int_ge(wl_display_dispatch(fb->client->wl_display), 0);
+		if (!test_assert_int_ge(wl_display_dispatch(fb->client->wl_display), 0))
+			break;
 	}
 }
 

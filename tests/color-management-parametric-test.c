@@ -721,7 +721,8 @@ TEST_P(create_parametric_image_description, good_test_cases)
 	image_desc_creator_param = NULL;
 
 	while (image_desc->status == CM_IMAGE_DESC_NOT_CREATED)
-		test_assert_int_ge(wl_display_dispatch(client->wl_display), 0);
+		if (!test_assert_int_ge(wl_display_dispatch(client->wl_display), 0))
+			return RESULT_FAIL;
 	test_assert_enum(image_desc->status, CM_IMAGE_DESC_READY);
 
 	image_description_destroy(image_desc);
@@ -837,7 +838,8 @@ TEST_P(fail_to_create_parametric_image_description, bad_test_cases)
 	}
 
 	while (image_desc->status == CM_IMAGE_DESC_NOT_CREATED)
-		test_assert_int_ge(wl_display_dispatch(client->wl_display), 0);
+		if (!test_assert_int_ge(wl_display_dispatch(client->wl_display), 0))
+			return RESULT_FAIL;
 
 	/* This TEST() is for bad params, so we shouldn't be able to
 	 * successfully create an image description. */

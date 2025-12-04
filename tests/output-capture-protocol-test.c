@@ -249,7 +249,8 @@ TEST(simple_shot)
 
 	weston_capture_source_v1_capture(capt->source, buf->proxy);
 	while (!capt->events.reply)
-		test_assert_int_ge(wl_display_dispatch(client->wl_display), 0);
+		if (!test_assert_int_ge(wl_display_dispatch(client->wl_display), 0))
+			return RESULT_FAIL;
 
 	test_assert_enum(capt->state, CAPTURE_TASK_COMPLETE);
 
@@ -292,7 +293,8 @@ TEST(retry_on_wrong_format)
 
 	weston_capture_source_v1_capture(capt->source, buf->proxy);
 	while (!capt->events.reply)
-		test_assert_int_ge(wl_display_dispatch(client->wl_display), 0);
+		if (!test_assert_int_ge(wl_display_dispatch(client->wl_display), 0))
+			return RESULT_FAIL;
 
 	test_assert_enum(capt->state, CAPTURE_TASK_RETRY);
 
@@ -331,7 +333,8 @@ TEST(retry_on_wrong_size)
 
 	weston_capture_source_v1_capture(capt->source, buf->proxy);
 	while (!capt->events.reply)
-		test_assert_int_ge(wl_display_dispatch(client->wl_display), 0);
+		if (!test_assert_int_ge(wl_display_dispatch(client->wl_display), 0))
+			return RESULT_FAIL;
 
 	test_assert_enum(capt->state, CAPTURE_TASK_RETRY);
 
