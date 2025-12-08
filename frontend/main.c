@@ -771,6 +771,7 @@ usage(int error_code)
 		"  --use-vulkan\t\tUse the Vulkan renderer (deprecated alias for --renderer=vulkan)\n"
 		"  --no-outputs\t\tDo not create any virtual outputs\n"
 		"  --refresh-rate=RATE\tThe output refresh rate (in mHz)\n"
+		"  --fake-seat\t\tUse a fake seat for compatibility\n"
 		"\n");
 #endif
 
@@ -4328,6 +4329,7 @@ load_headless_backend(struct weston_compositor *c,
 		{ WESTON_OPTION_STRING, "transform", 0, &transform },
 		{ WESTON_OPTION_BOOLEAN, "no-outputs", 0, &no_outputs },
 		{ WESTON_OPTION_INTEGER, "refresh-rate", 0, &config.refresh },
+		{ WESTON_OPTION_BOOLEAN, "fake-seat", 0, &config.fake_seat },
 	};
 	config.refresh = -1;
 

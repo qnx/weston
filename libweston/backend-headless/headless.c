@@ -70,6 +70,8 @@ struct headless_backend {
 
 	int refresh;
 	bool repaint_only_on_capture;
+
+	bool use_fake_seat;
 };
 
 struct headless_head {
@@ -598,6 +600,25 @@ headless_head_destroy(struct weston_head *base)
 	free(head);
 }
 
+static bool
+headless_input_create(struct headless_backend *b)
+{
+	weston_seat_init(&b->fake_seat, b->compositor, "default");
+
+	weston_seat_init_pointer(&b->fake_seat);
+
+	if (weston_seat_init_keyboard(&b->fake_seat, NULL) < 0)
+		return false;
+
+	return true;
+}
+
+static void
+headless_input_destroy(struct headless_backend *b)
+{
+	weston_seat_release(&b->fake_seat);
+}
+
 static void
 headless_destroy(struct weston_backend *backend)
 {
@@ -614,6 +635,9 @@ headless_destroy(struct weston_backend *backend)
 
 	if (b->theme)
 		theme_destroy(b->theme);
+
+	if (b->use_fake_seat)
+		headless_input_destroy(b);
 
 	free(b->formats);
 	free(b);
@@ -645,6 +669,12 @@ headless_backend_create(struct weston_compositor *compositor,
 
 	b->base.supported_presentation_clocks =
 			WESTON_PRESENTATION_CLOCKS_SOFTWARE;
+
+	if (config->fake_seat) {
+		b->use_fake_seat = headless_input_create(b);
+		if (!b->use_fake_seat)
+			goto err_free;
+	}
 
 	b->base.destroy = headless_destroy;
 	b->base.create_output = headless_output_create;
@@ -744,6 +774,8 @@ err_input:
 	if (b->theme)
 		theme_destroy(b->theme);
 err_free:
+	if (b->use_fake_seat)
+		headless_input_destroy(b);
 	wl_list_remove(&b->base.link);
 	free(b);
 	return NULL;
@@ -753,6 +785,7 @@ static void
 config_init_to_defaults(struct weston_headless_backend_config *config)
 {
 	config->refresh = DEFAULT_OUTPUT_REPAINT_REFRESH;
+	config->fake_seat = FALSE;
 }
 
 WL_EXPORT int
