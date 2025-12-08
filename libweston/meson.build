@@ -101,7 +101,7 @@ endif
 if get_option('backend-vnc')
 	dep_pam = dependency('pam', required: false)
 	if not dep_pam.found()
-		dep_pam = cc.find_library('pam')
+		dep_pam = cc.find_library('pam', required: false)
 	endif
 	if not dep_pam.found()
 		error('VNC backend requires libpam which was not found. Or, you can use \'-Dbackend-vnc=false\'.')
