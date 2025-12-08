@@ -960,6 +960,9 @@ weston_create_listening_socket(struct wl_display *display, const char *socket_na
 
 	if (socket_name) {
 		if (wl_display_add_socket(display, socket_name)) {
+			if (socket_name[0] != '/')
+				verify_xdg_runtime_dir();
+
 			weston_log("fatal: failed to add socket: %s\n",
 				   strerror(errno));
 			return -1;
@@ -5415,7 +5418,6 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 		weston_log_continue(", scopes subscribed: %s", flight_rec_scopes);
 
 	weston_log_continue("\n");
-	verify_xdg_runtime_dir();
 
 	display = wl_display_create();
 	if (display == NULL) {
