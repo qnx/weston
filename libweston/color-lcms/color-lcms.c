@@ -514,7 +514,6 @@ weston_color_manager_create(struct weston_compositor *compositor)
 	cm->base.get_surface_color_transform = cmlcms_get_surface_color_transform;
 	cm->base.create_output_color_outcome = cmlcms_create_output_color_outcome;
 
-	/* We support all color features. */
 	cm->base.supported_color_features = (1 << WESTON_COLOR_FEATURE_ICC) |
 					    (1 << WESTON_COLOR_FEATURE_PARAMETRIC) |
 					    (1 << WESTON_COLOR_FEATURE_SET_PRIMARIES) |
@@ -529,7 +528,6 @@ weston_color_manager_create(struct weston_compositor *compositor)
 					       (1 << WESTON_RENDER_INTENT_RELATIVE) |
 					       (1 << WESTON_RENDER_INTENT_RELATIVE_BPC);
 
-	/* We support all primaries named. */
 	cm->base.supported_primaries_named = (1 << WESTON_PRIMARIES_CICP_SRGB) |
 					     (1 << WESTON_PRIMARIES_CICP_PAL_M) |
 					     (1 << WESTON_PRIMARIES_CICP_PAL) |
@@ -541,18 +539,10 @@ weston_color_manager_create(struct weston_compositor *compositor)
 					     (1 << WESTON_PRIMARIES_CICP_DISPLAY_P3) |
 					     (1 << WESTON_PRIMARIES_ADOBE_RGB);
 
-	/**
-	 * TODO: this is a lie just to make the color-management-parametric
-	 * tests to work. Without this the tests would be much more limited. We
-	 * actually need to implement such TF's. There's no problem doing that,
-	 * as parametric color profiles themselves are still unsupported.
-	 */
-
-	/* We need to implement each tf, and we support only a few of them. */
 	cm->base.supported_tf_named = (1 << WESTON_TF_GAMMA22) |
 				      (1 << WESTON_TF_GAMMA28) |
-				      (1 << WESTON_TF_SRGB) |
-				      (1 << WESTON_TF_ST2084_PQ);
+				      (1 << WESTON_TF_ST2084_PQ) |
+				      (1 << WESTON_TF_EXT_LINEAR);
 
 	wl_list_init(&cm->color_transform_list);
 	wl_list_init(&cm->color_profile_list);

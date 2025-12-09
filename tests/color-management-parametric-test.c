@@ -95,10 +95,10 @@ static const struct test_case test_cases[] = {
 	/******** Successful cases *******/
 
 	{
-	  /* sRGB primaries with sRGB TF; succeeds. */
+	  /* sRGB primaries with gamma22; succeeds. */
 	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
-	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -112,10 +112,10 @@ static const struct test_case test_cases[] = {
 	  .error_point = ERROR_POINT_NONE,
 	},
 	{
-	  /* Custom primaries with sRGB TF; succeeds. */
+	  /* Custom primaries with gamma22; succeeds. */
 	  .primaries_named = NOT_SET,
 	  .primaries = &color_gamut_sRGB,
-	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -129,10 +129,10 @@ static const struct test_case test_cases[] = {
 	  .error_point = ERROR_POINT_NONE,
 	},
 	{
-	  /* sRGB primaries, sRGB TF and valid luminance values; succeeds. */
+	  /* sRGB primaries, gamma22 and valid luminance values; succeeds. */
 	  .primaries_named = NOT_SET,
 	  .primaries = &color_gamut_sRGB,
-	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = 0.5,
 	  .primaries_max_lum = 2000,
@@ -163,10 +163,10 @@ static const struct test_case test_cases[] = {
 	  .error_point = ERROR_POINT_NONE,
 	},
 	{
-	  /* sRGB primaries, sRGB TF and valid target primaries; succeeds. */
+	  /* sRGB primaries, gamma22 and valid target primaries; succeeds. */
 	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
-	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -309,7 +309,7 @@ static const struct test_case test_cases[] = {
 	   * protocol error. */
 	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
-	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -327,7 +327,7 @@ static const struct test_case test_cases[] = {
 	   * protocol error. */
 	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
-	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -381,7 +381,7 @@ static const struct test_case test_cases[] = {
 	   * defined range); graceful failure. */
 	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
-	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -399,7 +399,7 @@ static const struct test_case test_cases[] = {
 	   * graceful failure. */
 	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
 	  .primaries = NULL,
-	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
+	  .tf_named = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22,
 	  .tf_power = NOT_SET,
 	  .primaries_min_lum = NOT_SET,
 	  .primaries_max_lum = NOT_SET,
@@ -455,7 +455,7 @@ color_manager_get(struct client *client)
 	test_assert_u32_eq(cm->supported_tf,
 			   (1 << WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22) |
 			   (1 << WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA28) |
-			   (1 << WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB) |
+			   (1 << WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_EXT_LINEAR) |
 			   (1 << WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST2084_PQ));
 
 	test_assert_true(cm->init_done);
@@ -736,10 +736,10 @@ TEST(set_tf_named_twice)
 
 	image_desc_creator_param = color_manager_create_param(cm);
 	wp_image_description_creator_params_v1_set_tf_named(image_desc_creator_param,
-							    WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB);
+							    WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22);
 	client_roundtrip(client); /* make sure connection is still valid */
 	wp_image_description_creator_params_v1_set_tf_named(image_desc_creator_param,
-							    WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB);
+							    WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22);
 	expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
 			      WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_ALREADY_SET);
 	wp_image_description_creator_params_v1_destroy(image_desc_creator_param);
@@ -763,7 +763,7 @@ TEST(set_tf_power_then_tf_named)
 							    2.4 * 10000);
 	client_roundtrip(client); /* make sure connection is still valid */
 	wp_image_description_creator_params_v1_set_tf_named(image_desc_creator_param,
-							    WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB);
+							    WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22);
 	expect_protocol_error(client, &wp_image_description_creator_params_v1_interface,
 			      WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_ALREADY_SET);
 	wp_image_description_creator_params_v1_destroy(image_desc_creator_param);
@@ -784,7 +784,7 @@ TEST(set_tf_named_then_tf_power)
 
 	image_desc_creator_param = color_manager_create_param(cm);
 	wp_image_description_creator_params_v1_set_tf_named(image_desc_creator_param,
-							    WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB);
+							    WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22);
 	client_roundtrip(client); /* make sure connection is still valid */
 	wp_image_description_creator_params_v1_set_tf_power(image_desc_creator_param,
 							    2.4 * 10000);
