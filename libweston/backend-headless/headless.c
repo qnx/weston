@@ -785,7 +785,7 @@ static void
 config_init_to_defaults(struct weston_headless_backend_config *config)
 {
 	config->refresh = DEFAULT_OUTPUT_REPAINT_REFRESH;
-	config->fake_seat = FALSE;
+	config->fake_seat = false;
 }
 
 WL_EXPORT int
