@@ -250,6 +250,16 @@ struct weston_tearing_control {
 	bool may_tear;
 };
 
+/** A client tracker
+ *
+ * This life time is tied to the wl_client.
+ */
+struct weston_client {
+	struct wl_listener wl_client_destroy_listener;
+	uint64_t internal_id;
+	char *internal_name;
+};
+
 bool
 weston_renderer_resize_output(struct weston_output *output,
 			      const struct weston_size *fb_size,

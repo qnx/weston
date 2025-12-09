@@ -9895,6 +9895,123 @@ weston_compositor_get_test_data(struct weston_compositor *ec)
 	return ec->test_data.test_private_data;
 }
 
+static void
+weston_client_destroy_handler(struct wl_listener *l, void *data)
+{
+	struct weston_client *client = wl_container_of(l, client,
+						       wl_client_destroy_listener);
+
+	free(client->internal_name);
+	free(client);
+}
+
+static void
+weston_compositor_client_created(struct wl_listener *l, void *data)
+{
+	struct weston_compositor *compositor = wl_container_of(l, compositor,
+							       client_created_listener);
+	struct wl_client *wlclient = data;
+	struct weston_client *client;
+
+	client = xzalloc(sizeof *client);
+	client->wl_client_destroy_listener.notify = weston_client_destroy_handler;
+	wl_client_add_destroy_late_listener(wlclient, &client->wl_client_destroy_listener);
+
+	client->internal_id = ++compositor->client_counter;
+	str_printf(&client->internal_name, "%" PRIu64, client->internal_id);
+}
+
+/** Get weston_client from wl_client
+ *
+ * Every wl_client has an associated weston_client struct which contains client
+ * tracking information.
+ *
+ * \param compositor The compositor instance.
+ * \param wlclient The wl_client to look up, or NULL.
+ * \return If \c wlclient is NULL, returns NULL. Otherwise returns a valid
+ * pointer to the corresponding weston_client.
+ *
+ * \ingroup compositor
+ */
+WL_EXPORT struct weston_client *
+weston_compositor_get_client(struct weston_compositor *compositor,
+			     struct wl_client *wlclient)
+{
+	struct wl_listener *l;
+
+	if (!wlclient)
+		return NULL;
+
+	l = wl_client_get_destroy_late_listener(wlclient, weston_client_destroy_handler);
+	weston_assert_ptr_not_null(compositor, l);
+
+	return container_of(l, struct weston_client, wl_client_destroy_listener);
+}
+
+/** Get internal client ID
+ *
+ * Every client is assigned an ID number from a counter that never resets. The
+ * counter lives in the weston_compositor object. ID 0 is reserved for
+ * "not a client", that is, for the compositor itself.
+ *
+ * \param client The weston_client, or NULL.
+ * \return 0 if \c client is NULL, otherwise the client ID.
+ *
+ * \ingroup client
+ */
+WL_EXPORT uint64_t
+weston_client_get_internal_id(const struct weston_client *client)
+{
+	if (!client)
+		return 0;
+
+	return client->internal_id;
+}
+
+/** Get internal client name
+ *
+ * Every client is assigned a name, usually derived from the internal ID.
+ *
+ * \param client The weston_client, or NULL.
+ * \return "comp" if \c client is NULL, otherwise the client internal name.
+ *
+ * \ingroup client
+ */
+WL_EXPORT const char *
+weston_client_get_internal_name(const struct weston_client *client)
+{
+	if (!client)
+		return "comp";
+
+	return client->internal_name;
+}
+
+/** Set a custom internal name for a client
+ *
+ * This changes what weston_client_get_internal_name() will return.
+ * This will not patch up names already derived from
+ * weston_client_get_internal_name(), so use this immediately after creating
+ * the wl_client.
+ *
+ * \param client The client whose name to set.
+ * \param fmt Standard printf format string and additional arguments.
+ */
+WL_EXPORT void
+weston_client_set_internal_name(struct weston_client *client,
+				const char *fmt, ...)
+{
+	va_list ap;
+	int ret;
+
+	free(client->internal_name);
+	va_start(ap, fmt);
+	ret = vasprintf(&client->internal_name, fmt, ap);
+	va_end(ap);
+
+	if (ret < 0)
+		client->internal_name = NULL;
+}
+
 /** Create the compositor.
  *
  * This functions creates and initializes a compositor instance.
@@ -10051,6 +10168,9 @@ weston_compositor_create(struct wl_display *display,
 	weston_layer_set_position(&ec->fade_layer, WESTON_LAYER_POSITION_FADE);
 	weston_layer_set_position(&ec->cursor_layer,
 				  WESTON_LAYER_POSITION_CURSOR);
+
+	ec->client_created_listener.notify = weston_compositor_client_created;
+	wl_display_add_client_created_listener(ec->wl_display, &ec->client_created_listener);
 
 	ec->debug_scene =
 		weston_compositor_add_log_scope(ec, "scene-graph",
@@ -10522,6 +10642,8 @@ weston_compositor_destroy(struct weston_compositor *compositor)
 	compositor->state = WESTON_COMPOSITOR_OFFSCREEN;
 
 	wl_signal_emit_mutable(&compositor->destroy_signal, compositor);
+
+	wl_list_remove(&compositor->client_created_listener.link);
 
 	weston_compositor_xkb_destroy(compositor);
 

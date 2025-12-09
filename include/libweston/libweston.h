@@ -80,6 +80,7 @@ struct weston_commit_timing_target {
 	struct timespec time;
 };
 
+struct weston_client;
 struct weston_compositor;
 struct weston_surface;
 struct weston_buffer;
@@ -1552,6 +1553,9 @@ struct weston_compositor {
 	 *  surfaces with no output
 	 */
 	struct weston_commit_timing_target requested_repaint_fallback;
+
+	struct wl_listener client_created_listener;
+	uint64_t client_counter;
 };
 
 struct weston_solid_buffer_values {
@@ -2825,6 +2829,21 @@ weston_output_get_supported_color_formats(struct weston_output *output);
 
 void
 weston_output_set_ready(struct weston_output *output);
+
+struct weston_client *
+weston_compositor_get_client(struct weston_compositor *compositor,
+			     struct wl_client *wlclient);
+
+uint64_t
+weston_client_get_internal_id(const struct weston_client *client);
+
+const char *
+weston_client_get_internal_name(const struct weston_client *client);
+
+void
+weston_client_set_internal_name(struct weston_client *client,
+				const char *fmt, ...)
+				__attribute__ ((format (printf, 2, 3)));
 
 #ifdef  __cplusplus
 }
