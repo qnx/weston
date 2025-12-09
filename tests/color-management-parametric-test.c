@@ -433,7 +433,7 @@ color_manager_get(struct client *client)
 	test_assert_u32_eq(cm->supported_rendering_intents,
 			   (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_PERCEPTUAL) |
 			   (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_RELATIVE) |
-			   (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_SATURATION) |
+			/* (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_SATURATION) | */
 			   (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_ABSOLUTE) |
 			   (1 << WP_COLOR_MANAGER_V1_RENDER_INTENT_RELATIVE_BPC));
 

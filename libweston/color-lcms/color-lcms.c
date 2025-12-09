@@ -523,9 +523,8 @@ weston_color_manager_create(struct weston_compositor *compositor)
 					    (1 << WESTON_COLOR_FEATURE_SET_MASTERING_DISPLAY_PRIMARIES) |
 					    (1 << WESTON_COLOR_FEATURE_EXTENDED_TARGET_VOLUME);
 
-	/* We support all rendering intents. */
 	cm->base.supported_rendering_intents = (1 << WESTON_RENDER_INTENT_PERCEPTUAL) |
-					       (1 << WESTON_RENDER_INTENT_SATURATION) |
+					    /* (1 << WESTON_RENDER_INTENT_SATURATION) | */
 					       (1 << WESTON_RENDER_INTENT_ABSOLUTE) |
 					       (1 << WESTON_RENDER_INTENT_RELATIVE) |
 					       (1 << WESTON_RENDER_INTENT_RELATIVE_BPC);
