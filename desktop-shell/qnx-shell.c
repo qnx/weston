@@ -1903,6 +1903,12 @@ toggle_surface_state(struct shell_surface *shsurf)
 		weston_view_move_to_layer(view, &ws->layer.view_list);
 		shsurf->state.minimized = false;
 		shell_surface_update_child_surface_layers(shsurf);
+
+		struct weston_seat *seat;
+		wl_list_for_each(seat, &shsurf->shell->compositor->seat_list, link) {
+			activate(shsurf->shell, shsurf->view, seat,
+				WESTON_ACTIVATE_FLAG_CONFIGURE);
+		}
 	}
 	else
 	{
