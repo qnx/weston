@@ -86,8 +86,10 @@ weston_xserver_shutdown(struct weston_xserver *wxs)
 		wl_client_destroy(wxs->client);
 		wxs->client = NULL;
 	} else {
-		wl_event_source_remove(wxs->abstract_source);
-		wl_event_source_remove(wxs->unix_source);
+		if (wxs->abstract_source)
+			wl_event_source_remove(wxs->abstract_source);
+		if (wxs->unix_source)
+			wl_event_source_remove(wxs->unix_source);
 	}
 	close(wxs->abstract_fd);
 	close(wxs->unix_fd);
@@ -233,11 +235,8 @@ create_lockfile(int display, char *lockfile, size_t lsize)
 }
 
 static void
-weston_xserver_destroy(struct wl_listener *l, void *data)
+weston_xserver_destroy(struct weston_xserver *wxs)
 {
-	struct weston_xserver *wxs =
-		container_of(l, struct weston_xserver, compositor_destroy_listener);
-
 	wl_list_remove(&wxs->compositor_destroy_listener.link);
 
 	if (wxs->loop)
@@ -248,6 +247,15 @@ weston_xserver_destroy(struct wl_listener *l, void *data)
 	free(wxs);
 }
 
+static void
+weston_xserver_destroy_handler(struct wl_listener *l, void *data)
+{
+	struct weston_xserver *wxs =
+		container_of(l, struct weston_xserver, compositor_destroy_listener);
+
+	weston_xserver_destroy(wxs);
+}
+
 static struct weston_xwayland *
 weston_xwayland_get(struct weston_compositor *compositor)
 {
@@ -255,7 +263,7 @@ weston_xwayland_get(struct weston_compositor *compositor)
 	struct weston_xserver *wxs;
 
 	listener = wl_signal_get(&compositor->destroy_signal,
-				 weston_xserver_destroy);
+				 weston_xserver_destroy_handler);
 	if (!listener)
 		return NULL;
 
@@ -281,7 +289,7 @@ retry:
 			wxs->display++;
 			goto retry;
 		} else {
-			free(wxs);
+			weston_xserver_destroy(wxs);
 			return -1;
 		}
 	}
@@ -297,7 +305,7 @@ retry:
 	if (wxs->unix_fd < 0) {
 		unlink(lockfile);
 		close(wxs->abstract_fd);
-		free(wxs);
+		weston_xserver_destroy(wxs);
 		return -1;
 	}
 
@@ -380,7 +388,7 @@ weston_module_init(struct weston_compositor *compositor)
 
 	if (!weston_compositor_add_destroy_listener_once(compositor,
 							 &wxs->compositor_destroy_listener,
-							 weston_xserver_destroy)) {
+							 weston_xserver_destroy_handler)) {
 		free(wxs);
 		return 0;
 	}

@@ -260,8 +260,10 @@ wet_load_xwayland(struct weston_compositor *comp)
 	wxw->compositor = comp;
 	wxw->api = api;
 	wxw->xwayland = xwayland;
-	if (api->listen(xwayland, wxw, spawn_xserver) < 0)
+	if (api->listen(xwayland, wxw, spawn_xserver) < 0) {
+		free(wxw);
 		return NULL;
+	}
 
 	return wxw;
 }
