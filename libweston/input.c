@@ -521,11 +521,9 @@ weston_pointer_clamp(struct weston_pointer *pointer, struct weston_coord_global 
 }
 
 static void
-weston_pointer_move_to(struct weston_pointer *pointer,
-		       struct weston_coord_global pos)
+weston_pointer_move_to_preclamped(struct weston_pointer *pointer,
+				  struct weston_coord_global pos)
 {
-	pos = weston_pointer_clamp(pointer, pos);
-
 	pointer->pos = pos;
 
 	if (pointer->sprite) {
@@ -538,6 +536,14 @@ weston_pointer_move_to(struct weston_pointer *pointer,
 
 	pointer->grab->interface->focus(pointer->grab);
 	wl_signal_emit(&pointer->motion_signal, pointer);
+}
+
+static void
+weston_pointer_move_to(struct weston_pointer *pointer,
+		       struct weston_coord_global pos)
+{
+	pos = weston_pointer_clamp(pointer, pos);
+	weston_pointer_move_to_preclamped(pointer, pos);
 }
 
 WL_EXPORT void
