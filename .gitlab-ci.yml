@@ -43,7 +43,7 @@
 variables:
   FDO_UPSTREAM_REPO: wayland/weston
   FDO_REPO_SUFFIX: "$BUILD_OS-$FDO_DISTRIBUTION_VERSION/$BUILD_ARCH"
-  FDO_DISTRIBUTION_TAG: '2025-11-17-remove-autoconf'
+  FDO_DISTRIBUTION_TAG: '2025-12-10-linux-6.18'
 
 
 include:
