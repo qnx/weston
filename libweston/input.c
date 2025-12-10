@@ -487,6 +487,69 @@ default_grab_pointer_focus(struct weston_pointer_grab *grab)
 		weston_pointer_set_focus(pointer, view);
 }
 
+static struct weston_coord_global
+weston_pointer_clamp_for_output(struct weston_pointer *pointer,
+				struct weston_output *output,
+				struct weston_coord_global pos)
+{
+	return weston_coord_global_clamp_for_output(pos, output);
+}
+
+WL_EXPORT struct weston_coord_global
+weston_pointer_clamp(struct weston_pointer *pointer, struct weston_coord_global pos)
+{
+	struct weston_compositor *ec = pointer->seat->compositor;
+	struct weston_output *output, *prev = NULL;
+	int valid = 0;
+
+	wl_list_for_each(output, &ec->output_list, link) {
+		if (pointer->seat->output && pointer->seat->output != output)
+			continue;
+		if (weston_output_contains_coord(output, pos))
+			valid = 1;
+		if (weston_output_contains_coord(output, pointer->pos))
+			prev = output;
+	}
+
+	if (!prev)
+		prev = pointer->seat->output;
+
+	if (prev && !valid)
+		pos = weston_pointer_clamp_for_output(pointer, prev, pos);
+
+	return pos;
+}
+
+static void
+weston_pointer_move_to(struct weston_pointer *pointer,
+		       struct weston_coord_global pos)
+{
+	pos = weston_pointer_clamp(pointer, pos);
+
+	pointer->pos = pos;
+
+	if (pointer->sprite) {
+		struct weston_coord_surface hotspot_inv;
+
+		hotspot_inv = weston_coord_surface_invert(pointer->hotspot);
+		weston_view_set_position_with_offset(pointer->sprite,
+						     pos, hotspot_inv);
+	}
+
+	pointer->grab->interface->focus(pointer->grab);
+	wl_signal_emit(&pointer->motion_signal, pointer);
+}
+
+WL_EXPORT void
+weston_pointer_move(struct weston_pointer *pointer,
+		    struct weston_pointer_motion_event *event)
+{
+	struct weston_coord_global pos;
+
+	pos = weston_pointer_motion_to_abs(pointer, event);
+	weston_pointer_move_to(pointer, pos);
+}
+
 static void
 pointer_send_relative_motion(struct weston_pointer *pointer,
 			     const struct timespec *time,
@@ -2132,69 +2195,6 @@ static void
 weston_touch_cancel_grab(struct weston_touch *touch)
 {
 	touch->grab->interface->cancel(touch->grab);
-}
-
-static struct weston_coord_global
-weston_pointer_clamp_for_output(struct weston_pointer *pointer,
-				struct weston_output *output,
-				struct weston_coord_global pos)
-{
-	return weston_coord_global_clamp_for_output(pos, output);
-}
-
-WL_EXPORT struct weston_coord_global
-weston_pointer_clamp(struct weston_pointer *pointer, struct weston_coord_global pos)
-{
-	struct weston_compositor *ec = pointer->seat->compositor;
-	struct weston_output *output, *prev = NULL;
-	int valid = 0;
-
-	wl_list_for_each(output, &ec->output_list, link) {
-		if (pointer->seat->output && pointer->seat->output != output)
-			continue;
-		if (weston_output_contains_coord(output, pos))
-			valid = 1;
-		if (weston_output_contains_coord(output, pointer->pos))
-			prev = output;
-	}
-
-	if (!prev)
-		prev = pointer->seat->output;
-
-	if (prev && !valid)
-		pos = weston_pointer_clamp_for_output(pointer, prev, pos);
-
-	return pos;
-}
-
-static void
-weston_pointer_move_to(struct weston_pointer *pointer,
-		       struct weston_coord_global pos)
-{
-	pos = weston_pointer_clamp(pointer, pos);
-
-	pointer->pos = pos;
-
-	if (pointer->sprite) {
-		struct weston_coord_surface hotspot_inv;
-
-		hotspot_inv = weston_coord_surface_invert(pointer->hotspot);
-		weston_view_set_position_with_offset(pointer->sprite,
-						     pos, hotspot_inv);
-	}
-
-	pointer->grab->interface->focus(pointer->grab);
-	wl_signal_emit(&pointer->motion_signal, pointer);
-}
-
-WL_EXPORT void
-weston_pointer_move(struct weston_pointer *pointer,
-		    struct weston_pointer_motion_event *event)
-{
-	struct weston_coord_global pos;
-
-	pos = weston_pointer_motion_to_abs(pointer, event);
-	weston_pointer_move_to(pointer, pos);
 }
 
 /** Verify if the pointer is in a valid position and move it if it isn't.
