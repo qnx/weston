@@ -621,12 +621,14 @@ weston_pointer_send_motion(struct weston_pointer *pointer,
 	wl_fixed_t old_sx;
 	wl_fixed_t old_sy;
 	struct weston_view *old_focus = pointer->focus;
+	struct weston_coord_global pos;
+
+	pos = weston_pointer_motion_to_abs(pointer, event);
+	pos = weston_pointer_clamp(pointer,pos);
 
 	if (pointer->focus) {
-		struct weston_coord_global pos;
 		struct weston_coord_surface surf_pos;
 
-		pos = weston_pointer_motion_to_abs(pointer, event);
 		old_sx = pointer->sx;
 		old_sy = pointer->sy;
 		weston_view_update_transform(pointer->focus);
@@ -639,7 +641,7 @@ weston_pointer_send_motion(struct weston_pointer *pointer,
 		old_sy = -1000000;
 	}
 
-	weston_pointer_move(pointer, event);
+	weston_pointer_move_to_preclamped(pointer, pos);
 
 	if (pointer->focus && old_focus == pointer->focus &&
 	    (old_sx != pointer->sx || old_sy != pointer->sy)) {
