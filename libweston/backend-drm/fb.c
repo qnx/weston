@@ -114,7 +114,7 @@ static void gem_handle_put(struct drm_device *device, int handle)
 static int
 drm_fb_import_plane(struct drm_device *device, struct drm_fb *fb, int plane)
 {
-	int bo_fd;
+	int bo_fd = -1;
 	uint32_t handle;
 	int ret;
 
