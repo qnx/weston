@@ -3921,6 +3921,10 @@ weston_output_repaint_from_present(const struct weston_output *output,
 				   const struct timespec *present_time)
 {
 	struct timespec repaint_time;
+	int64_t time_since;
+	int64_t frames_since;
+	int refresh_nsec = millihz_to_nsec(output->current_mode->refresh);
+	struct timespec actual_present_time;
 	bool late = false;
 
 	if (timespec_sub_to_nsec(now, present_time) > 0)
@@ -3937,8 +3941,16 @@ weston_output_repaint_from_present(const struct weston_output *output,
 	    output->vrr_mode == WESTON_VRR_MODE_GAME)
 		return late ? *now : *present_time;
 
-	timespec_add_msec(&repaint_time, present_time,
-			  -weston_output_repaint_msec(output));
+	/* The provided time might be in the middle of a frame, so round it
+	 * back to the start of the frame that time is in.
+	 */
+	time_since = timespec_sub_to_nsec(present_time, &output->frame_time);
+	time_since--;
+	frames_since = time_since / refresh_nsec;
+	timespec_add_nsec(&actual_present_time, &output->frame_time, refresh_nsec * (frames_since + 1));
+
+	/* Subtract the "repaint window" time to get the deadline for the presentation time */
+	timespec_add_msec(&repaint_time, &actual_present_time, -weston_output_repaint_msec(output));
 
 	return repaint_time;
 }
