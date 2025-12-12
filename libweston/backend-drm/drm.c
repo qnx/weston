@@ -1201,6 +1201,7 @@ drm_repaint_flush_device(struct drm_device *device)
 	struct drm_pending_state *pending_state;
 	struct weston_output *base;
 	int ret;
+	bool failed_reuse = false;
 
 	pending_state = device->repaint_data;
 	if (!pending_state)
@@ -1222,7 +1223,27 @@ drm_repaint_flush_device(struct drm_device *device)
 		if (!base->will_repaint || !tmp || tmp->device != device)
 			continue;
 
-		if (ret == -EBUSY)
+		/* We shouldn't be failing at all when using a previous state,
+		 * and when we do it can lead to choppy frame scheduling.
+		 * Keep track of any failures and if we have a few, just give
+		 * up on ever reusing state.
+		 */
+		if (tmp->reused_state) {
+			failed_reuse = true;
+			tmp->force_rebuild_state = true;
+			device->reused_state_failures++;
+		}
+	}
+
+	if (failed_reuse)
+		drm_debug(b, "[repaint] failed with reused state, will rebuild and try again.\n");
+
+	wl_list_for_each(base, &b->compositor->output_list, link) {
+		struct drm_output *tmp = to_drm_output(base);
+		if (!base->will_repaint || !tmp || tmp->device != device)
+			continue;
+
+		if (ret == -EBUSY || failed_reuse)
 			weston_output_schedule_repaint_restart(base);
 		else
 			weston_output_schedule_repaint_reset(base);

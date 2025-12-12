@@ -1033,6 +1033,11 @@ drm_output_propose_state_try_reuse(struct weston_output *output_base,
 	struct weston_paint_node *pnode;
 	struct drm_output_state *state;
 
+	if (output->force_rebuild_state) {
+		debug_propose_fail(output, mode, "previous state failed");
+		return NULL;
+	}
+
 	/* These states are where we end up when we can't use planes
 	 * at all, sometimes simply because we don't have a renderer
 	 * fb yet. In that case we'd immediately get into a better
@@ -1139,10 +1144,13 @@ drm_output_propose_state_try_reuse(struct weston_output *output_base,
 						pnode->surface->buffer_release_ref.buffer_release);
 	}
 
-	if (drm_pending_state_test(pending_state) != 0) {
-		debug_propose_fail(output, mode, "atomic test not OK");
-		drm_output_state_free(state);
-		return NULL;
+	if (device->reused_state_failures > DRM_MAX_REUSE_FAILURES) {
+		drm_debug(b, "\t\t[reuse] must test due to high number of failures\n");
+		if (drm_pending_state_test(pending_state) != 0) {
+			debug_propose_fail(output, mode, "atomic test not OK");
+			drm_output_state_free(state);
+			return NULL;
+		}
 	}
 
 	/* In any state with the renderer, we need to unreference and remove
@@ -1163,6 +1171,7 @@ drm_output_propose_state_try_reuse(struct weston_output *output_base,
 		pstate->fb = NULL;
 	}
 
+	output->reused_state = true;
 	return state;
 }
 
@@ -1191,6 +1200,8 @@ drm_output_propose_state(struct weston_output *output_base,
 	uint64_t current_lowest_zpos_overlay = DRM_PLANE_ZPOS_INVALID_PLANE;
 	/* Record the current lowest zpos of the underlay plane */
 	uint64_t current_lowest_zpos_underlay = DRM_PLANE_ZPOS_INVALID_PLANE;
+
+	output->reused_state = false;
 
 	if (mode & DRM_OUTPUT_PROPOSE_STATE_REUSE) {
 		return drm_output_propose_state_try_reuse(output_base,
@@ -1602,6 +1613,8 @@ drm_assign_planes(struct weston_output *output_base)
 
 	assert(state);
 	assert(state->planes_enabled == !output_base->disable_planes);
+
+	output->force_rebuild_state = false;
 
 	drm_debug(b, "\t[repaint] Using %s composition\n",
 		  drm_propose_state_mode_to_string(mode));

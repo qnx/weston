@@ -82,6 +82,8 @@
 #define MAX_DMABUF_PLANES 4
 #endif
 
+#define DRM_MAX_REUSE_FAILURES 10
+
 /**
  * A small wrapper to print information into the 'drm-backend' debug scope.
  *
@@ -240,6 +242,8 @@ struct drm_device {
 
 	/* struct drm_colorop_3x1d_lut::link  */
 	struct wl_list drm_colorop_3x1d_lut_list;
+
+	int reused_state_failures;
 };
 
 struct drm_backend {
@@ -664,6 +668,9 @@ struct drm_output {
 	submit_frame_cb virtual_submit_frame;
 
 	enum wdrm_content_type content_type;
+
+	bool reused_state;
+	bool force_rebuild_state;
 };
 
 void
