@@ -3862,6 +3862,7 @@ out:
 /** Calculate when we should start a repaint to hit a presentation time
  *
  * \param output The output
+ * \param now The current time from the presentation clock
  * \param present_time The target presentation time
  *
  * Using the specified output's refresh rate and configuration, calculate
@@ -3872,15 +3873,20 @@ out:
  */
 struct timespec
 weston_output_repaint_from_present(const struct weston_output *output,
+				   const struct timespec *now,
 				   const struct timespec *present_time)
 {
 	struct timespec repaint_time;
+	bool late = false;
+
+	if (timespec_sub_to_nsec(now, present_time) > 0)
+		late = true;
 
 	if (output->frame_flags & WESTON_FINISH_FRAME_TEARING)
-		return *present_time;
+		return late ? *now : *present_time;
 
 	if (output->vrr_mode == WESTON_VRR_MODE_GAME)
-		return *present_time;
+		return late ? *now : *present_time;
 
 	timespec_add_msec(&repaint_time, present_time,
 			  -output->compositor->repaint_msec);
@@ -4250,7 +4256,8 @@ weston_output_finish_frame(struct weston_output *output,
 				  refresh_nsec);
 
 out:
-	output->next_repaint = weston_output_repaint_from_present(output, &output->next_present);
+	output->next_repaint = weston_output_repaint_from_present(output, &now,
+								  &output->next_present);
 	output->repaint_status = REPAINT_SCHEDULED;
 	output_repaint_timer_arm(compositor);
 }
