@@ -48,7 +48,7 @@ doxygen_conf_weston = configure_file(
 
 script_data = configuration_data()
 script_data.set('SRCDIR', meson.current_build_dir())
-script_data.set('OUTDIR', meson.current_build_dir() + '/doc')
+script_data.set('OUTDIR', meson.current_build_dir() / 'weston')
 
 # Set a different directory for doctrees to avoid installing them
 script_data.set('DOCTREES_DIR', meson.current_build_dir() + '/doctrees')
@@ -82,9 +82,11 @@ endif
 sphinx_doc = custom_target(
 		'weston-doc-breathe',
 		command: script_doxy_sphinx,
-		output: 'doc',
+		output: 'weston',
 		build_by_default: true,
 		env: sphinx_env,
+		install: true,
+		install_dir: dir_data / 'doc',
 )
 
 # we need this because we will have a stale 'doc' directory
@@ -92,11 +94,4 @@ sphinx_doc = custom_target(
 docs = run_target(
 		'docs',
 		command: script_doxy_sphinx,
-)
-
-install_subdir(
-	sphinx_doc.full_path(),
-	install_dir: dir_data / 'doc' / 'weston',
-	exclude_files: '.buildinfo',
-	strip_directory: true,
 )
