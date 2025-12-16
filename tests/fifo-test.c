@@ -474,7 +474,7 @@ get_surface_width(struct client *client,
 		  struct wet_testsuite_data *suite_data,
 		  bool rearm)
 {
-	int width;
+	int width = -1;
 
 	RUN_INSIDE_BREAKPOINT(client, suite_data) {
 		struct weston_surface *surface;
