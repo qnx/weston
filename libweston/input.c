@@ -1983,6 +1983,8 @@ weston_pointer_set_focus(struct weston_pointer *pointer,
 	int refocus = 0;
 	wl_fixed_t sx, sy;
 
+	sx = sy = wl_fixed_from_int(-999999); /* poison */
+
 	if (view) {
 		struct weston_coord_surface surf_pos;
 
