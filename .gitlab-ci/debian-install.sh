@@ -38,9 +38,10 @@ MESA_RUNTIME_PKGS="
 	libllvm${LLVM_VERSION}
 "
 
-if [ x"$USE_BOOKWORM_BACKPORTS" = "xy" ] ; then
-	echo 'deb http://deb.debian.org/debian bookworm-backports main' >> /etc/apt/sources.list
+if [ x"$USE_DEBIAN_BACKPORTS" = "xy" ] ; then
+	echo 'deb http://deb.debian.org/debian '${FDO_DISTRIBUTION_VERSION}'-backports main' >> /etc/apt/sources.list
 fi
+
 apt-get update
 apt-get -y --no-install-recommends install \
 	autoconf \
@@ -67,7 +68,7 @@ apt-get -y --no-install-recommends install \
 	libexpat1-dev \
 	libffi-dev \
 	libgbm-dev \
-	libgdk-pixbuf2.0-dev \
+	libgdk-pixbuf-xlib-2.0-dev \
 	libgles2-mesa-dev \
 	libglu1-mesa-dev \
 	libgstreamer1.0-dev \
@@ -124,7 +125,6 @@ apt-get -y --no-install-recommends install \
 	python3-setuptools \
 	qemu-system \
 	sysvinit-core \
-	vulkan-validationlayers-dev \
 	x11proto-dev \
 	xwayland \
 	python3-argcomplete \
@@ -134,6 +134,7 @@ apt-get -y --no-install-recommends install \
 	$MESA_DEV_PKGS \
 	$BUILD_DEV_PKGS \
 	$MESA_RUNTIME_PKGS \
+	$PACKAGES_SPECIFIC \
 	$LINUX_DEV_PKGS \
 
 if [ "$FREERDP_VERSION" -ne 0 ] ; then

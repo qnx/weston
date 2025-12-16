@@ -432,7 +432,7 @@ test_env = {}
 # program exit when it scans for leaks. Due to use_tls=0 even more
 # suppressions had to be added.
 # TODO XXX: Try to revert the addition of use_tls=0 when our CI image
-# upgrades from Debian Bookworm to something more recent.
+# upgrades from Debian Trixie to something more recent.
 if get_option('b_sanitize') in ['address', 'address,undefined' ]
   test_env += { 'LSAN_OPTIONS': 'use_tls=0:suppressions=@0@'.format(dir_gitlab_ci / 'leak-sanitizer.supp') }
 endif
