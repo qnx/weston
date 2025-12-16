@@ -4877,7 +4877,6 @@ pointer_constraint_surface_committed(struct wl_listener *listener, void *data)
 	if (constraint->hint_is_pending) {
 		constraint->hint_is_pending = false;
 
-		constraint->hint_is_pending = true;
 		constraint->hint = constraint->hint_pending;
 	}
 
