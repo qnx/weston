@@ -4156,8 +4156,14 @@ output_repaint_timer_handler(int fd, uint32_t mask, void *data)
 	struct timespec now;
 	int ret = 0;
 	uint64_t e;
+	ssize_t size;
 
-	read(compositor->repaint_timer_fd, &e, sizeof e);
+	do {
+		size = read(compositor->repaint_timer_fd, &e, sizeof e);
+	} while (size < 0 && errno == EINTR);
+
+	if (size < 0)
+		weston_log("repaint timer read failed: %s\n", strerror(errno));
 
 	/* We may have transactions with constraints that cleared after
 	 * the last repaint. That repaint would have unconditionally
