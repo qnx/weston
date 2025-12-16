@@ -84,7 +84,7 @@ static enum weston_paint_node_status
 get_paint_node_status(struct client *client,
 		      struct wet_testsuite_data *suite_data)
 {
-	enum weston_paint_node_status changes;
+	enum weston_paint_node_status changes = WESTON_PAINT_NODE_CLEAN;
 
 	RUN_INSIDE_BREAKPOINT(client, suite_data) {
 		struct weston_compositor *compositor;
