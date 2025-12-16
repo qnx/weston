@@ -91,7 +91,7 @@ TEST(strtol_conversions)
 
 TEST(strtof_conversions)
 {
-	float val;
+	float val = NAN;
 
 	test_assert_true(safe_strtofloat("0.0", &val));
 	test_assert_f32_eq(val, 0.0);
