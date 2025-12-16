@@ -980,11 +980,11 @@ y_u_v_create_buffer(struct client *client,
 	int x, y;
 	uint32_t *rgb_row;
 	uint8_t *y_base;
-	uint8_t *u_base;
-	uint8_t *v_base;
+	uint8_t *u_base = NULL;
+	uint8_t *v_base = NULL;
 	uint8_t *y_row;
-	uint8_t *u_row;
-	uint8_t *v_row;
+	uint8_t *u_row = NULL;
+	uint8_t *v_row = NULL;
 	uint32_t argb;
 
 	buf = client_buffer_create(client, &args);
