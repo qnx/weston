@@ -256,3 +256,5 @@ if get_option('doc')
 else
 	message('Documentation will not be built. Use -Ddoc to build it.')
 endif
+
+subdir('coverage')
