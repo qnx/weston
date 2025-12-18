@@ -9648,11 +9648,10 @@ debug_scene_view_print_paint_node(FILE *fp,
 	}
 
 	if (pnode->try_view_on_plane_failure_reasons) {
-		char *fr_str = bits_to_str(pnode->try_view_on_plane_failure_reasons,
-					   weston_plane_failure_reasons_to_str);
-		fprintf(fp, "\t\t\t\tPlane failure reasons: %s\n", fr_str);
-
-		free(fr_str);
+		fprintf(fp, "\t\t\t\tPlane failure reasons: ");
+		bits_to_str_stream(pnode->try_view_on_plane_failure_reasons,
+				   weston_plane_failure_reasons_to_str, fp);
+		fprintf(fp, "\n");
 	}
 }
 
