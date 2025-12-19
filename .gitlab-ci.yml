@@ -43,7 +43,7 @@
 variables:
   FDO_UPSTREAM_REPO: wayland/weston
   FDO_REPO_SUFFIX: "$BUILD_OS-$FDO_DISTRIBUTION_VERSION/$BUILD_ARCH"
-  FDO_DISTRIBUTION_TAG: '2025-12-16-wayland-protocols-1.46'
+  FDO_DISTRIBUTION_TAG: '2025-12-19-mesa-25.3.2'
 
 
 include:
