@@ -164,6 +164,12 @@ TEST(drm_color_representation_reuse_buffer)
 	struct rectangle clip = { .width = 128, .height = 128 };
 	bool match;
 
+	if (args->buffer_type == CLIENT_BUFFER_TYPE_DMABUF &&
+	    !client_buffer_util_is_dmabuf_supported()) {
+		testlog("%s: Skipped: udmabuf not supported\n", get_test_name());
+		return RESULT_SKIP;
+	}
+
 	xdg_client = create_xdg_client();
 	client = xdg_client->client;
 	xdg_surface = create_xdg_surface(xdg_client);
