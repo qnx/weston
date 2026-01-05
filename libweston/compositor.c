@@ -4309,11 +4309,20 @@ weston_output_finish_frame(struct weston_output *output,
 
 	/* If we haven't been supplied any timestamp at all, we don't have a
 	 * timebase to work against, so any delay just wastes time. Push a
-	 * repaint as soon as possible so we can get on with it. */
+	 * repaint as soon as possible so we can get on with it.
+	 *
+	 * We must not delay because the compositor hits this path at startup,
+	 * and the drm backend must have all its outputs repaint at the same
+	 * time (regardless of their refresh rates) for the first repaint,
+	 * or the combination of new and stale state will prevent the flip.
+	 */
 	if (!stamp) {
 		output->next_present = now;
+		output->next_repaint = now;
 		output->frame_flags = 0;
-		goto out;
+		output->repaint_status = REPAINT_SCHEDULED;
+		weston_repaint_timer_arm(compositor);
+		return;
 	}
 
 	vblank_monotonic = convert_presentation_time_now(compositor,
