@@ -9512,11 +9512,17 @@ debug_scene_view_print_paint_node(FILE *fp,
 	struct weston_paint_node *pnode;
 
 	pnode = weston_view_find_paint_node(view, output);
-	fprintf(fp, "\t\t\tpaint node %p:\n", pnode);
+	if (!pnode)
+		fprintf(fp, "\t\t\tpaint node [pending repaint]:\n");
+	else
+		fprintf(fp, "\t\t\tpaint node %p:\n", pnode);
 
 	fprintf(fp, "\t\t\t\toutput: %d (%s)%s\n",
 		output->id, output->name,
 		(view->output == output) ? " (primary)" : "");
+
+	if (!pnode)
+		return;
 
 	fprintf(fp, "\t\t\t\tBuffer to output transform: ");
 	if (!pnode->valid_transform)
