@@ -127,6 +127,24 @@ weston_v3f_clamp(struct weston_vec3f v, float a, float b)
 			    v.z >= a ? (v.z <= b ? v.z : b) : a);
 }
 
+/** Element-wise vector subtraction a - b */
+static inline struct weston_vec3f
+weston_v3f_sub_v3f(struct weston_vec3f a, struct weston_vec3f b)
+{
+	return WESTON_VEC3F(a.x - b.x,
+			    a.y - b.y,
+			    a.z - b.z);
+}
+
+/** Element-wise vector sum a + b */
+static inline struct weston_vec3f
+weston_v3f_add_v3f(struct weston_vec3f a, struct weston_vec3f b)
+{
+	return WESTON_VEC3F(a.x + b.x,
+			    a.y + b.y,
+			    a.z + b.z);
+}
+
 /**
  * Matrix infinity-norm
  *

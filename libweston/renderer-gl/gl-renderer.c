@@ -2196,6 +2196,47 @@ repaint_region(struct gl_renderer *gr,
 }
 
 static void
+apply_color_effect(struct weston_output *output, float *r, float *g, float *b, const float a)
+{
+	struct weston_compositor *compositor = output->compositor;
+	struct weston_output_color_effect *effect = output->color_effect;
+	struct weston_vec3f input = WESTON_VEC3F(*r, *g, *b);
+	struct weston_vec3f res, err;
+
+	/*
+	 * Caller guarantees alpha is always 0.0f (fully transparent) or 1.0f
+	 * (fully opaque). If alpha is 0.0f, no color effect needed. Otherwise
+	 * assert that alpha is 1.0f, and in such case we don't have to worry
+	 * if values are alpha premultiplied or not.
+	 */
+	if (!output->color_effect || a == 0.0f) {
+		return;
+	}
+	weston_assert_f32_eq(compositor, a, 1.0f);
+
+	switch (effect->type) {
+	case WESTON_OUTPUT_COLOR_EFFECT_TYPE_INVERSION:
+		*r = 1.0f - *r;
+		*g = 1.0f - *g;
+		*b = 1.0f - *b;
+		return;
+	case WESTON_OUTPUT_COLOR_EFFECT_TYPE_CVD_CORRECTION:
+		/**
+		 * See weston_output_color_effect_cvd_correction() for more details.
+		 */
+		res = weston_m3f_mul_v3f(effect->u.cvd.simulation, input);
+		err = weston_v3f_sub_v3f(input, res);
+		res = weston_v3f_add_v3f(input, weston_m3f_mul_v3f(effect->u.cvd.redistribution, err));
+		res = weston_v3f_clamp(res, 0.0f, 1.0f);
+		*r = res.el[0];
+		*g = res.el[1];
+		*b = res.el[2];
+		return;
+	};
+	weston_assert_not_reached(compositor, "unknown color effect type");
+}
+
+static void
 clear_region(struct gl_renderer *gr, struct weston_paint_node *pnode,
 	     pixman_region32_t *repaint)
 {
@@ -2203,6 +2244,7 @@ clear_region(struct gl_renderer *gr, struct weston_paint_node *pnode,
 	struct gl_output_state *go = get_output_state(pnode->output);
 	EGLint *rects;
 	EGLint nrects;
+	float r, g, b, a;
 	int i;
 
 	pixman_region_to_egl(output, repaint, go->border_status,
@@ -2213,8 +2255,13 @@ clear_region(struct gl_renderer *gr, struct weston_paint_node *pnode,
 	 * underlay - or fully opaque, to use clear rather than blending. */
 	assert(pnode->solid.a == 0.0f || pnode->solid.a == 1.0f);
 	set_blend_state(gr, false);
-	glClearColor(pnode->solid.r, pnode->solid.g, pnode->solid.b,
-		     pnode->solid.a);
+
+	r = pnode->solid.r;
+	g = pnode->solid.g;
+	b = pnode->solid.b;
+	a = pnode->solid.a;
+	apply_color_effect(output, &r, &g, &b, a);
+	glClearColor(r, g, b, a);
 
 	glEnable(GL_SCISSOR_TEST);
 	for (i = 0; i < nrects; i++) {
