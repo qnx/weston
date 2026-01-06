@@ -89,7 +89,6 @@ struct window {
 	struct xdg_surface *xdg_surface;
 	struct xdg_toplevel *xdg_toplevel;
 	struct wl_list buffer_list;
-	struct wl_callback *callback;
 	struct wp_fifo_v1 *fifo;
 	struct wp_commit_timer_v1 *commit_timer;
 	bool wait_for_configure;
@@ -363,7 +362,6 @@ create_window(struct display *display, int width, int height)
 	if (!window)
 		return NULL;
 
-	window->callback = NULL;
 	window->display = display;
 	window->width = width;
 	window->height = height;
@@ -409,9 +407,6 @@ static void
 destroy_window(struct window *window)
 {
 	struct buffer *buffer, *buffer_next;
-
-	if (window->callback)
-		wl_callback_destroy(window->callback);
 
 	wl_list_for_each_safe(buffer, buffer_next,
 			      &window->buffer_list, buffer_link)
