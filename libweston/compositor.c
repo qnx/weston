@@ -441,6 +441,16 @@ weston_paint_node_remove_z_order_link(struct weston_paint_node *pnode)
 	if (!wl_list_empty(&pnode->z_order_link))
 		paint_node_damage_below(pnode, &pnode->visible);
 
+	/* Once we unlink this paint node, it will no longer be seen by
+	 * the paint node update functions that accumulate paint node
+	 * changes for the output. Those changes might be used by the
+	 * backend to decide whether it needs to regenerate plane state
+	 * or not.
+	 *
+	 * Flag changes as dirty so the backends know something happened.
+	 */
+	pnode->output->paint_node_changes |= WESTON_PAINT_NODE_ALL_DIRTY;
+
 	/* Clear damage related variables to as-new state */
 	pnode->plane = NULL;
 	pixman_region32_clear(&pnode->visible_previous);
