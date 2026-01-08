@@ -2,7 +2,6 @@ background_layer = {}
 normal_layer = {}
 hidden_layer = {}
 fullscreen_layer = {}
-background_curtain = nil
 current_width = 0
 current_height = 0
 
@@ -69,32 +68,32 @@ end
 function recreate_background(output)
   local x, y = output:get_position()
   local w, h = output:get_dimensions()
+  local pd = output:get_private()
 
-  if (background_curtain ~= nil) then
-    background_curtain:dispose()
+  if (pd.curtain ~= nil) then
+    pd.curtain:dispose()
   end
 
-  background_curtain = weston:create_curtain("output curtain")
-  background_curtain:set_color(0xFF000000)
-  background_curtain:set_position(x, y)
-  background_curtain:set_dimensions(w, h)
-  background_curtain:set_capture_input(true)
-  bv = background_curtain:get_view()
+  pd.curtain = weston:create_curtain("output curtain")
+  pd.curtain:set_color(0xFF000000)
+  pd.curtain:set_position(x, y)
+  pd.curtain:set_dimensions(w, h)
+  pd.curtain:set_capture_input(true)
+
+  local bv = pd.curtain:get_view()
   bv:set_output(output)
   bv:set_layer(background_layer)
 end
 
 function my_output_create(output)
-  local pd = { has_fullscreen_view = false }
+  local pd = { has_fullscreen_view = false, curtain = nil }
 
   if (primary_output == nil) then
     primary_output = output
   end
 
-  recreate_background(output)
-
-  pd.background_view = bv
   output:set_private(pd)
+  recreate_background(output)
 
   -- Must set ready or no repaints will take place
   output:set_ready()
