@@ -93,7 +93,8 @@ compile_const bool c_need_color_pipeline =
 	c_color_mapping != SHADER_COLOR_MAPPING_IDENTITY ||
 	c_color_post_curve != SHADER_COLOR_CURVE_IDENTITY;
 compile_const bool c_need_straight_alpha =
-	c_need_color_pipeline || c_color_effect != SHADER_COLOR_EFFECT_NONE;
+	c_need_color_pipeline ||
+	c_color_effect == SHADER_COLOR_EFFECT_INVERSION;
 
 uniform HIGHPRECISION mat3 yuv_coefficients;
 uniform HIGHPRECISION vec3 yuv_offsets;
@@ -494,7 +495,7 @@ main()
 	/* Electrical (non-linear) RGBA values, may be premult or not */
 	color = sample_input_texture();
 
-	/* Ensure straight alpha for color pipeline and color effects */
+	/* Ensure straight alpha for e.g. color pipeline, color inversion */
 	if (c_input_is_premult && c_need_straight_alpha) {
 		if (color.a == 0.0)
 			color.rgb = vec3(0, 0, 0);
