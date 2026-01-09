@@ -3682,12 +3682,19 @@ drm_backend_update_connector(struct drm_device *device,
 		 * but we Weston has it enabled, finishing finally with Weston
 		 * not doing anything to re-enable the output */
 		if (!head->base.device_changed && head->base.connected) {
-			struct weston_output *output = head->base.output;
 
 			drm_debug(b, "\t[CONN:%d] Invalid state detected.\n",
 				  connector_id);
 			device->state_invalid = true;
-			weston_output_schedule_repaint(output);
+
+			/* schedule an output repaint on enabled outputs */
+			if (weston_head_is_enabled(&head->base)) {
+				struct weston_output *output =
+					weston_head_get_output(&head->base);
+				drm_debug(b, "\t[CONN:%d] scheduling output "
+					      "repaint on output %s\n", connector_id, output->name);
+				weston_output_schedule_repaint(output);
+			}
 		}
 	} else if (writeback) {
 		ret = drm_writeback_update_info(writeback, conn);
