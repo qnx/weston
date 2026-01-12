@@ -424,8 +424,7 @@ struct weston_color_transform {
 
 struct weston_cvd_correction {
 	enum weston_cvd_correction_type type;
-	struct weston_mat3f simulation;
-	struct weston_mat3f redistribution;
+	struct weston_mat3f correction;
 };
 
 struct weston_output_color_effect {

@@ -2201,7 +2201,7 @@ apply_color_effect(struct weston_output *output, float *r, float *g, float *b, c
 	struct weston_compositor *compositor = output->compositor;
 	struct weston_output_color_effect *effect = output->color_effect;
 	struct weston_vec3f input = WESTON_VEC3F(*r, *g, *b);
-	struct weston_vec3f res, err;
+	struct weston_vec3f res;
 
 	/*
 	 * Caller guarantees alpha is always 0.0f (fully transparent) or 1.0f
@@ -2224,9 +2224,7 @@ apply_color_effect(struct weston_output *output, float *r, float *g, float *b, c
 		/**
 		 * See weston_output_color_effect_cvd_correction() for more details.
 		 */
-		res = weston_m3f_mul_v3f(effect->u.cvd.simulation, input);
-		err = weston_v3f_sub_v3f(input, res);
-		res = weston_v3f_add_v3f(input, weston_m3f_mul_v3f(effect->u.cvd.redistribution, err));
+		res = weston_m3f_mul_v3f(effect->u.cvd.correction, input);
 		res = weston_v3f_clamp(res, 0.0f, 1.0f);
 		*r = res.el[0];
 		*g = res.el[1];

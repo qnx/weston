@@ -157,8 +157,7 @@ uniform HIGHPRECISION vec2 color_mapping_lut_scale_offset;
 uniform HIGHPRECISION mat3 color_mapping_matrix;
 uniform HIGHPRECISION vec3 color_mapping_offset;
 
-uniform HIGHPRECISION mat3 color_cvd_simulation;
-uniform HIGHPRECISION mat3 color_cvd_redistribution;
+uniform HIGHPRECISION mat3 cvd_correction_matrix;
 
 /*
  * 2D texture sampler abstracting away the lack of swizzles on OpenGL ES 2. This
@@ -460,8 +459,7 @@ color_inversion(vec4 color)
 vec4
 color_cvd_correction(vec4 color)
 {
-	vec3 original, error;
-	vec4 res;
+	vec3 original;
 
 	/**
 	 * See weston_output_color_effect_cvd_correction() for more details.
@@ -469,9 +467,7 @@ color_cvd_correction(vec4 color)
 
 	original = color.rgb;
 
-	color.rgb = color_cvd_simulation * original;
-	error = original - color.rgb;
-	color.rgb = original + color_cvd_redistribution * error;
+	color.rgb = cvd_correction_matrix * original;
 	color.rgb = clamp(color.rgb, 0.0, 1.0);
 
 	return color;

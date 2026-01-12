@@ -343,10 +343,7 @@ struct weston_color_transform;
 struct dmabuf_allocator;
 
 union gl_shader_config_color_effect {
-	struct  {
-		struct weston_mat3f simulation;
-		struct weston_mat3f redistribution;
-	} cvd_correction;
+	struct weston_mat3f cvd_correction;
 };
 
 union gl_shader_config_color_curve {

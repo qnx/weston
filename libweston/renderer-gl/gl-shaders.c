@@ -53,11 +53,6 @@
 /* static const char fragment_shader[]; fragment.glsl */
 #include "fragment-shader.h"
 
-struct gl_shader_cvd_correction_uniforms {
-	GLint simulation_uniform;
-	GLint redistribution_uniform;
-};
-
 union gl_shader_color_curve_uniforms {
 	struct {
 		GLint tex_2d_uniform;
@@ -96,7 +91,7 @@ struct gl_shader {
 	GLint view_alpha_uniform;
 	GLint color_uniform;
 	GLint tint_uniform;
-	struct gl_shader_cvd_correction_uniforms cvd;
+	GLint cvd_correction_uniform;
 	union gl_shader_color_curve_uniforms color_pre_curve;
 	union gl_shader_color_mapping_uniforms color_mapping;
 	union gl_shader_color_curve_uniforms color_post_curve;
@@ -470,13 +465,10 @@ gl_shader_create(struct gl_renderer *gr,
 	}
 
 	if (requirements->color_effect == SHADER_COLOR_EFFECT_CVD_CORRECTION) {
-		shader->cvd.simulation_uniform =
-			glGetUniformLocation(shader->program, "color_cvd_simulation");
-		shader->cvd.redistribution_uniform =
-			glGetUniformLocation(shader->program, "color_cvd_redistribution");
+		shader->cvd_correction_uniform =
+			glGetUniformLocation(shader->program, "cvd_correction_matrix");
 	} else {
-		shader->cvd.simulation_uniform = -1;
-		shader->cvd.redistribution_uniform = -1;
+		shader->cvd_correction_uniform = -1;
 	}
 
 	get_curve_uniform_locations(gr, &shader->color_pre_curve,
@@ -871,14 +863,10 @@ gl_shader_load_config(struct gl_renderer *gr,
 			gl_texture_parameters_flush(gr, &sconf->input_param[i]);
 	}
 
-	if (shader->cvd.simulation_uniform)
-		glUniformMatrix3fv(shader->cvd.simulation_uniform,
+	if (shader->cvd_correction_uniform)
+		glUniformMatrix3fv(shader->cvd_correction_uniform,
 				   1, GL_FALSE,
-				   sconf->color_effect.cvd_correction.simulation.colmaj);
-	if (shader->cvd.redistribution_uniform)
-		glUniformMatrix3fv(shader->cvd.redistribution_uniform,
-				   1, GL_FALSE,
-				   sconf->color_effect.cvd_correction.redistribution.colmaj);
+				   sconf->color_effect.cvd_correction.colmaj);
 
 	/* Fixed texture unit for color_pre_curve LUT if it is available */
 	gl_shader_load_config_curve(gr->compositor, sconf->req.color_pre_curve,

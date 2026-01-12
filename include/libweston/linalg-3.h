@@ -212,6 +212,19 @@ weston_m3f_mul_m3f(struct weston_mat3f A, struct weston_mat3f B)
 	return result;
 }
 
+/** Element-wise matrix addition A + B */
+static inline struct weston_mat3f
+weston_m3f_add_m3f(struct weston_mat3f A, struct weston_mat3f B)
+{
+	struct weston_mat3f R;
+	unsigned i;
+
+	for (i = 0; i < 3 * 3; i++)
+		R.colmaj[i] = A.colmaj[i] + B.colmaj[i];
+
+	return R;
+}
+
 /** Element-wise matrix subtraction A - B */
 static inline struct weston_mat3f
 weston_m3f_sub_m3f(struct weston_mat3f A, struct weston_mat3f B)

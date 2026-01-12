@@ -7643,6 +7643,7 @@ weston_output_color_effect_cvd_correction(struct weston_output *output,
 {
 	struct weston_compositor *compositor = output->compositor;
 	struct weston_cvd_correction *cvd;
+	struct weston_mat3f simul, redist;
 	float correction_factor = 0.7f; /* TODO: allow tweaking this from ini */
 
 	/**
@@ -7681,8 +7682,22 @@ weston_output_color_effect_cvd_correction(struct weston_output *output,
 	 *
 	 * color = original + correction_factor * (redistribution_matrix * error)
 	 *
-	 * We pre-multiply the redistribution matrix by this correction_factor
-	 * here just to avoid carrying the coefficient.
+	 * We collapse everything into a single matrix to avoid multiple matrix
+	 * operations per pixel in the renderers:
+	 *
+	 * Let:
+	 * R = correction_factor * redistribution_matrix
+	 * S = simulation_matrix
+	 * X = original
+	 * I = identity
+	 *
+	 * Note that we multiply redistribution_matrix by correction_factor
+	 * to simplify the equations.
+	 *
+	 * Y = X + RE
+	 * Y = X + R * (X - SX)
+	 * Y = X + RX - RSX
+	 * Y = (I + R - RS) * X
 	 *
 	 * [1] https://mk.bcgsc.ca/colorblind/math.mhtml#projecthome
 	 * [2] https://daltonlens.org/colorblindness-simulator
@@ -7709,37 +7724,38 @@ weston_output_color_effect_cvd_correction(struct weston_output *output,
 	 */
 	switch (cvd->type) {
 	case WESTON_CVD_CORRECTION_TYPE_DEUTERANOPIA:
-		cvd->simulation = WESTON_MAT3F( 0.367322, 0.860646, -0.227968,
-						0.280085, 0.672501,  0.047413,
-					       -0.011820, 0.042940,  0.968881);
-		cvd->redistribution = WESTON_MAT3F(1.0, 0.5, 0.0, /* redistribute green */
-						   0.0, 0.0, 0.0,
-						   0.0, 0.5, 1.0);
-		cvd->redistribution = weston_m3f_mul_scalar(cvd->redistribution,
-							    correction_factor);
-		return;
+		simul = WESTON_MAT3F( 0.367322, 0.860646, -0.227968,
+				      0.280085, 0.672501,  0.047413,
+				     -0.011820, 0.042940,  0.968881);
+		redist = WESTON_MAT3F(1.0, 0.5, 0.0, /* redistribute green */
+				      0.0, 0.0, 0.0,
+				      0.0, 0.5, 1.0);
+		goto out;
 	case WESTON_CVD_CORRECTION_TYPE_PROTANOPIA:
-		cvd->simulation = WESTON_MAT3F( 0.152286,  1.052583, -0.204868,
-						0.114503,  0.786281,  0.099216,
-					       -0.003882, -0.048116,  1.051998);
-		cvd->redistribution = WESTON_MAT3F(0.0, 0.0, 0.0, /* redistribute red */
-						   0.5, 1.0, 0.0,
-						   0.5, 0.0, 1.0);
-		cvd->redistribution = weston_m3f_mul_scalar(cvd->redistribution,
-							    correction_factor);
-		return;
+		simul = WESTON_MAT3F( 0.152286,  1.052583, -0.204868,
+				      0.114503,  0.786281,  0.099216,
+				     -0.003882, -0.048116,  1.051998);
+		redist = WESTON_MAT3F(0.0, 0.0, 0.0, /* redistribute red */
+				      0.5, 1.0, 0.0,
+				      0.5, 0.0, 1.0);
+		goto out;
 	case WESTON_CVD_CORRECTION_TYPE_TRITANOPIA:
-		cvd->simulation = WESTON_MAT3F( 1.255528, -0.076749, -0.178779,
-					       -0.078411,  0.930809,  0.147602,
-						0.004733,  0.691367,  0.303900);
-		cvd->redistribution = WESTON_MAT3F(1.0, 0.0, 0.5, /* redistribute blue */
-						   0.0, 1.0, 0.5,
-						   0.0, 0.0, 0.0);
-		cvd->redistribution = weston_m3f_mul_scalar(cvd->redistribution,
-							    correction_factor);
-		return;
+		simul = WESTON_MAT3F( 1.255528, -0.076749, -0.178779,
+				     -0.078411,  0.930809,  0.147602,
+				      0.004733,  0.691367,  0.303900);
+		redist = WESTON_MAT3F(1.0, 0.0, 0.5, /* redistribute blue */
+				      0.0, 1.0, 0.5,
+				      0.0, 0.0, 0.0);
+		goto out;
 	}
 	weston_assert_not_reached(compositor, "unknown color correction type");
+
+out:
+	/* Y = (I + RS - R) * X */
+	redist = weston_m3f_mul_scalar(redist, correction_factor);
+	cvd->correction = weston_m3f_add_m3f(WESTON_MAT3F_IDENTITY, redist);
+	cvd->correction = weston_m3f_sub_m3f(cvd->correction,
+					     weston_m3f_mul_m3f(redist, simul));
 }
 
 /** Removes output from compositor's list of enabled outputs
