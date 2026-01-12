@@ -924,6 +924,11 @@ drm_output_propose_state(struct weston_output *output_base,
 		struct weston_paint_node *pnode;
 		bool found_primary = false;
 
+		if (device->state_invalid) {
+			debug_propose_fail(output, mode, "invalid state");
+			return NULL;
+		}
+
 		if (output->state_cur->mode == DRM_OUTPUT_PROPOSE_STATE_INVALID) {
 			debug_propose_fail(output, mode, "no previous state");
 			return NULL;
