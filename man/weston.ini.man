@@ -415,7 +415,11 @@ image does not get cropped. Tile repeats the background image to fill the output
 .TP 7
 .BI "background-color=" 0xRRGGBB
 sets the color of the background (unsigned integer). The hexadecimal
-digit pairs are in order red, green, and blue.
+digit pairs are in order red, green, and blue. To maintain backward compatibility,
+0xAARRGGBB format values are allowed, but AA is ignored and the background is
+always solid. Since a background color of 0 means no background color, a black
+background can be specified as
+.BR "0xff000000" .
 .TP 7
 .BI "clock-format=" format
 sets the panel clock format (string). Can be
