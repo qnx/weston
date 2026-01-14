@@ -3750,8 +3750,22 @@ weston_output_repaint(struct weston_output *output)
 	output->desired_protection = highest_requested;
 
 	wl_list_for_each(pnode, &output->paint_node_z_order_list,
-			 z_order_link)
+			 z_order_link) {
+
+		/* we can't place this after paint_node_update_early() as the
+		 * paint node status would be cleared after the early update;
+		 *
+		 * note that this isn't perfect as the paint node visibly might
+		 * change in output_update_visibility() such that this
+		 * information would be a frame late of the actual visibility
+		 * status. On the next frame this would be correct to actual
+		 * reflect that. */
+		if (pnode->status & WESTON_PAINT_NODE_BUFFER_DIRTY &&
+		    pixman_region32_not_empty(&pnode->visible))
+			pnode->surface->painted_frame_counter++;
+
 		paint_node_update_early(pnode);
+	}
 
 	output_update_visibility(output);
 
@@ -3759,15 +3773,6 @@ weston_output_repaint(struct weston_output *output)
 
 	wl_list_for_each(pnode, &output->paint_node_z_order_list,
 			 z_order_link) {
-
-		/* we can't place this in the last paint node iteration list
-		 * because the paint node status are cleared after the late
-		 * update and in the same time we'd still need to check for
-		 * paint node occlusion */
-		if (pnode->status & WESTON_PAINT_NODE_BUFFER_DIRTY &&
-		    pixman_region32_not_empty(&pnode->visible))
-			pnode->surface->painted_frame_counter++;
-
 		paint_node_update_late(pnode);
 	}
 
