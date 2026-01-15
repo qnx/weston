@@ -9773,6 +9773,8 @@ weston_compositor_print_scene_graph(struct weston_compositor *ec)
 	size_t len;
 	int err;
 
+	WESTON_TRACE_FUNC();
+
 	fp = open_memstream(&ret, &len);
 	assert(fp);
 
