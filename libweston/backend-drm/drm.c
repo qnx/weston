@@ -3493,6 +3493,9 @@ drm_writeback_populate_formats(struct drm_writeback *wb)
 	for (i = 0; i < blob->length / sizeof(uint32_t); i++) {
 		struct weston_drm_format *fmt;
 
+		if (!pixel_format_get_info(blob_formats[i]))
+			continue;
+
 		fmt = weston_drm_format_array_add_format(&wb->formats,
 							 blob_formats[i]);
 		if (fmt == NULL ||
