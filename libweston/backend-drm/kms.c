@@ -736,6 +736,7 @@ drm_output_assign_state(struct drm_output_state *state,
 		drm_debug(b, "\t[CRTC:%u] setting pending flip\n",
 			  output->crtc->crtc_id);
 		output->atomic_complete_pending = true;
+		device->atomic_completes_pending++;
 	}
 
 	if (device->atomic_modeset &&
@@ -1925,6 +1926,9 @@ atomic_flip_handler(int fd, unsigned int frame, unsigned int sec,
 	drm_debug(b, "[atomic][CRTC:%u] flip processing completed\n", crtc_id);
 	drm_debug(b, "[atomic][CRTC:%u] %.2f page flips computed in %d seconds\n",
 			crtc_id, page_flips_per_timer_interval, frame_counter_interval);
+
+	assert(device->atomic_completes_pending > 0);
+	device->atomic_completes_pending--;
 }
 
 int

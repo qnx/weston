@@ -196,6 +196,8 @@ struct drm_device {
 
 	bool state_invalid;
 
+	int32_t atomic_completes_pending;
+
 	bool atomic_modeset;
 
 	bool tearing_supported;
