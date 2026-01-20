@@ -505,6 +505,9 @@ handle_touch_up(struct libinput_device *libinput_device,
 	struct timespec time;
 	int32_t slot = libinput_event_touch_get_seat_slot(touch_event);
 
+	if (!device->output)
+		return;
+
 	timespec_from_usec(&time,
 			   libinput_event_touch_get_time_usec(touch_event));
 
