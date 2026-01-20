@@ -380,8 +380,8 @@ dmabuf_feedback_maybe_update(struct drm_device *device, struct weston_view *ev,
 		scanout_tranche->active = false;
 	}
 
-	/* Direct scanout won't happen even if client re-allocates using
-	 * params from the scanout tranche, so keep only the renderer tranche. */
+	/* Direct scanout won't happen even if client re-allocates using params
+	 * from the scanout tranche, so keep only the renderer tranche. */
 	if (try_view_on_plane_failure_reasons & (FAILURE_REASONS_FORCE_RENDERER |
 						 FAILURE_REASONS_NO_PLANES_AVAILABLE |
 						 FAILURE_REASONS_INADEQUATE_CONTENT_PROTECTION |
@@ -396,16 +396,17 @@ dmabuf_feedback_maybe_update(struct drm_device *device, struct weston_view *ev,
 						 FAILURE_REASONS_OCCLUDED_BY_RENDERER |
 						 FAILURE_REASONS_OUTPUT_COLOR_EFFECT)) {
 		action_needed = ACTION_NEEDED_REMOVE_SCANOUT_TRANCHE;
-	/* Direct scanout may be possible if client re-allocates using the
-	 * params from the scanout tranche. */
 	} else if (try_view_on_plane_failure_reasons & (FAILURE_REASONS_ADD_FB_FAILED |
+		/* Direct scanout may be possible if client re-allocates using
+		 * the params from the scanout tranche. */
 							FAILURE_REASONS_FB_FORMAT_INCOMPATIBLE |
 							FAILURE_REASONS_DMABUF_MODIFIER_INVALID |
 							FAILURE_REASONS_GBM_BO_IMPORT_FAILED |
 							FAILURE_REASONS_GBM_BO_GET_HANDLE_FAILED)) {
 		action_needed = ACTION_NEEDED_ADD_SCANOUT_TRANCHE;
-	/* Direct scanout is already possible, so include the scanout tranche. */
 	} else if (try_view_on_plane_failure_reasons == FAILURE_REASONS_NONE) {
+		/* Direct scanout is already possible, so include the scanout
+		 * tranche. */
 		action_needed = ACTION_NEEDED_ADD_SCANOUT_TRANCHE;
 	}
 
@@ -430,11 +431,11 @@ dmabuf_feedback_maybe_update(struct drm_device *device, struct weston_view *ev,
 		clock_gettime(CLOCK_MONOTONIC, &dmabuf_feedback->timer);
 		dmabuf_feedback->action_needed = action_needed;
 		return;
-	/* Timer is already on and the action needed when it was set to on does
-	 * not conflict with the most recent needed action we've detected. If
-	 * more than MAX_TIME_SECONDS has passed, we need to resend the dma-buf
-	 * feedback. Otherwise, return and leave the timer running. */
 	} else {
+		/* Timer is already on and the action needed when it was set to on does
+		 * not conflict with the most recent needed action we've detected. If
+		 * more than MAX_TIME_SECONDS has passed, we need to resend the dma-buf
+		 * feedback. Otherwise, return and leave the timer running. */
 		clock_gettime(CLOCK_MONOTONIC, &current_time);
 		delta_time.tv_sec = current_time.tv_sec -
 				    dmabuf_feedback->timer.tv_sec;
