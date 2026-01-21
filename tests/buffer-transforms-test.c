@@ -160,3 +160,54 @@ TEST_P(buffer_transform, my_buffer_args)
 
 	return RESULT_OK;
 }
+
+TEST_P(buffer_transform_split, my_buffer_args)
+{
+	const struct buffer_args *bargs = data;
+	const struct setup_args *oargs;
+	struct client *client;
+	bool match;
+	char *refname;
+	int ret;
+
+	oargs = &my_setup_args[get_test_fixture_index()];
+
+	ret = asprintf(&refname, "output_%d-%s_buffer_%d-%s",
+		       oargs->scale, oargs->transform_name,
+		       bargs->scale, bargs->transform_name);
+	test_assert_int_gt(ret, 0);
+
+	testlog("%s: %s\n", get_test_name(), refname);
+
+	/*
+	 * NOTE! The transform set below is a lie.
+	 * Take that into account when analyzing screenshots.
+	 */
+
+	client = create_client();
+	client->surface = create_test_surface(client);
+	client->surface->width = 10000; /* used only for damage */
+	client->surface->height = 10000;
+	client->surface->buffer = client_buffer_from_image_file(client,
+							"basic-test-card",
+							bargs->scale);
+	move_client(client, 19, 19);
+
+        /*
+         * Commit scale and transform separately. Otherwise identical to the
+         * 'buffer_transform' test so the same validation images can be used.
+         */
+        wl_surface_set_buffer_scale(client->surface->wl_surface, bargs->scale);
+	wl_surface_set_buffer_transform(client->surface->wl_surface,
+					bargs->transform);
+	wl_surface_commit(client->surface->wl_surface);
+
+	match = verify_screen_content(client, refname, 0, NULL, 0, NULL,
+				      NO_DECORATIONS);
+	test_assert_true(match);
+
+	client_destroy(client);
+	free(refname);
+
+	return RESULT_OK;
+}

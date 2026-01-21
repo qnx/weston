@@ -394,6 +394,14 @@ weston_surface_apply_state(struct weston_surface *surface,
 					   &state->buffer_release_ref);
 
 		status |= weston_surface_attach(surface, state, status);
+	} else if (status & WESTON_SURFACE_DIRTY_SIZE && surface->buffer_ref.buffer) {
+		bool size_ok;
+
+		size_ok = convert_buffer_size_by_transform_scale(&surface->width_from_buffer,
+								 &surface->height_from_buffer,
+								 surface->buffer_ref.buffer,
+								 &state->buffer_viewport);
+		weston_assert_true(surface->compositor, size_ok);
 	}
 	weston_buffer_reference(&state->buffer_ref, NULL,
 				BUFFER_WILL_NOT_BE_ACCESSED);
