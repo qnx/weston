@@ -41,6 +41,7 @@
 #include "shared/hash.h"
 #include "shared/helpers.h"
 #include "shared/weston-drm-fourcc.h"
+#include "shared/weston-assert.h"
 #include "drm-internal.h"
 #include "linux-dmabuf.h"
 
@@ -190,6 +191,8 @@ drm_fb_maybe_import(struct drm_device *device, struct drm_fb *fb)
 		return 0;
 
 	if (fb->bo) {
+		weston_assert_false(device->backend->compositor, fb->direct_display);
+
 		/* No import necessary, if the gbm bo and the fb use the same device */
 		gbm_device = gbm_bo_get_device(fb->bo);
 		if (gbm_device_get_fd(gbm_device) == fb->fd)
@@ -202,10 +205,11 @@ drm_fb_maybe_import(struct drm_device *device, struct drm_fb *fb)
 		}
 
 		num_planes = gbm_bo_get_plane_count(fb->bo);
-	}
+	} else {
+		weston_assert_true(device->backend->compositor, fb->direct_display);
 
-	if (fb->direct_display)
 		num_planes = fb->num_planes;
+	}
 
 	for (plane = 0; plane < num_planes; plane++) {
 		ret = drm_fb_import_plane(device, fb, plane);
