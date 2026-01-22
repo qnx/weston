@@ -47,35 +47,20 @@ struct test_context;
 struct runner_test {
 	const char *name;
 	void (*run)(struct test_context *);
-} __attribute__ ((aligned (64)));
+};
 
 #define RUNNER_TEST(name)					\
 	static void runner_func_##name(struct test_context *);	\
 								\
-	const struct runner_test runner_test_##name		\
-		__attribute__ ((used, section ("plugin_test_section"))) = \
+	static const struct runner_test runner_test_##name =	\
 	{							\
 		#name, runner_func_##name			\
 	};							\
 								\
 	static void runner_func_##name(struct test_context *ctx)
 
-extern const struct runner_test __start_plugin_test_section;
-extern const struct runner_test __stop_plugin_test_section;
-
 static const struct runner_test *
-find_runner_test(const char *name)
-{
-	const struct runner_test *t;
-
-	for (t = &__start_plugin_test_section;
-	     t < &__stop_plugin_test_section; t++) {
-		if (strcmp(t->name, name) == 0)
-			return t;
-	}
-
-	return NULL;
-}
+find_runner_test(const char *name);
 
 struct test_context {
 	const struct ivi_layout_interface *layout_interface;
@@ -945,4 +930,58 @@ RUNNER_TEST(surface_remove_notification_p2)
 RUNNER_TEST(surface_remove_notification_p3)
 {
 	runner_assert(ctx->user_flags == 0);
+}
+
+/*
+ * list extracted with:
+ * sed -n -E 's/RUNNER_TEST\((.*)\)/\&runner_test_\1,/ p' tests/ivi-layout-test-plugin.c
+ */
+static const struct runner_test *runner_test_index[] = {
+	&runner_test_surface_create_p1,
+	&runner_test_surface_create_p2,
+	&runner_test_surface_visibility,
+	&runner_test_surface_opacity,
+	&runner_test_surface_dimension,
+	&runner_test_surface_position,
+	&runner_test_surface_destination_rectangle,
+	&runner_test_surface_source_rectangle,
+	&runner_test_surface_bad_opacity,
+	&runner_test_surface_on_many_layer,
+	&runner_test_ivi_layout_commit_changes,
+	&runner_test_commit_changes_after_visibility_set_surface_destroy,
+	&runner_test_commit_changes_after_opacity_set_surface_destroy,
+	&runner_test_commit_changes_after_source_rectangle_set_surface_destroy,
+	&runner_test_commit_changes_after_destination_rectangle_set_surface_destroy,
+	&runner_test_get_surface_after_destroy_surface,
+	&runner_test_layer_render_order,
+	&runner_test_test_layer_render_order_destroy_one_surface_p1,
+	&runner_test_test_layer_render_order_destroy_one_surface_p2,
+	&runner_test_layer_add_surfaces,
+	&runner_test_commit_changes_after_render_order_set_surface_destroy,
+	&runner_test_cleanup_layer,
+	&runner_test_surface_properties_changed_notification,
+	&runner_test_surface_configure_notification_p1,
+	&runner_test_surface_configure_notification_p2,
+	&runner_test_surface_configure_notification_p3,
+	&runner_test_surface_create_notification_p1,
+	&runner_test_surface_create_notification_p2,
+	&runner_test_surface_create_notification_p3,
+	&runner_test_surface_remove_notification_p1,
+	&runner_test_surface_remove_notification_p2,
+	&runner_test_surface_remove_notification_p3,
+};
+
+static const struct runner_test *
+find_runner_test(const char *name)
+{
+	const struct runner_test *t;
+	size_t i;
+
+	for (i = 0; i < ARRAY_LENGTH(runner_test_index); i++) {
+		t = runner_test_index[i];
+		if (strcmp(t->name, name) == 0)
+			return t;
+	}
+
+	return NULL;
 }
