@@ -74,6 +74,64 @@
 
 static const char default_seat[] = "seat0";
 
+void
+drm_device_recovery_schedule(struct drm_device *device)
+{
+	struct drm_backend *backend = device->backend;
+	struct weston_compositor *compositor = backend->compositor;
+
+	assert(device->recovery_status == DRM_RECOVERY_WAIT_FOR_IDLE);
+	assert(!device->atomic_completes_pending);
+
+	device->recovery_status = DRM_RECOVERY_SCHEDULED;
+
+	/* Perhaps a little aggressive if there are multiple backends,
+	 * but we're probably not too interested in optimal performance
+	 * if we need to regenerate this backend's state from scratch.
+	 */
+	weston_compositor_damage_all(compositor);
+
+	/* Without atomics, the first head to repaint is a recovery */
+	if (!device->atomic_modeset)
+		return;
+
+	/* We've scheduled updates on everything we know about, so defer anything
+	 * else until that completes.
+	 */
+	weston_backend_set_deferred(&backend->base);
+}
+
+void
+drm_device_recovery_required(struct drm_device *device)
+{
+	if (device->recovery_status != DRM_RECOVERY_UNNECESSARY)
+		return;
+
+	device->recovery_status = DRM_RECOVERY_WAIT_FOR_IDLE;
+
+	if (device->atomic_completes_pending)
+		return;
+
+	drm_device_recovery_schedule(device);
+}
+
+void
+drm_device_recovery_complete(struct drm_device *device)
+{
+	struct drm_backend *backend = device->backend;
+	struct weston_compositor *compositor = backend->compositor;
+
+	assert(device->recovery_status == DRM_RECOVERY_APPLIED);
+
+	device->recovery_status = DRM_RECOVERY_UNNECESSARY;
+
+	/* Without atomics, we didn't defer anything, so bail now. */
+	if (!device->atomic_modeset)
+		return;
+
+	weston_backend_clear_deferred(&backend->base, compositor);
+}
+
 static void
 drm_backend_create_faked_zpos(struct drm_device *device)
 {
@@ -950,16 +1008,26 @@ drm_output_start_repaint_loop(struct weston_output *output_base)
 	if (output->disable_pending || output->destroy_pending)
 		return 0;
 
+	/* Need to smash all state in from scratch; current timings might not
+	 * be what we want, page flip might not work, etc.
+	 */
+	if (device->recovery_status == DRM_RECOVERY_WAIT_FOR_IDLE) {
+		/* We'll become part of a scheduled recovery after any
+		 * outstanding operations complete.
+		 */
+		if (device->atomic_completes_pending)
+			return 0;
+
+		drm_device_recovery_schedule(device);
+	}
+
+	if (device->recovery_status == DRM_RECOVERY_SCHEDULED)
+		goto finish_frame;
+
 	if (!scanout_plane->state_cur->fb) {
 		/* We can't page flip if there's no mode set */
 		goto finish_frame;
 	}
-
-	/* Need to smash all state in from scratch; current timings might not
-	 * be what we want, page flip might not work, etc.
-	 */
-	if (device->state_invalid)
-		goto finish_frame;
 
 	assert(scanout_plane->state_cur->output == output);
 
@@ -1237,7 +1305,7 @@ drm_output_apply_mode(struct drm_output *output)
 	 *      sledgehammer modeswitch first, and only later showing new
 	 *      content.
 	 */
-	device->state_invalid = true;
+	drm_device_recovery_required(device);
 
 	fb_size.width = output->base.current_mode->width;
 	fb_size.height = output->base.current_mode->height;
@@ -1951,9 +2019,7 @@ drm_output_attach_head(struct weston_output *output_base,
 	/* XXX: Doing it globally, what guarantees another output's update
 	 * will not clear the flag before this output is updated?
 	 */
-	device->state_invalid = true;
-
-	weston_output_schedule_repaint(output_base);
+	drm_device_recovery_required(device);
 
 	return 0;
 }
@@ -3685,19 +3751,10 @@ drm_backend_update_connector(struct drm_device *device,
 		 * but we Weston has it enabled, finishing finally with Weston
 		 * not doing anything to re-enable the output */
 		if (!head->base.device_changed && head->base.connected) {
-
 			drm_debug(b, "\t[CONN:%d] Invalid state detected.\n",
 				  connector_id);
-			device->state_invalid = true;
 
-			/* schedule an output repaint on enabled outputs */
-			if (weston_head_is_enabled(&head->base)) {
-				struct weston_output *output =
-					weston_head_get_output(&head->base);
-				drm_debug(b, "\t[CONN:%d] scheduling output "
-					      "repaint on output %s\n", connector_id, output->name);
-				weston_output_schedule_repaint(output);
-			}
+			drm_device_recovery_required(device);
 		}
 	} else if (writeback) {
 		ret = drm_writeback_update_info(writeback, conn);
@@ -4031,8 +4088,7 @@ session_notify(struct wl_listener *listener, void *data)
 	if (compositor->session_active) {
 		weston_log("activating session\n");
 		weston_compositor_wake(compositor);
-		weston_compositor_damage_all(compositor);
-		device->state_invalid = true;
+		drm_device_recovery_required(device);
 		udev_input_enable(&b->input);
 	} else {
 		weston_log("deactivating session\n");
@@ -4403,7 +4459,7 @@ drm_device_create(struct drm_backend *backend, const char *name)
 	device = zalloc(sizeof *device);
 	if (device == NULL)
 		return NULL;
-	device->state_invalid = true;
+	device->recovery_status = DRM_RECOVERY_SCHEDULED;
 	device->drm.fd = -1;
 	device->backend = backend;
 	device->gem_handle_refcnt = hash_table_create();
@@ -4517,7 +4573,8 @@ drm_backend_create(struct weston_compositor *compositor,
 	device = zalloc(sizeof *device);
 	if (device == NULL)
 		goto err_backend;
-	device->state_invalid = true;
+
+	device->recovery_status = DRM_RECOVERY_SCHEDULED;
 	device->drm.fd = -1;
 	device->backend = b;
 	device->gem_handle_refcnt = hash_table_create();

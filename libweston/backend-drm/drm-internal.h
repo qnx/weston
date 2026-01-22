@@ -169,6 +169,13 @@ enum drm_plane_subtype {
 	PLANE_SUBTYPE_BOTH = 2,
 };
 
+enum drm_recovery_status {
+	DRM_RECOVERY_UNNECESSARY = 0,
+	DRM_RECOVERY_WAIT_FOR_IDLE = 1,
+	DRM_RECOVERY_SCHEDULED = 2,
+	DRM_RECOVERY_APPLIED = 3,
+};
+
 struct drm_device {
 	struct drm_backend *backend;
 
@@ -194,7 +201,7 @@ struct drm_device {
 
 	bool will_repaint;
 
-	bool state_invalid;
+	enum drm_recovery_status recovery_status;
 
 	int32_t atomic_completes_pending;
 
@@ -648,6 +655,15 @@ to_drm_head(struct weston_head *base)
 		return NULL;
 	return container_of(base, struct drm_head, base);
 }
+
+void
+drm_device_recovery_schedule(struct drm_device *device);
+
+void
+drm_device_recovery_required(struct drm_device *device);
+
+void
+drm_device_recovery_complete(struct drm_device *device);
 
 void
 drm_writeback_reference_planes(struct drm_writeback_state *state,

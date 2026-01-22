@@ -919,7 +919,7 @@ drm_output_apply_state_legacy(struct drm_output_state *state)
 	assert(scanout_state->in_fence_fd == -1);
 
 	mode = to_drm_mode(output->base.current_mode);
-	if (device->state_invalid ||
+	if (device->recovery_status == DRM_RECOVERY_SCHEDULED ||
 	    !scanout_plane->state_cur->fb ||
 	    scanout_plane->state_cur->fb->strides[0] !=
 	    scanout_state->fb->strides[0]) {
@@ -1528,7 +1528,7 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
 		break;
 	}
 
-	if (device->state_invalid) {
+	if (device->recovery_status == DRM_RECOVERY_SCHEDULED) {
 		struct weston_head *head_base;
 		struct drm_head *head;
 		struct drm_crtc *crtc;
@@ -1664,7 +1664,11 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
 			      link)
 		drm_output_assign_state(output_state, mode);
 
-	device->state_invalid = false;
+	if (device->recovery_status == DRM_RECOVERY_SCHEDULED) {
+		device->recovery_status = DRM_RECOVERY_APPLIED;
+		if (mode == DRM_STATE_APPLY_SYNC)
+			drm_device_recovery_complete(device);
+	}
 
 	assert(wl_list_empty(&pending_state->output_list));
 
@@ -1692,8 +1696,8 @@ out_test_only:
  * claim it will work.
  *
  * Unlike drm_pending_state_apply() and drm_pending_state_apply_sync(), this
- * function does _not_ take ownership of pending_state, nor does it clear
- * state_invalid.
+ * function does _not_ take ownership of pending_state, nor does it complete
+ * a state recovery.
  */
 int
 drm_pending_state_test(struct drm_pending_state *pending_state)
@@ -1714,7 +1718,8 @@ drm_pending_state_test(struct drm_pending_state *pending_state)
  * applying KMS state to a device. Updates the state for all outputs in the
  * pending_state, as well as disabling any unclaimed outputs.
  *
- * Unconditionally takes ownership of pending_state, and clears state_invalid.
+ * Unconditionally takes ownership of pending_state, and moves along any
+ * scheduled state recovery.
  */
 int
 drm_pending_state_apply(struct drm_pending_state *pending_state)
@@ -1723,6 +1728,7 @@ drm_pending_state_apply(struct drm_pending_state *pending_state)
 	struct drm_backend *b = device->backend;
 	struct drm_output_state *output_state, *tmp;
 	struct drm_crtc *crtc;
+	bool failed = false;
 
 	if (wl_list_empty(&pending_state->output_list)) {
 		drm_pending_state_free(pending_state);
@@ -1733,7 +1739,7 @@ drm_pending_state_apply(struct drm_pending_state *pending_state)
 		return drm_pending_state_apply_atomic(pending_state,
 						      DRM_STATE_APPLY_ASYNC);
 
-	if (device->state_invalid) {
+	if (device->recovery_status == DRM_RECOVERY_SCHEDULED) {
 		/* If we need to reset all our state (e.g. because we've
 		 * just started, or just been VT-switched in), explicitly
 		 * disable all the CRTCs we aren't using. This also disables
@@ -1765,7 +1771,7 @@ drm_pending_state_apply(struct drm_pending_state *pending_state)
 			weston_output_repaint_failed(&output->base);
 			drm_output_state_free(output->state_cur);
 			output->state_cur = drm_output_state_alloc(output);
-			device->state_invalid = true;
+			failed = true;
 			if (b->compositor->renderer->type == WESTON_RENDERER_GL) {
 				drm_output_fini_egl(output);
 				drm_output_init_egl(output, b);
@@ -1776,7 +1782,12 @@ drm_pending_state_apply(struct drm_pending_state *pending_state)
 		}
 	}
 
-	device->state_invalid = false;
+	if (device->recovery_status == DRM_RECOVERY_SCHEDULED) {
+		device->recovery_status = DRM_RECOVERY_APPLIED;
+		drm_device_recovery_complete(device);
+	}
+	if (failed)
+		drm_device_recovery_required(device);
 
 	assert(wl_list_empty(&pending_state->output_list));
 
@@ -1790,7 +1801,8 @@ drm_pending_state_apply(struct drm_pending_state *pending_state)
  * disable outputs. Does so synchronously: the request is guaranteed to have
  * completed on return, and the output will not be touched afterwards.
  *
- * Unconditionally takes ownership of pending_state, and clears state_invalid.
+ * Unconditionally takes ownership of pending_state, and moves along any
+ * scheduled state recovery.
  */
 int
 drm_pending_state_apply_sync(struct drm_pending_state *pending_state)
@@ -1798,12 +1810,13 @@ drm_pending_state_apply_sync(struct drm_pending_state *pending_state)
 	struct drm_device *device = pending_state->device;
 	struct drm_output_state *output_state, *tmp;
 	struct drm_crtc *crtc;
+	bool failed;
 
 	if (device->atomic_modeset)
 		return drm_pending_state_apply_atomic(pending_state,
 						      DRM_STATE_APPLY_SYNC);
 
-	if (device->state_invalid) {
+	if (device->recovery_status == DRM_RECOVERY_SCHEDULED) {
 		/* If we need to reset all our state (e.g. because we've
 		 * just started, or just been VT-switched in), explicitly
 		 * disable all the CRTCs we aren't using. This also disables
@@ -1826,10 +1839,16 @@ drm_pending_state_apply_sync(struct drm_pending_state *pending_state)
 		if (ret != 0) {
 			weston_log("Couldn't apply state for output %s\n",
 				   output_state->output->base.name);
+			failed = true;
 		}
 	}
 
-	device->state_invalid = false;
+	if (device->recovery_status == DRM_RECOVERY_SCHEDULED) {
+		device->recovery_status = DRM_RECOVERY_APPLIED;
+		drm_device_recovery_complete(device);
+	}
+	if (failed)
+		drm_device_recovery_required(device);
 
 	assert(wl_list_empty(&pending_state->output_list));
 
@@ -1929,6 +1948,21 @@ atomic_flip_handler(int fd, unsigned int frame, unsigned int sec,
 
 	assert(device->atomic_completes_pending > 0);
 	device->atomic_completes_pending--;
+
+	/* We've just completed a recovery operation. */
+	if (!device->atomic_completes_pending &&
+	    device->recovery_status == DRM_RECOVERY_APPLIED)
+		drm_device_recovery_complete(device);
+
+	/* We're in an invalid state but were waiting for outstanding flips
+	 * to complete before we could begin the recovery process
+	 */
+	if (!device->atomic_completes_pending &&
+	    device->recovery_status != DRM_RECOVERY_UNNECESSARY) {
+		assert(device->recovery_status == DRM_RECOVERY_WAIT_FOR_IDLE);
+
+		drm_device_recovery_schedule(device);
+	}
 }
 
 int
