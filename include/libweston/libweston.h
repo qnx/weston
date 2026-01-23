@@ -1556,6 +1556,7 @@ struct weston_compositor {
 
 	struct wl_listener client_created_listener;
 	uint64_t client_counter;
+	uint64_t internal_id_counter;
 };
 
 struct weston_solid_buffer_values {
@@ -1893,6 +1894,11 @@ struct weston_pointer_constraint {
 };
 
 struct weston_surface {
+	/** Derived from weston_client::internal_id_counter */
+	uint64_t internal_id;
+	/** Short unique name derived from weston_client::internal_name and internal_id */
+	char *internal_name;
+
 	struct wl_resource *resource;
 	struct wl_signal destroy_signal; /* callback argument: this surface */
 	struct weston_compositor *compositor;
@@ -2288,7 +2294,8 @@ weston_compositor_set_default_pointer_grab(struct weston_compositor *compositor,
 			const struct weston_pointer_grab_interface *interface);
 
 struct weston_surface *
-weston_surface_create(struct weston_compositor *compositor);
+weston_surface_create(struct weston_compositor *compositor,
+		      struct weston_client *client);
 
 void
 weston_surface_set_color_profile(struct weston_surface *surface,
@@ -2844,6 +2851,10 @@ void
 weston_client_set_internal_name(struct weston_client *client,
 				const char *fmt, ...)
 				__attribute__ ((format (printf, 2, 3)));
+
+uint64_t
+weston_client_new_internal_id(struct weston_compositor *compositor,
+			      struct weston_client *client);
 
 #ifdef  __cplusplus
 }

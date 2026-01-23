@@ -967,7 +967,8 @@ weston_surface_update_preferred_color_profile(struct weston_surface *surface)
 }
 
 WL_EXPORT struct weston_surface *
-weston_surface_create(struct weston_compositor *compositor)
+weston_surface_create(struct weston_compositor *compositor,
+		      struct weston_client *client)
 {
 	struct weston_surface *surface;
 
@@ -985,6 +986,10 @@ weston_surface_create(struct weston_compositor *compositor)
 	compositor->global_weston_surface_disambiguator++;
 	surface->s_id =
 		compositor->global_weston_surface_disambiguator;
+
+	surface->internal_id = weston_client_new_internal_id(compositor, client);
+	str_printf(&surface->internal_name, "%s-%" PRIu64,
+		   weston_client_get_internal_name(client), surface->internal_id);
 
 	surface->buffer_viewport.buffer.transform = WL_OUTPUT_TRANSFORM_NORMAL;
 	surface->buffer_viewport.buffer.scale = 1;
@@ -2764,6 +2769,7 @@ weston_surface_unref(struct weston_surface *surface)
 
 	wl_list_remove(&surface->fifo_barrier_link);
 
+	free(surface->internal_name);
 	free(surface);
 }
 
@@ -5213,9 +5219,10 @@ compositor_create_surface(struct wl_client *client,
 			  struct wl_resource *resource, uint32_t id)
 {
 	struct weston_compositor *ec = wl_resource_get_user_data(resource);
+	struct weston_client *wcl = weston_compositor_get_client(ec, client);
 	struct weston_surface *surface;
 
-	surface = weston_surface_create(ec);
+	surface = weston_surface_create(ec, wcl);
 	if (surface == NULL)
 		goto err;
 
@@ -10010,6 +10017,30 @@ weston_client_set_internal_name(struct weston_client *client,
 
 	if (ret < 0)
 		client->internal_name = NULL;
+}
+
+/** Allocate a new internal ID for an object of a client or the compositor
+ *
+ * Some object types have an internal ID for easy naming. The ID scope is the
+ * client. A compositor-wide unique name can be produced by combining the
+ * client ID and the object internal ID. Internal ID 0 is reserved.
+ * Internal IDs are never released nor recycled.
+ *
+ * \param compositor The compositor instance.
+ * \param client The client to allocate for, or NULL for the compositor itself.
+ * \return A non-zero previously unused internal ID.
+ *
+ * \ingroup client
+ */
+WL_EXPORT uint64_t
+weston_client_new_internal_id(struct weston_compositor *compositor,
+			      struct weston_client *client)
+{
+	if (client) {
+		return ++client->internal_id_counter;
+	} else {
+		return ++compositor->internal_id_counter;
+	}
 }
 
 /** Create the compositor.

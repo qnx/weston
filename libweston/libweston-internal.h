@@ -258,6 +258,8 @@ struct weston_client {
 	struct wl_listener wl_client_destroy_listener;
 	uint64_t internal_id;
 	char *internal_name;
+
+	uint64_t internal_id_counter;
 };
 
 bool

@@ -185,7 +185,7 @@ weston_shell_utils_curtain_create(struct weston_compositor *compositor,
 	if (curtain == NULL)
 		goto err;
 
-	surface = weston_surface_create(compositor);
+	surface = weston_surface_create(compositor, NULL);
 	if (surface == NULL)
 		goto err_curtain;
 
