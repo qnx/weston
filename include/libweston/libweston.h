@@ -1688,6 +1688,11 @@ struct weston_region {
  */
 
 struct weston_view {
+	/** Derived from weston_surface::view_id_counter */
+	uint64_t internal_id;
+	/** Short unique name derived from weston_surface::internal_name and internal_id */
+	char *internal_name;
+
 	struct weston_surface *surface;
 	struct wl_list surface_link;
 	struct wl_signal destroy_signal;
@@ -1923,6 +1928,7 @@ struct weston_surface {
 	void *renderer_state;
 
 	struct wl_list views;
+	uint64_t view_id_counter;
 
 	/*
 	 * Which output to vsync this surface to.

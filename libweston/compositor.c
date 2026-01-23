@@ -758,6 +758,10 @@ weston_view_create_internal(struct weston_surface *surface)
 	wl_list_init(&view->layer_link.link);
 	wl_list_init(&view->paint_node_list);
 
+	view->internal_id = ++surface->view_id_counter;
+	str_printf(&view->internal_name, "%s-%" PRIu64,
+		   surface->internal_name, view->internal_id);
+
 	view->alpha = 1.0;
 	pixman_region32_init(&view->transform.opaque);
 
@@ -2682,6 +2686,7 @@ weston_view_destroy(struct weston_view *view)
 
 	wl_list_remove(&view->surface_link);
 
+	free(view->internal_name);
 	free(view);
 }
 
