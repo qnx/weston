@@ -336,6 +336,8 @@ that repaints as soon as possible on capture requests only, not on damages.
 \fB\-\-lua\-script\fR=\fIscript\fR
 Override weston.ini lua\-script= with
 .IR script "."
+Path can be either absolute or relative using the current working
+directory.
 .
 .
 .\" ***************************************************************

@@ -501,7 +501,9 @@ sets the cursor theme (string).
 sets the cursor size (unsigned integer).
 .TP 7
 .BI "lua-script=" script
-sets the script for the lua shell.
+sets the Lua script which will be interpreted and executed when starting the
+lua-shell. Path can be either absolute or relative using the current working
+directory.
 .\"---------------------------------------------------------------------
 .SH "LAUNCHER SECTION"
 There can be multiple launcher sections, one for each launcher.
