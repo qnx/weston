@@ -2113,13 +2113,7 @@ wet_output_set_color_profile(struct weston_output *output,
 	} else if (parent_winsys_profile) {
 		cprof = weston_color_profile_ref(parent_winsys_profile);
 	} else {
-		/*
-		 * TODO: Once parametric color profiles are fully supported
-		 * and interoperable with ICC profiles, the default profile
-		 * would be created like this:
-		 * cprof = wet_create_output_color_profile(output, wc, "auto:");
-		 */
-		return 0;
+		cprof = wet_create_output_color_profile(output, wc, "auto:");
 	}
 
 	if (!cprof)

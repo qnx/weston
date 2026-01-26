@@ -583,11 +583,6 @@ on DRM, headless, wayland, and x11 backends, and for remoting and pipewire
 outputs.
 .TP 7
 .BI "color-profile=" name
-
-.B NOTE:
-This feature is not fully implemented yet, and therefore it is not expected to
-work.
-
 Color profiles describe how the display is assumed to behave. Knowing the
 display color behavior, Weston can adapt window contents to produce the
 presumed appearance. The option
@@ -605,7 +600,7 @@ section by referring to it by its
 value. Alternatively this key can use one of the special profile names that
 contain a colon (:).
 
-The default, once implemented, will be
+The default is
 .BR "color-profile=auto:" .
 
 The following special names are accepted:
