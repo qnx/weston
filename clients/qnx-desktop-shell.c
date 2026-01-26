@@ -95,6 +95,9 @@ struct desktop {
 	enum cursor_type grab_cursor;
 
 	int painted;
+
+	char *font_name;
+	bool show_watermark;
 };
 
 struct surface {
@@ -401,11 +404,37 @@ taskbar_redraw_handler(struct widget *widget, void *data)
 	cairo_surface_t *surface;
 	cairo_t *cr;
 	struct taskbar *taskbar = data;
+	static const size_t watermark_font_size = 14;
+	static const char *watermark_text = "Non-Commercial Use Only";
 
 	cr = widget_cairo_create(taskbar->widget);
 	cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
 	set_hex_color(cr, taskbar->color);
 	cairo_paint(cr);
+
+	if (taskbar->desktop->show_watermark) {
+		cairo_text_extents_t extents;
+		struct rectangle allocation;
+		int text_x;
+
+		widget_get_allocation(widget, &allocation);
+		cairo_select_font_face(cr, taskbar->desktop->font_name,
+				       CAIRO_FONT_SLANT_NORMAL,
+				       CAIRO_FONT_WEIGHT_NORMAL);
+		cairo_set_font_size(cr, watermark_font_size);
+		cairo_text_extents(cr, watermark_text, &extents);
+		text_x = allocation.width - extents.width - 5;
+
+		/* render the text in a colour, that is inverted with respect to taskbar colour,
+		 * to ensure visibility and maximize contrast */
+		cairo_set_source_rgba(cr,
+				      (1.0 - ((taskbar->color >> 16) & 0xff) / 255.0),
+				      (1.0 - ((taskbar->color >>  8) & 0xff) / 255.0),
+				      (1.0 - ((taskbar->color >>  0) & 0xff) / 255.0),
+				      0.5);
+		cairo_move_to(cr, text_x, allocation.height - 16);
+		cairo_show_text(cr, watermark_text);
+	}
 
 	cairo_destroy(cr);
 	surface = window_get_surface(taskbar->window);
@@ -1719,6 +1748,11 @@ desktop_destroy_outputs(struct desktop *desktop)
 	struct output *tmp;
 	struct output *output;
 
+	if (desktop->font_name) {
+		free(desktop->font_name);
+		desktop->font_name = NULL;
+	}
+
 	wl_list_for_each_safe(output, tmp, &desktop->outputs, link)
 		output_destroy(output);
 }
@@ -2047,11 +2081,26 @@ parse_clock_format(struct desktop *desktop, struct weston_config_section *s)
 	free(clock_format);
 }
 
+static void
+parse_desktop_properties(struct desktop *desktop)
+{
+	struct weston_config_section *s;
+
+	s = weston_config_get_section(desktop->config, "shell", NULL, NULL);
+	weston_config_section_get_bool(s, "locking", &desktop->locking, true);
+	weston_config_section_get_string(s, "font", &desktop->font_name, "Onest");
+	weston_config_section_get_bool(s, "show-watermark",
+				       &desktop->show_watermark, true);
+
+	parse_panel_position(desktop, s);
+	parse_taskbar_position(desktop, s);
+	parse_clock_format(desktop, s);
+}
+
 int main(int argc, char *argv[])
 {
 	struct desktop desktop = { 0 };
 	struct output *output;
-	struct weston_config_section *s;
 	const char *config_file;
 
 	desktop.unlock_task.run = unlock_dialog_finish;
@@ -2059,11 +2108,7 @@ int main(int argc, char *argv[])
 
 	config_file = weston_config_get_name_from_env();
 	desktop.config = weston_config_parse(config_file);
-	s = weston_config_get_section(desktop.config, "shell", NULL, NULL);
-	weston_config_section_get_bool(s, "locking", &desktop.locking, true);
-	parse_panel_position(&desktop, s);
-	parse_taskbar_position(&desktop, s);
-	parse_clock_format(&desktop, s);
+	parse_desktop_properties(&desktop);
 
 	desktop.display = display_create(&argc, argv);
 	if (desktop.display == NULL) {
