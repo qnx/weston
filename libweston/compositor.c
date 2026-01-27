@@ -9582,7 +9582,7 @@ weston_plane_failure_reasons_to_str(enum try_view_on_plane_failure_reasons failu
 	case FAILURE_REASONS_NO_GBM:			    return "no gbm";
 	case FAILURE_REASONS_GBM_BO_IMPORT_FAILED:	    return "gbm bo import failed";
 	case FAILURE_REASONS_GBM_BO_GET_HANDLE_FAILED:	    return "gbm bo get handle failed";
-	case FAILURE_REASONS_NO_COLOR_TRANSFORM:	    return "no color transform";
+	case FAILURE_REASONS_NO_COLOR_TRANSFORM:	    return "cannot off-load color transform";
 	case FAILURE_REASONS_SOLID_SURFACE:		    return "solid surface";
 	case FAILURE_REASONS_OCCLUDED_BY_RENDERER:	    return "occluded by renderer";
 	case FAILURE_REASONS_OUTPUT_COLOR_EFFECT:	    return "output contains color effect";
