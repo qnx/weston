@@ -863,7 +863,7 @@ gl_shader_load_config(struct gl_renderer *gr,
 			gl_texture_parameters_flush(gr, &sconf->input_param[i]);
 	}
 
-	if (shader->cvd_correction_uniform)
+	if (shader->cvd_correction_uniform != -1)
 		glUniformMatrix3fv(shader->cvd_correction_uniform,
 				   1, GL_FALSE,
 				   sconf->color_effect.cvd_correction.colmaj);
