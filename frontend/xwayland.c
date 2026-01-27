@@ -115,6 +115,7 @@ spawn_xserver(void *user_data, const char *display, int abstract_fd, int unix_fd
 	struct weston_config *config = wet_get_config(wxw->compositor);
 	struct weston_config_section *section;
 	struct wl_client *client;
+	struct weston_client *wcl;
 	struct wl_event_loop *loop;
 	struct custom_env child_env;
 	int no_cloexec_fds[5];
@@ -184,6 +185,10 @@ spawn_xserver(void *user_data, const char *display, int abstract_fd, int unix_fd
 		weston_log("Couldn't create client for Xwayland\n");
 		goto err_proc;
 	}
+
+	wcl = weston_compositor_get_client(wxw->compositor, client);
+	weston_client_set_internal_name(wcl, "(Xw)%" PRIu64,
+					weston_client_get_internal_id(wcl));
 
 	wxw->wm_fd = x11_wm_socket.fds[0];
 
