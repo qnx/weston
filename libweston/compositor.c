@@ -1888,8 +1888,8 @@ weston_view_update_transform_enable(struct weston_view *view)
 
 	if (weston_matrix_invert(inverse, matrix) < 0) {
 		/* Oops, bad total transformation, not invertible */
-		weston_log("error: weston_view %p"
-			" transformation not invertible.\n", view);
+		weston_log("error: weston_view %s"
+			   " transformation not invertible.\n", view->internal_name);
 		return -1;
 	}
 
@@ -2249,7 +2249,8 @@ weston_view_set_mask(struct weston_view *view,
 	}
 
 	if (view->geometry.parent) {
-		weston_log("view %p has a parent, clip forbidden!\n", view);
+		weston_log("view %s has a parent, clip forbidden!\n",
+			   view->internal_name);
 		return;
 	}
 
