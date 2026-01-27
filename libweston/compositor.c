@@ -9649,7 +9649,9 @@ debug_scene_view_print(FILE *fp, struct weston_view *view)
 		strcpy(desc, "[no description available]");
 	}
 	fprintf(fp, "\tView %s (role %s, PID %d, '%s'):\n",
-		view->internal_name, view->surface->role_name, pid, desc);
+		view->internal_name,
+		view->surface->role_name ?: "none",
+		pid, desc);
 
 	if (!weston_view_is_mapped(view))
 		fprintf(fp, "\t[view is not mapped!]\n");
