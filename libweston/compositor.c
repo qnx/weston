@@ -9630,29 +9630,26 @@ debug_scene_view_print_paint_node(FILE *fp,
 }
 
 static void
-debug_scene_view_print(FILE *fp, struct weston_view *view, int view_idx)
+debug_scene_view_print(FILE *fp, struct weston_view *view)
 {
 	struct weston_compositor *ec = view->surface->compositor;
 	struct weston_output *output;
 	char desc[512];
 	pixman_box32_t *box;
-	uint32_t surface_id = 0;
 	pid_t pid = 0;
 
 	if (view->surface->resource) {
 		struct wl_resource *resource = view->surface->resource;
 		wl_client_get_credentials(wl_resource_get_client(resource),
 					  &pid, NULL, NULL);
-		surface_id = wl_resource_get_id(view->surface->resource);
 	}
 
 	if (!view->surface->get_label ||
 	    view->surface->get_label(view->surface, desc, sizeof(desc)) < 0) {
 		strcpy(desc, "[no description available]");
 	}
-	fprintf(fp, "\tView %d (role %s, PID %d, surface ID %u, %s, %p):\n",
-		view_idx, view->surface->role_name, pid, surface_id,
-		desc, view);
+	fprintf(fp, "\tView %s (role %s, PID %d, '%s'):\n",
+		view->internal_name, view->surface->role_name, pid, desc);
 
 	if (!weston_view_is_mapped(view))
 		fprintf(fp, "\t[view is not mapped!]\n");
@@ -9708,8 +9705,7 @@ debug_scene_view_print(FILE *fp, struct weston_view *view, int view_idx)
 }
 
 static void
-debug_scene_view_print_tree(struct weston_view *view,
-			    FILE *fp, int *view_idx)
+debug_scene_view_print_tree(struct weston_view *view, FILE *fp)
 {
 	struct weston_subsurface *sub;
 	struct weston_view *ev;
@@ -9718,7 +9714,7 @@ debug_scene_view_print_tree(struct weston_view *view,
 	 * print the view first, then we recursively go on printing
 	 * sub-surfaces. We bail out once no more sub-surfaces are available.
 	 */
-	debug_scene_view_print(fp, view, *view_idx);
+	debug_scene_view_print(fp, view);
 
 	/* no more sub-surfaces */
 	if (wl_list_empty(&view->surface->subsurface_list))
@@ -9730,8 +9726,7 @@ debug_scene_view_print_tree(struct weston_view *view,
 			if (ev->parent_view != view)
 				continue;
 
-			(*view_idx)++;
-			debug_scene_view_print_tree(ev, fp, view_idx);
+			debug_scene_view_print_tree(ev, fp);
 		}
 	}
 }
@@ -9810,7 +9805,6 @@ weston_compositor_print_scene_graph(struct weston_compositor *ec)
 
 	wl_list_for_each(layer, &ec->layer_list, link) {
 		struct weston_view *view;
-		int view_idx = 0;
 
 		fprintf(fp, "Layer %d (pos 0x%lx):\n", layer_idx++,
 			(unsigned long) layer->position);
@@ -9821,10 +9815,8 @@ weston_compositor_print_scene_graph(struct weston_compositor *ec)
 				layer->mask.x2, layer->mask.y2);
 		}
 
-		wl_list_for_each(view, &layer->view_list.link, layer_link.link) {
-			debug_scene_view_print_tree(view, fp, &view_idx);
-			view_idx++;
-		}
+		wl_list_for_each(view, &layer->view_list.link, layer_link.link)
+			debug_scene_view_print_tree(view, fp);
 
 		if (wl_list_empty(&layer->view_list.link))
 			fprintf(fp, "\t[no views]\n");
