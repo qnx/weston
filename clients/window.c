@@ -7067,6 +7067,9 @@ display_destroy(struct display *display)
 	if (display->color_manager)
 		wp_color_manager_v1_destroy(display->color_manager);
 
+	if (display->single_pixel_buffer_manager)
+		wp_single_pixel_buffer_manager_v1_destroy(display->single_pixel_buffer_manager);
+
 	if (display->shm)
 		wl_shm_destroy(display->shm);
 
