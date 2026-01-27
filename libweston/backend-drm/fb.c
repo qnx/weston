@@ -702,10 +702,10 @@ drm_fb_compatible_with_plane(struct drm_fb *fb, struct drm_plane *plane,
 			return true;
 	}
 
-	drm_debug(b, "\t\t\t\t[%s] not assigning view %p on %s, "
+	drm_debug(b, "\t\t\t\t[%s] not assigning view %s on %s, "
 		  "plane %d (format %s (0x%lx) with modifier 0x%llx) not supported\n",
 		  drm_output_get_plane_type_name(plane),
-		  view, drm_output_get_plane_type_name(plane),
+		  view->internal_name, drm_output_get_plane_type_name(plane),
 		  plane->plane_id, fb->format->drm_format_name,
 		  (unsigned long) fb->format->format,
 		  (unsigned long long) fb->modifier);
@@ -836,8 +836,8 @@ drm_fb_get_from_paint_node(struct drm_output_state *state,
 	 * drm_fb we take an additional ref for the weston_buffer's cache. */
 	buf_fb->fb = drm_fb_ref(fb);
 
-	drm_debug(b, "\t\t\t[view] view %p format: %s\n",
-		  ev, fb->format->drm_format_name);
+	drm_debug(b, "\t\t\t[view] view %s format: %s\n",
+		  ev->internal_name, fb->format->drm_format_name);
 	return fb;
 
 unsuitable:
