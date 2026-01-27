@@ -167,7 +167,7 @@ weston_desktop_xwayland_surface_committed(struct weston_desktop_surface *dsurfac
 	surface->committed = true;
 
 #ifdef WM_DEBUG
-	weston_log("%s: xwayland surface %p\n", __func__, surface);
+	weston_log("%s: xwayland surface %s\n", __func__, surface->internal_name);
 #endif
 
 	tmp = buf_offset;
