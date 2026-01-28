@@ -876,4 +876,12 @@ struct timespec
 weston_output_repaint_from_present(const struct weston_output *output,
 				   const struct timespec *now,
 				   const struct timespec *present_time);
+
+void
+weston_backend_set_deferred(struct weston_backend *backend);
+
+void
+weston_backend_clear_deferred(struct weston_backend *backend,
+                              struct weston_compositor *compositor);
+
 #endif

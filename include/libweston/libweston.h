@@ -362,6 +362,10 @@ enum weston_repaint_status {
 	REPAINT_BEGIN_FROM_IDLE, /**< start_repaint_loop scheduled */
 	REPAINT_SCHEDULED, /**< repaint is scheduled to occur */
 	REPAINT_AWAITING_COMPLETION, /**< last repaint not yet finished */
+	/** Needs a repaint when the backend is ready. Backends must call
+	 *  weston_backend_clear_deferred() when ready.
+	 */
+	REPAINT_DEFERRED,
 };
 
 /** Content producer for heads

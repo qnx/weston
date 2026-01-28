@@ -134,6 +134,12 @@ struct weston_backend {
 	 * defined in weston_compositor_backend.
 	 */
 	enum weston_compositor_backend backend_type;
+
+	/** The backend is incapable of painting right now, but will
+	 *  call weston_backend_clear_deferred() at some point to
+	 *  exit deferred state.
+	 */
+	bool deferred;
 };
 
 /* weston_head */
