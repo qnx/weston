@@ -418,6 +418,8 @@ weston_paint_node_create(struct weston_surface *surface,
 	pnode->output = output;
 	wl_list_insert(&output->paint_node_list, &pnode->output_link);
 
+	str_printf(&pnode->internal_name, "%u:%s", output->id, view->internal_name);
+
 	wl_list_init(&pnode->z_order_link);
 
 	pixman_region32_init(&pnode->damage);
@@ -484,6 +486,7 @@ weston_paint_node_destroy(struct weston_paint_node *pnode)
 	pixman_region32_fini(&pnode->visible);
 	pixman_region32_fini(&pnode->visible_previous);
 	pixman_region32_fini(&pnode->clipped_view);
+	free(pnode->internal_name);
 	free(pnode);
 }
 
@@ -9602,7 +9605,7 @@ debug_scene_view_print_paint_node(FILE *fp,
 	if (!pnode)
 		fprintf(fp, "\t\t\tpaint node [pending repaint]:\n");
 	else
-		fprintf(fp, "\t\t\tpaint node %p:\n", pnode);
+		fprintf(fp, "\t\t\tpaint node %s:\n", pnode->internal_name);
 
 	fprintf(fp, "\t\t\t\toutput: %d (%s)%s\n",
 		output->id, output->name,

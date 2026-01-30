@@ -701,6 +701,8 @@ struct weston_paint_node {
 	struct wl_list output_link;
 	struct weston_output *output;
 
+	char *internal_name;
+
 	/* Mutable members: */
 
 	enum weston_paint_node_status status;
