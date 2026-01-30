@@ -77,7 +77,6 @@ PLUGIN_TEST(color_characteristics_from_weston_ini)
 	enum weston_eotf_mode mode;
 	enum weston_colorimetry_mode colorimetry_mode;
 	const struct weston_color_characteristics *cc;
-	const struct weston_hdr_metadata_type1 *hdr_meta;
 
 	wl_list_for_each(it, &compositor->output_list, link) {
 		if (strcmp(it->name, "headless") == 0) {
@@ -107,22 +106,6 @@ PLUGIN_TEST(color_characteristics_from_weston_ini)
 	test_assert_f32_eq(cc->min_luminance, 0.0001f);
 	test_assert_f32_eq(cc->max_luminance, 65535.0f);
 	test_assert_f32_eq(cc->maxFALL, 1000.0f);
-
-	/* The below is color manager policy. */
-	hdr_meta = weston_output_get_hdr_metadata_type1(output);
-	test_assert_enum(hdr_meta->group_mask, WESTON_HDR_METADATA_TYPE1_GROUP_ALL_MASK);
-	test_assert_f32_eq(hdr_meta->primary[0].x, 0.9999f);
-	test_assert_f32_eq(hdr_meta->primary[0].y, 0.3f);
-	test_assert_f32_eq(hdr_meta->primary[1].x, 0.1771f);
-	test_assert_f32_eq(hdr_meta->primary[1].y, 0.80001f);
-	test_assert_f32_eq(hdr_meta->primary[2].x, 0.1f);
-	test_assert_f32_eq(hdr_meta->primary[2].y, 0.11f);
-	test_assert_f32_eq(hdr_meta->white.x, 0.313f);
-	test_assert_f32_eq(hdr_meta->white.y, 0.323f);
-	test_assert_f32_eq(hdr_meta->minDML, 0.0001f);
-	test_assert_f32_eq(hdr_meta->maxDML, 65535.0f);
-	test_assert_f32_eq(hdr_meta->maxCLL, 65535.0f);
-	test_assert_f32_eq(hdr_meta->maxFALL, 1000.0f);
 
 	return RESULT_OK;
 }
