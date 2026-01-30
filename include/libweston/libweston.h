@@ -530,7 +530,6 @@ struct weston_output {
 	bool from_blend_to_output_by_backend;
 	enum weston_eotf_mode eotf_mode;
 	enum weston_colorimetry_mode colorimetry_mode;
-	struct weston_color_characteristics color_characteristics;
 
 	struct weston_output_color_outcome *color_outcome;
 	uint64_t color_outcome_serial;
@@ -2726,13 +2725,6 @@ weston_output_set_colorimetry_mode(struct weston_output *output,
 
 enum weston_colorimetry_mode
 weston_output_get_colorimetry_mode(const struct weston_output *output);
-
-void
-weston_output_set_color_characteristics(struct weston_output *output,
-					const struct weston_color_characteristics *cc);
-
-const struct weston_color_characteristics *
-weston_output_get_color_characteristics(struct weston_output *output);
 
 void
 weston_output_init(struct weston_output *output,

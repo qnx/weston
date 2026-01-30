@@ -21,10 +21,6 @@ tests = [
 	},
 	{	'name': 'color-effects', },
 	{
-		'name': 'color-metadata-errors',
-		'dep_objs': dep_libexec_weston,
-	},
-	{
 		'name': 'color-output-parsing',
 		'dep_objs': [
 			dep_libexec_weston,
@@ -206,7 +202,6 @@ if get_option('color-management-lcms')
 				color_management_v1_protocol_c,
 			],
 		},
-		{	'name': 'color-metadata-parsing' },
 		{
 			'name': 'lcms-util',
 			'dep_objs': [ dep_lcms_util ]

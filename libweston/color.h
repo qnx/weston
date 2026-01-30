@@ -90,7 +90,7 @@ struct weston_hdr_metadata_type1 {
 	float maxFALL;
 };
 
-/** Output properties derived from its color characteristics and profile
+/** Output properties derived from its color profile
  *
  * These are constructed by a color manager.
  *

@@ -8255,50 +8255,6 @@ weston_output_get_hdr_metadata_type1(const struct weston_output *output)
 	return &output->color_outcome->hdr_meta;
 }
 
-/** Set display or monitor basic color characteristics
- *
- * \param output The output to modify, must be in disabled state.
- * \param cc The new characteristics to set, or NULL to unset everything.
- *
- * This sets the metadata that describes the color characteristics of the
- * output in a very simple manner. If a non-NULL color profile is set for the
- * output, that will always take precedence.
- *
- * The initial value has everything unset.
- *
- * This function is meant to be used by compositor frontends.
- *
- * \ingroup output
- * \sa weston_output_set_color_profile
- */
-WL_EXPORT void
-weston_output_set_color_characteristics(struct weston_output *output,
-					const struct weston_color_characteristics *cc)
-{
-	assert(!output->enabled);
-
-	if (cc)
-		output->color_characteristics = *cc;
-	else
-		output->color_characteristics.group_mask = 0;
-}
-
-/** Get display or monitor basic color characteristics
- *
- * \param output The output to query.
- * \return Pointer to the metadata stored in weston_output.
- *
- * This function is meant to be used by color manager modules.
- *
- * \ingroup output
- * \sa weston_output_set_color_characteristics
- */
-WL_EXPORT const struct weston_color_characteristics *
-weston_output_get_color_characteristics(struct weston_output *output)
-{
-	return &output->color_characteristics;
-}
-
 WL_EXPORT void
 weston_output_set_single_mode(struct weston_output *output,
 			      struct weston_mode *target)
