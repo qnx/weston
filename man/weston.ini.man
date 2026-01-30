@@ -1,11 +1,11 @@
 .\" shorthand for double quote that works everywhere.
 .ds q \N'34'
-.TH weston.ini 5 "2025-07-29" "Weston @version@"
+.TH weston.ini 5 "2026-01-30" "Weston @version@"
 .\"---------------------------------------------------------------------
 .SH NAME
 weston.ini \- configuration file for
 .B Weston
-\- the reference Wayland
+\- a Wayland
 compositor
 .\"---------------------------------------------------------------------
 .SH INTRODUCTION

@@ -1,21 +1,30 @@
-.TH WESTON 1 "2019-03-23" "Weston @version@"
+.TH WESTON 1 "2026-01-30" "Weston @version@"
 .SH NAME
-weston \- the reference Wayland server
+weston \- a Wayland compositor
 .SH SYNOPSIS
 .B weston
 .
 .\" ***************************************************************
 .SH DESCRIPTION
 .B weston
-is the reference implementation of a Wayland server. A Wayland server is a
-display server, a window manager, and a compositor all in one. Weston has
-several backends as loadable modules: it can run on Linux KMS (kernel
-modesetting via DRM), as an X client, or inside another Wayland server
+is a Wayland compositor designed for correctness, reliability, predictability,
+and performance.
+A Wayland compositor is a display server, a window manager, and a compositor all in
+one. Weston has several backends as loadable modules: it can run on Linux KMS
+(kernel modesetting via DRM), as an X client, or inside another Wayland compositor
 instance.
 
+Out of the box, Weston provides a very basic desktop, or a full-featured
+environment for non-desktop uses such as automotive, embedded, in-flight,
+industrial, kiosks, set-top boxes and TVs.
+
 Weston supports fundamentally different graphical user interface paradigms via
-shell plugins. Two plugins are provided: the desktop shell, and the kiosk
-shell.
+shell plugins. Multiple plugins are provided: the desktop shell, the kiosk
+shell, the lua shell, the ivi shell and the (deprecated) fullscreen shell.
+
+It also provides a library called libweston which allows
+users to build their own custom full-featured environments on top of
+Weston's core.
 
 Weston also supports X clients via
 .BR Xwayland ", see below."
@@ -79,7 +88,7 @@ The kiosk shell is intended for environments which want to run a single
 application at a time. Applications will be made full screen and
 activated as they are started.
 .TP
-.I fullscreen
+.I fullscreen (deprecated)
 The fullscreen shell is a deprecated implementation of the ideas behind
 the kiosk shell. It requires specific client support for the
 .I zwp_fullscreen_shell_v1
