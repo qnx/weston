@@ -1514,8 +1514,27 @@ weston_desktop_xdg_shell_protocol_pong(struct wl_client *wl_client,
 	weston_desktop_client_pong(client, serial);
 }
 
+static void
+weston_desktop_xdg_shell_protocol_destroy(struct wl_client *wl_client,
+					  struct wl_resource *resource)
+{
+	struct weston_desktop_client *client =
+		wl_resource_get_user_data(resource);
+	struct wl_list *surface_list =
+		weston_desktop_client_get_surface_list(client);
+
+	if (!wl_list_empty(surface_list)) {
+		wl_resource_post_error(resource,
+				       ZXDG_SHELL_V6_ERROR_DEFUNCT_SURFACES,
+				       "xdg_wm_base being destroyed before child surfaces");
+		return;
+	}
+
+	weston_desktop_destroy_request(wl_client, resource);
+}
+
 static const struct zxdg_shell_v6_interface weston_desktop_xdg_shell_implementation = {
-	.destroy = weston_desktop_destroy_request,
+	.destroy = weston_desktop_xdg_shell_protocol_destroy,
 	.create_positioner = weston_desktop_xdg_shell_protocol_create_positioner,
 	.get_xdg_surface = weston_desktop_xdg_shell_protocol_get_xdg_surface,
 	.pong = weston_desktop_xdg_shell_protocol_pong,
