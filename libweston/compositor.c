@@ -211,6 +211,7 @@ paint_node_update_early(struct weston_paint_node *pnode)
 	bool output_dirty = pnode->status & WESTON_PAINT_NODE_OUTPUT_DIRTY;
 	bool buffer_dirty = pnode->status & WESTON_PAINT_NODE_BUFFER_DIRTY;
 	bool recording_censor, unprotected_censor;
+	bool was_solid = pnode->draw_solid;
 	struct weston_buffer *buffer;
 
 	if (view_dirty || output_dirty) {
@@ -221,10 +222,6 @@ paint_node_update_early(struct weston_paint_node *pnode)
 
 		pnode->valid_transform = weston_matrix_to_transform(mat,
 								    &pnode->transform);
-		pnode->is_fully_opaque = weston_view_is_opaque(pnode->view,
-							       &pnode->view->transform.boundingbox);
-		pnode->is_fully_blended = weston_view_is_fully_blended(pnode->view,
-								       &pnode->view->transform.boundingbox);
 	}
 
 	buffer = pnode->surface->buffer_ref.buffer;
@@ -261,6 +258,13 @@ paint_node_update_early(struct weston_paint_node *pnode)
 		pnode->is_fully_opaque = (pnode->view->alpha == 1.0f);
 		pnode->is_fully_blended = !pnode->is_fully_opaque;
 		get_placeholder_color(pnode, &pnode->solid);
+	}
+
+	if (!pnode->draw_solid && (was_solid || view_dirty)) {
+		pnode->is_fully_opaque = weston_view_is_opaque(pnode->view,
+							       &pnode->view->transform.boundingbox);
+		pnode->is_fully_blended = weston_view_is_fully_blended(pnode->view,
+								       &pnode->view->transform.boundingbox);
 	}
 
 	if (buffer_dirty)
