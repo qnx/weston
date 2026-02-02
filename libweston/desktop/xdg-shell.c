@@ -2087,8 +2087,11 @@ weston_desktop_xdg_shell_protocol_get_xdg_surface(struct wl_client *wl_client,
 						    &xdg_surface_interface,
 						    &weston_desktop_xdg_surface_implementation,
 						    id, weston_desktop_xdg_surface_resource_destroy);
-	if (surface->resource == NULL)
+	if (surface->resource == NULL) {
+		weston_desktop_surface_destroy(surface->desktop_surface);
+		free(surface);
 		return;
+	}
 }
 
 static void

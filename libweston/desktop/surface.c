@@ -330,7 +330,6 @@ weston_desktop_surface_add_resource(struct weston_desktop_surface *surface,
 				      id);
 	if (resource == NULL) {
 		wl_client_post_no_memory(wl_client);
-		weston_desktop_surface_destroy(surface);
 		return NULL;
 	}
 	if (destroy == NULL)

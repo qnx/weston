@@ -1492,13 +1492,18 @@ weston_desktop_xdg_shell_protocol_get_xdg_surface(struct wl_client *wl_client,
 						    &zxdg_surface_v6_interface,
 						    &weston_desktop_xdg_surface_implementation,
 						    id, weston_desktop_xdg_surface_resource_destroy);
-	if (surface->resource == NULL)
+	if (surface->resource == NULL) {
+		weston_desktop_surface_destroy(surface->desktop_surface);
+		free(surface);
 		return;
+	}
 
 	if (weston_surface_has_content(wsurface)) {
 		wl_resource_post_error(surface->resource,
 				       ZXDG_SURFACE_V6_ERROR_UNCONFIGURED_BUFFER,
 				       "xdg_surface must not have a buffer at creation");
+		weston_desktop_surface_destroy(surface->desktop_surface);
+		free(surface);
 		return;
 	}
 }
