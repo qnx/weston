@@ -182,3 +182,26 @@ TEST(initial_commit_without_a_buffer_subsurface)
 
 	return RESULT_OK;
 }
+
+TEST(defunct_surfaces)
+{
+	struct xdg_client *xdg_client = create_xdg_client();
+	struct xdg_surface_data *xdg_surface = create_xdg_surface(xdg_client);
+
+	xdg_surface_make_toplevel(xdg_surface, "weston.test", "xdg-test");
+	xdg_surface_wait_configure(xdg_surface);
+
+	xdg_surface_commit_solid(xdg_surface, 255, 128, 255);
+	wl_display_roundtrip(xdg_client->client->wl_display);
+
+	/* Destroy xdg_wm_base without destroying its children. */
+	xdg_wm_base_destroy(xdg_client->xdg_wm_base);
+	expect_protocol_error(xdg_client->client, NULL, XDG_WM_BASE_ERROR_DEFUNCT_SURFACES);
+
+	destroy_xdg_surface(xdg_surface);
+
+	client_destroy(xdg_client->client);
+	free(xdg_client);
+
+	return RESULT_OK;
+}
