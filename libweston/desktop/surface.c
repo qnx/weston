@@ -324,6 +324,9 @@ weston_desktop_surface_add_resource(struct weston_desktop_surface *surface,
 		weston_desktop_client_get_client(surface->client);
 	struct wl_resource *resource;
 
+	if (!client_resource)
+		return NULL;
+
 	resource = wl_resource_create(wl_client,
 				      interface,
 				      wl_resource_get_version(client_resource),
