@@ -100,6 +100,8 @@ struct rdp_backend {
 	char *server_key;
 	char *rdp_key;
 	int tls_enabled;
+	char *nla_ntlm_db;
+	int nla_enabled;
 	int resizeable;
 	int force_no_compression;
 	bool remotefx_codec;

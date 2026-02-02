@@ -4502,6 +4502,7 @@ weston_rdp_backend_config_init(struct weston_rdp_backend_config *config)
 	config->force_no_compression = 0;
 	config->remotefx_codec = true;
 	config->refresh_rate = RDP_DEFAULT_FREQ;
+	config->nla_ntlm_db = NULL;
 }
 
 static int
@@ -4611,6 +4612,8 @@ load_rdp_backend(struct weston_compositor *c,
 					 config.server_cert);
 	weston_config_section_get_string(section, "tls-key",
 					 &config.server_key, config.server_key);
+	weston_config_section_get_string(section, "nla-ntlm-db",
+					 &config.nla_ntlm_db, config.nla_ntlm_db);
 
 	wb = wet_compositor_load_backend(c, WESTON_BACKEND_RDP, &config.base,
 					 simple_heads_changed,

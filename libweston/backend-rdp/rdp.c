@@ -1802,20 +1802,80 @@ rdp_peer_init(freerdp_peer *client, struct rdp_backend *b)
 			goto error_initialize;
 		if (!freerdp_settings_set_pointer_len(settings, FreeRDP_RdpServerRsaKey, key, 1))
 			goto error_initialize;
+		if (b->nla_enabled) {
+			if (!freerdp_settings_set_string(settings, FreeRDP_NtlmSamFile, b->nla_ntlm_db)) {
+				rdp_debug(b, "Error setting FreeRDP_NtlmSamFile to '%s'.\n", b->nla_ntlm_db);
+				goto error_initialize;
+			}
+
+			if (!freerdp_settings_set_bool(settings, FreeRDP_TlsSecurity, FALSE))
+				rdp_debug(b, "Error setting FreeRDP_TlsSecurity to 'FALSE'.\n");
+
+			if (!freerdp_settings_set_bool(settings, FreeRDP_NlaSecurity, TRUE))
+				rdp_debug(b, "Error setting FreeRDP_NlaSecurity to 'TRUE'.\n");
+
+		} else {
+			if (!freerdp_settings_set_bool(settings, FreeRDP_TlsSecurity, TRUE))
+				rdp_debug(b, "Error setting FreeRDP_TlsSecurity to 'TRUE'.\n");
+
+			if (!freerdp_settings_set_bool(settings, FreeRDP_NlaSecurity, FALSE))
+				rdp_debug(b, "Error setting FreeRDP_NlaSecurity to 'FALSE'.\n");
+		}
 	} else {
-		freerdp_settings_set_bool(settings, FreeRDP_TlsSecurity, FALSE);
+		if (!freerdp_settings_set_bool(settings, FreeRDP_TlsSecurity, FALSE))
+			rdp_debug(b, "Error setting FreeRDP_TlsSecurity to 'FALSE'.\n");
+
+		if (!freerdp_settings_set_bool(settings, FreeRDP_NlaSecurity, FALSE))
+			rdp_debug(b, "Error setting FreeRDP_NlaSecurity to 'FALSE'.\n");
 	}
+
 #else
-	if (b->rdp_key)
-		settings->RdpKeyFile = strdup(b->rdp_key);
+	if (b->rdp_key) {
+		if (!freerdp_settings_set_string(settings, FreeRDP_RdpKeyFile,b->rdp_key)) {
+			rdp_debug(b, "Error setting FreeRDP_RdpKeyFile to '%s'.\n", b->rdp_key);
+			goto error_initialize;
+		}
+	}
+
 	if (b->tls_enabled) {
-		settings->CertificateFile = strdup(b->server_cert);
-		settings->PrivateKeyFile = strdup(b->server_key);
+		if (!freerdp_settings_set_string(settings, FreeRDP_CertificateFile,b->server_cert)) {
+			rdp_debug(b, "Error setting FreeRDP_CertificateFile to '%s'.\n", b->server_cert);
+			goto error_initialize;
+		}
+
+		if (!freerdp_settings_set_string(settings, FreeRDP_PrivateKeyFile, b->server_key)) {
+			rdp_debug(b, "Error setting FreeRDP_PrivateKeyFile to '%s'.\n", b->server_key);
+			goto error_initialize;
+		}
+
+		if (b->nla_enabled) {
+			if (!freerdp_settings_set_string(settings, FreeRDP_NtlmSamFile, b->nla_ntlm_db)) {
+				rdp_debug(b, "Error setting FreeRDP_NtlmSamFile to '%s'.\n", b->nla_ntlm_db);
+				goto error_initialize;
+			}
+
+			if (!freerdp_settings_set_bool(settings, FreeRDP_TlsSecurity, FALSE))
+				rdp_debug(b, "Error setting FreeRDP_TlsSecurity to 'FALSE'.\n");
+
+			if (!freerdp_settings_set_bool(settings, FreeRDP_NlaSecurity, TRUE))
+				rdp_debug(b, "Error setting FreeRDP_NlaSecurity to 'TRUE'.\n");
+
+		} else {
+			if (!freerdp_settings_set_bool(settings, FreeRDP_TlsSecurity, TRUE))
+				rdp_debug(b, "Error setting FreeRDP_TlsSecurity to 'TRUE'.\n");
+
+			if (!freerdp_settings_set_bool(settings, FreeRDP_NlaSecurity, FALSE))
+				rdp_debug(b, "Error setting FreeRDP_NlaSecurity to 'FALSE'.\n");
+		}
 	} else {
-		settings->TlsSecurity = FALSE;
+
+		if (!freerdp_settings_set_bool(settings, FreeRDP_TlsSecurity, FALSE))
+			rdp_debug(b, "Error setting FreeRDP_TlsSecurity to 'FALSE'.\n");
+
+		if (!freerdp_settings_set_bool(settings, FreeRDP_NlaSecurity, FALSE))
+			rdp_debug(b, "Error setting FreeRDP_NlaSecurity to 'FALSE'.\n");
 	}
 #endif
-	freerdp_settings_set_bool(settings, FreeRDP_NlaSecurity, FALSE);
 
 	if (!client->Initialize(client)) {
 		weston_log("peer initialization failed\n");
@@ -1951,6 +2011,7 @@ rdp_backend_create(struct weston_compositor *compositor,
 	b->audio_in_teardown = config->audio_in_teardown;
 	b->audio_out_setup = config->audio_out_setup;
 	b->audio_out_teardown = config->audio_out_teardown;
+	b->nla_ntlm_db = config->nla_ntlm_db;
 
 	b->debug = weston_compositor_add_log_scope(compositor,
 						   "rdp-backend",
@@ -1997,6 +2058,15 @@ rdp_backend_create(struct weston_compositor *compositor,
 		if (b->server_cert && b->server_key) {
 			b->tls_enabled = 1;
 			rdp_debug(b, "TLS support activated\n");
+		}
+		if(b->tls_enabled && b->nla_ntlm_db) {
+			if (access(b->nla_ntlm_db, F_OK) == 0) {
+				b->nla_enabled = 1;
+				rdp_debug(b, "NLA support activated\n");
+			} else {
+				b->nla_enabled = 0;
+				rdp_debug(b, "NLA credential file ('%s') not found, fall back to TLS Security.\n", b->nla_ntlm_db);
+			}
 		}
 	}
 
@@ -2138,6 +2208,7 @@ config_init_to_defaults(struct weston_rdp_backend_config *config)
 	config->audio_in_teardown = NULL;
 	config->audio_out_setup = NULL;
 	config->audio_out_teardown = NULL;
+	config->nla_ntlm_db = NULL;
 }
 
 WL_EXPORT int

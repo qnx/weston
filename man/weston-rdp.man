@@ -43,6 +43,12 @@ to ship a file containing a certificate.
 \fBtls\-cert\fR=\fIfile\fR
 The file containing the certificate for doing TLS security. To have TLS security you also need
 to ship a key file.
+.TP
+\fBnla\-ntlm\-db\fR=\fIfile\fR
+The file containing the NTLM credentials used by the NLA (Network Layer Authentication). The entries
+for this file can be generated using the 'winpr-hash' tool, which is part of FreeRDP. It contains
+one credential per line.
+Example for the credential generation: 'winpr-hash -u <user> -d <domain> -p <password> -f sam'.
 
 
 .\" ***************************************************************
