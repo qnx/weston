@@ -48,7 +48,7 @@ fixture_setup(struct weston_test_harness *harness)
 	setup.renderer = WESTON_RENDERER_PIXMAN;
 	setup.width = 320;
 	setup.height = 240;
-	setup.shell = SHELL_DESKTOP;
+	setup.shell = SHELL_TEST_DESKTOP;
 	setup.logging_scopes = "proto,log,test-harness-plugin";
 	setup.refresh = HIGHEST_OUTPUT_REFRESH;
 
