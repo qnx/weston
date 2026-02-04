@@ -2864,6 +2864,7 @@ weston_touch_set_focus(struct weston_touch *touch, struct weston_view *view)
 		wl_signal_add(&view->destroy_signal, &touch->focus_view_listener);
 	}
 	touch->focus = view;
+	wl_signal_emit(&touch->focus_signal, touch);
 }
 
 static void
