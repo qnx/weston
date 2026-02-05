@@ -4628,6 +4628,14 @@ enable_pointer_constraint(struct weston_pointer_constraint *constraint,
 			  struct weston_view *view)
 {
 	assert(constraint->view == NULL);
+
+	if (!constraint->pointer->focus ||
+	    constraint->pointer->focus->surface != constraint->surface) {
+		weston_log("WARNING: Not enabling constraint because "
+			   "pointer focus doesn't match\n");
+		return;
+	}
+
 	constraint->view = view;
 	pointer_constraint_notify_activated(constraint);
 	weston_pointer_start_grab(constraint->pointer, &constraint->grab);
