@@ -186,6 +186,10 @@ the meson invocation to configure the build.
 If Perfetto support is built in, timeline points are added to Perfetto tracks
 when Perfetto is running, even when the 'timeline' scope is not enabled.
 
+For capturing a trace you can use the supplied
+`out of process trace <https://gitlab.freedesktop.org/wayland/weston/-/tree/main/doc/perfetto/perfetto_out_of_process_trace.cfg>`_.
+config file.
+
 Inserting timeline points
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
