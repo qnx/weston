@@ -495,7 +495,7 @@ try_pnode_on_cursor_plane(struct drm_output *output, struct weston_paint_node *p
 }
 
 static bool
-view_with_region_matches_output_entirely(struct weston_view *ev,
+view_with_region_matches_output_entirely(struct weston_paint_node *pnode,
 					 const pixman_region32_t *background_region,
 					 struct weston_output *output)
 {
@@ -504,12 +504,18 @@ view_with_region_matches_output_entirely(struct weston_view *ev,
 	bool res = true;
 
 	pixman_region32_init(&combined_region);
-	pixman_region32_union(&combined_region,
-			      &ev->transform.boundingbox,
-			      background_region);
-	extents = pixman_region32_extents(&combined_region);
 
-	assert(!ev->transform.dirty);
+	pixman_region32_union(&combined_region,
+			      background_region,
+			      weston_paint_node_get_opaque_region (pnode));
+
+	/* Check for holes in the region */
+	if (pixman_region32_n_rects (&combined_region) != 1) {
+		pixman_region32_fini(&combined_region);
+		return false;
+	}
+
+	extents = pixman_region32_extents(&combined_region);
 
 	if (extents->x1 != (int32_t)output->pos.c.x ||
 	    extents->y1 != (int32_t)output->pos.c.y ||
@@ -615,7 +621,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 	}
 
 	view_matches_entire_output =
-		view_with_region_matches_output_entirely(ev,
+		view_with_region_matches_output_entirely(pnode,
 							 background_region,
 							 &output->base);
 	scanout_has_view_assigned =
@@ -656,7 +662,6 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 			/* if the view covers the whole output, put it in the
 			 * scanout plane, not overlay */
 			if (view_matches_entire_output &&
-			    pnode->is_fully_opaque &&
 			    !scanout_has_view_assigned)
 				continue;
 			/* for alpha views, avoid placing them on the HW planes that
