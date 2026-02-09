@@ -4324,7 +4324,12 @@ weston_output_finish_frame(struct weston_output *output,
 	else
 		assert(presented_flags & WP_PRESENTATION_FEEDBACK_INVALID);
 
-	if (output->backend->deferred) {
+	/* If we're here from the start of the repaint loop then this repaint
+	 * was scheduled before weston_backend_set_deferred() was called.
+	 * Make sure we only defer if we're in a running repaint loop.
+	 */
+	if (output->backend->deferred &&
+	    !(presented_flags & WP_PRESENTATION_FEEDBACK_INVALID)) {
 		output->repaint_status = REPAINT_DEFERRED;
 		return;
 	}
