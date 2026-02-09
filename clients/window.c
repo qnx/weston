@@ -3909,7 +3909,7 @@ input_set_pointer_image_index(struct input *input, int index)
 	struct wl_cursor_image *image;
 	int dx = 0, dy = 0;
 
-	if (!input->pointer)
+	if (!input->pointer || !input->pointer_surface)
 		return;
 
 	cursor = input->display->cursors[input->current_cursor];
