@@ -552,7 +552,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 	                               current_lowest_zpos_underlay :
 	                               current_lowest_zpos_overlay;
 
-	bool view_matches_entire_output, scanout_has_view_assigned;
+	bool use_scanout_plane = false;
 	uint32_t possible_plane_mask = 0;
 	uint32_t fb_failure_reasons = 0;
 	bool any_candidate_picked = false;
@@ -620,13 +620,22 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 		}
 	}
 
-	view_matches_entire_output =
-		view_with_region_matches_output_entirely(pnode,
-							 background_region,
-							 &output->base);
-	scanout_has_view_assigned =
-		drm_output_check_plane_has_view_assigned(output->scanout_plane,
-							 state);
+	/* if the view covers the whole output, put it in the scanout plane,
+	 * not overlay */
+	if (mode == DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY) {
+		bool scanout_has_view_assigned;
+		bool view_matches_entire_output;
+
+		scanout_has_view_assigned =
+			drm_output_check_plane_has_view_assigned(output->scanout_plane,
+								 state);
+		view_matches_entire_output =
+			view_with_region_matches_output_entirely(pnode,
+								 background_region,
+								 &output->base);
+
+		use_scanout_plane = !scanout_has_view_assigned && view_matches_entire_output;
+	}
 
 	/* assemble a list with possible candidates */
 	wl_list_for_each(plane, &device->plane_list, link) {
@@ -652,17 +661,12 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 		case WDRM_PLANE_TYPE_PRIMARY:
 			if (plane != output->scanout_plane)
 				continue;
-			if (mode != DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY)
-				continue;
-			if (!view_matches_entire_output)
+			if (!use_scanout_plane)
 				continue;
 			break;
 		case WDRM_PLANE_TYPE_OVERLAY:
 			assert(mode != DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR);
-			/* if the view covers the whole output, put it in the
-			 * scanout plane, not overlay */
-			if (view_matches_entire_output &&
-			    !scanout_has_view_assigned)
+			if (use_scanout_plane)
 				continue;
 			/* for alpha views, avoid placing them on the HW planes that
 			 * are below the primary plane. */
