@@ -899,6 +899,7 @@ drm_output_propose_state(struct weston_output *output_base,
 
 	pixman_region32_t renderer_region;
 	pixman_region32_t background_region;
+	pixman_region32_t obscured_region;
 
 	bool renderer_ok = (mode != DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY);
 	int ret;
@@ -1018,6 +1019,8 @@ drm_output_propose_state(struct weston_output *output_base,
 	 * covered by the renderer and underlay region. */
 	pixman_region32_init(&renderer_region);
 
+	pixman_region32_init(&obscured_region);
+
 	/* background_region contains the area that is covered by opaque
 	 * solid-black views. This area can be fully ignored in PLANES_ONLY mode
 	 * according to the DRM spec:
@@ -1116,18 +1119,37 @@ drm_output_propose_state(struct weston_output *output_base,
 
 		/* Now try to place it on a plane if we can. */
 		if (!pnode->try_view_on_plane_failure_reasons) {
+			pixman_region32_t obscured_or_background_region;
+
 			drm_debug(b, "\t\t\t[plane] started with zpos %"PRIu64"\n",
 				      need_underlay ? current_lowest_zpos_underlay :
 				      current_lowest_zpos_overlay);
+
+			pixman_region32_init(&obscured_or_background_region);
+			pixman_region32_union(&obscured_or_background_region,
+					      &background_region,
+					      &obscured_region);
+			if (pixman_region32_not_empty (&obscured_or_background_region))
+				drm_debug(b, "\t\t\t[plane] adding background region\n");
+
 			ps = drm_output_find_plane_for_view(state, pnode, mode,
 							    scanout_state,
-							    &background_region,
+							    &obscured_or_background_region,
 							    current_lowest_zpos_overlay,
 							    current_lowest_zpos_underlay,
 							    need_underlay);
+
+			pixman_region32_fini(&obscured_or_background_region);
 		}
 
 		if (ps) {
+			if (mode == DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY &&
+			    ps->plane->type == WDRM_PLANE_TYPE_OVERLAY) {
+				pixman_region32_union(&obscured_region,
+						      &obscured_region,
+						      weston_paint_node_get_opaque_region (pnode));
+			}
+
 			if (drm_mixed_mode_check_underlay(mode, scanout_state, ps->zpos))
 				current_lowest_zpos_underlay = ps->zpos;
 			else
@@ -1160,6 +1182,7 @@ drm_output_propose_state(struct weston_output *output_base,
 	}
 
 	pixman_region32_fini(&renderer_region);
+	pixman_region32_fini(&obscured_region);
 	pixman_region32_fini(&background_region);
 	wl_array_release(&visible_pnodes);
 
@@ -1193,6 +1216,7 @@ drm_output_propose_state(struct weston_output *output_base,
 
 err_region:
 	pixman_region32_fini(&renderer_region);
+	pixman_region32_fini(&obscured_region);
 	pixman_region32_fini(&background_region);
 	wl_array_release(&visible_pnodes);
 err:
