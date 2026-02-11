@@ -2353,6 +2353,19 @@ drm_output_get_writeback_state(struct drm_output *output)
 	return output->wb_state->state;
 }
 
+static int
+drm_crtc_num_planes(struct drm_device *device, struct drm_crtc *crtc)
+{
+	struct drm_plane *plane;
+	int count = 0;
+
+	wl_list_for_each(plane, &device->plane_list, link)
+		if (plane->possible_crtcs & (1 << crtc->pipe))
+			count++;
+
+	return count;
+}
+
 /** Pick a CRTC that might be able to drive all attached connectors
  *
  * @param output The output whose attached heads to include.
@@ -2375,6 +2388,8 @@ drm_output_pick_crtc(struct drm_output *output)
 	uint32_t crtc_id;
 	unsigned int i;
 	bool match;
+	int best_crtc_num_planes = 0;
+	int num_planes;
 
 	/* This algorithm ignores drmModeEncoder::possible_clones restriction,
 	 * because it is more often set wrong than not in the kernel. */
@@ -2432,8 +2447,13 @@ drm_output_pick_crtc(struct drm_output *output)
 				break;
 			}
 		}
-		if (!match)
+
+		num_planes = drm_crtc_num_planes(device, crtc);
+
+		if (!match && num_planes > best_crtc_num_planes) {
+			best_crtc_num_planes = num_planes;
 			best_crtc = crtc;
+		}
 
 		fallback_crtc = crtc;
 	}
