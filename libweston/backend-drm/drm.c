@@ -1876,7 +1876,8 @@ drm_output_pick_format_pixman(struct drm_output *output)
 	output->format = b->format;
 
 	if (b->has_underlay && (output->format->bits.a == 0)) {
-		weston_log("Disabling underlay planes: output '%s' with format %s does not have alpha channel,\n"
+		weston_log("Disabling underlay planes: "
+			   "output '%s' with format %s does not have alpha channel, "
 			   "which is required to support underlay planes.\n",
 			   output->base.name, output->format->drm_format_name);
 		b->has_underlay = false;
