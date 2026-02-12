@@ -1256,6 +1256,19 @@ weston_paint_node_move_to_plane(struct weston_paint_node *pnode,
 			 WESTON_PAINT_NODE_VISIBILITY_DIRTY;
 }
 
+WL_EXPORT const pixman_region32_t *
+weston_paint_node_get_opaque_region(const struct weston_paint_node *pnode)
+{
+	struct weston_view *ev = pnode->view;
+
+	assert(!ev->transform.dirty);
+
+	if (pnode->is_fully_opaque)
+		return &ev->transform.boundingbox;
+
+	return &ev->transform.opaque;
+}
+
 /** Send wl_surface.enter/leave events
  *
  * \param surface The surface.

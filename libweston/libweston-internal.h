@@ -554,6 +554,10 @@ weston_view_geometry_dirty_internal(struct weston_view *view);
 void
 weston_paint_node_move_to_plane(struct weston_paint_node *pnode,
 				struct weston_plane *plane);
+
+const pixman_region32_t *
+weston_paint_node_get_opaque_region(const struct weston_paint_node *pnode);
+
 void
 weston_view_buffer_to_output_matrix(const struct weston_view *view,
 				    const struct weston_output *output,
