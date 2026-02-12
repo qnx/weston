@@ -542,7 +542,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 	struct drm_backend *b = device->backend;
 
 	struct drm_plane_state *ps = NULL;
-	struct drm_plane *plane;
+	struct drm_plane_handle *handle;
 
 	struct weston_view *ev = pnode->view;
 	struct weston_buffer *buffer;
@@ -595,7 +595,9 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 			return NULL;
 		}
 
-		wl_list_for_each(plane, &device->plane_list, link) {
+		wl_list_for_each(handle, &output->plane_handle_list, link) {
+			struct drm_plane *plane = handle->plane;
+
 			if (plane->type == WDRM_PLANE_TYPE_CURSOR)
 				continue;
 
@@ -638,7 +640,8 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 	}
 
 	/* assemble a list with possible candidates */
-	wl_list_for_each(plane, &device->plane_list, link) {
+	wl_list_for_each(handle, &output->plane_handle_list, link) {
+		struct drm_plane *plane = handle->plane;
 		const char *p_name = drm_output_get_plane_type_name(plane);
 		uint64_t zpos;
 		bool mm_underlay_only = false;
