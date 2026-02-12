@@ -971,7 +971,7 @@ drm_output_propose_state(struct weston_output *output_base,
 		/* assign the primary the lowest zpos value */
 		scanout_state->zpos = plane->zpos_min;
 		/* Set the initial lowest zpos used for the underlay plane
-		 * (asuming capable platform) to the that of the the primary
+		 * (assuming a capable platform) to the zpos of the primary
 		 * plane, matching the lowest possible value. As we parse views
 		 * from top to bottom we also need a start-up point for
 		 * underlays, below this initial lowest zpos value. */
