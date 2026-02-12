@@ -472,6 +472,13 @@ struct drm_plane {
 	struct weston_drm_format_array formats;
 };
 
+struct drm_plane_handle {
+	struct drm_output *output;
+	struct drm_plane *plane;
+
+	struct wl_list link; /* drm_output::plane_handle_list */
+};
+
 struct drm_connector {
 	struct drm_device *device;
 
@@ -593,6 +600,9 @@ struct drm_output {
 	bool disable_pending;
 	bool dpms_off_pending;
 	bool mode_switch_pending;
+
+	/* List of hardware planes this output can use */
+	struct wl_list plane_handle_list;
 
 	uint32_t gbm_cursor_handle[2];
 	struct drm_fb *gbm_cursor_fb[2];
@@ -962,6 +972,12 @@ drm_output_render(struct drm_output_state *state);
 int
 parse_gbm_format(const char *s, const struct pixel_format_info *default_format,
 		 const struct pixel_format_info **format);
+
+struct drm_plane_handle *
+drm_plane_create_handle(struct drm_plane *plane, struct drm_output *output);
+
+void
+drm_plane_destroy_handle(struct drm_plane_handle *plane);
 
 #ifdef BUILD_DRM_VIRTUAL
 extern int

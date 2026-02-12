@@ -1536,6 +1536,26 @@ drm_plane_destroy(struct drm_plane *plane)
 	free(plane);
 }
 
+void
+drm_plane_destroy_handle(struct drm_plane_handle *handle)
+{
+	wl_list_remove(&handle->link);
+	free(handle);
+}
+
+struct drm_plane_handle *
+drm_plane_create_handle(struct drm_plane *plane, struct drm_output *output)
+{
+	struct drm_plane_handle *handle = xzalloc(sizeof(*handle));
+
+	handle->output = output;
+	handle->plane = plane;
+
+	wl_list_insert(&output->plane_handle_list, &handle->link);
+
+	return handle;
+}
+
 /**
  * Initialise sprites (overlay planes)
  *
@@ -2555,6 +2575,7 @@ static int
 drm_output_init_planes(struct drm_output *output)
 {
 	struct drm_device *device = output->device;
+	struct drm_plane *plane;
 
 	output->scanout_plane =
 		drm_output_find_special_plane(device, output,
@@ -2571,6 +2592,10 @@ drm_output_init_planes(struct drm_output *output)
 		drm_output_find_special_plane(device, output,
 					      WDRM_PLANE_TYPE_CURSOR);
 
+	wl_list_for_each(plane, &device->plane_list, link)
+		if (plane->possible_crtcs & (1 << output->crtc->pipe))
+			drm_plane_create_handle(plane, output);
+
 	return 0;
 }
 
@@ -2581,6 +2606,7 @@ static void
 drm_output_deinit_planes(struct drm_output *output)
 {
 	struct drm_device *device = output->device;
+	struct drm_plane_handle *handle, *next_handle;
 
 	if (output->cursor_plane) {
 		/* Turn off hardware cursor */
@@ -2599,6 +2625,10 @@ drm_output_deinit_planes(struct drm_output *output)
 
 	output->cursor_plane = NULL;
 	output->scanout_plane = NULL;
+
+	wl_list_for_each_safe(handle, next_handle,
+			      &output->plane_handle_list, link)
+		drm_plane_destroy_handle(handle);
 }
 
 static struct weston_drm_format_array *
@@ -3342,6 +3372,8 @@ drm_output_create(struct weston_backend *backend, const char *name)
 	output->disable_pending = false;
 
 	output->state_cur = drm_output_state_alloc(output);
+
+	wl_list_init(&output->plane_handle_list);
 
 	weston_compositor_add_pending_output(&output->base, b->compositor);
 
