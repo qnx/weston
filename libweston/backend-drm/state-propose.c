@@ -496,7 +496,7 @@ try_pnode_on_cursor_plane(struct drm_output *output, struct weston_paint_node *p
 
 static bool
 view_with_region_matches_output_entirely(struct weston_view *ev,
-					 pixman_region32_t *region,
+					 const pixman_region32_t *background_region,
 					 struct weston_output *output)
 {
 	pixman_region32_t combined_region;
@@ -506,7 +506,7 @@ view_with_region_matches_output_entirely(struct weston_view *ev,
 	pixman_region32_init(&combined_region);
 	pixman_region32_union(&combined_region,
 			      &ev->transform.boundingbox,
-			      region);
+			      background_region);
 	extents = pixman_region32_extents(&combined_region);
 
 	assert(!ev->transform.dirty);
@@ -527,7 +527,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 			       struct weston_paint_node *pnode,
 			       enum drm_output_propose_state_mode mode,
 			       struct drm_plane_state *scanout_state,
-			       pixman_region32_t *background_region,
+			       const pixman_region32_t *background_region,
 			       uint64_t current_lowest_zpos_overlay,
 			       uint64_t current_lowest_zpos_underlay,
 			       bool need_underlay)
