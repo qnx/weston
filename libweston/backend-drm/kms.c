@@ -1934,6 +1934,9 @@ atomic_flip_handler(int fd, unsigned int frame, unsigned int sec,
 		weston_compositor_read_presentation_clock(ec, &now);
 		sec = now.tv_sec;
 		usec = now.tv_nsec / 1000;
+
+		/* Tearing does not have vsync nor hardware time. */
+		flags = WP_PRESENTATION_FEEDBACK_KIND_HW_COMPLETION;
 	}
 
 	drm_debug(b, "[atomic][CRTC:%u] flip processing started\n", crtc_id);
