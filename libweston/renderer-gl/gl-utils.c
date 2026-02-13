@@ -29,6 +29,9 @@
 #include "gl-renderer.h"
 #include "gl-renderer-internal.h"
 
+/* Texture validity checks disabled by default for perf reasons. */
+#define TEXTURE_VALIDITY_CHECKS 0
+
 /*
  * Table 1: List of OpenGL ES 3 sized internal colour formats allowed for
  * texture and FBO creation. Built from Table 3.13 in the OpenGL ES 3.0 and 3.1
@@ -119,7 +122,7 @@
  * ⁶ Supported via extensions.
  */
 
-#if !defined(NDEBUG)
+#if TEXTURE_VALIDITY_CHECKS != 0
 
 /* Validate an external format for a given OpenGL ES 3 sized internal colour
  * format. Based on Table 1 above.
@@ -654,7 +657,7 @@ are_valid_texture_parameters(struct gl_renderer *gr,
 	return true;
 }
 
-#endif /* !defined(NDEBUG) */
+#endif /* TEXTURE_VALIDITY_CHECKS != 0 */
 
 /* Get the supported BGRA8 texture creation method. This is needed to correctly
  * handle the behaviour of different drivers. This function should only be used
@@ -1150,7 +1153,7 @@ texture_store(struct gl_renderer *gr,
 	      GLenum type,
 	      const void *data)
 {
-#if !defined(NDEBUG)
+#if TEXTURE_VALIDITY_CHECKS != 0
 	GLint tex, tex_width, tex_height, tex_depth, tex_internal_format;
 #endif
 
@@ -1164,7 +1167,7 @@ texture_store(struct gl_renderer *gr,
 	if (type == GL_HALF_FLOAT && gr->gl_version == gl_version(2, 0))
 		type = GL_HALF_FLOAT_OES;
 
-#if !defined(NDEBUG)
+#if TEXTURE_VALIDITY_CHECKS != 0
 	assert(target == GL_TEXTURE_2D ||
 	       target == GL_TEXTURE_3D);
 	assert(level >= 0);
@@ -1351,7 +1354,9 @@ void
 gl_texture_parameters_flush(struct gl_renderer *gr,
 			    struct gl_texture_parameters *parameters)
 {
+#if TEXTURE_VALIDITY_CHECKS != 0
 	assert(are_valid_texture_parameters(gr, parameters));
+#endif
 
 	if (parameters->flags & TEXTURE_FILTERS_DIRTY) {
 		glTexParameteri(parameters->target, GL_TEXTURE_MIN_FILTER,
