@@ -8336,6 +8336,7 @@ weston_output_init(struct weston_output *output,
 	output->gpu_track_id = 0;
 	output->paint_track_id = 0;
 	output->presentation_track_id = 0;
+	output->vrr_mode = WESTON_VRR_MODE_NONE;
 
 	wl_list_init(&output->fifo_barrier_surfaces);
 }
