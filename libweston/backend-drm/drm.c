@@ -475,6 +475,9 @@ drm_output_update_complete(struct drm_output *output, uint32_t flags,
 	if (output->pageflip_timer)
 		wl_event_source_timer_update(output->pageflip_timer, 0);
 
+	drm_debug(device->backend, "output %s update complete at %u.%06u s, flags %#x\n",
+		  output->base.name, sec, usec, flags);
+
 	wl_list_for_each(ps, &output->state_cur->plane_list, link)
 		ps->complete = true;
 
