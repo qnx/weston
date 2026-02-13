@@ -1167,6 +1167,12 @@ texture_store(struct gl_renderer *gr,
 #if !defined(NDEBUG)
 	assert(target == GL_TEXTURE_2D ||
 	       target == GL_TEXTURE_3D);
+	assert(level >= 0);
+	assert(x >= 0);
+	assert(y >= 0);
+	assert(z >= 0);
+	if (target == GL_TEXTURE_3D)
+		assert(depth >= 0);
 	glGetIntegerv(target == GL_TEXTURE_2D ?
 		      GL_TEXTURE_BINDING_2D :
 		      GL_TEXTURE_BINDING_3D, &tex);
@@ -1187,10 +1193,6 @@ texture_store(struct gl_renderer *gr,
 		glGetTexLevelParameteriv(target, level,
 					 GL_TEXTURE_INTERNAL_FORMAT,
 					 &tex_internal_format);
-		assert(level >= 0);
-		assert(x >= 0);
-		assert(y >= 0);
-		assert(z >= 0);
 		assert(x + width <= tex_width);
 		assert(y + height <= tex_height);
 		if (target == GL_TEXTURE_3D)
