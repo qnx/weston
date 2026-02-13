@@ -792,6 +792,7 @@ is_paint_node_solid_opaque_black(struct weston_paint_node *pnode)
 static bool
 lower_solid_views_to_background_region(struct drm_output *output,
 				       struct wl_array *visible_pnodes,
+				       struct weston_paint_node **last_visible_pnode,
 				       pixman_region32_t *background_region)
 {
 	struct drm_device *device = output->device;
@@ -858,6 +859,7 @@ lower_solid_views_to_background_region(struct drm_output *output,
 		visible_pnode_new = wl_array_add(&visible_pnodes_new,
 						 sizeof(pnode));
 		*visible_pnode_new = pnode;
+		*last_visible_pnode = pnode;
 	}
 
 	wl_array_release(visible_pnodes);
@@ -895,6 +897,7 @@ drm_output_propose_state(struct weston_output *output_base,
 	struct drm_plane_state *scanout_state = NULL;
 
 	struct weston_paint_node **visible_pnode;
+	struct weston_paint_node *last_visible_pnode = NULL;
 	struct wl_array visible_pnodes;
 
 	pixman_region32_t renderer_region;
@@ -1040,6 +1043,7 @@ drm_output_propose_state(struct weston_output *output_base,
 	if (mode == DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY &&
 	    !lower_solid_views_to_background_region(output,
 						    &visible_pnodes,
+						    &last_visible_pnode,
 						    &background_region))
 		goto err_region;
 
@@ -1126,11 +1130,13 @@ drm_output_propose_state(struct weston_output *output_base,
 				      current_lowest_zpos_overlay);
 
 			pixman_region32_init(&obscured_or_background_region);
-			pixman_region32_union(&obscured_or_background_region,
-					      &background_region,
-					      &obscured_region);
-			if (pixman_region32_not_empty (&obscured_or_background_region))
-				drm_debug(b, "\t\t\t[plane] adding background region\n");
+			if (pnode == last_visible_pnode) {
+				pixman_region32_union(&obscured_or_background_region,
+						      &background_region,
+						      &obscured_region);
+				if (pixman_region32_not_empty (&obscured_or_background_region))
+					drm_debug(b, "\t\t\t[plane] adding background region\n");
+			}
 
 			ps = drm_output_find_plane_for_view(state, pnode, mode,
 							    scanout_state,
