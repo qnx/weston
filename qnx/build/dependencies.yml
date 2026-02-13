@@ -5,3 +5,4 @@ packages:
 - com.qnx.{baselineId}.osr.pixman.dev
 - com.qnx.{baselineId}.osr.cairo.dev
 - com.qnx.{baselineId}.osr.xkbcommon
+- com.qnx.{baselineId}.target.screen.board.common_mesa

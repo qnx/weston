@@ -43,9 +43,7 @@
 #include <linux/input.h>
 #include <unistd.h>
 
-#if !defined(__QNX__)
 #include <gbm.h>
-#endif
 
 #include "linux-sync-file.h"
 #include "timeline.h"
@@ -2945,8 +2943,6 @@ err_free:
 	return false;
 }
 
-#if !defined(__QNX__)
-
 static void
 gl_renderer_destroy_dmabuf(struct linux_dmabuf_buffer *dmabuf)
 {
@@ -3180,7 +3176,6 @@ dmabuf_format_create(struct gl_renderer *gr, uint32_t format)
 	wl_list_insert(&gr->dmabuf_formats, &dmabuf_format->link);
 	return dmabuf_format;
 }
-#endif
 
 static void
 dmabuf_format_destroy(struct dmabuf_format *format)
@@ -3191,7 +3186,6 @@ dmabuf_format_destroy(struct dmabuf_format *format)
 	free(format);
 }
 
-#if !defined(__QNX__)
 static GLenum
 choose_texture_target(struct gl_renderer *gr,
 		      struct dmabuf_attributes *attributes)
@@ -3408,7 +3402,6 @@ gl_renderer_import_dmabuf(struct weston_compositor *ec,
 
 	return true;
 }
-#endif
 
 static struct gl_buffer_state *
 ensure_renderer_gl_buffer_state(struct weston_surface *surface,
@@ -3477,7 +3470,6 @@ gl_renderer_attach_buffer(struct weston_surface *surface,
 	glActiveTexture(GL_TEXTURE0);
 }
 
-#if !defined(__QNX__)
 static const struct weston_drm_format_array *
 gl_renderer_get_supported_formats(struct weston_compositor *ec)
 {
@@ -3552,7 +3544,6 @@ out:
 	free(formats);
 	return ret;
 }
-#endif
 
 static void
 gl_renderer_attach_solid(struct weston_surface *surface,
@@ -4138,7 +4129,6 @@ gl_renderer_output_fbo_create(struct weston_output *output,
 					&options->fb_size, &options->area);
 }
 
-#if !defined(__QNX__)
 static void
 gl_renderer_dmabuf_renderbuffer_destroy(struct weston_renderbuffer *renderbuffer)
 {
@@ -4309,7 +4299,6 @@ gl_renderer_dmabuf_alloc(struct weston_renderer *renderer,
 
 	return dmabuf;
 }
-#endif
 
 static void
 gl_renderer_output_destroy(struct weston_output *output)
@@ -4367,10 +4356,8 @@ gl_renderer_allocator_destroy(struct dmabuf_allocator *allocator)
 	if (!allocator)
 		return;
 
-#if !defined(__QNX__)
 	if (allocator->gbm_device && allocator->has_own_device)
 		gbm_device_destroy(allocator->gbm_device);
-#endif
 
 	free(allocator);
 }
@@ -4379,9 +4366,6 @@ static struct dmabuf_allocator *
 gl_renderer_allocator_create(struct gl_renderer *gr,
 			     const struct gl_renderer_display_options * options)
 {
-#if defined(__QNX__)
-	return NULL;
-#else
 	struct dmabuf_allocator *allocator;
 	struct gbm_device *gbm = NULL;
 	bool has_own_device = false;
@@ -4401,7 +4385,6 @@ gl_renderer_allocator_create(struct gl_renderer *gr,
 	allocator->has_own_device = has_own_device;
 
 	return allocator;
-#endif
 }
 
 static void
@@ -4454,7 +4437,6 @@ gl_renderer_destroy(struct weston_compositor *ec)
 	ec->renderer = NULL;
 }
 
-#if !defined(__QNX__)
 static int
 create_default_dmabuf_feedback(struct weston_compositor *ec,
 			       struct gl_renderer *gr)
@@ -4486,7 +4468,6 @@ create_default_dmabuf_feedback(struct weston_compositor *ec,
 
 	return 0;
 }
-#endif
 
 static int
 gl_renderer_display_create(struct weston_compositor *ec,
@@ -4568,7 +4549,6 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	if (gr->has_native_fence_sync && gr->has_wait_sync)
 		ec->capabilities |= WESTON_CAP_EXPLICIT_SYNC;
 
-#if !defined(__QNX__)
 	if (gr->allocator)
 		gr->base.dmabuf_alloc = gl_renderer_dmabuf_alloc;
 
@@ -4592,7 +4572,7 @@ gl_renderer_display_create(struct weston_compositor *ec,
 				goto fail_feedback;
 		}
 	}
-#endif
+
 	wl_list_init(&gr->dmabuf_formats);
 
 	wl_signal_init(&gr->destroy_signal);

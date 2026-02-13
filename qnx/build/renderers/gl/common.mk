@@ -38,7 +38,7 @@ SRCS += \
 	$(if $(filter so dll,$(VARIANT_LIST)),epoll-create-stub.c) \
 	$(if $(filter so dll,$(VARIANT_LIST)),socketpair-stub.c) \
 	linux-dmabuf-unstable-v1-protocol.c
-LIBS += weston sharedS wayland-server pixman-1 EGL GLESv2 memstream m
+LIBS += weston sharedS wayland-server pixman-1 EGL GLESv2 memstream m gbm
 
 define PINFO
 PINFO DESCRIPTION = Weston GL Render Library
