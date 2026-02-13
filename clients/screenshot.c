@@ -671,11 +671,6 @@ main(int argc, char *argv[])
 		fprintf(stderr, "Error: display does not support weston_capture_v1\n");
 		return -1;
 	}
-	if (app.src_type == WESTON_CAPTURE_V1_SOURCE_FRAMEBUFFER &&
-	    app.buffer_type != CLIENT_BUFFER_TYPE_SHM) {
-		fprintf(stderr, "Error: Only support shm buffer with framebuffer source\n");
-		return -1;
-	}
 
 	if(app.buffer_type == CLIENT_BUFFER_TYPE_SHM && !app.shm) {
 		fprintf(stderr, "Error: display does not support wl_shm\n");
