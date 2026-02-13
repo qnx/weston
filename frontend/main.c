@@ -2019,7 +2019,7 @@ wet_output_set_vrr_mode(struct weston_output *output,
 	vrr_mode = entry->value;
 
 	if (vrr_mode && (weston_output_get_supported_vrr_modes(output) & vrr_mode) == 0) {
-		weston_log("Error: output '%s' does not support output format %s.\n",
+		weston_log("Error: output '%s' does not support VRR mode %s.\n",
 			   output->name, vrr_str);
 		free(vrr_str);
 		return -1;
@@ -2433,7 +2433,7 @@ wet_output_set_color_format(struct weston_output *output,
 	color_format = entry->value;
 
 	if ((weston_output_get_supported_color_formats(output) & color_format) == 0) {
-		weston_log("Error: output '%s' does not support output format %s\n",
+		weston_log("Error: output '%s' does not support color format %s\n",
 			   output->name, str);
 		free(str);
 		return -1;
