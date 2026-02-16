@@ -4297,25 +4297,25 @@ gl_renderer_log_extensions(struct gl_renderer *gr,
 	int l;
 	int len;
 
-	if (!weston_log_scope_is_enabled(gr->renderer_scope))
+	if (!weston_log_scope_is_enabled(gr->extensions_scope))
 		return;
 
-	l = weston_log_scope_printf(gr->renderer_scope, "%s:", name);
+	l = weston_log_scope_printf(gr->extensions_scope, "%s:", name);
 	p = extensions;
 	while (*p) {
 		end = strchrnul(p, ' ');
 		len = end - p;
 		if (l + len > 78) {
-			l = weston_log_scope_printf(gr->renderer_scope,
+			l = weston_log_scope_printf(gr->extensions_scope,
 						    "\n  %.*s", len, p);
 		} else {
-			l += weston_log_scope_printf(gr->renderer_scope,
+			l += weston_log_scope_printf(gr->extensions_scope,
 						     " %.*s", len, p);
 		}
 		for (p = end; isspace(*p); p++)
 			;
 	}
-	weston_log_scope_printf(gr->renderer_scope, "\n");
+	weston_log_scope_printf(gr->extensions_scope, "\n");
 }
 
 static void
@@ -4799,7 +4799,7 @@ gl_renderer_destroy(struct weston_compositor *ec)
 		weston_binding_destroy(gr->debug_mode_binding);
 
 	weston_log_scope_destroy(gr->shader_scope);
-	weston_log_scope_destroy(gr->renderer_scope);
+	weston_log_scope_destroy(gr->extensions_scope);
 	free(gr);
 	ec->renderer = NULL;
 }
@@ -4853,8 +4853,8 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	wl_list_init(&gr->shader_list);
 	gr->platform = options->egl_platform;
 
-	gr->renderer_scope = weston_compositor_add_log_scope(ec, "gl-renderer",
-		"GL-renderer verbose messages\n", NULL, NULL, gr);
+	gr->extensions_scope = weston_compositor_add_log_scope(ec, "gl-renderer-ext",
+		"Print GL-renderer extensions\n", NULL, NULL, gr);
 	gr->shader_scope = gl_shader_scope_create(gr);
 
 	if (gl_renderer_setup_egl_client_extensions(gr) < 0)
@@ -5022,7 +5022,7 @@ fail_terminate:
 	eglTerminate(gr->egl_display);
 fail:
 	weston_log_scope_destroy(gr->shader_scope);
-	weston_log_scope_destroy(gr->renderer_scope);
+	weston_log_scope_destroy(gr->extensions_scope);
 	free(gr);
 	ec->renderer = NULL;
 	return -1;

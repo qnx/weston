@@ -395,7 +395,7 @@ struct gl_shader_config {
 struct gl_renderer {
 	struct weston_renderer base;
 	struct weston_compositor *compositor;
-	struct weston_log_scope *renderer_scope;
+	struct weston_log_scope *extensions_scope;
 
 	/* Debug modes. */
 	struct weston_binding *debug_mode_binding;
