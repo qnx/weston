@@ -565,7 +565,8 @@ gl_shader_config_set_color_effect(struct gl_renderer *gr,
 		break;
 	case WESTON_OUTPUT_COLOR_EFFECT_TYPE_CVD_CORRECTION:
 		sconf->req.color_effect = SHADER_COLOR_EFFECT_CVD_CORRECTION;
-		sconf->color_effect.cvd_correction = effect->u.cvd.correction;
+		sconf->color_effect.cvd.correction = effect->u.cvd.correction;
+		sconf->color_effect.cvd.type = effect->u.cvd.type;
 		break;
 	}
 	weston_assert_u32_ne(gr->compositor, sconf->req.color_effect,

@@ -829,11 +829,22 @@ gl_shader_load_config(struct gl_renderer *gr,
 		glUniformMatrix4fv(shader->surface_to_buffer_uniform,
 			           1, GL_FALSE, sconf->surface_to_buffer.M.colmaj);
 
-	if (shader->color_uniform != -1)
+	if (shader->color_uniform != -1) {
+		weston_log_scope_printf(gr->paint_node_scope,
+			"\t\tcolor: r: %.2f, g: %.2f, b: %.2f, a: %.2f\n",
+			sconf->unicolor[0], sconf->unicolor[1],
+			sconf->unicolor[2], sconf->unicolor[3]);
 		glUniform4fv(shader->color_uniform, 1, sconf->unicolor);
-	if (shader->tint_uniform != -1)
+	}
+	if (shader->tint_uniform != -1) {
+		weston_log_scope_printf(gr->paint_node_scope,
+				"\t\ttint: r: %.2f, g: %.2f, b: %.2f, a: %.2f\n",
+				sconf->tint[0], sconf->tint[1],
+				sconf->tint[2], sconf->tint[3]);
 		glUniform4fv(shader->tint_uniform, 1, sconf->tint);
+	}
 
+	weston_log_scope_printf(gr->paint_node_scope, "\t\talpha: %.2f\n", sconf->view_alpha);
 	glUniform1f(shader->view_alpha_uniform, sconf->view_alpha);
 
 	assert(sconf->input_num <= SHADER_INPUT_TEX_MAX);
@@ -873,10 +884,13 @@ gl_shader_load_config(struct gl_renderer *gr,
 			gl_texture_parameters_flush(gr, &sconf->input_param[i]);
 	}
 
-	if (shader->cvd_correction_uniform != -1)
+	if (shader->cvd_correction_uniform != -1) {
+		weston_log_scope_printf(gr->paint_node_scope, "\t\tcolor effect: cvd - %s\n",
+					 weston_output_cvd_type_to_str(sconf->color_effect.cvd));
 		glUniformMatrix3fv(shader->cvd_correction_uniform,
 				   1, GL_FALSE,
-				   sconf->color_effect.cvd_correction.colmaj);
+				   sconf->color_effect.cvd.correction.colmaj);
+	}
 
 	/* Fixed texture unit for color_pre_curve LUT if it is available */
 	gl_shader_load_config_curve(gr->compositor, sconf->req.color_pre_curve,
@@ -920,6 +934,8 @@ gl_renderer_use_program(struct gl_renderer *gr,
 		glUseProgram(shader->program);
 		glUniform4fv(shader->color_uniform, 1, fallback_shader_color);
 		glUniform1f(shader->view_alpha_uniform, 1.0f);
+		weston_log_scope_printf(gr->paint_node_scope, "\t\tFailed to generate shader program. "
+					"Using the fallback shader\n");
 		return false;
 	}
 
@@ -935,6 +951,8 @@ gl_renderer_use_program(struct gl_renderer *gr,
 		gr->current_shader = shader;
 	}
 
+	weston_log_scope_printf(gr->paint_node_scope,
+				"\t\t\tshader id: %d\n", gr->current_shader->program);
 	gl_shader_load_config(gr, shader, sconf);
 
 	return true;

@@ -343,7 +343,7 @@ struct weston_color_transform;
 struct dmabuf_allocator;
 
 union gl_shader_config_color_effect {
-	struct weston_mat3f cvd_correction;
+	struct weston_cvd_correction cvd;
 };
 
 union gl_shader_config_color_curve {
@@ -396,6 +396,7 @@ struct gl_renderer {
 	struct weston_renderer base;
 	struct weston_compositor *compositor;
 	struct weston_log_scope *extensions_scope;
+	struct weston_log_scope *paint_node_scope;
 
 	/* Debug modes. */
 	struct weston_binding *debug_mode_binding;
@@ -756,5 +757,7 @@ bool
 gl_shader_config_set_color_effect(struct gl_renderer *gr,
 				  struct gl_shader_config *sconf,
 				  struct weston_output_color_effect *effect);
+const char *
+weston_output_cvd_type_to_str(struct weston_cvd_correction cvd);
 
 #endif /* GL_RENDERER_INTERNAL_H */

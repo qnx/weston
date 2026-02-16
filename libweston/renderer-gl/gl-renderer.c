@@ -354,6 +354,101 @@ static const struct gl_extension_table extension_table[] = {
 	{ NULL, 0, 0 }
 };
 
+static void
+gl_log_paint_node(struct gl_renderer *gr, const char *feat_str)
+{
+	weston_log_scope_printf(gr->paint_node_scope, "%s", feat_str);
+}
+
+static void
+gl_log_paint_node_start(struct gl_renderer *gr, struct weston_paint_node *pnode)
+{
+	struct weston_view *view;
+	struct weston_surface *surface;
+	struct weston_buffer *buffer;
+	char desc[512];
+	pid_t pid = 0;
+	char *modifier_name;
+
+	if (!weston_log_scope_is_enabled(gr->paint_node_scope))
+		return;
+
+	view = pnode->view;
+	surface = view->surface;
+
+	if (surface->resource) {
+		struct wl_resource *resource = surface->resource;
+		wl_client_get_credentials(wl_resource_get_client(resource),
+				&pid, NULL, NULL);
+	}
+
+	if (!surface->get_label || surface->get_label(surface, desc, sizeof(desc)) < 0)
+		strcpy(desc, "[no description available]");
+
+	weston_log_scope_printf(gr->paint_node_scope, "\tView %s (role %s, PID %d"
+				", %s):\n", view->internal_name, surface->role_name ?: "none",
+				pid, desc);
+
+	buffer = view->surface->buffer_ref.buffer;
+	if (!buffer) {
+		weston_log_scope_printf(gr->paint_node_scope, "\t\t[buffer not available]\n");
+		return;
+	}
+
+	if (buffer->pixel_format)
+		weston_log_scope_printf(gr->paint_node_scope, "\t\tbuffer format: 0x%lx %s\n",
+					(unsigned long) buffer->pixel_format->format,
+					buffer->pixel_format->drm_format_name);
+	else
+		weston_log_scope_printf(gr->paint_node_scope, "\t\t[unknown buffer format]\n");
+
+	modifier_name = pixel_format_get_modifier(buffer->format_modifier);
+	weston_log_scope_printf(gr->paint_node_scope, "\t\tbuffer modifier: %s\n",
+				modifier_name ?  modifier_name :
+				"Failed to convert to a modifier name");
+	free(modifier_name);
+}
+
+static void
+gl_log_paint_node_bbox_and_region(struct gl_renderer *gr, const char *str,
+				  pixman_region32_t *damage)
+{
+	pixman_box32_t *box;
+	int32_t box_x, box_y;
+	uint32_t box_width, box_height;
+	int n_rects = 0;
+	const pixman_box32_t *rects =
+		pixman_region32_rectangles(damage, &n_rects);
+
+	if (!weston_log_scope_is_enabled(gr->paint_node_scope))
+		return;
+
+	box = pixman_region32_extents(damage);
+
+	box_x = box->x1;
+	box_y = box->y1;
+	box_width = box->x2 - box->x1;
+	box_height = box->y2 - box->y1;
+
+	weston_log_scope_printf(gr->paint_node_scope, "\t\t%s bounding box: ", str);
+	weston_log_scope_printf(gr->paint_node_scope, "x: %5d, y: %5d, width: "
+			       "%d, height: %d\n", box_x, box_y, box_width, box_height);
+
+	weston_log_scope_printf(gr->paint_node_scope,
+				"\t\t%s has %d rectangles\n", str, n_rects);
+
+	for (int i = 0; i < n_rects; i++) {
+		int x1 = rects[i].x1;
+		int y1 = rects[i].y1;
+		int x2 = rects[i].x2;
+		int y2 = rects[i].y2;
+
+		weston_log_scope_printf(gr->paint_node_scope, "\t\t\t%3d: "
+					"(%4d, %4d) - (%4d, %4d), %4d x %4d\n",
+					i, x1, y1, x2, y2, x2 - x1, y2 - y1);
+	}
+}
+
 static inline const char *
 dump_format(uint32_t format, char out[4])
 {
@@ -577,7 +672,8 @@ static void
 timeline_begin_render_query(struct gl_renderer *gr, GLuint query)
 {
 	if (gl_features_has(gr, FEATURE_GPU_TIMELINE) &&
-	    weston_timeline_profiling(gr->compositor->timeline))
+	    (weston_timeline_profiling(gr->compositor->timeline) ||
+	     weston_log_scope_is_enabled(gr->paint_node_scope)))
 		gr->begin_query(GL_TIME_ELAPSED_EXT, query);
 }
 
@@ -585,7 +681,8 @@ static void
 timeline_end_render_query(struct gl_renderer *gr)
 {
 	if (gl_features_has(gr, FEATURE_GPU_TIMELINE) &&
-	    weston_timeline_profiling(gr->compositor->timeline))
+	    (weston_timeline_profiling(gr->compositor->timeline) ||
+	     weston_log_scope_is_enabled(gr->paint_node_scope)))
 		gr->end_query(GL_TIME_ELAPSED_EXT);
 }
 
@@ -629,6 +726,15 @@ timeline_render_point_handler(int fd, uint32_t mask, void *data)
 			 TLP_GPU(&begin), TLP_OUTPUT(trp->output), TLP_END);
 		TL_POINT(trp->output->compositor, TLP_RENDERER_GPU_END,
 			 TLP_GPU(&end), TLP_OUTPUT(trp->output), TLP_END);
+
+	       weston_log_scope_printf(gr->paint_node_scope,
+			       "\tGPU Timeline:\n\t\tbegin: %" PRId64 ".%09ld"
+			       " - end: %" PRId64 ".%09ld - elapsed: %.2f us\n",
+			       (int64_t) begin.tv_sec, end.tv_nsec,
+			       (int64_t) begin.tv_sec, end.tv_nsec,
+			       (float) (elapsed / 1000));
+
+
 	}
 
 	timeline_render_point_destroy(trp);
@@ -660,7 +766,8 @@ timeline_submit_render_sync(struct gl_renderer *gr,
 	struct timeline_render_point *trp;
 
 	if (!gl_features_has(gr, FEATURE_GPU_TIMELINE) ||
-	    !weston_timeline_profiling(gr->compositor->timeline) ||
+	    (!weston_timeline_profiling(gr->compositor->timeline) &&
+	     !weston_log_scope_is_enabled(gr->paint_node_scope)) ||
 	    sync == EGL_NO_SYNC_KHR)
 		return;
 
@@ -2061,10 +2168,13 @@ set_blend_state(struct gl_renderer *gr,
 	if (gr->blend_state == state)
 		return;
 
-	if (state)
+	if (state) {
 		glEnable(GL_BLEND);
-	else
+		gl_log_paint_node(gr, "\t\tblending enabled\n");
+	} else {
 		glDisable(GL_BLEND);
+		gl_log_paint_node(gr, "\t\tblending disabled\n");
+	}
 	gr->blend_state = state;
 }
 
@@ -2099,6 +2209,7 @@ draw_mesh(struct gl_renderer *gr,
 	if (gr->debug_mode)
 		set_debug_mode(gr, sconf, barycentrics, opaque);
 
+	gl_log_paint_node(gr, "\t\tdrawing paint node mesh\n");
 	if (!gl_renderer_use_program(gr, sconf))
 		gl_renderer_send_shader_error(pnode); /* Use fallback shader. */
 
@@ -2195,8 +2306,24 @@ repaint_region(struct gl_renderer *gr,
 		gr->barycentric_stream.size = 0;
 }
 
+const char *
+weston_output_cvd_type_to_str(struct weston_cvd_correction cvd)
+{
+	switch (cvd.type) {
+	case WESTON_CVD_CORRECTION_TYPE_DEUTERANOPIA:
+		return "deuteranopia";
+	case WESTON_CVD_CORRECTION_TYPE_PROTANOPIA:
+		return "protanopia";
+	case WESTON_CVD_CORRECTION_TYPE_TRITANOPIA:
+		return "tritanopia";
+	}
+
+	return "invalid cvd";
+}
+
 static void
-apply_color_effect(struct weston_output *output, float *r, float *g, float *b, const float a)
+apply_color_effect(struct gl_renderer *gr, struct weston_output *output,
+		   float *r, float *g, float *b, const float a)
 {
 	struct weston_compositor *compositor = output->compositor;
 	struct weston_output_color_effect *effect = output->color_effect;
@@ -2219,6 +2346,7 @@ apply_color_effect(struct weston_output *output, float *r, float *g, float *b, c
 		*r = 1.0f - *r;
 		*g = 1.0f - *g;
 		*b = 1.0f - *b;
+		gl_log_paint_node(gr, "\t\tcolor effect: inversion\n");
 		return;
 	case WESTON_OUTPUT_COLOR_EFFECT_TYPE_CVD_CORRECTION:
 		/**
@@ -2229,6 +2357,9 @@ apply_color_effect(struct weston_output *output, float *r, float *g, float *b, c
 		*r = res.el[0];
 		*g = res.el[1];
 		*b = res.el[2];
+		weston_log_scope_printf(gr->paint_node_scope,
+					"\t\tcolor effect: cvd - %s\n",
+					 weston_output_cvd_type_to_str(effect->u.cvd));
 		return;
 	};
 	weston_assert_not_reached(compositor, "unknown color effect type");
@@ -2258,7 +2389,7 @@ clear_region(struct gl_renderer *gr, struct weston_paint_node *pnode,
 	g = pnode->solid.g;
 	b = pnode->solid.b;
 	a = pnode->solid.a;
-	apply_color_effect(output, &r, &g, &b, a);
+	apply_color_effect(gr, output, &r, &g, &b, a);
 	glClearColor(r, g, b, a);
 
 	glEnable(GL_SCISSOR_TEST);
@@ -2290,10 +2421,15 @@ draw_paint_node(struct weston_paint_node *pnode,
 	pixman_region32_init(&repaint);
 	pixman_region32_intersect(&repaint, &pnode->visible, damage);
 
-	if (!pixman_region32_not_empty(&repaint))
+	gl_log_paint_node_start(gr, pnode);
+
+	if (!pixman_region32_not_empty(&repaint)) {
+		gl_log_paint_node(gr, "\t\tskipped repaint: repaint region empty\n");
 		goto out;
+	}
 
 	if (pnode->is_fully_transparent) {
+		gl_log_paint_node(gr, "\t\tskipped repaint: paint node transparent\n");
 		gs->used_in_output_repaint = true; /* sort of */
 		goto out;
 	}
@@ -2301,16 +2437,21 @@ draw_paint_node(struct weston_paint_node *pnode,
 	if (!gr->debug_mode && pnode->draw_solid && pnode->is_fully_opaque &&
 	    pnode->valid_transform && (pnode->surf_xform_valid &&
 				       !pnode->surf_xform.transform)) {
+		gl_log_paint_node(gr, "\t\toptimize: using glClear\n");
 		clear_region(gr, pnode, &repaint);
 		gs->used_in_output_repaint = true;
 		goto out;
 	}
 
-	if (ensure_surface_buffer_is_ready(gr, gs, pnode) < 0)
+	if (ensure_surface_buffer_is_ready(gr, gs, pnode) < 0) {
+		gl_log_paint_node(gr, "\t\tskip repaint: buffer not ready\n");
 		goto out;
+	}
 
-	if (!gl_shader_config_init_for_paint_node(&sconf, pnode))
+	if (!gl_shader_config_init_for_paint_node(&sconf, pnode)) {
+		gl_log_paint_node(gr, "\t\tskip repaint: shader config failure\n");
 		goto out;
+	}
 
 	if (pnode->is_fully_opaque) {
 		pixman_region32_init_rect(&surface_opaque, 0, 0,
@@ -2335,8 +2476,11 @@ draw_paint_node(struct weston_paint_node *pnode,
 	pixman_region32_subtract(&surface_blend, &surface_blend,
 				 &surface_opaque);
 
+	gl_log_paint_node_bbox_and_region(gr, "repaint region", &repaint);
+
 	if (pixman_region32_not_empty(&surface_opaque)) {
 		transform_damage(pnode, &repaint, &quads, &nquads);
+		gl_log_paint_node_bbox_and_region(gr, "opaque region", &surface_opaque);
 		repaint_region(gr, pnode, quads, nquads, &surface_opaque,
 			       &sconf, true);
 		gs->used_in_output_repaint = true;
@@ -2344,6 +2488,7 @@ draw_paint_node(struct weston_paint_node *pnode,
 
 	if (pixman_region32_not_empty(&surface_blend)) {
 		transform_damage(pnode, &repaint, &quads, &nquads);
+		gl_log_paint_node_bbox_and_region(gr, "blended region", &surface_blend);
 		repaint_region(gr, pnode, quads, nquads, &surface_blend, &sconf,
 			       false);
 		gs->used_in_output_repaint = true;
@@ -2561,6 +2706,8 @@ draw_output_border_texture(struct gl_renderer *gr,
 	sconf->input_tex = &go->borders_tex[side];
 	sconf->input_param = &go->borders_param[side];
 	sconf->input_num = 1;
+
+	gl_log_paint_node(gr, "\t\tdrawing output border texture\n");
 	gl_renderer_use_program(gr, sconf);
 
 	GLfloat texcoord[] = {
@@ -2681,6 +2828,7 @@ blit_shadow_to_output(struct weston_output *output,
 
 	pixman_region32_init(&translated_damage);
 
+	gl_log_paint_node(gr, "\t\tdrawing shadow output\n");
 	gl_renderer_use_program(gr, &sconf);
 	set_blend_state(gr, false);
 
@@ -2784,6 +2932,16 @@ gl_renderer_repaint_output(struct weston_output *output,
 			gs->used_in_output_repaint = false;
 		}
 	}
+
+	if (weston_log_scope_is_enabled(gr->paint_node_scope)) {
+		struct timespec now;
+
+		weston_compositor_read_presentation_clock(output->compositor, &now);
+		weston_log_scope_printf(gr->paint_node_scope,
+				"Repainted views @ %" PRId64 ".%09ld:\n",
+				(int64_t) now.tv_sec, now.tv_nsec);
+	}
+
 
 	timeline_begin_render_query(gr, go->render_query);
 
@@ -4188,6 +4346,7 @@ gl_renderer_surface_copy_content(struct weston_surface *surface,
 	sconf.projection.type = WESTON_MATRIX_TRANSFORM_SCALE |
 				WESTON_MATRIX_TRANSFORM_TRANSLATE;
 
+	gl_log_paint_node(gr, "\t\tcopying surface\n");
 	if (!gl_renderer_use_program(gr, &sconf))
 		goto use_program_error;
 
@@ -4800,6 +4959,7 @@ gl_renderer_destroy(struct weston_compositor *ec)
 
 	weston_log_scope_destroy(gr->shader_scope);
 	weston_log_scope_destroy(gr->extensions_scope);
+	weston_log_scope_destroy(gr->paint_node_scope);
 	free(gr);
 	ec->renderer = NULL;
 }
@@ -4855,6 +5015,8 @@ gl_renderer_display_create(struct weston_compositor *ec,
 
 	gr->extensions_scope = weston_compositor_add_log_scope(ec, "gl-renderer-ext",
 		"Print GL-renderer extensions\n", NULL, NULL, gr);
+	gr->paint_node_scope = weston_compositor_add_log_scope(ec, "gl-renderer-paint-nodes",
+		"Print GL-renderer debug information about paint nodes\n", NULL, NULL, gr);
 	gr->shader_scope = gl_shader_scope_create(gr);
 
 	if (gl_renderer_setup_egl_client_extensions(gr) < 0)
@@ -5023,6 +5185,7 @@ fail_terminate:
 fail:
 	weston_log_scope_destroy(gr->shader_scope);
 	weston_log_scope_destroy(gr->extensions_scope);
+	weston_log_scope_destroy(gr->paint_node_scope);
 	free(gr);
 	ec->renderer = NULL;
 	return -1;
