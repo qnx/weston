@@ -976,7 +976,7 @@ weston_surface_update_preferred_color_profile(struct weston_surface *surface)
 static int
 get_label_member(struct weston_surface *surface, char *buf, size_t len)
 {
-	return snprintf(buf, len, "(no label)");
+	return snprintf(buf, len, "%s", surface->label);
 }
 
 WL_EXPORT struct weston_surface *
@@ -1052,6 +1052,9 @@ weston_surface_create(struct weston_compositor *compositor,
 	weston_reset_color_representation(&surface->color_representation);
 
 	wl_list_init(&surface->fifo_barrier_link);
+
+	/* Set default label */
+	weston_surface_set_label(surface, NULL);
 
 	return surface;
 }
@@ -2787,6 +2790,8 @@ weston_surface_unref(struct weston_surface *surface)
 	wl_list_remove(&surface->fifo_barrier_link);
 
 	free(surface->internal_name);
+
+	free(surface->label_dyn);
 	free(surface);
 }
 
@@ -5450,6 +5455,46 @@ weston_surface_set_label_func(struct weston_surface *surface,
 
 	weston_timeline_refresh_subscription_objects(surface->compositor,
 						     surface);
+}
+
+static void
+weston_surface_do_set_label(struct weston_surface *surface,
+			    char *label_dyn,
+			    const char *label_static)
+{
+	free(surface->label_dyn);
+	surface->label_dyn = label_dyn;
+
+	if (label_static)
+		surface->label = label_static;
+	else
+		surface->label = "(no label)";
+
+	weston_timeline_refresh_subscription_objects(surface->compositor, surface);
+}
+/**
+ * Set a human-readable label on a surface, malloc'd
+ *
+ * \param surface The surface to label.
+ * \param label A malloc'd string. This function takes the ownership of the
+ * string and will free() it as necessary. Can be NULL to remove the label.
+ */
+WL_EXPORT void
+weston_surface_set_label(struct weston_surface *surface, char *label)
+{
+	weston_surface_do_set_label(surface, label, label);
+}
+
+/**
+ * Set a human-readable label on a surface, static
+ *
+ * \param surface The surface to label.
+ * \param label A static string, never free()'d. Can be NULL to remove the label.
+ */
+WL_EXPORT void
+weston_surface_set_label_static(struct weston_surface *surface, const char *label)
+{
+	weston_surface_do_set_label(surface, NULL, label);
 }
 
 /** Get the size of surface contents

@@ -1976,6 +1976,11 @@ struct weston_surface {
 	void *committed_private;
 	int (*get_label)(struct weston_surface *surface, char *buf, size_t len);
 
+	/** human-readable, non-unique label */
+	const char *label;
+	/** freed when changing the label */
+	char *label_dyn;
+
 	/*
 	 * Sent when the surface has been mapped and unmapped, respectively.
 	 * The data argument is the weston_surface.
@@ -2402,6 +2407,11 @@ void
 weston_surface_set_label_func(struct weston_surface *surface,
 			      int (*desc)(struct weston_surface *,
 					  char *, size_t));
+void
+weston_surface_set_label(struct weston_surface *surface, char *label);
+
+void
+weston_surface_set_label_static(struct weston_surface *surface, const char *label);
 
 void
 weston_surface_get_content_size(struct weston_surface *surface,
