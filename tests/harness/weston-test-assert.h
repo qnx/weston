@@ -28,6 +28,7 @@
 
 #include <errno.h>
 
+#include "shared/helpers.h"
 #include "shared/weston-assert.h"
 
 int
