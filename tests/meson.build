@@ -161,6 +161,10 @@ tests = [
 		],
 		'dep_objs': [ dep_libweston_public ]
 	},
+	{
+		'name': 'xwayland',
+		'dep_objs': dep_libxwayland_test,
+	},
 ]
 
 if get_option('renderer-gl')
@@ -206,13 +210,6 @@ if get_option('color-management-lcms')
 			'dep_objs': [ dep_lcms_util ]
 		},
 	]
-endif
-
-if get_option('xwayland')
-	tests += [ {
-		'name': 'xwayland',
-		'dep_objs': dep_libxwayland_test,
-	} ]
 endif
 
 # Manual test plugin, not used in the automatic suite

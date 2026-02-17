@@ -136,4 +136,6 @@ if get_option('xwayland')
 		dependencies: [ xcb_dep, xcb_cursor_dep ],
 		link_with: libxwayland_test_client,
 	)
+else
+	dep_libxwayland_test = disabler()
 endif
