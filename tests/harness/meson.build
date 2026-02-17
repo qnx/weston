@@ -69,6 +69,7 @@ lib_test_client = static_library(
 dep_test_client = declare_dependency(
 	link_with: lib_test_client,
 	sources: [
+		weston_test_client_protocol_h,
 		viewporter_client_protocol_h,
 	],
 	dependencies: [

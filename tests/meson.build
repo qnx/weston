@@ -319,7 +319,6 @@ endif
 foreach t : tests
 	t_name = 'test-' + t.get('name')
 	t_sources = t.get('sources', [t.get('name') + '-test.c'])
-	t_sources += weston_test_client_protocol_h
 
 	t_deps = [ dep_test_client, dep_libweston_private_h ]
 	t_deps += t.get('dep_objs', [])
