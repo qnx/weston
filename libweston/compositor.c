@@ -6139,8 +6139,6 @@ idle_handler(void *data)
 WL_EXPORT void
 weston_plane_init(struct weston_plane *plane, struct weston_compositor *ec)
 {
-	plane->x = 0;
-	plane->y = 0;
 	plane->compositor = ec;
 
 	/* Init the link so that the call to wl_list_remove() when releasing

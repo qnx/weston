@@ -350,7 +350,6 @@ enum weston_color_format {
 
 struct weston_plane {
 	struct weston_compositor *compositor;
-	int32_t x, y;
 	struct wl_list link;
 };
 

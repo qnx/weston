@@ -240,10 +240,7 @@ drm_plane_state_coords_for_paint_node(struct drm_plane_state *state,
 	assert(node->valid_transform);
 	state->rotation = drm_rotation_from_output_transform(state->plane, node->transform);
 
-	/* Update the base weston_plane co-ordinates. */
 	box = pixman_region32_extents(&ev->transform.boundingbox);
-	state->plane->base.x = box->x1;
-	state->plane->base.y = box->y1;
 
 	/* First calculate the destination co-ordinates by taking the
 	 * area of the view which is visible on this output, performing any
