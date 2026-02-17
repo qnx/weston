@@ -38,7 +38,6 @@
 
 #include <wayland-client.h>
 #include "tests/test-config.h"
-#include "shared/os-compatibility.h"
 #include "shared/helpers.h"
 #include "shared/xalloc.h"
 #include "shared/xcb-xwayland.h"

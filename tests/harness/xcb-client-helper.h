@@ -29,7 +29,6 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <time.h>
 
 #include "shared/xcb-xwayland.h"
 #include <pixman.h>
