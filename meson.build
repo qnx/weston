@@ -243,12 +243,10 @@ subdir('data')
 subdir('man')
 subdir('pam')
 
-if meson.version().version_compare('>= 0.58.0')
-	devenv = environment()
-	devenv.set('WESTON_MODULE_MAP', env_modmap)
-	devenv.set('WESTON_DATA_DIR', meson.current_source_dir() / 'data')
-	meson.add_devenv(devenv)
-endif
+devenv = environment()
+devenv.set('WESTON_MODULE_MAP', env_modmap)
+devenv.set('WESTON_DATA_DIR', meson.current_source_dir() / 'data')
+meson.add_devenv(devenv)
 
 configure_file(output: 'config.h', configuration: config_h)
 
