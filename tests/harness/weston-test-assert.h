@@ -28,7 +28,6 @@
 
 #include <errno.h>
 
-#include "libweston/libweston-internal.h"
 #include "shared/weston-assert.h"
 
 int
