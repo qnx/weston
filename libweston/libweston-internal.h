@@ -380,10 +380,6 @@ weston_compositor_run_tablet_tool_binding(struct weston_compositor *compositor,
 					  struct weston_tablet_tool *tool,
 					  uint32_t button, uint32_t state_w);
 void
-weston_compositor_stack_plane(struct weston_compositor *ec,
-			      struct weston_plane *plane,
-			      struct weston_plane *above);
-void
 weston_compositor_set_touch_mode_normal(struct weston_compositor *compositor);
 
 void

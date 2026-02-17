@@ -317,10 +317,6 @@ drm_virtual_output_enable(struct weston_output *output_base)
 	output->base.set_dpms = NULL;
 	output->base.switch_mode = NULL;
 
-	weston_compositor_stack_plane(b->compositor,
-				      &output->scanout_plane->base,
-				      &output->base.primary_plane);
-
 	return 0;
 err:
 	return -1;

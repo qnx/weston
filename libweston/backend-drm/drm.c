@@ -1573,11 +1573,6 @@ create_sprites(struct drm_device *device)
 		if (!drm_plane)
 			continue;
 
-		if (drm_plane->type == WDRM_PLANE_TYPE_OVERLAY)
-			weston_compositor_stack_plane(b->compositor,
-						      &drm_plane->base,
-						      NULL);
-
 		if (drm_plane->type == WDRM_PLANE_TYPE_PRIMARY)
 			primary_plane_zpos_min = drm_plane->zpos_min;
 	}
@@ -2559,7 +2554,6 @@ err:
 static int
 drm_output_init_planes(struct drm_output *output)
 {
-	struct drm_backend *b = output->backend;
 	struct drm_device *device = output->device;
 
 	output->scanout_plane =
@@ -2571,21 +2565,13 @@ drm_output_init_planes(struct drm_output *output)
 		return -1;
 	}
 
-	weston_compositor_stack_plane(b->compositor,
-				      &output->scanout_plane->base,
-				      &output->base.primary_plane);
-
 	/* Failing to find a cursor plane is not fatal, as we'll fall back
 	 * to software cursor. */
 	output->cursor_plane =
 		drm_output_find_special_plane(device, output,
 					      WDRM_PLANE_TYPE_CURSOR);
 
-	if (output->cursor_plane)
-		weston_compositor_stack_plane(b->compositor,
-					      &output->cursor_plane->base,
-					      NULL);
-	else
+	if (!output->cursor_plane)
 		device->cursors_are_broken = true;
 
 	return 0;
@@ -2599,12 +2585,7 @@ drm_output_deinit_planes(struct drm_output *output)
 {
 	struct drm_device *device = output->device;
 
-	wl_list_remove(&output->scanout_plane->base.link);
-	wl_list_init(&output->scanout_plane->base.link);
-
 	if (output->cursor_plane) {
-		wl_list_remove(&output->cursor_plane->base.link);
-		wl_list_init(&output->cursor_plane->base.link);
 		/* Turn off hardware cursor */
 		drmModeSetCursor(device->kms_device->fd, output->crtc->crtc_id, 0, 0, 0);
 	}

@@ -6140,10 +6140,6 @@ WL_EXPORT void
 weston_plane_init(struct weston_plane *plane, struct weston_compositor *ec)
 {
 	plane->compositor = ec;
-
-	/* Init the link so that the call to wl_list_remove() when releasing
-	 * the plane without ever stacking doesn't lead to a crash */
-	wl_list_init(&plane->link);
 }
 
 WL_EXPORT void
@@ -6171,22 +6167,6 @@ weston_plane_release(struct weston_plane *plane)
 			output->paint_node_list_needs_rebuild = true;
 		}
 	}
-
-	wl_list_remove(&plane->link);
-}
-
-/** weston_compositor_stack_plane
- * \ingroup compositor
- */
-WL_EXPORT void
-weston_compositor_stack_plane(struct weston_compositor *ec,
-			      struct weston_plane *plane,
-			      struct weston_plane *above)
-{
-	if (above)
-		wl_list_insert(above->link.prev, &plane->link);
-	else
-		wl_list_insert(&ec->plane_list, &plane->link);
 }
 
 static void
@@ -8509,12 +8489,6 @@ weston_output_enable(struct weston_output *output)
 
 	output->capture_info = weston_output_capture_info_create();
 	assert(output->capture_info);
-
-	/* Backends want to stack planes on top of the primary,
-	 * so we'd better set this up now.
-	 */
-	weston_compositor_stack_plane(output->compositor,
-				      &output->primary_plane, NULL);
 
 	/* Enable the output (set up the crtc or create a
 	 * window representing the output, set up the
