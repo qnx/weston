@@ -123,7 +123,7 @@ if get_option('xwayland')
 
 	libxwayland_test_client = static_library(
 		'test-xwayland-client',
-		[ 'xcb-client-helper.c', weston_test_client_protocol_h ],
+		'xcb-client-helper.c',
 		include_directories: common_inc,
 		dependencies: [
 			dep_pixman, dep_xcb_xwayland,
