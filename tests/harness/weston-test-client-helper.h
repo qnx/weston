@@ -48,6 +48,8 @@
 #include "fifo-v1-client-protocol.h"
 #include "commit-timing-v1-client-protocol.h"
 
+struct color_manager_client;
+
 struct client {
 	struct wl_display *wl_display;
 
@@ -66,6 +68,7 @@ struct client {
 	struct wp_single_pixel_buffer_manager_v1 *single_pixel_manager;
 	struct wp_viewporter *viewporter;
 	struct wp_color_representation_manager_v1 *color_representation;
+	struct color_manager_client *color_manager;
 
 	struct test *test;
 	struct wp_fifo_manager_v1 *fifo_manager;

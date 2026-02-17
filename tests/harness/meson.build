@@ -31,6 +31,8 @@ lib_test_client = static_library(
 		'weston-test-client-helper.c',
 		'weston-test-fixture-compositor.c',
 		'xdg-client-helper.c',
+		color_management_v1_client_protocol_h,
+		color_management_v1_protocol_c,
 		color_representation_v1_client_protocol_h,
 		color_representation_v1_protocol_c,
 		commit_timing_v1_client_protocol_h,
@@ -49,7 +51,7 @@ lib_test_client = static_library(
 		viewporter_protocol_c,
 		xdg_shell_client_protocol_h,
 		xdg_shell_protocol_c,
-		'color_util.h',
+		'color-manager-client.c',
 		'color_util.c',
 	],
 	include_directories: common_inc,
@@ -69,6 +71,7 @@ lib_test_client = static_library(
 dep_test_client = declare_dependency(
 	link_with: lib_test_client,
 	sources: [
+		color_management_v1_client_protocol_h,
 		color_representation_v1_client_protocol_h,
 		commit_timing_v1_client_protocol_h,
 		fifo_v1_client_protocol_h,

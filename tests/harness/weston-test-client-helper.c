@@ -47,6 +47,7 @@
 #include "weston-test-client-helper.h"
 #include "weston-test-assert.h"
 #include "image-iter.h"
+#include "color-manager-client.h"
 #include "weston-output-capture-client-protocol.h"
 #include "presentation-time-client-protocol.h"
 
@@ -1269,6 +1270,8 @@ void
 client_destroy(struct client *client)
 {
 	int ret;
+
+	color_manager_client_destroy(client->color_manager);
 
 	if (client->fifo_manager)
 		wp_fifo_manager_v1_destroy(client->fifo_manager);
