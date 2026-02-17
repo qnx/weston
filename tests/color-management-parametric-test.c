@@ -90,7 +90,10 @@ static const struct weston_color_gamut color_gamut_invalid_white_point = {
 	.white_point = { 1.0, 1.0 },
 };
 
-static const struct test_case good_test_cases[] = {
+static const struct test_case test_cases[] = {
+
+	/******** Successful cases *******/
+
 	{
 	  /* sRGB primaries with sRGB TF; succeeds. */
 	  .primaries_named = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB,
@@ -245,9 +248,9 @@ static const struct test_case good_test_cases[] = {
 	  .expected_error = NOT_SET,
 	  .error_point = ERROR_POINT_NONE,
 	},
-};
 
-static const struct test_case bad_test_cases[] = {
+	/************ Failing cases  *************/
+
 	{
 	  /* Invalid named primaries; protocol error. */
 	  .primaries_named = BAD_ENUM,
@@ -478,77 +481,7 @@ fixture_setup(struct weston_test_harness *harness)
 }
 DECLARE_FIXTURE_SETUP(fixture_setup);
 
-TEST_P(create_parametric_image_description, good_test_cases)
-{
-	struct client *client;
-	struct color_manager_client *cm;
-	struct wp_image_description_creator_params_v1 *image_desc_creator_param = NULL;
-	const struct test_case *args = data;
-	struct image_description *image_desc = NULL;
-
-	/* No good test case should have expected error. */
-	test_assert_enum(args->error_point, ERROR_POINT_NONE);
-	test_assert_enum(args->expected_error, NOT_SET);
-
-	client = create_client();
-	cm = color_manager_get(client);
-
-	image_desc_creator_param = color_manager_create_param(cm);
-
-	if (args->primaries_named != NOT_SET)
-		wp_image_description_creator_params_v1_set_primaries_named(image_desc_creator_param,
-									   args->primaries_named);
-
-	if (args->primaries)
-		param_creator_set_primaries(image_desc_creator_param, args->primaries);
-
-	if (args->tf_named != NOT_SET)
-		wp_image_description_creator_params_v1_set_tf_named(image_desc_creator_param,
-								    args->tf_named);
-
-	if (args->tf_power != NOT_SET)
-		wp_image_description_creator_params_v1_set_tf_power(image_desc_creator_param,
-								    args->tf_power * 10000);
-
-	if (args->primaries_min_lum != NOT_SET && args->primaries_max_lum != NOT_SET &&
-	    args->primaries_ref_lum != NOT_SET)
-		wp_image_description_creator_params_v1_set_luminances(image_desc_creator_param,
-								      args->primaries_min_lum * 10000,
-								      args->primaries_max_lum,
-								      args->primaries_ref_lum);
-
-	if (args->target_primaries)
-		param_creator_set_mastering_display_primaries(image_desc_creator_param,
-							      args->target_primaries);
-
-	if (args->target_min_lum != NOT_SET && args->target_max_lum != NOT_SET)
-		wp_image_description_creator_params_v1_set_mastering_luminance(image_desc_creator_param,
-									       args->target_min_lum * 10000,
-									       args->target_max_lum);
-
-	if (args->target_max_cll != NOT_SET)
-		wp_image_description_creator_params_v1_set_max_cll(image_desc_creator_param,
-								   args->target_max_cll);
-
-	if (args->target_max_fall != NOT_SET)
-		wp_image_description_creator_params_v1_set_max_fall(image_desc_creator_param,
-								    args->target_max_fall);
-
-	image_desc = image_description_from_param(image_desc_creator_param);
-	image_desc_creator_param = NULL;
-
-	while (image_desc->status == CM_IMAGE_DESC_NOT_CREATED)
-		if (!test_assert_int_ge(wl_display_dispatch(client->wl_display), 0))
-			return RESULT_FAIL;
-	test_assert_enum(image_desc->status, CM_IMAGE_DESC_READY);
-
-	image_description_destroy(image_desc);
-	client_destroy(client);
-
-	return RESULT_OK;
-}
-
-TEST_P(fail_to_create_parametric_image_description, bad_test_cases)
+TEST_P(create_parametric_image_description, test_cases)
 {
 	struct client *client;
 	struct color_manager_client *cm;
@@ -657,11 +590,14 @@ TEST_P(fail_to_create_parametric_image_description, bad_test_cases)
 		if (!test_assert_int_ge(wl_display_dispatch(client->wl_display), 0))
 			return RESULT_FAIL;
 
-	/* This TEST() is for bad params, so we shouldn't be able to
-	 * successfully create an image description. */
-	test_assert_enum(args->error_point, ERROR_POINT_GRACEFUL_FAILURE);
-	test_assert_enum(image_desc->status, CM_IMAGE_DESC_FAILED);
-	test_assert_enum(image_desc->failure_reason, args->expected_error);
+	if (args->error_point == ERROR_POINT_NONE) {
+		test_assert_enum(args->expected_error, NOT_SET);
+		test_assert_enum(image_desc->status, CM_IMAGE_DESC_READY);
+	} else {
+		test_assert_enum(args->error_point, ERROR_POINT_GRACEFUL_FAILURE);
+		test_assert_enum(image_desc->status, CM_IMAGE_DESC_FAILED);
+		test_assert_enum(image_desc->failure_reason, args->expected_error);
+	}
 
 out:
 	if (image_desc)
