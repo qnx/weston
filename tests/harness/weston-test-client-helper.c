@@ -37,7 +37,7 @@
 #include <sys/mman.h>
 #include <cairo.h>
 
-#include "test-config.h"
+#include "tests/test-config.h"
 #include "pixel-formats.h"
 #include "shared/weston-drm-fourcc.h"
 #include "shared/os-compatibility.h"

@@ -36,7 +36,7 @@
 #include <getopt.h>
 #include <dlfcn.h>
 
-#include "test-config.h"
+#include "tests/test-config.h"
 #include "weston-test-runner.h"
 #include "weston-test-assert.h"
 #include "weston-testsuite-data.h"

@@ -41,7 +41,7 @@
 #include "weston-test-fixture-compositor.h"
 #include "weston-test-assert.h"
 #include "weston.h"
-#include "test-config.h"
+#include "tests/test-config.h"
 
 static_assert(WET_MAIN_RET_MISSING_CAPS == RESULT_SKIP,
 	      "wet_main() return value for skip is wrong");

@@ -37,7 +37,7 @@
 #include <time.h>
 
 #include <wayland-client.h>
-#include "test-config.h"
+#include "tests/test-config.h"
 #include "shared/os-compatibility.h"
 #include "shared/helpers.h"
 #include "shared/xalloc.h"
