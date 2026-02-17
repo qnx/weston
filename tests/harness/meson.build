@@ -69,8 +69,16 @@ lib_test_client = static_library(
 dep_test_client = declare_dependency(
 	link_with: lib_test_client,
 	sources: [
-		weston_test_client_protocol_h,
+		color_representation_v1_client_protocol_h,
+		commit_timing_v1_client_protocol_h,
+		fifo_v1_client_protocol_h,
+		linux_dmabuf_unstable_v1_client_protocol_h,
+		presentation_time_client_protocol_h,
+		single_pixel_buffer_v1_client_protocol_h,
 		viewporter_client_protocol_h,
+		weston_output_capture_client_protocol_h,
+		weston_test_client_protocol_h,
+		xdg_shell_client_protocol_h,
 	],
 	dependencies: [
 		dep_wayland_client,
