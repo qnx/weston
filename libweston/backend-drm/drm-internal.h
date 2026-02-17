@@ -266,9 +266,6 @@ struct drm_backend {
 
 	uint32_t pageflip_timeout;
 
-	/* True, if underlay planes exist. */
-	bool has_underlay;
-
 	struct weston_log_scope *debug;
 
 	struct {
@@ -448,8 +445,6 @@ struct drm_plane {
 	struct drm_device *device;
 
 	enum wdrm_plane_type type;
-	/* Whether this plane supports overlay, underlay, or both */
-	enum drm_plane_subtype subtype;
 
 	uint32_t possible_crtcs;
 	uint32_t plane_id;
@@ -475,6 +470,9 @@ struct drm_plane {
 struct drm_plane_handle {
 	struct drm_output *output;
 	struct drm_plane *plane;
+
+	/* Whether this plane supports overlay, underlay, or both */
+	enum drm_plane_subtype subtype;
 
 	struct wl_list link; /* drm_output::plane_handle_list */
 };
@@ -604,6 +602,9 @@ struct drm_output {
 	/* List of hardware planes this output can use */
 	struct wl_list plane_handle_list;
 
+	/* True, if underlay planes exist. */
+	bool has_underlay;
+
 	uint32_t gbm_cursor_handle[2];
 	struct drm_fb *gbm_cursor_fb[2];
 	struct drm_plane_handle *cursor_handle;
@@ -727,30 +728,47 @@ to_drm_mode(struct weston_mode *base)
 }
 
 static inline const char *
-drm_output_get_plane_type_name(struct drm_plane *p)
+drm_output_get_plane_type_name_internal(struct drm_plane *p, struct drm_plane_handle *h)
 {
+	assert(!p || !h);
+
+	if (h)
+		p = h->plane;
+
 	switch (p->type) {
 	case WDRM_PLANE_TYPE_PRIMARY:
 		return "primary";
 	case WDRM_PLANE_TYPE_CURSOR:
 		return "cursor";
 	case WDRM_PLANE_TYPE_OVERLAY:
-		switch (p->subtype) {
+		if (!h)
+			return "overlay(no subtype)";
+
+		switch (h->subtype) {
 		case PLANE_SUBTYPE_OVERLAY_ONLY:
 			return "overlay";
 		case PLANE_SUBTYPE_UNDERLAY_ONLY:
 			return "underlay";
 		case PLANE_SUBTYPE_BOTH:
 			return "over/underlay";
-		default:
-			assert(0);
-			break;
 		}
 		// fall through
 	default:
 		assert(0);
 		break;
 	}
+}
+
+static inline const char *
+drm_output_get_plane_type_name(struct drm_plane *p)
+{
+	return drm_output_get_plane_type_name_internal(p, NULL);
+}
+
+static inline const char *
+drm_output_get_handle_type_name(struct drm_plane_handle *h)
+{
+	return drm_output_get_plane_type_name_internal(NULL, h);
 }
 
 struct drm_crtc *

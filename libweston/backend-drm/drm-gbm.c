@@ -445,7 +445,7 @@ drm_output_pick_format_egl(struct drm_output *output)
 	}
 
 	if (min_bpc != 0) {
-		if (b->has_underlay) {
+		if (output->has_underlay) {
 			output->format =
 				find_compatible_format(compositor, &supported_formats,
 						       min_bpc, component_type,
@@ -456,7 +456,7 @@ drm_output_pick_format_egl(struct drm_output *output)
 			weston_log("Disabling underlay planes: EGL GBM or the primary plane for output '%s'\n" \
 				   "does not support format with min bpc %u and alpha channel.\n",
 				   output->base.name, min_bpc);
-			b->has_underlay = false;
+			output->has_underlay = false;
 		}
 
 		output->format =
@@ -486,11 +486,11 @@ drm_output_pick_format_egl(struct drm_output *output)
 		goto done;
 	}
 
-	if (b->has_underlay && (b->format->bits.a == 0)) {
+	if (output->has_underlay && (b->format->bits.a == 0)) {
 		weston_log("Disabling underlay planes: b->format %s does not have alpha channel,\n"
 			   "which is required to support underlay planes.\n",
 			   b->format->drm_format_name);
-		b->has_underlay = false;
+		output->has_underlay = false;
 	}
 
 	output->format = b->format;
@@ -513,7 +513,7 @@ drm_output_init_egl(struct drm_output *output, struct drm_backend *b)
 		return -1;
 
 	format[0] = output->format;
-	if (!b->has_underlay)
+	if (!output->has_underlay)
 		format[1] = fallback_format_for(output->format);
 
 	options.formats = format;
@@ -703,11 +703,11 @@ drm_output_pick_format_vulkan(struct drm_output *output)
 	assert(b->format);
 	output->format = b->format;
 
-	if (b->has_underlay && (output->format->bits.a == 0)) {
+	if (output->has_underlay && (output->format->bits.a == 0)) {
 		weston_log("Disabling underlay planes: output '%s' with format %s does not have alpha channel,\n"
 			   "which is required to support underlay planes.\n",
 			   output->base.name, output->format->drm_format_name);
-		b->has_underlay = false;
+		output->has_underlay = false;
 	}
 
 	return true;

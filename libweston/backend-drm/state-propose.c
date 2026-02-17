@@ -237,7 +237,7 @@ drm_output_prepare_cursor_paint_node(struct drm_output_state *output_state,
 	assert(!plane->state_cur->handle ||
 	       plane->state_cur->handle->output == output);
 
-	p_name = drm_output_get_plane_type_name(plane);
+	p_name = drm_output_get_handle_type_name(handle);
 
 	/* We use GBM to import SHM buffers. */
 	assert(b->gbm);
@@ -662,7 +662,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 	/* assemble a list with possible candidates */
 	wl_list_for_each(handle, &output->plane_handle_list, link) {
 		struct drm_plane *plane = handle->plane;
-		const char *p_name = drm_output_get_plane_type_name(plane);
+		const char *p_name = drm_output_get_handle_type_name(handle);
 		uint64_t zpos;
 		bool mm_underlay_only = false;
 
@@ -753,7 +753,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 			continue;
 		}
 
-		if (!b->has_underlay && mm_underlay_only) {
+		if (!output->has_underlay && mm_underlay_only) {
 			drm_debug(b, "\t\t\t\t[plane] not adding plane %d to "
 				     "candidate list: plane is below the primary "
 				     "plane and backend format (%s) is opaque, "
@@ -1126,7 +1126,7 @@ drm_output_propose_state(struct weston_output *output_base,
 		pixman_region32_intersect(&tmp, &renderer_region,
 					  &pnode->clipped_view);
 		if (pixman_region32_not_empty(&tmp)) {
-			if (b->has_underlay) {
+			if (output->has_underlay) {
 				need_underlay = true;
 			} else {
 				pnode->try_view_on_plane_failure_reasons |=
@@ -1385,7 +1385,7 @@ drm_assign_planes(struct weston_output *output_base)
 		if (target_plane) {
 			drm_debug(b, "\t[repaint] view %s on %s plane %lu\n",
 				  ev->internal_name,
-				  drm_output_get_plane_type_name(target_plane),
+				  drm_output_get_handle_type_name(target_handle),
 				  (unsigned long) target_plane->plane_id);
 			weston_paint_node_move_to_plane(pnode, &target_plane->base);
 		} else {

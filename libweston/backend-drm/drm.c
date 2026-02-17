@@ -1574,13 +1574,12 @@ drm_plane_create_handle(struct drm_plane *plane, struct drm_output *output)
 static void
 create_sprites(struct drm_device *device)
 {
-	struct drm_backend *b = device->backend;
 	drmModePlaneRes *kplane_res;
 	drmModePlane *kplane;
 	struct drm_plane *drm_plane;
 	uint32_t i;
 	uint32_t next_plane_idx = 0;
-	uint64_t primary_plane_zpos_min = DRM_PLANE_ZPOS_INVALID_PLANE;
+
 	kplane_res = drmModeGetPlaneResources(device->kms_device->fd);
 
 	if (!kplane_res) {
@@ -1596,34 +1595,10 @@ create_sprites(struct drm_device *device)
 
 		drm_plane = drm_plane_create(device, kplane);
 		drmModeFreePlane(kplane);
-		if (!drm_plane)
-			continue;
-
-		if (drm_plane->type == WDRM_PLANE_TYPE_PRIMARY)
-			primary_plane_zpos_min = drm_plane->zpos_min;
 	}
 
-	wl_list_for_each (drm_plane, &device->plane_list, link) {
+	wl_list_for_each (drm_plane, &device->plane_list, link)
 		drm_plane->plane_idx = next_plane_idx++;
-
-		if (primary_plane_zpos_min == DRM_PLANE_ZPOS_INVALID_PLANE ||
-		    drm_plane->zpos_max == DRM_PLANE_ZPOS_INVALID_PLANE ||
-		    drm_plane->zpos_min == DRM_PLANE_ZPOS_INVALID_PLANE)
-			continue;
-
-		if (drm_plane->zpos_min < primary_plane_zpos_min &&
-		    drm_plane->zpos_max >= primary_plane_zpos_min) {
-			drm_plane->subtype = PLANE_SUBTYPE_BOTH;
-			b->has_underlay = true;
-		} else if (drm_plane->zpos_min < primary_plane_zpos_min &&
-			   drm_plane->zpos_max < primary_plane_zpos_min) {
-			drm_plane->subtype = PLANE_SUBTYPE_UNDERLAY_ONLY;
-			b->has_underlay = true;
-		} else {
-			drm_plane->subtype = PLANE_SUBTYPE_OVERLAY_ONLY;
-		}
-
-	}
 
 	drmModeFreePlaneResources(kplane_res);
 }
@@ -1895,12 +1870,12 @@ drm_output_pick_format_pixman(struct drm_output *output)
 
 	output->format = b->format;
 
-	if (b->has_underlay && (output->format->bits.a == 0)) {
+	if (output->has_underlay && (output->format->bits.a == 0)) {
 		weston_log("Disabling underlay planes: "
 			   "output '%s' with format %s does not have alpha channel, "
 			   "which is required to support underlay planes.\n",
 			   output->base.name, output->format->drm_format_name);
-		b->has_underlay = false;
+		output->has_underlay = false;
 	}
 
 	return true;
@@ -2582,6 +2557,8 @@ drm_output_init_planes(struct drm_output *output)
 {
 	struct drm_device *device = output->device;
 	struct drm_plane *plane, *scanout_plane, *cursor_plane;
+	struct drm_plane_handle *handle;
+	uint64_t primary_plane_zpos_min;
 
 	scanout_plane =	drm_output_find_special_plane(device, output,
 						      WDRM_PLANE_TYPE_PRIMARY);
@@ -2590,6 +2567,7 @@ drm_output_init_planes(struct drm_output *output)
 			   output->base.name);
 		return -1;
 	}
+	primary_plane_zpos_min = scanout_plane->zpos_min;
 
 	/* Failing to find a cursor plane is not fatal, as we'll fall back
 	 * to software cursor. */
@@ -2613,6 +2591,24 @@ drm_output_init_planes(struct drm_output *output)
 
 	assert(output->scanout_handle);
 	assert(!cursor_plane || output->cursor_handle);
+
+	output->has_underlay = false;
+	wl_list_for_each(handle, &output->plane_handle_list, link) {
+		plane = handle->plane;
+
+		if (plane->zpos_min < primary_plane_zpos_min &&
+		    plane->zpos_max >= primary_plane_zpos_min) {
+			handle->subtype = PLANE_SUBTYPE_BOTH;
+			output->has_underlay = true;
+		} else if (plane->zpos_min < primary_plane_zpos_min &&
+			   plane->zpos_max < primary_plane_zpos_min) {
+			handle->subtype = PLANE_SUBTYPE_UNDERLAY_ONLY;
+			output->has_underlay = true;
+		} else {
+			handle->subtype = PLANE_SUBTYPE_OVERLAY_ONLY;
+		}
+
+	}
 
 	return 0;
 }
@@ -4620,7 +4616,6 @@ drm_backend_create(struct weston_compositor *compositor,
 	b->pageflip_timeout = config->pageflip_timeout;
 	b->use_pixman_shadow = config->use_pixman_shadow;
 	b->offload_blend_to_output = config->offload_blend_to_output;
-	b->has_underlay = false;
 
 	b->debug = weston_compositor_add_log_scope(compositor, "drm-backend",
 						   "Debug messages from DRM/KMS backend\n",
