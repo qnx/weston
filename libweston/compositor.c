@@ -5340,12 +5340,6 @@ static const struct wl_compositor_interface compositor_interface = {
 	compositor_create_region
 };
 
-static int
-subsurface_get_label(struct weston_surface *surface, char *buf, size_t len)
-{
-	return snprintf(buf, len, "sub-surface");
-}
-
 static void
 subsurface_committed(struct weston_surface *surface,
 		     struct weston_coord_surface new_origin)
@@ -5875,7 +5869,7 @@ weston_subsurface_destroy(struct weston_subsurface *sub)
 
 		sub->surface->committed = NULL;
 		sub->surface->committed_private = NULL;
-		weston_surface_set_label_func(sub->surface, NULL);
+		weston_surface_set_label(sub->surface, NULL);
 	} else {
 		/* the dummy weston_subsurface for the parent itself */
 		assert(sub->parent_destroy_listener.notify == NULL);
@@ -6007,7 +6001,8 @@ subcompositor_get_subsurface(struct wl_client *client,
 
 	surface->committed = subsurface_committed;
 	surface->committed_private = sub;
-	weston_surface_set_label_func(surface, subsurface_get_label);
+
+	weston_surface_set_label_static(surface, "sub-surface");
 }
 
 static void
