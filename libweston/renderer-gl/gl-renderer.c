@@ -1450,9 +1450,54 @@ gl_renderer_do_read_pixels_async(struct gl_renderer *gr,
 	create_capture_task_timer(task, gr, buffer->type, &shm_state, 5 * refresh_msec);
 }
 
+static bool
+blit_rb_to_dmabuf(struct gl_renderbuffer *rb, EGLImageKHR image,
+		  const struct weston_geometry *rect, bool invert_y)
+{
+	struct gl_renderer *gr = get_renderer(rb->output->compositor);
+	GLuint fbo_dst, rb_dst;
+	int32_t src_x0, src_y0, src_x1, src_y1;
+	int32_t dst_x0, dst_y0, dst_x1, dst_y1;
+
+	if (!gl_fbo_image_init(gr, image, &fbo_dst, &rb_dst))
+		return false;
+
+	src_x0 = rect->x;
+	src_y0 = rect->y;
+	src_x1 = rect->x + rect->width;
+	src_y1 = rect->y + rect->height;
+
+	dst_x0 = 0;
+	dst_y0 = 0;
+	dst_x1 = rect->width;
+	dst_y1 = rect->height;
+
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, rb->fb);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo_dst);
+
+	if (invert_y) {
+		/**
+		 * Renderbuffer from which we are blitting and the destination
+		 * dma-buf have different buffer origin, so we need to flip y.
+		 */
+		glBlitFramebuffer(src_x0, src_y1, src_x1, src_y0,
+				  dst_x0, dst_y0, dst_x1, dst_y1,
+				  GL_COLOR_BUFFER_BIT, GL_NEAREST);
+	} else {
+		glBlitFramebuffer(src_x0, src_y0, src_x1, src_y1,
+				  dst_x0, dst_y0, dst_x1, dst_y1,
+				  GL_COLOR_BUFFER_BIT, GL_NEAREST);
+	}
+
+	gl_fbo_fini(&fbo_dst, &rb_dst);
+
+	return true;
+}
+
 static void
 gl_renderer_do_capture_tasks(struct gl_renderer *gr,
 			     struct weston_output *output,
+			     struct gl_renderbuffer *rb,
 			     enum weston_output_capture_source source)
 {
 	struct gl_output_state *go = get_output_state(output);
@@ -1489,26 +1534,77 @@ gl_renderer_do_capture_tasks(struct gl_renderer *gr,
 		assert(buffer->height == rect.height);
 		assert(buffer->pixel_format->format == format->format);
 
-		if (buffer->type != WESTON_BUFFER_SHM ||
-		    buffer->buffer_origin != ORIGIN_TOP_LEFT) {
+		if (buffer->type == WESTON_BUFFER_DMABUF) {
+			struct linux_dmabuf_buffer *dmabuf = buffer->dmabuf;
+			const struct pixel_format_info *info;
+			EGLImageKHR image;
+			bool invert_y;
+			bool ok;
+
+			if (dmabuf->attributes.n_planes > 1) {
+				weston_capture_task_retire_failed(ct, "GL: multi-planar formats not supported");
+				continue;
+			}
+
+			info = pixel_format_get_info(dmabuf->attributes.format);
+			if (info->color_model == COLOR_MODEL_YUV) {
+				weston_capture_task_retire_failed(ct, "GL: YUV not supported");
+				continue;
+			}
+
+			image = import_simple_dmabuf(gr, &dmabuf->attributes, NULL);
+			if (image == EGL_NO_IMAGE_KHR) {
+				weston_capture_task_retire_failed(ct, "GL: failed to import dma-buf buffer");
+				continue;
+			}
+
+			/**
+			 * Flipped y means bottom-left origin; if destination
+			 * dma-buf has a different y origin we need to blit
+			 * considering that.
+			 */
+			invert_y = is_y_flipped(go) ^ (buffer->buffer_origin == ORIGIN_BOTTOM_LEFT);
+
+			if (gr->gl_version < gl_version(3, 0)) {
+				weston_capture_task_retire_failed(ct, "GL: OpenGL ES < 3.0 does not support glBlitFramebuffer");
+				continue;
+			}
+
+			ok =  blit_rb_to_dmabuf(rb, image, &rect, invert_y);
+			gr->destroy_image(gr->egl_display, image);
+
+			if (!ok) {
+				weston_capture_task_retire_failed(ct, "GL: failed to blit to dma-buf");
+				continue;
+			}
+
+			if (!create_capture_task_fence(ct, gr, buffer->type,
+						       NULL /* shm state */)) {
+				weston_capture_task_retire_failed(ct, "GL: create_capture_task_fence() failed");
+			}
+		} else if (buffer->type == WESTON_BUFFER_SHM) {
+			if (buffer->buffer_origin != ORIGIN_TOP_LEFT) {
+				weston_capture_task_retire_failed(ct, "GL: unsupported buffer");
+				continue;
+			}
+
+			if (buffer->stride % 4 != 0) {
+				weston_capture_task_retire_failed(ct, "GL: buffer stride not multiple of 4");
+				continue;
+			}
+
+			if (gl_features_has(gr, FEATURE_ASYNC_READBACK)) {
+				gl_renderer_do_read_pixels_async(gr, go, output, ct, &rect);
+				continue;
+			}
+
+			if (gl_renderer_do_capture(gr, go, buffer, &rect))
+				weston_capture_task_retire_complete(ct);
+			else
+				weston_capture_task_retire_failed(ct, "GL: capture failed");
+		} else {
 			weston_capture_task_retire_failed(ct, "GL: unsupported buffer");
-			continue;
 		}
-
-		if (buffer->stride % 4 != 0) {
-			weston_capture_task_retire_failed(ct, "GL: buffer stride not multiple of 4");
-			continue;
-		}
-
-		if (gl_features_has(gr, FEATURE_ASYNC_READBACK)) {
-			gl_renderer_do_read_pixels_async(gr, go, output, ct, &rect);
-			continue;
-		}
-
-		if (gl_renderer_do_capture(gr, go, buffer, &rect))
-			weston_capture_task_retire_complete(ct);
-		else
-			weston_capture_task_retire_failed(ct, "GL: capture failed");
 	}
 }
 
@@ -3103,9 +3199,9 @@ gl_renderer_repaint_output(struct weston_output *output,
 
 	draw_output_borders(output, rb->border_status);
 
-	gl_renderer_do_capture_tasks(gr, output,
+	gl_renderer_do_capture_tasks(gr, output, rb,
 				     WESTON_OUTPUT_CAPTURE_SOURCE_FRAMEBUFFER);
-	gl_renderer_do_capture_tasks(gr, output,
+	gl_renderer_do_capture_tasks(gr, output, rb,
 				     WESTON_OUTPUT_CAPTURE_SOURCE_FULL_FRAMEBUFFER);
 	wl_signal_emit(&output->frame_signal, output_damage);
 
