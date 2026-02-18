@@ -776,12 +776,15 @@ drm_output_set_cursor(struct drm_output_state *output_state)
 	struct drm_output *output = output_state->output;
 	struct drm_device *device = output->device;
 	struct drm_crtc *crtc = output->crtc;
-	struct drm_plane *plane = output->cursor_plane;
+	struct drm_plane_handle *plane_handle  = output->cursor_handle;
+	struct drm_plane *plane;
 	struct drm_plane_state *state;
 	uint32_t handle;
 
-	if (!plane)
+	if (!plane_handle)
 		return;
+
+	plane = plane_handle->plane;
 
 	state = drm_output_state_get_existing_plane(output_state, plane);
 	if (!state)
@@ -859,7 +862,7 @@ drm_output_apply_state_legacy(struct drm_output_state *state)
 	struct drm_output *output = state->output;
 	struct drm_device *device = output->device;
 	struct drm_backend *backend = device->backend;
-	struct drm_plane *scanout_plane = output->scanout_plane;
+	struct drm_plane *scanout_plane = output->scanout_handle->plane;
 	struct drm_crtc *crtc = output->crtc;
 	struct drm_property_info *dpms_prop;
 	struct drm_plane_state *scanout_state;
@@ -877,7 +880,7 @@ drm_output_apply_state_legacy(struct drm_output_state *state)
 	}
 
 	if (state->dpms != WESTON_DPMS_ON) {
-		if (output->cursor_plane) {
+		if (output->cursor_handle) {
 			ret = drmModeSetCursor(device->kms_device->fd, crtc->crtc_id,
 					       0, 0, 0);
 			if (ret)

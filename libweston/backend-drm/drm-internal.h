@@ -606,7 +606,7 @@ struct drm_output {
 
 	uint32_t gbm_cursor_handle[2];
 	struct drm_fb *gbm_cursor_fb[2];
-	struct drm_plane *cursor_plane;
+	struct drm_plane_handle *cursor_handle;
 	int current_cursor;
 
 	struct gbm_surface *gbm_surface;
@@ -625,7 +625,7 @@ struct drm_output {
 	struct drm_colorop_3x1d_lut *blend_to_output_xform;
 
 	/* Plane being displayed directly on the CRTC */
-	struct drm_plane *scanout_plane;
+	struct drm_plane_handle *scanout_handle;
 
 	/* The last state submitted to the kernel for this CRTC. */
 	struct drm_output_state *state_cur;

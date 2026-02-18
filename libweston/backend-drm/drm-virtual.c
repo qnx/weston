@@ -105,7 +105,7 @@ get_drm_plane_index_maximum(struct drm_device *device)
  * @param device DRM device
  * @param output Output to create internal plane for
  */
-static struct drm_plane *
+static struct drm_plane_handle *
 drm_virtual_plane_create(struct drm_device *device, struct drm_output *output)
 {
 	struct drm_backend *b = device->backend;
@@ -146,7 +146,7 @@ drm_virtual_plane_create(struct drm_device *device, struct drm_output *output)
 	plane->plane_idx = get_drm_plane_index_maximum(device) + 1;
 	wl_list_insert(&device->plane_list, &plane->link);
 
-	return plane;
+	return drm_plane_create_handle(plane, output);
 
 err:
 	drm_plane_state_free(plane->state_cur, true);
@@ -158,11 +158,15 @@ err:
 /**
  * Destroy one DRM plane
  *
- * @param plane Plane to deallocate (will be freed)
+ * @param handle Plane handle to deallocate (will be freed along with the plane)
  */
 static void
-drm_virtual_plane_destroy(struct drm_plane *plane)
+drm_virtual_plane_destroy(struct drm_plane_handle *handle)
 {
+	struct drm_plane *plane = handle->plane;
+
+	drm_plane_destroy_handle(handle);
+
 	drm_plane_state_free(plane->state_cur, true);
 	weston_plane_release(&plane->base);
 	wl_list_remove(&plane->link);
@@ -208,7 +212,7 @@ drm_virtual_output_repaint(struct weston_output *output_base)
 	struct drm_output_state *state = NULL;
 	struct weston_compositor *compositor = output_base->compositor;
 	struct drm_output *output = to_drm_output(output_base);
-	struct drm_plane *scanout_plane = output->scanout_plane;
+	struct drm_plane *scanout_plane = output->scanout_handle->plane;
 	struct drm_plane_state *scanout_state;
 	struct drm_pending_state *pending_state;
 	struct drm_device *device;
@@ -256,7 +260,7 @@ drm_virtual_output_deinit(struct weston_output *base)
 
 	drm_output_fini_egl(output);
 
-	drm_virtual_plane_destroy(output->scanout_plane);
+	drm_virtual_plane_destroy(output->scanout_handle);
 	drm_virtual_crtc_destroy(output->crtc);
 }
 
@@ -299,8 +303,8 @@ drm_virtual_output_enable(struct weston_output *output_base)
 		goto err;
 	}
 
-	output->scanout_plane = drm_virtual_plane_create(device, output);
-	if (!output->scanout_plane) {
+	output->scanout_handle = drm_virtual_plane_create(device, output);
+	if (!output->scanout_handle) {
 		weston_log("Failed to find primary plane for output %s\n",
 			   output->base.name);
 		return -1;

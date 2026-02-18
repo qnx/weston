@@ -557,7 +557,7 @@ drm_output_render(struct drm_output_state *state)
 	struct drm_device *device = output->device;
 	struct weston_compositor *c = output->base.compositor;
 	struct drm_plane_state *scanout_state;
-	struct drm_plane *scanout_plane = output->scanout_plane;
+	struct drm_plane *scanout_plane = output->scanout_handle->plane;
 	struct drm_property_info *damage_info =
 		&scanout_plane->props[WDRM_PLANE_FB_DAMAGE_CLIPS];
 	struct drm_fb *fb;
@@ -892,7 +892,8 @@ drm_output_repaint(struct weston_output *output_base)
 	struct drm_output *output = to_drm_output(output_base);
 	struct drm_output_state *state = NULL;
 	struct drm_plane_state *scanout_state;
-	struct drm_plane_state *cursor_state;
+	struct drm_plane_state *cursor_state = NULL;
+	struct drm_plane *cursor_plane = NULL;
 	struct drm_pending_state *pending_state;
 	struct drm_device *device;
 
@@ -913,19 +914,23 @@ drm_output_repaint(struct weston_output *output_base)
 	state = drm_pending_state_get_output(pending_state, output);
 	weston_assert_ptr_not_null(compositor, state);
 
-	cursor_state = drm_output_state_get_existing_plane(state,
-							   output->cursor_plane);
+	if (output->cursor_handle) {
+		cursor_plane = output->cursor_handle->plane;
+		cursor_state = drm_output_state_get_existing_plane(state,
+								   cursor_plane);
+	}
+
 	if (cursor_state && cursor_state->fb) {
 		pixman_region32_t damage;
 		struct drm_fb *old_fb = cursor_state->fb;
 		struct weston_paint_node *cursor_node;
 
-		assert(cursor_state->plane == output->cursor_plane);
+		assert(cursor_state->plane == cursor_plane);
 		assert(old_fb->type == BUFFER_CURSOR);
 
 		pixman_region32_init(&damage);
 		cursor_node = weston_output_flush_damage_for_plane(&output->base,
-								   &output->cursor_plane->base,
+								   &cursor_plane->base,
 								   &damage);
 		if (pixman_region32_not_empty(&damage)) {
 			output->current_cursor++;
@@ -955,7 +960,7 @@ drm_output_repaint(struct weston_output *output_base)
 
 	drm_output_render(state);
 	scanout_state = drm_output_state_get_plane(state,
-						   output->scanout_plane);
+						   output->scanout_handle->plane);
 	if (!scanout_state || !scanout_state->fb)
 		goto err;
 
@@ -996,7 +1001,7 @@ drm_output_start_repaint_loop(struct weston_output *output_base)
 {
 	struct drm_output *output = to_drm_output(output_base);
 	struct drm_pending_state *pending_state;
-	struct drm_plane *scanout_plane = output->scanout_plane;
+	struct drm_plane *scanout_plane = output->scanout_handle->plane;
 	struct drm_device *device = output->device;
 	struct drm_backend *backend = device->backend;
 	struct weston_compositor *compositor = backend->compositor;
@@ -1487,8 +1492,9 @@ drm_output_find_special_plane(struct drm_device *device,
 			if (!tmp)
 				continue;
 
-			if (tmp->cursor_plane == plane ||
-			    tmp->scanout_plane == plane) {
+			if ((tmp->cursor_handle &&
+			     tmp->cursor_handle->plane == plane) ||
+			    tmp->scanout_handle->plane == plane) {
 				found_elsewhere = true;
 				break;
 			}
@@ -1969,7 +1975,7 @@ drm_output_fini_pixman(struct drm_output *output)
 
 	/* Destroying the Pixman surface will destroy all our buffers,
 	 * regardless of refcount. */
-	weston_assert_ptr_null(b->compositor, output->scanout_plane);
+	weston_assert_ptr_null(b->compositor, output->scanout_handle);
 
 	for (i = 0; i < ARRAY_LENGTH(output->dumb); i++) {
 		renderer->destroy_renderbuffer(output->renderbuffer[i]);
@@ -2575,12 +2581,11 @@ static int
 drm_output_init_planes(struct drm_output *output)
 {
 	struct drm_device *device = output->device;
-	struct drm_plane *plane;
+	struct drm_plane *plane, *scanout_plane, *cursor_plane;
 
-	output->scanout_plane =
-		drm_output_find_special_plane(device, output,
-					      WDRM_PLANE_TYPE_PRIMARY);
-	if (!output->scanout_plane) {
+	scanout_plane =	drm_output_find_special_plane(device, output,
+						      WDRM_PLANE_TYPE_PRIMARY);
+	if (!scanout_plane) {
 		weston_log("Failed to find primary plane for output %s\n",
 			   output->base.name);
 		return -1;
@@ -2588,13 +2593,26 @@ drm_output_init_planes(struct drm_output *output)
 
 	/* Failing to find a cursor plane is not fatal, as we'll fall back
 	 * to software cursor. */
-	output->cursor_plane =
+	cursor_plane =
 		drm_output_find_special_plane(device, output,
 					      WDRM_PLANE_TYPE_CURSOR);
 
-	wl_list_for_each(plane, &device->plane_list, link)
-		if (plane->possible_crtcs & (1 << output->crtc->pipe))
-			drm_plane_create_handle(plane, output);
+	wl_list_for_each(plane, &device->plane_list, link) {
+		struct drm_plane_handle *handle;
+
+		if (!(plane->possible_crtcs & (1 << output->crtc->pipe)))
+			continue;
+
+		handle = drm_plane_create_handle(plane, output);
+
+		if (plane == scanout_plane)
+			output->scanout_handle = handle;
+		if (plane == cursor_plane)
+			output->cursor_handle = handle;
+	}
+
+	assert(output->scanout_handle);
+	assert(!cursor_plane || output->cursor_handle);
 
 	return 0;
 }
@@ -2608,7 +2626,7 @@ drm_output_deinit_planes(struct drm_output *output)
 	struct drm_device *device = output->device;
 	struct drm_plane_handle *handle, *next_handle;
 
-	if (output->cursor_plane) {
+	if (output->cursor_handle) {
 		/* Turn off hardware cursor */
 		drmModeSetCursor(device->kms_device->fd, output->crtc->crtc_id, 0, 0, 0);
 	}
@@ -2618,13 +2636,13 @@ drm_output_deinit_planes(struct drm_output *output)
 	 * We want the planes to  continue to exist and be freed up
 	 * for other outputs.
 	 */
-	if (output->cursor_plane)
-		drm_plane_reset_state(output->cursor_plane);
-	if (output->scanout_plane)
-		drm_plane_reset_state(output->scanout_plane);
+	if (output->cursor_handle)
+		drm_plane_reset_state(output->cursor_handle->plane);
+	if (output->scanout_handle)
+		drm_plane_reset_state(output->scanout_handle->plane);
 
-	output->cursor_plane = NULL;
-	output->scanout_plane = NULL;
+	output->cursor_handle = NULL;
+	output->scanout_handle = NULL;
 
 	wl_list_for_each_safe(handle, next_handle,
 			      &output->plane_handle_list, link)
