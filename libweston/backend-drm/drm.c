@@ -2571,9 +2571,6 @@ drm_output_init_planes(struct drm_output *output)
 		drm_output_find_special_plane(device, output,
 					      WDRM_PLANE_TYPE_CURSOR);
 
-	if (!output->cursor_plane)
-		device->cursors_are_broken = true;
-
 	return 0;
 }
 
