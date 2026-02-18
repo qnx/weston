@@ -796,7 +796,8 @@ drm_output_set_cursor(struct drm_output_state *output_state)
 	}
 
 	assert(state->fb == output->gbm_cursor_fb[output->current_cursor]);
-	assert(!plane->state_cur->output || plane->state_cur->output == output);
+	assert(!plane->state_cur->handle ||
+	       plane->state_cur->handle->output == output);
 
 	handle = output->gbm_cursor_handle[output->current_cursor];
 	if (plane->state_cur->fb != state->fb) {

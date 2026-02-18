@@ -371,7 +371,7 @@ drm_plane_is_available(struct drm_plane *plane, struct drm_output *output)
 		return false;
 
 	/* The plane is still active on another output. */
-	if (plane->state_cur->output && plane->state_cur->output != output)
+	if (plane->state_cur->handle && plane->state_cur->handle->output != output)
 		return false;
 
 	/* Check whether the plane can be used with this CRTC; possible_crtcs
@@ -604,7 +604,7 @@ drm_output_render(struct drm_output_state *state)
 	}
 
 	scanout_state->fb = fb;
-	scanout_state->output = output;
+	scanout_state->handle = output->scanout_handle;
 
 	scanout_state->src_x = 0;
 	scanout_state->src_y = 0;
@@ -925,7 +925,7 @@ drm_output_repaint(struct weston_output *output_base)
 		struct drm_fb *old_fb = cursor_state->fb;
 		struct weston_paint_node *cursor_node;
 
-		assert(cursor_state->plane == cursor_plane);
+		assert(cursor_state->handle->plane == cursor_plane);
 		assert(old_fb->type == BUFFER_CURSOR);
 
 		pixman_region32_init(&damage);
@@ -1038,7 +1038,7 @@ drm_output_start_repaint_loop(struct weston_output *output_base)
 		goto finish_frame;
 	}
 
-	assert(scanout_plane->state_cur->output == output);
+	assert(scanout_plane->state_cur->handle->output == output);
 
 	/* If we're tearing, we've been generating timestamps from the
 	 * presentation clock that don't line up with the msc timestamps,

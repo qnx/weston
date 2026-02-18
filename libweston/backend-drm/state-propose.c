@@ -90,7 +90,7 @@ drm_output_check_plane_has_view_assigned(struct drm_plane *plane,
 }
 
 static struct drm_plane_state *
-drm_output_try_paint_node_on_plane(struct drm_plane *plane,
+drm_output_try_paint_node_on_plane(struct drm_plane_handle *handle,
 				   struct drm_output_state *output_state,
 				   struct weston_paint_node *node,
 				   enum drm_output_propose_state_mode mode,
@@ -101,9 +101,11 @@ drm_output_try_paint_node_on_plane(struct drm_plane *plane,
 	struct weston_surface *surface = ev->surface;
 	struct drm_device *device = output->device;
 	struct drm_backend *b = device->backend;
+	struct drm_plane *plane = handle->plane;
 	struct drm_plane_state *state = NULL;
 
 	assert(!device->sprites_are_broken);
+	assert(output == handle->output);
 	assert(device->atomic_modeset);
 	assert(fb);
 	assert(mode == DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY ||
@@ -113,7 +115,8 @@ drm_output_try_paint_node_on_plane(struct drm_plane *plane,
 	state = drm_output_state_get_plane(output_state, plane);
 	/* we can't have a 'pending' framebuffer as never set one before reaching here */
 	assert(!state->fb);
-	state->output = output;
+	assert(handle->plane == state->plane);
+	state->handle = handle;
 
 	drm_plane_state_coords_for_paint_node(state, node, zpos);
 
@@ -231,7 +234,8 @@ drm_output_prepare_cursor_paint_node(struct drm_output_state *output_state,
 
 	assert(plane);
 	assert(plane->state_cur->complete);
-	assert(!plane->state_cur->output || plane->state_cur->output == output);
+	assert(!plane->state_cur->handle ||
+	       plane->state_cur->handle->output == output);
 
 	p_name = drm_output_get_plane_type_name(plane);
 
@@ -243,7 +247,7 @@ drm_output_prepare_cursor_paint_node(struct drm_output_state *output_state,
 
 	/* We can't scale with the legacy API, and we don't try to account for
 	 * simple cropping/translation in cursor_bo_update. */
-	plane_state->output = output;
+	plane_state->handle = handle;
 	drm_plane_state_coords_for_paint_node(plane_state, node, zpos);
 
 	if (plane_state->src_x != 0 || plane_state->src_y != 0 ||
@@ -773,7 +777,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 			ps = drm_output_prepare_cursor_paint_node(state, pnode, zpos);
 		} else {
 			if (fb)
-				ps = drm_output_try_paint_node_on_plane(plane, state,
+				ps = drm_output_try_paint_node_on_plane(handle, state,
 									pnode, mode,
 									fb, zpos);
 		}
@@ -1338,6 +1342,7 @@ drm_assign_planes(struct weston_output *output_base)
 			 z_order_link) {
 		struct weston_view *ev = pnode->view;
 		struct drm_plane *target_plane = NULL;
+		struct drm_plane_handle *target_handle = NULL;
 
 		assert(ev->output_mask & (1u << output->base.id));
 
@@ -1369,10 +1374,13 @@ drm_assign_planes(struct weston_output *output_base)
 		wl_list_for_each(plane_state, &state->plane_list, link) {
 			if (plane_state->ev == ev) {
 				plane_state->ev = NULL;
-				target_plane = plane_state->plane;
+				target_handle = plane_state->handle;
 				break;
 			}
 		}
+
+		if (target_handle)
+			target_plane = target_handle->plane;
 
 		if (target_plane) {
 			drm_debug(b, "\t[repaint] view %s on %s plane %lu\n",

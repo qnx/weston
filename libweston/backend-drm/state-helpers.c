@@ -47,6 +47,7 @@ drm_plane_state_alloc(struct drm_output_state *state_output,
 	assert(state);
 	state->output_state = state_output;
 	state->plane = plane;
+	state->handle = NULL;
 	state->in_fence_fd = -1;
 	state->rotation = drm_rotation_from_output_transform(plane,
 							     WL_OUTPUT_TRANSFORM_NORMAL);
@@ -221,7 +222,7 @@ drm_plane_state_coords_for_paint_node(struct drm_plane_state *state,
 				      struct weston_paint_node *node,
 				      uint64_t zpos)
 {
-	struct drm_output *output = state->output;
+	struct drm_output *output = state->handle->output;
 	struct weston_view *ev = node->view;
 	struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
 	pixman_region32_t dest_rect;
@@ -420,7 +421,7 @@ drm_output_state_duplicate(struct drm_output_state *src,
 	wl_list_for_each(ps, &src->plane_list, link) {
 		/* Don't carry planes which are now disabled; these should be
 		 * free for other outputs to reuse. */
-		if (!ps->output)
+		if (!ps->handle)
 			continue;
 
 		if (plane_mode == DRM_OUTPUT_STATE_CLEAR_PLANES)

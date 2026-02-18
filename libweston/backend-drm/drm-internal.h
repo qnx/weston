@@ -393,7 +393,7 @@ struct drm_output_state {
  */
 struct drm_plane_state {
 	struct drm_plane *plane;
-	struct drm_output *output;
+	struct drm_plane_handle *handle;
 	struct drm_output_state *output_state;
 
 	struct drm_fb *fb;
