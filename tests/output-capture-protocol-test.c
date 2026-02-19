@@ -30,11 +30,24 @@
 #include "shared/xalloc.h"
 #include "weston-output-capture-client-protocol.h"
 #include "weston-test-assert.h"
+#include "shared/client-buffer-util.h"
 #include "shared/weston-drm-fourcc.h"
+
+#define SKIP_NO_UDMABUF(buffer_type)						  \
+do {										  \
+	enum client_buffer_type type = (buffer_type);				  \
+										  \
+	if (type == CLIENT_BUFFER_TYPE_DMABUF && 				  \
+	    !client_buffer_util_is_dmabuf_supported()) { 			  \
+		testlog("%s: Skipped: udmabuf not supported\n", get_test_name()); \
+		return RESULT_SKIP;						  \
+	} 									  \
+} while (0)
 
 struct setup_args {
 	struct fixture_metadata meta;
 	enum weston_renderer_type renderer;
+	enum client_buffer_type buffer_type;
 	uint32_t expected_drm_format;
 };
 
@@ -42,16 +55,25 @@ static const struct setup_args my_setup_args[] = {
 	{
 		.meta.name = "pixman",
 		.renderer = WESTON_RENDERER_PIXMAN,
+		.buffer_type = CLIENT_BUFFER_TYPE_SHM,
 		.expected_drm_format = DRM_FORMAT_XRGB8888,
 	},
 	{
-		.meta.name = "GL",
+		.meta.name = "GL-shm",
 		.renderer = WESTON_RENDERER_GL,
+		.buffer_type = CLIENT_BUFFER_TYPE_SHM,
+		.expected_drm_format = DRM_FORMAT_ARGB8888,
+	},
+	{
+		.meta.name = "GL-dmabuf",
+		.renderer = WESTON_RENDERER_GL,
+		.buffer_type = CLIENT_BUFFER_TYPE_DMABUF,
 		.expected_drm_format = DRM_FORMAT_ARGB8888,
 	},
 	{
 		.meta.name = "Vulkan",
 		.renderer = WESTON_RENDERER_VULKAN,
+		.buffer_type = CLIENT_BUFFER_TYPE_SHM,
 		.expected_drm_format = DRM_FORMAT_ARGB8888,
 	},
 };
@@ -244,8 +266,9 @@ TEST(simple_shot)
 	test_assert_int_gt(capt->height, 0);
 	test_assert_false(capt->events.reply);
 
-	buf = create_shm_buffer(client, capt->width, capt->height,
-				fix->expected_drm_format);
+	SKIP_NO_UDMABUF(fix->buffer_type);
+	buf = create_buffer(client, capt->width, capt->height,
+			    fix->expected_drm_format, fix->buffer_type);
 
 	weston_capture_source_v1_capture(capt->source, buf->proxy);
 	while (!capt->events.reply)
@@ -267,6 +290,7 @@ TEST(simple_shot)
  */
 TEST(retry_on_wrong_format)
 {
+	const struct setup_args *fix = &my_setup_args[get_test_fixture_index()];
 	const uint32_t drm_format = DRM_FORMAT_ABGR2101010;
 	struct client *client;
 	struct capturer *capt;
@@ -289,7 +313,9 @@ TEST(retry_on_wrong_format)
 	test_assert_int_gt(capt->height, 0);
 	test_assert_false(capt->events.reply);
 
-	buf = create_shm_buffer(client, capt->width, capt->height, drm_format);
+	SKIP_NO_UDMABUF(fix->buffer_type);
+	buf = create_buffer(client, capt->width, capt->height,
+			    drm_format, fix->buffer_type);
 
 	weston_capture_source_v1_capture(capt->source, buf->proxy);
 	while (!capt->events.reply)
@@ -311,6 +337,7 @@ TEST(retry_on_wrong_format)
  */
 TEST(retry_on_wrong_size)
 {
+	const struct setup_args *fix = &my_setup_args[get_test_fixture_index()];
 	struct client *client;
 	struct capturer *capt;
 	struct buffer *buf;
@@ -328,8 +355,9 @@ TEST(retry_on_wrong_size)
 	test_assert_int_gt(capt->height, 5);
 	test_assert_false(capt->events.reply);
 
-	buf = create_shm_buffer(client, capt->width - 3, capt->height - 3,
-				capt->drm_format);
+	SKIP_NO_UDMABUF(fix->buffer_type);
+	buf = create_buffer(client, capt->width - 3, capt->height - 3,
+			    fix->expected_drm_format, fix->buffer_type);
 
 	weston_capture_source_v1_capture(capt->source, buf->proxy);
 	while (!capt->events.reply)
