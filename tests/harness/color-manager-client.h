@@ -33,6 +33,8 @@
 #include "color-management-v1-client-protocol.h"
 
 struct client;
+struct output;
+struct surface;
 
 struct color_manager_client {
 	struct wp_color_manager_v1 *manager_proxy;
@@ -79,8 +81,56 @@ struct image_description {
 struct image_description *
 image_description_from_param(struct wp_image_description_creator_params_v1 *creator);
 
+struct image_description *
+image_description_create_for_icc(struct color_manager_client *cm,
+				 const char *icc_file_path);
+
+struct image_description *
+image_description_create_for_output(struct color_manager_client *cm,
+				    struct output *output);
+
+struct image_description *
+image_description_create_for_preferred(struct color_manager_client *cm,
+				       struct surface *surface);
+
+void
+image_description_wait_until_ready(struct client *client,
+				   struct image_description *image_descr);
+
 void
 image_description_destroy(struct image_description *image_desc);
+
+struct image_description_info {
+	struct wp_image_description_info_v1 *wp_image_description_info;
+
+	/* Bitfield that holds what events the compositor has sent us through
+	 * the image_descr_info object. For each event image_descr_info_event v
+	 * received, the bit v of this bitfield will be set to 1. */
+	uint32_t events_received;
+	bool done;
+
+	/* For ICC-based image descriptions. */
+	int32_t icc_fd;
+	uint32_t icc_size;
+
+	/* For parametric images descriptions. */
+	enum wp_color_manager_v1_primaries primaries_named;
+	struct weston_color_gamut primaries;
+	enum wp_color_manager_v1_transfer_function tf_named;
+	float tf_power;
+	float min_lum, max_lum, ref_lum;
+	struct weston_color_gamut target_primaries;
+	float target_min_lum, target_max_lum;
+	float target_max_cll;
+	float target_max_fall;
+};
+
+struct image_description_info *
+image_description_get_information(struct client *client,
+				  struct image_description *image_descr);
+
+void
+image_description_info_destroy(struct image_description_info *info);
 
 /** Private to the test harness */
 void
