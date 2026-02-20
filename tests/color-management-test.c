@@ -383,6 +383,9 @@ TEST(set_surface_image_description)
 	wp_color_management_surface_v1_set_image_description(cm_surface,
 							     image_descr->proxy,
 							     WP_COLOR_MANAGER_V1_RENDER_INTENT_PERCEPTUAL);
+	wl_surface_attach(client->surface->wl_surface, client->surface->buffer->proxy, 0, 0);
+	wl_surface_damage(client->surface->wl_surface, 0, 0, 1000, 1000);
+	wl_surface_commit(client->surface->wl_surface);
 	client_roundtrip(client);
 
 	wp_color_management_surface_v1_destroy(cm_surface);
