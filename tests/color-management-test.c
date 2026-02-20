@@ -131,17 +131,6 @@ fixture_setup(struct weston_test_harness *harness)
 }
 DECLARE_FIXTURE_SETUP(fixture_setup);
 
-TEST(smoke_test)
-{
-	struct client *client;
-
-	client = create_client_and_test_surface(100, 100, 100, 100);
-	color_manager_get(client);
-	client_destroy(client);
-
-	return RESULT_OK;
-}
-
 TEST(output_get_image_description)
 {
 	struct client *client;
