@@ -34,6 +34,7 @@
 
 #include "drm-internal.h"
 #include "shared/weston-drm-fourcc.h"
+#include "shared/xalloc.h"
 
 /**
  * Allocate a new, empty, plane state.
@@ -400,10 +401,8 @@ drm_output_state_duplicate(struct drm_output_state *src,
 			   struct drm_pending_state *pending_state,
 			   enum drm_output_state_duplicate_mode plane_mode)
 {
-	struct drm_output_state *dst = malloc(sizeof(*dst));
+	struct drm_output_state *dst = xmalloc(sizeof(*dst));
 	struct drm_plane_state *ps;
-
-	assert(dst);
 
 	/* Copy the whole structure, then individually modify the
 	 * pending_state, as well as the list link into our pending
