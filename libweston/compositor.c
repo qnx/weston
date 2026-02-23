@@ -3135,6 +3135,10 @@ weston_surface_attach_solid(struct weston_surface *surface,
 		surface->is_opaque = false;
 		pixman_region32_init(&surface->opaque);
 	}
+
+	surface->pending.status |=
+		WESTON_SURFACE_DIRTY_BUFFER | WESTON_SURFACE_DIRTY_BUFFER_PARAMS |
+		WESTON_SURFACE_DIRTY_SIZE;
 }
 
 WL_EXPORT void
