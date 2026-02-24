@@ -1831,7 +1831,9 @@ drm_rb_discarded_cb(weston_renderbuffer_t rb, void *data)
 	for (i = 0; i < ARRAY_LENGTH(output->renderbuffer); i++) {
 		if (rb == output->renderbuffer[i]) {
 			drm_fb_unref(output->dumb[i]);
-			renderer->destroy_renderbuffer(rb);
+			output->dumb[i] = NULL;
+			renderer->destroy_renderbuffer(output->renderbuffer[i]);
+			output->renderbuffer[i] = NULL;
 
 			dumb = drm_fb_create_dumb(output->device, w, h,
 						  pfmt->format);
