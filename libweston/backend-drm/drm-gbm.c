@@ -619,7 +619,7 @@ drm_gbm_dmabuf_destroy(struct linux_dmabuf_memory *dmabuf)
 		close(attributes->fd[i]);
 	free(dmabuf->attributes);
 
-	free(dmabuf);
+	free(drm_gbm_dmabuf);
 }
 
 static struct drm_gbm_dmabuf *
