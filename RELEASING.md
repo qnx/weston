@@ -24,21 +24,31 @@ To make a release of Weston, follow these steps.
        git commit meson.build -m "build: bump to version $RELEASE_NUMBER for the $RELEASE_NAME release"
        git push
 
-3. Run the `release.sh` script to generate the tarballs, sign and upload them,
+3. Ensure that you have glab client installed locally and are authenticated to
+   freedesktop.org Gitlab instance. You can do that using the following:
+
+       glab auth login
+
+   Use gitlab web interface to generate a token either on Weston project or
+   on your profile (preferably) and use the token to authenticate. gitlab cli
+   client can be downloaded directly from Gitlab.com or it might be provided
+   directly by the distribution you're currently using to do the release.
+
+4. Run the `release.sh` script to generate the tarballs, sign and upload them,
    and generate a release announcement template. This script can be obtained
    from the Wayland repository:
 
    https://gitlab.freedesktop.org/wayland/wayland/-/blob/main/release.sh
 
-4. Compose the release announcements.  The script will generate a
+5. Compose the release announcements.  The script will generate a
    weston-x.y.z.announce file with a list of changes and tags.  Prepend these
    with a human-readable listing of the most notable changes.  For x.y.0
    releases, indicate the schedule for the x.y+1.0 release.
 
-5. PGP sign the release announcement and send it to
+6. PGP sign the release announcement and send it to
    <wayland-devel@lists.freedesktop.org>.
 
-6. Update `releases.html` in wayland.freedesktop.org with links to tarballs and
+7. Update `releases.html` in wayland.freedesktop.org with links to tarballs and
    the release email URL.
 
    Once satisfied:
