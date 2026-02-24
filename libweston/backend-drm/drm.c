@@ -4046,6 +4046,15 @@ drm_device_destroy(struct drm_device *device)
 	free(device);
 }
 
+static void
+drm_backend_destroy_all_drm_devices(struct drm_backend *b)
+{
+	struct drm_device *device, *next;
+
+	wl_list_for_each_safe(device, next, &b->kms_list, link)
+		drm_device_destroy(device);
+}
+
 void
 drm_destroy(struct weston_backend *backend)
 {
@@ -4065,7 +4074,7 @@ drm_destroy(struct weston_backend *backend)
 		gbm_device_destroy(b->gbm);
 #endif
 
-	drm_device_destroy(b->drm);
+	drm_backend_destroy_all_drm_devices(b);
 
 	udev_monitor_unref(b->udev_monitor);
 	udev_unref(b->udev);
@@ -4784,7 +4793,7 @@ err_udev_monitor:
 err_udev_input:
 	udev_input_destroy(&b->input);
 err_drm_device:
-	drm_device_destroy(b->drm);
+	drm_backend_destroy_all_drm_devices(b);
 err_udev:
 	udev_unref(b->udev);
 err_launcher:
