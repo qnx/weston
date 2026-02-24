@@ -1256,7 +1256,7 @@ drm_repaint_cancel(struct weston_backend *backend)
 	drm_repaint_cancel_device(b->drm);
 
 	wl_list_for_each(device, &b->kms_list, link)
-		drm_repaint_cancel_device(b->drm);
+		drm_repaint_cancel_device(device);
 }
 
 static int
