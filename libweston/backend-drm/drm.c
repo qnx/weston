@@ -1960,12 +1960,8 @@ drm_output_fini_pixman(struct drm_output *output)
 	unsigned int i;
 
 	/* Destroying the Pixman surface will destroy all our buffers,
-	 * regardless of refcount. Ensure we destroy them here. */
-	if (!b->compositor->shutting_down &&
-	    output->scanout_plane->state_cur->fb &&
-	    output->scanout_plane->state_cur->fb->type == BUFFER_PIXMAN_DUMB) {
-		drm_plane_reset_state(output->scanout_plane);
-	}
+	 * regardless of refcount. */
+	weston_assert_ptr_null(b->compositor, output->scanout_plane);
 
 	for (i = 0; i < ARRAY_LENGTH(output->dumb); i++) {
 		renderer->destroy_renderbuffer(output->renderbuffer[i]);
@@ -2608,32 +2604,27 @@ drm_output_init_planes(struct drm_output *output)
 static void
 drm_output_deinit_planes(struct drm_output *output)
 {
-	struct drm_backend *b = output->backend;
 	struct drm_device *device = output->device;
 
-	/* If the compositor is already shutting down, the planes have already
-	 * been destroyed. */
-	if (!b->compositor->shutting_down) {
-		wl_list_remove(&output->scanout_plane->base.link);
-		wl_list_init(&output->scanout_plane->base.link);
+	wl_list_remove(&output->scanout_plane->base.link);
+	wl_list_init(&output->scanout_plane->base.link);
 
-		if (output->cursor_plane) {
-			wl_list_remove(&output->cursor_plane->base.link);
-			wl_list_init(&output->cursor_plane->base.link);
-			/* Turn off hardware cursor */
-			drmModeSetCursor(device->kms_device->fd, output->crtc->crtc_id, 0, 0, 0);
-		}
-
-		/* With universal planes, the planes are allocated at startup,
-		 * freed at shutdown, and live on the plane list in between.
-		 * We want the planes to  continue to exist and be freed up
-		 * for other outputs.
-		 */
-		if (output->cursor_plane)
-			drm_plane_reset_state(output->cursor_plane);
-		if (output->scanout_plane)
-			drm_plane_reset_state(output->scanout_plane);
+	if (output->cursor_plane) {
+		wl_list_remove(&output->cursor_plane->base.link);
+		wl_list_init(&output->cursor_plane->base.link);
+		/* Turn off hardware cursor */
+		drmModeSetCursor(device->kms_device->fd, output->crtc->crtc_id, 0, 0, 0);
 	}
+
+	/* With universal planes, the planes are allocated at startup,
+	 * freed at shutdown, and live on the plane list in between.
+	 * We want the planes to  continue to exist and be freed up
+	 * for other outputs.
+	 */
+	if (output->cursor_plane)
+		drm_plane_reset_state(output->cursor_plane);
+	if (output->scanout_plane)
+		drm_plane_reset_state(output->scanout_plane);
 
 	output->cursor_plane = NULL;
 	output->scanout_plane = NULL;
@@ -2868,6 +2859,13 @@ drm_output_deinit(struct weston_output *base)
 		drm_pending_state_apply_sync(pending);
 	}
 
+	/*
+	 * Remove all potential drm_fb references to GBM BOs, so that the
+	 * renderer tear-down can destroy the originating GBM/Vulkan
+	 * surface without leaving dangling drm_fb pointers.
+	 */
+	drm_output_deinit_planes(output);
+
 	if (b->compositor->renderer->type == WESTON_RENDERER_PIXMAN)
 		drm_output_fini_pixman(output);
 	else if (b->compositor->renderer->type == WESTON_RENDERER_VULKAN)
@@ -2875,7 +2873,6 @@ drm_output_deinit(struct weston_output *base)
 	else
 		drm_output_fini_egl(output);
 
-	drm_output_deinit_planes(output);
 	drm_output_detach_crtc(output);
 
 	output->blend_to_output_xform = NULL;
@@ -4034,8 +4031,6 @@ drm_shutdown(struct weston_backend *backend)
 		}
 	}
 
-	destroy_sprites(b->drm);
-
 	weston_log_scope_destroy(b->debug);
 	b->debug = NULL;
 }
@@ -4083,6 +4078,8 @@ drm_destroy(struct weston_backend *backend)
 	if (b->gbm)
 		gbm_device_destroy(b->gbm);
 #endif
+
+	destroy_sprites(device);
 
 	drm_kms_device_destroy(device->kms_device);
 
