@@ -4488,7 +4488,7 @@ drm_device_create(struct drm_backend *backend,
 	wl_list_init(&device->crtc_list);
 	if (drm_backend_create_crtc_list(device, res) == -1) {
 		weston_log("Failed to create CRTC list for DRM-backend\n");
-		goto err;
+		goto err_res;
 	}
 
 	loop = wl_display_get_event_loop(compositor->wl_display);
@@ -4504,7 +4504,7 @@ drm_device_create(struct drm_backend *backend,
 	wl_list_init(&device->writeback_connector_list);
 	if (drm_backend_discover_connectors(device, device->kms_device->udev_device, res) < 0) {
 		weston_log("Failed to create heads for %s\n", device->kms_device->filename);
-		goto err;
+		goto err_res;
 	}
 
 	/* 'compute' faked zpos values in case HW doesn't expose any */
@@ -4512,7 +4512,12 @@ drm_device_create(struct drm_backend *backend,
 
 	wl_list_insert(backend->kms_list.prev, &device->link);
 
+	drmModeFreeResources(res);
+
 	return device;
+
+err_res:
+	drmModeFreeResources(res);
 err:
 	return NULL;
 }
