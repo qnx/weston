@@ -42,6 +42,7 @@
 #include <libweston/config-parser.h>
 #include "shared/helpers.h"
 #include "shared/timespec-util.h"
+#include "shared/string-helpers.h"
 #include <libweston/shell-utils.h>
 #include <libweston/desktop.h>
 
@@ -2646,12 +2647,6 @@ static const struct weston_desktop_api shell_desktop_api = {
 /* ************************ *
  * end of libweston-desktop *
  * ************************ */
-static int
-background_get_label(struct weston_surface *surface, char *buf, size_t len)
-{
-	return snprintf(buf, len, "background for output %s",
-			(surface->output ? surface->output->name : "NULL"));
-}
 
 static void
 background_committed(struct weston_surface *es,
@@ -2704,6 +2699,7 @@ desktop_shell_set_background(struct wl_client *client,
 		wl_resource_get_user_data(surface_resource);
 	struct shell_output *sh_output;
 	struct weston_head *head = weston_head_from_resource(output_resource);
+	char *label;
 
 	if (surface->committed) {
 		wl_resource_post_error(surface_resource,
@@ -2726,7 +2722,9 @@ desktop_shell_set_background(struct wl_client *client,
 
 	surface->committed = background_committed;
 	surface->committed_private = sh_output;
-	weston_surface_set_label_func(surface, background_get_label);
+
+	str_printf(&label, "background for output %s", surface->output->name);
+	weston_surface_set_label(surface, label);
 
 	weston_desktop_shell_send_configure(resource, 0,
 					    surface_resource,
@@ -2739,13 +2737,6 @@ desktop_shell_set_background(struct wl_client *client,
 				handle_background_surface_destroy;
 	wl_signal_add(&surface->destroy_signal,
 		      &sh_output->background_surface_listener);
-}
-
-static int
-panel_get_label(struct weston_surface *surface, char *buf, size_t len)
-{
-	return snprintf(buf, len, "panel for output %s",
-			(surface->output ? surface->output->name : "NULL"));
 }
 
 static void
@@ -2822,6 +2813,7 @@ desktop_shell_set_panel(struct wl_client *client,
 		wl_resource_get_user_data(surface_resource);
 	struct shell_output *sh_output;
 	struct weston_head *head = weston_head_from_resource(output_resource);
+	char *label;
 
 	if (surface->committed) {
 		wl_resource_post_error(surface_resource,
@@ -2845,7 +2837,9 @@ desktop_shell_set_panel(struct wl_client *client,
 
 	surface->committed = panel_committed;
 	surface->committed_private = sh_output;
-	weston_surface_set_label_func(surface, panel_get_label);
+
+	str_printf(&label, "panel for output %s", surface->output->name);
+	weston_surface_set_label(surface, label);
 
 	weston_desktop_shell_send_configure(resource, 0,
 					    surface_resource,
@@ -2856,12 +2850,6 @@ desktop_shell_set_panel(struct wl_client *client,
 
 	sh_output->panel_surface_listener.notify = handle_panel_surface_destroy;
 	wl_signal_add(&surface->destroy_signal, &sh_output->panel_surface_listener);
-}
-
-static int
-lock_surface_get_label(struct weston_surface *surface, char *buf, size_t len)
-{
-	return snprintf(buf, len, "lock window");
 }
 
 static void
@@ -2920,7 +2908,7 @@ desktop_shell_set_lock_surface(struct wl_client *client,
 
 	surface->committed = lock_surface_committed;
 	surface->committed_private = shell;
-	weston_surface_set_label_func(surface, lock_surface_get_label);
+	weston_surface_set_label_static(surface, "lock window");
 
 	shell->lock_surface = surface;
 	shell->lock_surface_listener.notify = handle_lock_surface_destroy;
