@@ -1,3 +1,5 @@
+.. _libweston-label:
+
 Libweston
 =========
 

@@ -14,14 +14,16 @@ Welcome to Weston documentation!
 Weston
 ------
 
-Weston is the reference implementation of a Wayland compositor, as well as a
-useful environment in and of itself.
+Weston is a Wayland compositor designed for correctness, reliability,
+predictability, and performance.
 
 Out of the box, Weston provides a very basic desktop, or a full-featured
 environment for non-desktop uses such as automotive, embedded, in-flight,
-industrial, kiosks, set-top boxes and TVs. It also provides a library allowing
-other projects to build their own full-featured environments on top of Weston's
-core.
+industrial, kiosks, set-top boxes and TVs.
+
+It also provides a library called :ref:`libweston-label` which allows
+users to build their own custom full-featured environments on top of
+Weston's core.
 
 The core focus of Weston is correctness and reliability. Weston aims to be lean
 and fast, but more importantly, to be predictable. Whilst Weston does have
