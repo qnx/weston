@@ -188,18 +188,26 @@ struct gl_output_state {
 
 struct gl_renderer;
 
+struct gl_capture_task_shm_state {
+	GLuint pbo;
+	int stride;
+	int height;
+	bool reverse;
+};
+
 struct gl_capture_task {
 	struct weston_capture_task *task;
 	struct wl_listener destroy_listener;
 	struct wl_event_source *source;
 	struct gl_renderer *gr;
 	struct wl_list link;
-	GLuint pbo;
-	int stride;
-	int height;
-	bool reverse;
+
 	EGLSyncKHR sync;
 	int fd;
+
+	/* shm_state is valid when buffer_type == WESTON_BUFFER_SHM */
+	enum weston_buffer_type buffer_type;
+	struct gl_capture_task_shm_state shm_state;
 };
 
 #ifndef HAVE_GBM
@@ -1177,7 +1185,9 @@ destroy_capture_task(struct gl_capture_task *gl_task)
 	wl_event_source_remove(gl_task->source);
 	wl_list_remove(&gl_task->link);
 	wl_list_remove(&gl_task->destroy_listener.link);
-	glDeleteBuffers(1, &gl_task->pbo);
+
+	if (gl_task->buffer_type == WESTON_BUFFER_SHM)
+		glDeleteBuffers(1, &gl_task->shm_state.pbo);
 
 	if (gl_task->sync != EGL_NO_SYNC_KHR)
 		gl_task->gr->destroy_sync(gl_task->gr->egl_display,
@@ -1197,22 +1207,41 @@ capture_task_parent_destroy_handler(struct wl_listener *l, void *data)
 	destroy_capture_task(gl_task);
 }
 
+static struct gl_capture_task_shm_state
+create_capture_task_shm_state(struct gl_renderer *gr,
+			      const struct weston_geometry *rect)
+{
+	struct gl_capture_task_shm_state shm_state = { 0 };
+
+	glGenBuffers(1, &shm_state.pbo);
+
+	shm_state.stride = (gr->compositor->read_format->bpp / 8) * rect->width;
+	shm_state.height = rect->height;
+	shm_state.reverse = !gl_extensions_has(gr, EXTENSION_ANGLE_PACK_REVERSE_ROW_ORDER);
+
+	return shm_state;
+}
+
 static struct gl_capture_task*
 create_capture_task(struct weston_capture_task *task,
 		    struct gl_renderer *gr,
-		    const struct weston_geometry *rect)
+		    enum weston_buffer_type buffer_type,
+		    const struct gl_capture_task_shm_state *shm_state)
 {
 	struct gl_capture_task *gl_task = xzalloc(sizeof *gl_task);
 
 	gl_task->task = task;
 	gl_task->gr = gr;
-	glGenBuffers(1, &gl_task->pbo);
-	gl_task->stride = (gr->compositor->read_format->bpp / 8) * rect->width;
-	gl_task->height = rect->height;
-	gl_task->reverse =
-		!gl_extensions_has(gr, EXTENSION_ANGLE_PACK_REVERSE_ROW_ORDER);
+	gl_task->buffer_type = buffer_type;
 	gl_task->sync = EGL_NO_SYNC_KHR;
 	gl_task->fd = EGL_NO_NATIVE_FENCE_FD_ANDROID;
+
+	if (buffer_type == WESTON_BUFFER_SHM) {
+		gl_task->shm_state = *shm_state;
+	} else {
+		/* other types are not supported so far */
+		weston_assert_enum(gr->compositor, buffer_type, WESTON_BUFFER_DMABUF);
+	}
 
 	gl_task->destroy_listener.notify = capture_task_parent_destroy_handler;
 	weston_capture_task_add_destroy_listener(task, &gl_task->destroy_listener);
@@ -1221,32 +1250,34 @@ create_capture_task(struct weston_capture_task *task,
 }
 
 static void
-copy_capture(struct gl_capture_task *gl_task)
+copy_capture_shm(struct gl_capture_task *gl_task)
 {
 	struct weston_buffer *buffer =
 		weston_capture_task_get_buffer(gl_task->task);
 	struct wl_shm_buffer *shm = buffer->shm_buffer;
 	struct gl_renderer *gr = gl_task->gr;
+	struct weston_compositor *compositor = gr->compositor;
 	uint8_t *src, *dst;
 	int i;
 
-	assert(shm);
+	weston_assert_enum(compositor, gl_task->buffer_type, WESTON_BUFFER_SHM);
+	weston_assert_ptr_not_null(compositor, shm);
 
-	glBindBuffer(GL_PIXEL_PACK_BUFFER, gl_task->pbo);
+	glBindBuffer(GL_PIXEL_PACK_BUFFER, gl_task->shm_state.pbo);
 	src = gr->map_buffer_range(GL_PIXEL_PACK_BUFFER, 0,
-				   gl_task->stride * gl_task->height,
+				   gl_task->shm_state.stride * gl_task->shm_state.height,
 				   GL_MAP_READ_BIT);
 	dst = wl_shm_buffer_get_data(shm);
 	wl_shm_buffer_begin_access(shm);
 
-	if (!gl_task->reverse) {
-		memcpy(dst, src, gl_task->stride * gl_task->height);
+	if (!gl_task->shm_state.reverse) {
+		memcpy(dst, src, gl_task->shm_state.stride * gl_task->shm_state.height);
 	} else {
-		src += (gl_task->height - 1) * gl_task->stride;
-		for (i = 0; i < gl_task->height; i++) {
-			memcpy(dst, src, gl_task->stride);
-			dst += gl_task->stride;
-			src -= gl_task->stride;
+		src += (gl_task->shm_state.height - 1) * gl_task->shm_state.stride;
+		for (i = 0; i < gl_task->shm_state.height; i++) {
+			memcpy(dst, src, gl_task->shm_state.stride);
+			dst += gl_task->shm_state.stride;
+			src -= gl_task->shm_state.stride;
 		}
 	}
 
@@ -1265,7 +1296,9 @@ async_capture_handler(void *data)
 	wl_list_remove(&gl_task->destroy_listener.link);
 	wl_list_init(&gl_task->destroy_listener.link);
 
-	copy_capture(gl_task);
+	if (gl_task->buffer_type == WESTON_BUFFER_SHM)
+		copy_capture_shm(gl_task);
+
 	weston_capture_task_retire_complete(gl_task->task);
 	destroy_capture_task(gl_task);
 
@@ -1284,7 +1317,9 @@ async_capture_handler_fd(int fd, uint32_t mask, void *data)
 	wl_list_init(&gl_task->destroy_listener.link);
 
 	if (mask & WL_EVENT_READABLE) {
-		copy_capture(gl_task);
+		if (gl_task->buffer_type == WESTON_BUFFER_SHM)
+			copy_capture_shm(gl_task);
+
 		weston_capture_task_retire_complete(gl_task->task);
 	} else {
 		weston_capture_task_retire_failed(gl_task->task,
@@ -1305,6 +1340,7 @@ gl_renderer_do_read_pixels_async(struct gl_renderer *gr,
 	struct weston_buffer *buffer = weston_capture_task_get_buffer(task);
 	const struct pixel_format_info *fmt = buffer->pixel_format;
 	struct gl_capture_task *gl_task;
+	struct gl_capture_task_shm_state shm_state;
 	struct wl_event_loop *loop;
 	int refresh_mhz, refresh_msec;
 
@@ -1318,16 +1354,17 @@ gl_renderer_do_read_pixels_async(struct gl_renderer *gr,
 	    is_y_flipped(go))
 		glPixelStorei(GL_PACK_REVERSE_ROW_ORDER_ANGLE, GL_TRUE);
 
-	gl_task = create_capture_task(task, gr, rect);
+	shm_state = create_capture_task_shm_state(gr, rect);
 
-	glBindBuffer(GL_PIXEL_PACK_BUFFER, gl_task->pbo);
-	glBufferData(GL_PIXEL_PACK_BUFFER, gl_task->stride * gl_task->height,
+	glBindBuffer(GL_PIXEL_PACK_BUFFER, shm_state.pbo);
+	glBufferData(GL_PIXEL_PACK_BUFFER, shm_state.stride * shm_state.height,
 		     NULL, gr->pbo_usage);
 	glReadPixels(rect->x, rect->y, rect->width, rect->height,
 		     fmt->gl_format, fmt->gl_type, 0);
 	glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 
 	loop = wl_display_get_event_loop(gr->compositor->wl_display);
+	gl_task = create_capture_task(task, gr, buffer->type, &shm_state);
 	gl_task->sync = create_render_sync(gr);
 
 	/* Make sure the read back request is flushed. Doing so right between
