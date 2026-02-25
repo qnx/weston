@@ -36,6 +36,7 @@
 #include "frontend/weston.h"
 #include "libweston/libweston.h"
 #include "shared/helpers.h"
+#include "shared/xalloc.h"
 #include <libweston/shell-utils.h>
 
 #include <libweston/xwayland-api.h>
@@ -692,13 +693,6 @@ kiosk_shell_output_raise_surface_subtree(struct kiosk_shell_output *shoutput,
 	}
 }
 
-static int
-kiosk_shell_background_surface_get_label(struct weston_surface *surface,
-					 char *buf, size_t len)
-{
-	return snprintf(buf, len, "kiosk shell background surface");
-}
-
 static void
 kiosk_shell_output_recreate_background(struct kiosk_shell_output *shoutput)
 {
@@ -732,7 +726,7 @@ kiosk_shell_output_recreate_background(struct kiosk_shell_output *shoutput)
 
 	curtain_params.capture_input = true;
 
-	curtain_params.get_label = kiosk_shell_background_surface_get_label;
+	curtain_params.label = xstrdup("kiosk shell background surface");
 	curtain_params.surface_committed = NULL;
 	curtain_params.surface_private = NULL;
 

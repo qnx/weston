@@ -92,12 +92,6 @@ black_surface_committed(struct weston_surface *es,
 {
 }
 
-static int
-black_surface_get_label(struct weston_surface *surface, char *buf, size_t len)
-{
-	return snprintf(buf, len, "fullscreen black background surface");
-}
-
 static void
 desktop_surface_committed(struct weston_desktop_surface *desktop_surface,
 			  struct weston_coord_surface unused, void *shell)
@@ -143,7 +137,7 @@ desktop_surface_committed(struct weston_desktop_surface *desktop_surface,
 		.pos = output->pos,
 		.width = output->width, .height = output->height,
 		.surface_committed = black_surface_committed,
-		.get_label = black_surface_get_label,
+		.label = xstrdup("fullscreen black background surface"),
 		.surface_private = dtsurface->view,
 		.capture_input = true,
 	};
@@ -229,12 +223,6 @@ static const struct weston_desktop_api shell_desktop_api = {
 	.pong = desktop_surface_pong,
 };
 
-static int
-background_get_label(struct weston_surface *surface, char *buf, size_t len)
-{
-	return snprintf(buf, len, "test desktop shell background");
-}
-
 static void
 shell_destroy(struct wl_listener *listener, void *data)
 {
@@ -316,7 +304,7 @@ wet_shell_init(struct weston_compositor *ec,
 		.width = output->width, .height = output->height,
 		.capture_input = true,
 		.surface_committed = NULL,
-		.get_label = background_get_label,
+		.label = xstrdup("test desktop shell background"),
 		.surface_private = NULL,
 	};
 

@@ -33,6 +33,7 @@
 #include "lua-shell.h"
 #include "frontend/weston.h"
 #include "shared/helpers.h"
+#include "shared/string-helpers.h"
 #include "shared/weston-assert.h"
 #include "shared/xalloc.h"
 #include "libweston/shell-utils.h"
@@ -1715,19 +1716,6 @@ lua_shell_env_curtain_set_capture_input(struct lua_State *lua)
 }
 
 static int
-lua_shell_curtain_get_label(struct weston_surface *surface,
-			    char *buf, size_t len)
-{
-	struct lua_shell_curtain *shcurtain = surface->committed_private;
-	const char *name = "unnamed";
-
-	if (shcurtain->name)
-		name = shcurtain->name;
-
-	return snprintf(buf, len, "%s (curtain)", name);
-}
-
-static int
 lua_shell_env_curtain_get_view(struct lua_State *lua)
 {
 	struct lua_shell_curtain *shcurtain = get_curtain_from_arg(lua, 1);
@@ -1738,10 +1726,11 @@ lua_shell_env_curtain_get_view(struct lua_State *lua)
 	if (shview)
 		goto done;
 
-	shcurtain->params.get_label = lua_shell_curtain_get_label;
+	str_printf(&shcurtain->params.label, "%s (curtain)", shcurtain->name ?: "unnamed");
 	shcurtain->params.surface_private = shcurtain;
 	shcurtain->curtain = weston_shell_utils_curtain_create(shell->compositor,
 							       &shcurtain->params);
+	shcurtain->params.label = NULL;
 
 	shview = lxzalloc(lua, sizeof(*shview), "weston.view");
 	shview->view = shcurtain->curtain->view;

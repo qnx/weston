@@ -31,7 +31,7 @@ extern "C" {
 
 /* parameter for weston_curtain_create() */
 struct weston_curtain_params {
-	int (*get_label)(struct weston_surface *es, char *buf, size_t len);
+	char *label;
 	void (*surface_committed)(struct weston_surface *es,
 				  struct weston_coord_surface new_origin);
 	void *surface_private;

@@ -43,6 +43,7 @@
 #include "shared/helpers.h"
 #include "shared/timespec-util.h"
 #include "shared/string-helpers.h"
+#include "shared/xalloc.h"
 #include <libweston/shell-utils.h>
 #include <libweston/desktop.h>
 
@@ -397,13 +398,6 @@ shell_configuration(struct desktop_shell *shell)
 	return true;
 }
 
-static int
-focus_surface_get_label(struct weston_surface *surface, char *buf, size_t len)
-{
-	return snprintf(buf, len, "focus highlight effect for output %s",
-			(surface->output ? surface->output->name : "NULL"));
-}
-
 /* no-op func for checking focus surface */
 static void
 focus_surface_committed(struct weston_surface *es,
@@ -427,7 +421,6 @@ create_focus_surface(struct weston_compositor *ec,
 		.pos = output->pos,
 		.width = output->width, .height = output->height,
 		.surface_committed = focus_surface_committed,
-		.get_label = focus_surface_get_label,
 		.surface_private = NULL,
 		.capture_input = false,
 	};
@@ -437,8 +430,11 @@ create_focus_surface(struct weston_compositor *ec,
 		return NULL;
 
 	curtain_params.surface_private = fsurf;
+	str_printf(&curtain_params.label, "focus highlight effect for output %s",
+		   output->name);
 
 	fsurf->curtain = weston_shell_utils_curtain_create(ec, &curtain_params);
+
 	weston_view_set_output(fsurf->curtain->view, output);
 
 	return fsurf;
@@ -1658,34 +1654,6 @@ shell_surface_get_shell(struct shell_surface *shsurf)
 	return shsurf->shell;
 }
 
-static int
-black_surface_get_label(struct weston_surface *surface, char *buf, size_t len)
-{
-	struct weston_view *fs_view = surface->committed_private;
-	struct weston_surface *fs_surface = fs_view->surface;
-	int n;
-	int rem;
-	int ret;
-
-	n = snprintf(buf, len, "black background surface for ");
-	if (n < 0)
-		return n;
-
-	rem = (int)len - n;
-	if (rem < 0)
-		rem = 0;
-
-	if (fs_surface->get_label)
-		ret = fs_surface->get_label(fs_surface, buf + n, rem);
-	else
-		ret = snprintf(buf + n, rem, "<unknown>");
-
-	if (ret < 0)
-		return n;
-
-	return n + ret;
-}
-
 static void
 black_surface_committed(struct weston_surface *es,
 			struct weston_coord_surface new_origin)
@@ -1725,7 +1693,6 @@ shell_set_view_fullscreen(struct shell_surface *shsurf)
 		.pos = output->pos,
 		.width = output->width, .height = output->height,
 		.surface_committed = black_surface_committed,
-		.get_label = black_surface_get_label,
 		.surface_private = shsurf->view,
 		.capture_input = true,
 	};
@@ -1737,6 +1704,8 @@ shell_set_view_fullscreen(struct shell_surface *shsurf)
 	weston_shell_utils_center_on_output(shsurf->view, output);
 
 	if (!shsurf->fullscreen.black_view) {
+		str_printf(&curtain_params.label, "black background surface for %s",
+			   surface->label);
 		shsurf->fullscreen.black_view =
 			weston_shell_utils_curtain_create(ec, &curtain_params);
 	}
@@ -3705,13 +3674,6 @@ shell_fade_done(struct weston_view_animation *animation, void *data)
 	}
 }
 
-static int
-fade_surface_get_label(struct weston_surface *surface,
-		       char *buf, size_t len)
-{
-	return snprintf(buf, len, "desktop shell fade surface");
-}
-
 static struct weston_curtain *
 shell_fade_create_view(struct desktop_shell *shell)
 {
@@ -3720,9 +3682,9 @@ shell_fade_create_view(struct desktop_shell *shell)
 	struct weston_curtain_params curtain_params = {
 		.r = 0.0, .g = 0.0, .b = 0.0, .a = 1.0,
 		.surface_committed = black_surface_committed,
-		.get_label = fade_surface_get_label,
 		.surface_private = shell,
 		.capture_input = true,
+		.label = xstrdup("desktop shell fade surface"),
 	};
 	struct weston_curtain *curtain;
 	bool first = true;
@@ -3749,6 +3711,7 @@ shell_fade_create_view(struct desktop_shell *shell)
 	curtain_params.pos.c.y = y1;
 	curtain_params.width = x2 - x1;
 	curtain_params.height = y2 - y1;
+
 	curtain = weston_shell_utils_curtain_create(compositor, &curtain_params);
 	assert(curtain);
 
