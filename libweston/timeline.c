@@ -272,7 +272,6 @@ check_weston_surface_description(struct weston_log_subscription *sub,
 				 struct weston_timeline_subscription *tm_sub)
 {
 	struct weston_surface *mains;
-	char d[512];
 	char mainstr[32];
 	struct weston_timeline_subscription_object *sub_obj;
 	struct weston_timeline_subscription_object *parent_obj;
@@ -297,13 +296,10 @@ check_weston_surface_description(struct weston_log_subscription *sub,
 		mainstr[0] = '\0';
 	}
 
-	if (s->get_label(s, d, sizeof(d)) < 0)
-		d[0] = '\0';
-
 	weston_log_subscription_printf(sub, "{ \"id\":%u, "
 				       "\"type\":\"weston_surface\", \"desc\":",
 				       sub_obj->id);
-	fprint_quoted_string(sub, d[0] ? d : NULL);
+	fprint_quoted_string(sub, s->label);
 	weston_log_subscription_printf(sub, "%s }\n", mainstr);
 
 	return sub_obj;

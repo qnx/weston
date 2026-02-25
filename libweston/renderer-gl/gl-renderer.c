@@ -366,7 +366,6 @@ gl_log_paint_node_start(struct gl_renderer *gr, struct weston_paint_node *pnode)
 	struct weston_view *view;
 	struct weston_surface *surface;
 	struct weston_buffer *buffer;
-	char desc[512];
 	pid_t pid = 0;
 	char *modifier_name;
 
@@ -382,12 +381,9 @@ gl_log_paint_node_start(struct gl_renderer *gr, struct weston_paint_node *pnode)
 				&pid, NULL, NULL);
 	}
 
-	if (!surface->get_label || surface->get_label(surface, desc, sizeof(desc)) < 0)
-		strcpy(desc, "[no description available]");
-
 	weston_log_scope_printf(gr->paint_node_scope, "\tView %s (role %s, PID %d"
 				", %s):\n", view->internal_name, surface->role_name ?: "none",
-				pid, desc);
+				pid, surface->label);
 
 	buffer = view->surface->buffer_ref.buffer;
 	if (!buffer) {

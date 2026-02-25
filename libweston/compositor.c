@@ -4140,17 +4140,14 @@ surface_frame_rate_stats(void *data)
 		compositor->perf_surface_stats.frame_counter_interval;
 
 	if (surf->resource) {
-		char surface_desc[512];
 		char p_counter_fc_counter[1024];
 		char p_counter_painted_counter[1024];
-
-		surf->get_label(surf, surface_desc, sizeof(surface_desc));
 
 		surf->frame_commit_fps_counter =
 			(float) (surf->frame_commit_counter / frame_counter_interval);
 
 		snprintf(p_counter_fc_counter, sizeof(p_counter_fc_counter),
-			 "%s #%d", (char *) surface_desc, surf->s_id);
+			 "%s #%d", surf->label, surf->s_id);
 
 		WESTON_TRACE_SET_COUNTER(p_counter_fc_counter,
 					 surf->frame_commit_fps_counter);
@@ -4159,7 +4156,7 @@ surface_frame_rate_stats(void *data)
 			(float) (surf->painted_frame_counter / frame_counter_interval);
 
 		snprintf(p_counter_painted_counter, sizeof(p_counter_painted_counter),
-			 "%s #%d (painted)", (char *) surface_desc, surf->s_id);
+			 "%s #%d (painted)", surf->label, surf->s_id);
 
 		WESTON_TRACE_SET_COUNTER(p_counter_painted_counter,
 					 surf->painted_frame_fps_counter);
@@ -9692,7 +9689,6 @@ debug_scene_view_print(FILE *fp, struct weston_view *view)
 {
 	struct weston_compositor *ec = view->surface->compositor;
 	struct weston_output *output;
-	char desc[512];
 	pixman_box32_t *box;
 	pid_t pid = 0;
 
@@ -9702,13 +9698,10 @@ debug_scene_view_print(FILE *fp, struct weston_view *view)
 					  &pid, NULL, NULL);
 	}
 
-	if (view->surface->get_label(view->surface, desc, sizeof(desc)) < 0) {
-		strcpy(desc, "[no description available]");
-	}
 	fprintf(fp, "\tView %s (role %s, PID %d, '%s'):\n",
 		view->internal_name,
 		view->surface->role_name ?: "none",
-		pid, desc);
+		pid, view->surface->label);
 
 	if (!weston_view_is_mapped(view))
 		fprintf(fp, "\t[view is not mapped!]\n");
