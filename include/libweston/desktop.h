@@ -217,6 +217,8 @@ struct weston_size
 weston_desktop_surface_get_max_size(struct weston_desktop_surface *surface);
 struct weston_size
 weston_desktop_surface_get_min_size(struct weston_desktop_surface *surface);
+char *
+weston_desktop_surface_make_label(struct weston_desktop_surface *surface);
 struct weston_desktop_surface *
 weston_desktop_surface_get_parent(struct weston_desktop_surface *surface);
 void

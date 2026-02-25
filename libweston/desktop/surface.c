@@ -34,6 +34,8 @@
 #include <libweston/desktop.h>
 #include "internal.h"
 
+#include "shared/string-helpers.h"
+
 struct weston_desktop_view {
 	struct wl_list link;
 	struct weston_view *view;
@@ -745,6 +747,28 @@ weston_desktop_surface_get_min_size(struct weston_desktop_surface *surface)
 		return size;
 	return surface->implementation->get_min_size(surface,
 						     surface->implementation_data);
+}
+
+/**
+ * Make a label out of a top-level window title and app_id
+ *
+ * \param surface Take the current title and app_id of this surface.
+ * \return A newly malloc'd string containing the title and app_id.
+ */
+WL_EXPORT char *
+weston_desktop_surface_make_label(struct weston_desktop_surface *surface)
+{
+	const char *t, *c;
+	char *label;
+
+	t = weston_desktop_surface_get_title(surface);
+	c = weston_desktop_surface_get_app_id(surface);
+
+	str_printf(&label, "top-level window%s%s%s%s%s",
+		   t ? " '" : "", t ?: "", t ? "'" : "",
+		   c ? " of " : "", c ?: "");
+
+	return label;
 }
 
 void

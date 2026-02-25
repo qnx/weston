@@ -116,6 +116,7 @@ struct shell_surface {
 	struct shell_output *fullscreen_output;
 	struct shell_output *output;
 	struct wl_listener output_destroy_listener;
+	struct wl_listener surface_label_update;
 
 	struct surface_state {
 		bool fullscreen;

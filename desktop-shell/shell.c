@@ -161,6 +161,8 @@ desktop_shell_destroy_surface(struct shell_surface *shsurf)
 		shsurf->output_destroy_listener.notify = NULL;
 	}
 
+	wl_list_remove(&shsurf->surface_label_update.link);
+
 	free(shsurf);
 }
 
@@ -1919,6 +1921,18 @@ get_shell_surface(struct weston_surface *surface)
 	return NULL;
 }
 
+static void
+desktop_surface_update_label(struct wl_listener *listener, void *data)
+{
+	struct weston_desktop_surface *desktop_surface = data;
+	struct weston_surface *surface =
+		weston_desktop_surface_get_surface(desktop_surface);
+	char *label;
+
+	label = weston_desktop_surface_make_label(desktop_surface);
+	weston_surface_set_label(surface, label);
+}
+
 /*
  * libweston-desktop
  */
@@ -1935,6 +1949,7 @@ desktop_surface_added(struct weston_desktop_surface *desktop_surface,
 	struct shell_surface *shsurf;
 	struct weston_surface *surface =
 		weston_desktop_surface_get_surface(desktop_surface);
+	char *label;
 
 	view = weston_desktop_surface_create_view(desktop_surface);
 	if (!view)
@@ -1948,8 +1963,6 @@ desktop_surface_added(struct weston_desktop_surface *desktop_surface,
 			weston_log("no memory to allocate shell surface\n");
 		return;
 	}
-
-	weston_surface_set_label_func(surface, weston_shell_utils_surface_get_label);
 
 	shsurf->shell = (struct desktop_shell *) shell;
 	shsurf->unresponsive = 0;
@@ -1978,6 +1991,14 @@ desktop_surface_added(struct weston_desktop_surface *desktop_surface,
 	wl_list_insert(&shsurf->shell->shsurf_list, &shsurf->link);
 
 	weston_desktop_surface_set_user_data(desktop_surface, shsurf);
+
+	label = weston_desktop_surface_make_label(desktop_surface);
+	weston_surface_set_label(surface, label);
+
+	/* client-controllable from xdg-shell */
+	shsurf->surface_label_update.notify = desktop_surface_update_label;
+	weston_desktop_surface_add_metadata_listener(desktop_surface,
+						     &shsurf->surface_label_update);
 }
 
 static void
@@ -2010,7 +2031,9 @@ desktop_surface_removed(struct weston_desktop_surface *desktop_surface,
 		shsurf->fullscreen.black_view = NULL;
 	}
 
-	weston_surface_set_label_func(surface, NULL);
+	wl_list_remove(&shsurf->surface_label_update.link);
+	wl_list_init(&shsurf->surface_label_update.link);
+
 	weston_desktop_surface_set_user_data(shsurf->desktop_surface, NULL);
 	shsurf->desktop_surface = NULL;
 
