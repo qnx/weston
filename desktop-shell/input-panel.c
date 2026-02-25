@@ -180,12 +180,6 @@ update_input_panels(struct wl_listener *listener, void *data)
 	memcpy(&shell->text_input.cursor_rectangle, data, sizeof(pixman_box32_t));
 }
 
-static int
-input_panel_get_label(struct weston_surface *surface, char *buf, size_t len)
-{
-	return snprintf(buf, len, "input panel");
-}
-
 static void
 input_panel_committed(struct weston_surface *surface,
 		      struct weston_coord_surface new_origin)
@@ -214,7 +208,7 @@ destroy_input_panel_surface(struct input_panel_surface *input_panel_surface)
 	wl_list_remove(&input_panel_surface->link);
 
 	input_panel_surface->surface->committed = NULL;
-	weston_surface_set_label_func(input_panel_surface->surface, NULL);
+	weston_surface_set_label(input_panel_surface->surface, NULL);
 	weston_view_destroy(input_panel_surface->view);
 
 	free(input_panel_surface);
@@ -256,7 +250,7 @@ create_input_panel_surface(struct desktop_shell *shell,
 
 	surface->committed = input_panel_committed;
 	surface->committed_private = input_panel_surface;
-	weston_surface_set_label_func(surface, input_panel_get_label);
+	weston_surface_set_label_static(surface, "input panel");
 
 	input_panel_surface->shell = shell;
 
