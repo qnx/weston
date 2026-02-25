@@ -597,7 +597,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 	struct drm_output *output = state->output;
 	struct drm_device *device = output->device;
 	struct drm_backend *b = device->backend;
-
+	struct weston_compositor *compositor = b->compositor;
 	struct drm_plane_state *ps = NULL;
 	struct drm_plane_handle *handle;
 
@@ -640,15 +640,33 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 		pnode->try_view_on_plane_failure_reasons |=
 			FAILURE_REASONS_SOLID_SURFACE;
 	} else if (buffer->type == WESTON_BUFFER_SHM) {
+		struct drm_plane_handle *cursor_handle = output->cursor_handle;
 		struct drm_plane *cursor_plane = NULL;
+		uint64_t zpos;
 
-		if (output->cursor_handle)
-			cursor_plane = output->cursor_handle->plane;
+		if (!output->cursor_handle) {
+			pnode->try_view_on_plane_failure_reasons |=
+				FAILURE_REASONS_PLANES_REJECTED;
+			return NULL;
+		}
+
+		cursor_plane = output->cursor_handle->plane;
 
 		try_pnode_on_cursor_plane(output, pnode);
 
-		if (pnode->try_view_on_plane_failure_reasons == FAILURE_REASONS_NONE)
-			possible_plane_mask = (1 << cursor_plane->plane_idx);
+		if (pnode->try_view_on_plane_failure_reasons == FAILURE_REASONS_NONE &&
+		    pnode_can_use_plane(state, cursor_handle, pnode)) {
+			if (current_lowest_zpos == DRM_PLANE_ZPOS_INVALID_PLANE)
+				zpos = cursor_plane->zpos_max;
+			else
+				zpos = MIN(current_lowest_zpos - 1, cursor_plane->zpos_max);
+
+			ps = drm_output_prepare_cursor_paint_node(state, pnode, zpos);
+		}
+		if (!ps)
+			pnode->try_view_on_plane_failure_reasons |=
+				FAILURE_REASONS_PLANES_REJECTED;
+		return ps;
 	} else {
 		if (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR) {
 			drm_debug(b, "\t\t\t\t[view] not assigning view %s "
@@ -723,10 +741,9 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 
 		switch (plane->type) {
 		case WDRM_PLANE_TYPE_CURSOR:
-			assert(buffer->shm_buffer);
-			assert(output->cursor_handle);
-			assert(plane == output->cursor_handle->plane);
-			break;
+			weston_assert_not_reached(compositor,
+						  "Illegal use of cursor plane");
+			continue;
 		case WDRM_PLANE_TYPE_PRIMARY:
 			if (plane != output->scanout_handle->plane)
 				continue;
@@ -796,14 +813,13 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 			     "from candidate list, type: %s\n",
 			     plane->plane_id, p_name);
 
-		if (plane->type == WDRM_PLANE_TYPE_CURSOR) {
-			ps = drm_output_prepare_cursor_paint_node(state, pnode, zpos);
-		} else {
-			if (fb)
-				ps = drm_output_try_paint_node_on_plane(handle, state,
-									pnode, mode,
-									fb, zpos);
-		}
+		weston_assert_false(compositor,
+				    plane->type == WDRM_PLANE_TYPE_CURSOR);
+
+		if (fb)
+			ps = drm_output_try_paint_node_on_plane(handle, state,
+								pnode, mode,
+								fb, zpos);
 
 		if (ps) {
 			/* Check if this ps is underlay plane, if so, the view
