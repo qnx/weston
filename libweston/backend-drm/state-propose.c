@@ -543,6 +543,47 @@ view_with_region_matches_output_entirely(struct weston_paint_node *pnode,
 	return res;
 }
 
+static bool
+pnode_can_use_plane(struct drm_output_state *output_state,
+		    struct drm_plane_handle *handle,
+		    struct weston_paint_node *pnode)
+{
+	const char *p_name = drm_output_get_handle_type_name(handle);
+	struct drm_output *output = output_state->output;
+	struct drm_plane *plane = handle->plane;
+	struct drm_backend *b = output->backend;
+
+	if (!drm_plane_is_available(plane, output))
+		return false;
+
+	if (drm_output_check_plane_has_view_assigned(plane, output_state)) {
+		drm_debug(b, "\t\t\t\t[plane] not trying plane %d: "
+			     "another view already assigned\n",
+			     plane->plane_id);
+		return false;
+	}
+
+	/* if view has alpha check if this plane supports plane alpha */
+	if (pnode->view->alpha != 1.0f && plane->alpha_max == plane->alpha_min) {
+		drm_debug(b, "\t\t\t\t[plane] not trying plane %d:"
+			     "plane-alpha not supported\n",
+			     plane->plane_id);
+		return false;
+	}
+
+	/* If the surface buffer has an in-fence fd, but the plane doesn't
+	 * support fences, we can't place the buffer on this plane. */
+	if (pnode->surface->acquire_fence_fd >= 0 &&
+	    plane->props[WDRM_PLANE_IN_FENCE_FD].prop_id == 0) {
+		drm_debug(b, "\t\t\t\t[%s] not placing view %s on %s: "
+		          "no in-fence support\n",
+			  p_name, pnode->view->internal_name, p_name);
+		return false;
+	}
+
+	return true;
+}
+
 static struct drm_plane_state *
 drm_output_find_plane_for_view(struct drm_output_state *state,
 			       struct weston_paint_node *pnode,
@@ -705,33 +746,8 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 			assert(false && "unknown plane type");
 		}
 
-		if (!drm_plane_is_available(plane, output))
+		if (!pnode_can_use_plane(state, handle, pnode))
 			continue;
-
-		if (drm_output_check_plane_has_view_assigned(plane, state)) {
-			drm_debug(b, "\t\t\t\t[plane] not trying plane %d: "
-				     "another view already assigned\n",
-				     plane->plane_id);
-			continue;
-		}
-
-		/* if view has alpha check if this plane supports plane alpha */
-		if (ev->alpha != 1.0f && plane->alpha_max == plane->alpha_min) {
-			drm_debug(b, "\t\t\t\t[plane] not trying plane %d:"
-				     "plane-alpha not supported\n",
-				     plane->plane_id);
-			continue;
-		}
-
-		/* If the surface buffer has an in-fence fd, but the plane doesn't
-		 * support fences, we can't place the buffer on this plane. */
-		if (ev->surface->acquire_fence_fd >= 0 &&
-		    plane->props[WDRM_PLANE_IN_FENCE_FD].prop_id == 0) {
-			drm_debug(b, "\t\t\t\t[%s] not placing view %s on %s: "
-			          "no in-fence support\n",
-				  p_name, ev->internal_name, p_name);
-			continue;
-		}
 
 		/* The paint node isn't occluded by the renderer, so it doesn't
 		 * unconditionally need an underlay plane. However, we may
