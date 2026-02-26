@@ -44,7 +44,8 @@
 /* enum gl_shader_color_effect */
 #define SHADER_COLOR_EFFECT_NONE 0
 #define SHADER_COLOR_EFFECT_INVERSION 1
-#define SHADER_COLOR_EFFECT_CVD_CORRECTION 2
+#define SHADER_COLOR_EFFECT_GRAYSCALE 2
+#define SHADER_COLOR_EFFECT_CVD_CORRECTION 3
 
 /* enum gl_shader_color_curve */
 #define SHADER_COLOR_CURVE_IDENTITY 0
@@ -451,7 +452,28 @@ color_pipeline(vec4 color)
 vec4
 color_inversion(vec4 color)
 {
+	/**
+	 * Ideally this should be done in linear space, but converting to linear
+	 * and back is costly. Historically this also has been done in the
+	 * electrical domain. Let's do in electrical, results are good enough.
+	 */
 	color.rgb = 1.0 - color.rgb;
+
+	return color;
+}
+
+vec4
+color_grayscale(vec4 color)
+{
+	float gray;
+
+	/**
+	 * Ideally this should be done in linear space, but converting to linear
+	 * and back is costly. Historically this also has been done in the
+	 * electrical domain. Let's do in electrical, results are good enough.
+	 */
+	gray = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
+	color.rgb = vec3(gray);
 
 	return color;
 }
@@ -504,6 +526,8 @@ main()
 		color = color_pipeline(color);
 	else if (c_color_effect == SHADER_COLOR_EFFECT_INVERSION)
 		color = color_inversion(color);
+	else if (c_color_effect == SHADER_COLOR_EFFECT_GRAYSCALE)
+		color = color_grayscale(color);
 	else if (c_color_effect == SHADER_COLOR_EFFECT_CVD_CORRECTION)
 		color = color_cvd_correction(color);
 

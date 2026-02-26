@@ -137,6 +137,7 @@ gl_shader_color_effect_to_string(enum gl_shader_color_effect kind)
 #define CASERET(x) case x: return #x;
 	CASERET(SHADER_COLOR_EFFECT_NONE)
 	CASERET(SHADER_COLOR_EFFECT_INVERSION)
+	CASERET(SHADER_COLOR_EFFECT_GRAYSCALE)
 	CASERET(SHADER_COLOR_EFFECT_CVD_CORRECTION)
 #undef CASERET
 	}
@@ -889,6 +890,9 @@ gl_shader_load_config(struct gl_renderer *gr,
 		break;
 	case SHADER_COLOR_EFFECT_INVERSION:
 		weston_log_scope_printf(gr->paint_node_scope, "\t\tcolor effect: inversion\n");
+		break;
+	case SHADER_COLOR_EFFECT_GRAYSCALE:
+		weston_log_scope_printf(gr->paint_node_scope, "\t\tcolor effect: grayscale\n");
 		break;
 	case SHADER_COLOR_EFFECT_CVD_CORRECTION:
 		weston_assert_int_ne(gr->compositor, shader->cvd_correction_uniform, -1);

@@ -2060,6 +2060,9 @@ wet_output_set_color_effect(struct weston_output *output,
 	if (strcmp(color_effect, "inversion") == 0) {
 		weston_output_color_effect_inversion(output);
 		goto out;
+	} else if (strcmp(color_effect, "grayscale") == 0) {
+		weston_output_color_effect_grayscale(output);
+		goto out;
 	}
 
 	entry = weston_enum_map_find_name(cvd_correction_name_map, color_effect);

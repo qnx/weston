@@ -2344,6 +2344,12 @@ apply_color_effect(struct gl_renderer *gr, struct weston_output *output,
 		*b = 1.0f - *b;
 		gl_log_paint_node(gr, "\t\tcolor effect: inversion\n");
 		return;
+	case WESTON_OUTPUT_COLOR_EFFECT_TYPE_GRAYSCALE:
+		*r = 0.2126f * (*r) + 0.7152f * (*g) + 0.0722f * (*b);
+		*g = *r;
+		*b = *r;
+		gl_log_paint_node(gr, "\t\tcolor effect: grayscale\n");
+		return;
 	case WESTON_OUTPUT_COLOR_EFFECT_TYPE_CVD_CORRECTION:
 		/**
 		 * See weston_output_color_effect_cvd_correction() for more details.

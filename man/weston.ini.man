@@ -702,6 +702,9 @@ The effect can be one of the following strings:
 .B inversion
 color inversion, i.e. the RGB complement
 .TP
+.B grayscale
+convert colors to shades of gray
+.TP
 .B deuteranopia
 color correction (not simulation) for deuteranopia
 .TP

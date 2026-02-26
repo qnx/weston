@@ -140,6 +140,7 @@ enum weston_surface_protection_mode {
 
 enum weston_output_color_effect_type {
 	WESTON_OUTPUT_COLOR_EFFECT_TYPE_INVERSION = 0,
+	WESTON_OUTPUT_COLOR_EFFECT_TYPE_GRAYSCALE,
 	WESTON_OUTPUT_COLOR_EFFECT_TYPE_CVD_CORRECTION,
 };
 
@@ -2692,6 +2693,9 @@ weston_output_set_transform(struct weston_output *output,
 
 void
 weston_output_color_effect_inversion(struct weston_output *output);
+
+void
+weston_output_color_effect_grayscale(struct weston_output *output);
 
 void
 weston_output_color_effect_cvd_correction(struct weston_output *output,

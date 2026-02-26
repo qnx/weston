@@ -436,6 +436,7 @@ struct weston_output_color_effect {
 
 	union {
 		/* color inversion: no parameters */
+		/* color grayscale: no parameters */
 		struct weston_cvd_correction cvd;
 	} u;
 };

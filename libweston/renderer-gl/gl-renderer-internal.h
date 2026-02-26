@@ -226,6 +226,7 @@ enum gl_shader_texture_variant {
 enum gl_shader_color_effect {
 	SHADER_COLOR_EFFECT_NONE = 0,
 	SHADER_COLOR_EFFECT_INVERSION,
+	SHADER_COLOR_EFFECT_GRAYSCALE,
 	SHADER_COLOR_EFFECT_CVD_CORRECTION,
 };
 

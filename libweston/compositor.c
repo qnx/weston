@@ -7681,6 +7681,27 @@ weston_output_color_effect_inversion(struct weston_output *output)
 	output->color_effect->type = WESTON_OUTPUT_COLOR_EFFECT_TYPE_INVERSION;
 }
 
+/** Set output's color effect to grayscale.
+ *
+ * The color effect is an effect applied to the whole scenegraph. Note that in
+ * some cases this may force all the surfaces to be composed on the primary
+ * plane, i.e. offloading to overlay planes won't be possible.
+ *
+ * \param output The output to set the effect.
+ *
+ * \ingroup output
+ */
+WL_EXPORT void
+weston_output_color_effect_grayscale(struct weston_output *output)
+{
+	struct weston_compositor *compositor = output->compositor;
+
+	weston_assert_ptr_null(compositor, output->color_effect);
+
+	output->color_effect = weston_output_color_effect_create(compositor);
+	output->color_effect->type = WESTON_OUTPUT_COLOR_EFFECT_TYPE_GRAYSCALE;
+}
+
 /** Set output's color effect as CVD correction
  *
  * The color effect is an effect applied to the whole scenegraph. Note that in
