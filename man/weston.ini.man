@@ -700,7 +700,7 @@ The effect can be one of the following strings:
 .RS 11
 .TP
 .B inversion
-color inversion
+color inversion, i.e. the RGB complement
 .TP
 .B deuteranopia
 color correction (not simulation) for deuteranopia
