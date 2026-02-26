@@ -142,6 +142,13 @@ struct weston_color_gamut {
 	struct weston_CIExy white_point;
 };
 
+void
+weston_color_gamut_from_protocol(struct weston_color_gamut *dst,
+				 int32_t r_x, int32_t r_y,
+				 int32_t g_x, int32_t g_y,
+				 int32_t b_x, int32_t b_y,
+				 int32_t w_x, int32_t w_y);
+
 enum weston_npm_direction {
 	WESTON_NPM_FORWARD,
 	WESTON_NPM_INVERSE

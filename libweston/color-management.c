@@ -1342,14 +1342,7 @@ cm_creator_params_set_primaries(struct wl_client *client, struct wl_resource *re
 		wl_resource_get_user_data(resource);
 	struct weston_color_gamut primaries;
 
-	primaries.primary[0].x = r_x / 1000000.0f;
-	primaries.primary[0].y = r_y / 1000000.0f;
-	primaries.primary[1].x = g_x / 1000000.0f;
-	primaries.primary[1].y = g_y / 1000000.0f;
-	primaries.primary[2].x = b_x / 1000000.0f;
-	primaries.primary[2].y = b_y / 1000000.0f;
-	primaries.white_point.x = w_x / 1000000.0f;
-	primaries.white_point.y = w_y / 1000000.0f;
+	weston_color_gamut_from_protocol(&primaries, r_x, r_y, g_x, g_y, b_x, b_y, w_x, w_y);
 
 	if (!weston_color_profile_param_builder_set_primaries(cm_creator_params->builder,
 							      &primaries))
@@ -1433,14 +1426,7 @@ cm_creator_params_set_mastering_display_primaries(struct wl_client *client,
 		wl_resource_get_user_data(resource);
 	struct weston_color_gamut primaries;
 
-	primaries.primary[0].x = r_x / 1000000.0f;
-	primaries.primary[0].y = r_y / 1000000.0f;
-	primaries.primary[1].x = g_x / 1000000.0f;
-	primaries.primary[1].y = g_y / 1000000.0f;
-	primaries.primary[2].x = b_x / 1000000.0f;
-	primaries.primary[2].y = b_y / 1000000.0f;
-	primaries.white_point.x = w_x / 1000000.0f;
-	primaries.white_point.y = w_y / 1000000.0f;
+	weston_color_gamut_from_protocol(&primaries, r_x, r_y, g_x, g_y, b_x, b_y, w_x, w_y);
 
 	if (!weston_color_profile_param_builder_set_target_primaries(cm_creator_params->builder,
 								     &primaries))

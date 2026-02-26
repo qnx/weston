@@ -319,14 +319,7 @@ image_descr_info_primaries(void *data,
 
 	image_descr_info_received(info, IMAGE_DESCR_INFO_EVENT_PRIMARIES);
 
-	info->primaries.primary[0].x = r_x / 1000000.0f;
-	info->primaries.primary[0].y = r_y / 1000000.0f;
-	info->primaries.primary[1].x = g_x / 1000000.0f;
-	info->primaries.primary[1].y = g_y / 1000000.0f;
-	info->primaries.primary[2].x = b_x / 1000000.0f;
-	info->primaries.primary[2].y = b_y / 1000000.0f;
-	info->primaries.white_point.x = w_x / 1000000.0f;
-	info->primaries.white_point.y = w_y / 1000000.0f;
+	weston_color_gamut_from_protocol(&info->primaries, r_x, r_y, g_x, g_y, b_x, b_y, w_x, w_y);
 }
 
 static void
@@ -386,14 +379,8 @@ image_descr_info_target_primaries(void *data,
 
 	image_descr_info_received(info, IMAGE_DESCR_INFO_EVENT_TARGET_PRIMARIES);
 
-	info->target_primaries.primary[0].x = r_x / 1000000.0f;
-	info->target_primaries.primary[0].y = r_y / 1000000.0f;
-	info->target_primaries.primary[1].x = g_x / 1000000.0f;
-	info->target_primaries.primary[1].y = g_y / 1000000.0f;
-	info->target_primaries.primary[2].x = b_x / 1000000.0f;
-	info->target_primaries.primary[2].y = b_y / 1000000.0f;
-	info->target_primaries.white_point.x = w_x / 1000000.0f;
-	info->target_primaries.white_point.y = w_y / 1000000.0f;
+	weston_color_gamut_from_protocol(&info->target_primaries,
+					 r_x, r_y, g_x, g_y, b_x, b_y, w_x, w_y);
 }
 
 static void

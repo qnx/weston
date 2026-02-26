@@ -145,6 +145,36 @@ weston_color_profile_init(struct weston_color_profile *cprof,
 	cprof->id = weston_idalloc_get_id(cm->compositor->color_profile_id_generator);
 }
 
+/**
+ * Initialize gamut from protocol integer-encoded values
+ *
+ * The color_management_v1 Wayland protocol encodes colorimetric coordinates
+ * into integers by multiplying them with one million. This function does the
+ * decoding.
+ *
+ * \param[out] dst Gamut record to initialize.
+ * \param r_x,r_y Red primary
+ * \param g_x,g_y Green primary
+ * \param b_x,b_y Blue primary
+ * \param w_x,w_y White point
+ */
+WL_EXPORT void
+weston_color_gamut_from_protocol(struct weston_color_gamut *dst,
+				 int32_t r_x, int32_t r_y,
+				 int32_t g_x, int32_t g_y,
+				 int32_t b_x, int32_t b_y,
+				 int32_t w_x, int32_t w_y)
+{
+	dst->primary[0].x = r_x / 1000000.0f;
+	dst->primary[0].y = r_y / 1000000.0f;
+	dst->primary[1].x = g_x / 1000000.0f;
+	dst->primary[1].y = g_y / 1000000.0f;
+	dst->primary[2].x = b_x / 1000000.0f;
+	dst->primary[2].y = b_y / 1000000.0f;
+	dst->white_point.x = w_x / 1000000.0f;
+	dst->white_point.y = w_y / 1000000.0f;
+}
+
 static void
 weston_color_gamut_fprint(FILE *fp,
 			  const char *indent,
