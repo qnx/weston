@@ -973,12 +973,6 @@ weston_surface_update_preferred_color_profile(struct weston_surface *surface)
 	weston_surface_send_preferred_image_description_changed(surface);
 }
 
-static int
-get_label_member(struct weston_surface *surface, char *buf, size_t len)
-{
-	return snprintf(buf, len, "%s", surface->label);
-}
-
 WL_EXPORT struct weston_surface *
 weston_surface_create(struct weston_compositor *compositor,
 		      struct weston_client *client)
@@ -1003,8 +997,6 @@ weston_surface_create(struct weston_compositor *compositor,
 	surface->internal_id = weston_client_new_internal_id(compositor, client);
 	str_printf(&surface->internal_name, "%s-%" PRIu64,
 		   weston_client_get_internal_name(client), surface->internal_id);
-
-	surface->get_label = get_label_member;
 
 	surface->buffer_viewport.buffer.transform = WL_OUTPUT_TRANSFORM_NORMAL;
 	surface->buffer_viewport.buffer.scale = 1;
@@ -5434,20 +5426,6 @@ weston_surface_get_role(struct weston_surface *surface)
 	return surface->role_name;
 }
 
-WL_EXPORT void
-weston_surface_set_label_func(struct weston_surface *surface,
-			      int (*desc)(struct weston_surface *,
-					  char *, size_t))
-{
-	if (desc)
-		surface->get_label = desc;
-	else
-		surface->get_label = get_label_member;
-
-	weston_timeline_refresh_subscription_objects(surface->compositor,
-						     surface);
-}
-
 static void
 weston_surface_do_set_label(struct weston_surface *surface,
 			    char *label_dyn,
@@ -5463,6 +5441,7 @@ weston_surface_do_set_label(struct weston_surface *surface,
 
 	weston_timeline_refresh_subscription_objects(surface->compositor, surface);
 }
+
 /**
  * Set a human-readable label on a surface, malloc'd
  *

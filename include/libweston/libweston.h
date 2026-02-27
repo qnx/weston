@@ -1974,7 +1974,6 @@ struct weston_surface {
 	void (*committed)(struct weston_surface *es,
 			  struct weston_coord_surface new_origin);
 	void *committed_private;
-	int (*get_label)(struct weston_surface *surface, char *buf, size_t len);
 
 	/** human-readable, non-unique label */
 	const char *label;
@@ -2403,10 +2402,6 @@ weston_surface_set_role(struct weston_surface *surface,
 const char *
 weston_surface_get_role(struct weston_surface *surface);
 
-void
-weston_surface_set_label_func(struct weston_surface *surface,
-			      int (*desc)(struct weston_surface *,
-					  char *, size_t));
 void
 weston_surface_set_label(struct weston_surface *surface, char *label);
 
