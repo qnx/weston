@@ -1295,7 +1295,7 @@ pointer_unmap_sprite(struct weston_pointer *pointer)
 	wl_list_remove(&pointer->sprite_destroy_listener.link);
 	surface->committed = NULL;
 	surface->committed_private = NULL;
-	weston_surface_set_label_func(surface, NULL);
+	weston_surface_set_label(surface, NULL);
 	weston_view_destroy(pointer->sprite);
 	pointer->sprite = NULL;
 }
@@ -3156,13 +3156,6 @@ notify_touch_cancel(struct weston_touch_device *device)
 	weston_compositor_update_touch_mode(device->aggregate->seat->compositor);
 }
 
-static int
-pointer_cursor_surface_get_label(struct weston_surface *surface,
-				 char *buf, size_t len)
-{
-	return snprintf(buf, len, "cursor");
-}
-
 static void
 tablet_destroy(struct wl_client *client, struct wl_resource *resource)
 {
@@ -3591,8 +3584,7 @@ pointer_set_cursor(struct wl_client *client, struct wl_resource *resource,
 
 		surface->committed = pointer_cursor_surface_committed;
 		surface->committed_private = pointer;
-		weston_surface_set_label_func(surface,
-					    pointer_cursor_surface_get_label);
+		weston_surface_set_label_static(surface, "cursor");
 		pointer->sprite = weston_view_create(surface);
 	}
 
