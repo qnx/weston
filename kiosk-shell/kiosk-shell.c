@@ -453,6 +453,18 @@ kiosk_shell_surface_reconfigure_for_output(struct kiosk_shell_surface *shsurf)
 }
 
 static void
+desktop_surface_update_label(struct wl_listener *listener, void *data)
+{
+	struct weston_desktop_surface *desktop_surface = data;
+	struct weston_surface *surface =
+		weston_desktop_surface_get_surface(desktop_surface);
+	char *label;
+
+	label = weston_desktop_surface_make_label(desktop_surface);
+	weston_surface_set_label(surface, label);
+}
+
+static void
 kiosk_shell_surface_destroy(struct kiosk_shell_surface *shsurf)
 {
 	wl_signal_emit(&shsurf->destroy_signal, shsurf);
@@ -475,6 +487,8 @@ kiosk_shell_surface_destroy(struct kiosk_shell_surface *shsurf)
 		shsurf->parent_destroy_listener.notify = NULL;
 		shsurf->parent = NULL;
 	}
+
+	wl_list_remove(&shsurf->surface_label_update.link);
 
 	free(shsurf);
 }
@@ -512,6 +526,10 @@ kiosk_shell_surface_create(struct kiosk_shell *shell,
 
 	wl_signal_init(&shsurf->destroy_signal);
 	wl_signal_init(&shsurf->parent_destroy_signal);
+
+	shsurf->surface_label_update.notify = desktop_surface_update_label;
+	weston_desktop_surface_add_metadata_listener(desktop_surface, &shsurf->surface_label_update);
+	desktop_surface_update_label(&shsurf->surface_label_update, desktop_surface);
 
 	/* start life inserting itself as root of its own surface tree list */
 	wl_list_init(&shsurf->surface_tree_list);
@@ -841,14 +859,11 @@ desktop_surface_added(struct weston_desktop_surface *desktop_surface,
 {
 	struct kiosk_shell *shell = data;
 	struct kiosk_shell_surface *shsurf;
-	struct weston_surface *surface =
-		weston_desktop_surface_get_surface(desktop_surface);
 
 	shsurf = kiosk_shell_surface_create(shell, desktop_surface);
 	if (!shsurf)
 		return;
 
-	weston_surface_set_label_func(surface, weston_shell_utils_surface_get_label);
 	kiosk_shell_surface_set_fullscreen(shsurf, NULL);
 }
 

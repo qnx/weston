@@ -80,6 +80,8 @@ struct kiosk_shell_surface {
 	} xwayland;
 
 	bool appid_output_assigned;
+
+	struct wl_listener surface_label_update;
 };
 
 struct kiosk_shell_seat {
