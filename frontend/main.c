@@ -2039,18 +2039,17 @@ static const struct weston_enum_map cvd_correction_name_map[] = {
 	{ "tritanopia", WESTON_CVD_CORRECTION_TYPE_TRITANOPIA },
 };
 
-static int
+static void
 wet_output_set_color_effect(struct weston_output *output,
 			    struct weston_config_section *section)
 {
 	struct wet_compositor *compositor = to_wet_compositor(output->compositor);
 	const struct weston_enum_map *entry;
 	char *color_effect = NULL;
-	bool ok = true;
 
 	weston_config_section_get_string(section, "color-effect", &color_effect, NULL);
 	if (!color_effect)
-		return 0;
+		goto out;
 
 	if (compositor->use_color_manager) {
 		weston_log("Error: color effect can not be set for output %s, " \
@@ -2070,8 +2069,12 @@ wet_output_set_color_effect(struct weston_output *output,
 		weston_log("Error: unknown color effect '%s'\n", color_effect);
 
 out:
+	/**
+	 * This function does not return errors. It's better displaying the
+	 * output without effects than a black screen. It is easy for end users
+	 * to realize that the effect was not applied.
+	 */
 	free(color_effect);
-	return ok ? 0 : -1;
 }
 
 static int
@@ -2655,8 +2658,7 @@ wet_configure_windowed_output_from_config(struct weston_output *output,
 	if (wet_output_set_color_profile(output, section, wc, NULL) < 0)
 		return -1;
 
-	if (wet_output_set_color_effect(output, section) < 0)
-		return -1;
+	wet_output_set_color_effect(output, section);
 
 	if (api->output_set_size(output, width, height) < 0) {
 		weston_log("Cannot configure output \"%s\" using weston_windowed_output_api.\n",
@@ -3171,8 +3173,7 @@ drm_backend_output_configure(struct weston_output *output,
 		return -1;
 	}
 
-	if (wet_output_set_color_effect(output, section) < 0)
-		return -1;
+	wet_output_set_color_effect(output, section);
 
 	weston_config_section_get_string(section,
 					 "gbm-format", &gbm_format, NULL);
@@ -3881,8 +3882,7 @@ drm_backend_remoted_output_configure(struct weston_output *output,
 	if (wet_output_set_color_profile(output, section, wc, NULL) < 0)
 		return -1;
 
-	if (wet_output_set_color_effect(output, section) < 0)
-		return -1;
+	wet_output_set_color_effect(output, section);
 
 	weston_config_section_get_string(section, "gbm-format", &gbm_format,
 					 NULL);
@@ -4045,8 +4045,7 @@ drm_backend_pipewire_output_configure(struct weston_output *output,
 	if (wet_output_set_color_profile(output, section, wc, NULL) < 0)
 		return -1;
 
-	if (wet_output_set_color_effect(output, section) < 0)
-		return -1;
+	wet_output_set_color_effect(output, section);
 
 	weston_config_section_get_string(section, "seat", &seat, "");
 
