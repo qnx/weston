@@ -73,17 +73,14 @@ static void
 assert_surface_is_background(struct wet_testsuite_data *suite_data,
 			     struct weston_surface *surface)
 {
-	char lbl[128];
-
 	test_assert_ptr_null(surface->resource);
 	test_assert_ptr_not_null(surface->buffer_ref.buffer);
 	test_assert_enum(surface->buffer_ref.buffer->type, WESTON_BUFFER_SOLID);
 	test_assert_ptr_not_null(surface->output);
 	test_assert_s32_eq(surface->width, surface->output->width);
 	test_assert_s32_eq(surface->height, surface->output->height);
-	test_assert_ptr_not_null(surface->get_label);
-	test_assert_int_ne(surface->get_label(surface, lbl, sizeof(lbl)), 0);
-	test_assert_str_eq(lbl, "kiosk shell background surface");
+	test_assert_ptr_not_null(surface->label);
+	test_assert_str_eq(surface->label, "kiosk shell background surface");
 }
 
 TEST(two_surface_switching)
