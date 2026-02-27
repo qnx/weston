@@ -23,6 +23,8 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "config.h"
+
 #include <assert.h>
 #include <linux/input.h>
 #include <stdbool.h>
