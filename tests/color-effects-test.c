@@ -52,6 +52,7 @@ static const struct solid_buffer_color {
 enum effect_type {
 	EFFECT_TYPE_NONE = 0,
 	EFFECT_TYPE_INVERSION,
+	EFFECT_TYPE_GRAYSCALE,
 	EFFECT_TYPE_DEUTERANOPIA,
 	EFFECT_TYPE_PROTANOPIA,
 	EFFECT_TYPE_TRITANOPIA,
@@ -79,6 +80,14 @@ static const struct setup_args my_setup_args[] = {
 		.meta.name = "inversion-cat",
 		.ref_image_prefix = "color-effects",
 		.type = EFFECT_TYPE_INVERSION,
+		.solid_color = false,
+		.object_width = CAT_WIDTH,
+		.object_height = CAT_HEIGHT,
+	},
+	{
+		.meta.name = "grayscale-cat",
+		.ref_image_prefix = "color-effects",
+		.type = EFFECT_TYPE_GRAYSCALE,
 		.solid_color = false,
 		.object_width = CAT_WIDTH,
 		.object_height = CAT_HEIGHT,
@@ -124,6 +133,14 @@ static const struct setup_args my_setup_args[] = {
 		.object_height = SOLID_BUFFER_HEIGHT,
 	},
 	{
+		.meta.name = "grayscale-solid-color",
+		.ref_image_prefix = "color-effects",
+		.type = EFFECT_TYPE_GRAYSCALE,
+		.solid_color = true,
+		.object_width = SOLID_BUFFER_WIDTH,
+		.object_height = SOLID_BUFFER_HEIGHT,
+	},
+	{
 		.meta.name = "deuteranopia-solid-color",
 		.ref_image_prefix = "color-effects",
 		.type = EFFECT_TYPE_DEUTERANOPIA,
@@ -161,6 +178,8 @@ get_effect_type_str(enum effect_type type)
 		return "tritanopia";
 	case EFFECT_TYPE_INVERSION:
 		return "inversion";
+	case EFFECT_TYPE_GRAYSCALE:
+		return "grayscale";
 	case EFFECT_TYPE_NONE:
 		return NULL;
 	};
