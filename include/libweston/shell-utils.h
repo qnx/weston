@@ -61,10 +61,6 @@ weston_shell_utils_subsurfaces_boundingbox(struct weston_surface *surface,
 					   int32_t *x, int32_t *y,
 					   int32_t *w, int32_t *h);
 
-int
-weston_shell_utils_surface_get_label(struct weston_surface *surface,
-				     char *buf, size_t len);
-
 /* helper to create a view w/ a color */
 struct weston_curtain *
 weston_shell_utils_curtain_create(struct weston_compositor *compositor,

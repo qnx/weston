@@ -152,26 +152,6 @@ weston_shell_utils_center_on_output(struct weston_view *view,
 /**
  * \ingroup shell-utils
  */
-WL_EXPORT int
-weston_shell_utils_surface_get_label(struct weston_surface *surface,
-				     char *buf, size_t len)
-{
-	const char *t, *c;
-	struct weston_desktop_surface *desktop_surface =
-		weston_surface_get_desktop_surface(surface);
-
-	t = weston_desktop_surface_get_title(desktop_surface);
-	c = weston_desktop_surface_get_app_id(desktop_surface);
-
-	return snprintf(buf, len, "%s window%s%s%s%s%s",
-		"top-level",
-		t ? " '" : "", t ?: "", t ? "'" : "",
-		c ? " of " : "", c ?: "");
-}
-
-/**
- * \ingroup shell-utils
- */
 WL_EXPORT struct weston_curtain *
 weston_shell_utils_curtain_create(struct weston_compositor *compositor,
 				  struct weston_curtain_params *params)
