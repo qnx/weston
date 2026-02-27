@@ -49,6 +49,7 @@
 #include "ivi-layout-shell.h"
 #include "libweston/libweston.h"
 #include "shared/helpers.h"
+#include "shared/string-helpers.h"
 #include "shared/xalloc.h"
 #include "frontend/weston.h"
 #include <libweston/shell-utils.h>
@@ -72,6 +73,8 @@ struct ivi_shell_surface
 	struct wl_list children_link;
 
 	struct wl_list link;
+
+	struct wl_listener surface_label_update;
 };
 
 struct ivi_input_panel_surface
@@ -208,16 +211,6 @@ ivi_shell_surface_committed(struct weston_surface *surface,
 	}
 }
 
-static int
-ivi_shell_surface_get_label(struct weston_surface *surface,
-			    char *buf,
-			    size_t len)
-{
-	struct ivi_shell_surface *shell_surf = get_ivi_shell_surface(surface);
-
-	return snprintf(buf, len, "ivi-surface %u", shell_surf->id_surface);
-}
-
 static void
 layout_surface_cleanup(struct ivi_shell_surface *ivisurf)
 {
@@ -239,7 +232,7 @@ layout_surface_cleanup(struct ivi_shell_surface *ivisurf)
 
 	ivisurf->surface->committed = NULL;
 	ivisurf->surface->committed_private = NULL;
-	weston_surface_set_label_func(ivisurf->surface, NULL);
+	weston_surface_set_label(ivisurf->surface, NULL);
 	ivisurf->surface = NULL;
 }
 
@@ -324,6 +317,7 @@ application_surface_create(struct wl_client *client,
 	struct weston_surface *weston_surface =
 		wl_resource_get_user_data(surface_resource);
 	struct wl_resource *res;
+	char *label;
 
 	if (weston_surface_set_role(weston_surface, "ivi_surface",
 				    resource, IVI_APPLICATION_ERROR_ROLE) < 0)
@@ -344,7 +338,7 @@ application_surface_create(struct wl_client *client,
 
 	ivisurf = xzalloc(sizeof *ivisurf);
 
-	wl_list_init(&ivisurf->link);
+	wl_list_init(&ivisurf->surface_label_update.link);
 	wl_list_insert(&shell->ivi_surface_list, &ivisurf->link);
 
 	ivisurf->shell = shell;
@@ -373,8 +367,9 @@ application_surface_create(struct wl_client *client,
 
 	weston_surface->committed = ivi_shell_surface_committed;
 	weston_surface->committed_private = ivisurf;
-	weston_surface_set_label_func(weston_surface,
-				      ivi_shell_surface_get_label);
+
+	str_printf(&label, "ivi-surface %u", ivisurf->id_surface);
+	weston_surface_set_label(weston_surface, label);
 
 	res = wl_resource_create(client, &ivi_surface_interface, 1, id);
 	if (res == NULL) {
@@ -634,6 +629,18 @@ desktop_surface_pong(struct weston_desktop_client *client,
 }
 
 static void
+desktop_surface_update_label(struct wl_listener *listener, void *data)
+{
+	struct weston_desktop_surface *desktop_surface = data;
+	struct weston_surface *surface =
+		weston_desktop_surface_get_surface(desktop_surface);
+	char *label;
+
+	label = weston_desktop_surface_make_label(desktop_surface);
+	weston_surface_set_label(surface, label);
+}
+
+static void
 desktop_surface_added(struct weston_desktop_surface *surface,
 		      void *user_data)
 {
@@ -646,8 +653,6 @@ desktop_surface_added(struct weston_desktop_surface *surface,
 	layout_surface = ivi_layout_desktop_surface_create(weston_surf, surface);
 
 	ivisurf = xzalloc(sizeof *ivisurf);
-
-	weston_surface_set_label_func(weston_surf, weston_shell_utils_surface_get_label);
 
 	ivisurf->shell = shell;
 	ivisurf->id_surface = IVI_INVALID_ID;
@@ -667,6 +672,10 @@ desktop_surface_added(struct weston_desktop_surface *surface,
 	wl_list_init(&ivisurf->children_link);
 
 	weston_desktop_surface_set_user_data(surface, ivisurf);
+
+	ivisurf->surface_label_update.notify = desktop_surface_update_label;
+	weston_desktop_surface_add_metadata_listener(surface, &ivisurf->surface_label_update);
+	desktop_surface_update_label(&ivisurf->surface_label_update, surface);
 }
 
 static void
@@ -679,6 +688,7 @@ desktop_surface_removed(struct weston_desktop_surface *surface,
 
 	assert(ivisurf != NULL);
 
+	wl_list_remove(&ivisurf->surface_label_update.link);
 	weston_desktop_surface_set_user_data(surface, NULL);
 
 	wl_list_for_each_safe(ivisurf_child, tmp, &ivisurf->children_list,
@@ -879,12 +889,6 @@ update_input_panels(struct wl_listener *listener, void *data)
 	ivi_layout_update_text_input_cursor(data);
 }
 
-static int
-input_panel_get_label(struct weston_surface *surface, char *buf, size_t len)
-{
-	return snprintf(buf, len, "input panel");
-}
-
 static void
 input_panel_committed(struct weston_surface *surface,
 		      struct weston_coord_surface new_origin)
@@ -946,7 +950,7 @@ create_input_panel_surface(struct ivi_shell *shell,
 
 	surface->committed = input_panel_committed;
 	surface->committed_private = ipsurf;
-	weston_surface_set_label_func(surface, input_panel_get_label);
+	weston_surface_set_label_static(surface, "input panel");
 
 	wl_list_init(&ipsurf->link);
 	wl_list_insert(&shell->input_panel.surfaces, &ipsurf->link);
@@ -1019,7 +1023,7 @@ destroy_input_panel_surface_resource(struct wl_resource *resource)
 
 	ipsurf->surface->committed = NULL;
 	ipsurf->surface->committed_private = NULL;
-	weston_surface_set_label_func(ipsurf->surface, NULL);
+	weston_surface_set_label(ipsurf->surface, NULL);
 	ipsurf->surface = NULL;
 
 	wl_list_remove(&ipsurf->surface_destroy_listener.link);
