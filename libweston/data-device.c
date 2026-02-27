@@ -445,13 +445,6 @@ drag_surface_configure(struct weston_drag *drag,
 	weston_view_set_position_with_offset(drag->icon, pos, drag->offset);
 }
 
-static int
-pointer_drag_surface_get_label(struct weston_surface *surface,
-			       char *buf, size_t len)
-{
-	return snprintf(buf, len, "pointer drag icon");
-}
-
 static void
 pointer_drag_surface_committed(struct weston_surface *es,
 			       struct weston_coord_surface new_origin)
@@ -462,13 +455,6 @@ pointer_drag_surface_committed(struct weston_surface *es,
 	assert(es->committed == pointer_drag_surface_committed);
 
 	drag_surface_configure(&drag->base, pointer, NULL, es, new_origin);
-}
-
-static int
-touch_drag_surface_get_label(struct weston_surface *surface,
-			     char *buf, size_t len)
-{
-	return snprintf(buf, len, "touch drag icon");
 }
 
 static void
@@ -643,7 +629,7 @@ data_device_end_drag_grab(struct weston_drag *drag,
 			weston_view_unmap(drag->icon);
 
 		drag->icon->surface->committed = NULL;
-		weston_surface_set_label_func(drag->icon->surface, NULL);
+		weston_surface_set_label(drag->icon->surface, NULL);
 		pixman_region32_clear(&drag->icon->surface->pending.input);
 		wl_list_remove(&drag->icon_destroy_listener.link);
 		weston_view_destroy(drag->icon);
@@ -955,8 +941,7 @@ weston_pointer_start_drag(struct weston_pointer *pointer,
 
 		icon->committed = pointer_drag_surface_committed;
 		icon->committed_private = drag;
-		weston_surface_set_label_func(icon,
-					pointer_drag_surface_get_label);
+		weston_surface_set_label_static(icon, "pointer drag icon");
 		drag->base.offset = weston_coord_surface(0, 0, icon);
 	} else {
 		drag->base.icon = NULL;
@@ -1019,8 +1004,7 @@ weston_touch_start_drag(struct weston_touch *touch,
 
 		icon->committed = touch_drag_surface_committed;
 		icon->committed_private = drag;
-		weston_surface_set_label_func(icon,
-					touch_drag_surface_get_label);
+		weston_surface_set_label_static(icon, "touch drag icon");
 		drag->base.offset = weston_coord_surface(0, 0, icon);
 	} else {
 		drag->base.icon = NULL;
