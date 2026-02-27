@@ -712,7 +712,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 		bool scanout_has_view_assigned;
 		bool view_matches_entire_output;
 		bool scanout_plane_possible;
-		bool must_use_scanout_plane;
+		bool may_use_scanout_plane;
 
 		scanout_has_view_assigned =
 			drm_output_check_plane_has_view_assigned(output->scanout_handle->plane,
@@ -722,12 +722,12 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 								 background_region,
 								 &output->base);
 
-		must_use_scanout_plane = !scanout_has_view_assigned && view_matches_entire_output;
+		may_use_scanout_plane = !scanout_has_view_assigned && view_matches_entire_output;
 
 		scanout_plane_possible = possible_plane_mask & (1 << output->scanout_handle->plane->plane_idx) &&
 					 pnode_can_use_plane(state, scanout_handle, pnode);
 
-		if (must_use_scanout_plane && scanout_plane_possible && fb) {
+		if (may_use_scanout_plane && scanout_plane_possible && fb) {
 			uint64_t zpos;
 
 			if (current_lowest_zpos == DRM_PLANE_ZPOS_INVALID_PLANE)
@@ -738,15 +738,14 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 			ps = drm_output_try_paint_node_on_plane(scanout_handle,
 								state, pnode, mode,
 								fb, zpos);
+			if (ps) {
+				drm_fb_unref(fb);
+				return ps;
+			}
 		}
-
-		if (must_use_scanout_plane) {
-			if (!ps)
-				pnode->try_view_on_plane_failure_reasons |=
-					FAILURE_REASONS_PLANES_REJECTED;
-			drm_fb_unref(fb);
-			return ps;
-		}
+		/* Maybe we can still build a planes only state without
+		 * the scanout plane at all.
+		 */
 	}
 
 	/* assemble a list with possible candidates */
