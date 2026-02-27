@@ -518,11 +518,21 @@ lua_shell_output_create(struct lua_shell *shell, struct weston_output *output)
  */
 
 static void
+desktop_surface_update_label(struct wl_listener *listener, void *data)
+{
+	struct weston_desktop_surface *desktop_surface = data;
+	struct weston_surface *surface =
+		weston_desktop_surface_get_surface(desktop_surface);
+	char *label;
+
+	label = weston_desktop_surface_make_label(desktop_surface);
+	weston_surface_set_label(surface, label);
+}
+
+static void
 desktop_surface_added(struct weston_desktop_surface *desktop_surface,
 		      void *data)
 {
-	struct weston_surface *surface =
-		weston_desktop_surface_get_surface(desktop_surface);
 	struct lua_shell *shell = data;
 	struct lua_shell_surface *shsurf;
 
@@ -530,8 +540,9 @@ desktop_surface_added(struct weston_desktop_surface *desktop_surface,
 	if (!shsurf)
 		return;
 
-	weston_surface_set_label_func(surface,
-				      weston_shell_utils_surface_get_label);
+	shsurf->surface_label_update.notify = desktop_surface_update_label;
+	weston_desktop_surface_add_metadata_listener(desktop_surface, &shsurf->surface_label_update);
+	desktop_surface_update_label(&shsurf->surface_label_update, desktop_surface);
 }
 
 static void

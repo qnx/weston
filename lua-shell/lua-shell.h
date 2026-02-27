@@ -135,6 +135,8 @@ struct lua_shell_surface {
 	struct wl_list view_list;
 
 	struct wl_list link;	/** lua_shell::surface_list */
+
+	struct wl_listener surface_label_update;
 };
 
 struct lua_shell_view {
