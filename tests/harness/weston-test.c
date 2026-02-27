@@ -300,12 +300,6 @@ test_surface_committed(struct weston_surface *surface,
 	weston_view_update_transform(test_surface->view);
 }
 
-static int
-test_surface_get_label(struct weston_surface *surface, char *buf, size_t len)
-{
-	return snprintf(buf, len, "test suite surface");
-}
-
 static void
 test_surface_destroy(struct weston_test_surface *test_surface)
 {
@@ -313,7 +307,7 @@ test_surface_destroy(struct weston_test_surface *test_surface)
 
 	test_surface->surface->committed = NULL;
 	test_surface->surface->committed_private = NULL;
-	weston_surface_set_label_func(test_surface->surface, NULL);
+	weston_surface_set_label(test_surface->surface, NULL);
 
 	wl_list_remove(&test_surface->surface_destroy_listener.link);
 	free(test_surface);
@@ -358,7 +352,7 @@ weston_test_surface_create(struct wl_resource *test_resource,
 
 	surface->committed_private = test_surface;
 	surface->committed = test_surface_committed;
-	weston_surface_set_label_func(surface, test_surface_get_label);
+	weston_surface_set_label_static(surface, "test suite surface");
 
 	test_surface->surface_destroy_listener.notify =
 		test_surface_handle_surface_destroy;
