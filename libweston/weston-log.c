@@ -935,7 +935,7 @@ weston_log_scope_stream(struct weston_log_scope *scope)
  * Writes to formatted string to all subscribed clients' streams.
  *
  * The behavioral details for each stream are the same as for
- * weston_debug_stream_write().
+ * weston_log_scope_write().
  *
  * \memberof weston_log_scope
  */
@@ -943,20 +943,13 @@ WL_EXPORT int
 weston_log_scope_vprintf(struct weston_log_scope *scope,
 			 const char *fmt, va_list ap)
 {
-	static const char oom[] = "Out of memory";
-	char *str;
 	int len = 0;
 
 	if (!weston_log_scope_is_enabled(scope))
 		return len;
 
-	len = vasprintf(&str, fmt, ap);
-	if (len >= 0) {
-		weston_log_scope_write(scope, str, len);
-		free(str);
-	} else {
-		weston_log_scope_write(scope, oom, sizeof oom - 1);
-	}
+	len = vfprintf(scope->input_stream, fmt, ap);
+	fflush(scope->input_stream);
 
 	return len;
 }
@@ -970,7 +963,7 @@ weston_log_scope_vprintf(struct weston_log_scope *scope,
  * Writes to formatted string to all subscribed clients' streams.
  *
  * The behavioral details for each stream are the same as for
- * weston_debug_stream_write().
+ * weston_log_scope_write().
  *
  * \memberof weston_log_scope
  */
