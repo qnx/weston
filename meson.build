@@ -117,6 +117,7 @@ endforeach
 
 env_modmap = ''
 
+config_h.set('_FILE_OFFSET_BITS', '64')
 config_h.set('_GNU_SOURCE', '1')
 config_h.set('_ALL_SOURCE', '1')
 config_h.set('EGL_NO_X11', '1')
