@@ -9498,26 +9498,26 @@ debug_scene_view_print_buffer(FILE *fp, struct weston_view *view)
 	char *modifier_name;
 
 	if (!buffer) {
-		fprintf(fp, "\t\t[buffer not available]\n");
+		fputs("\t\t[buffer not available]\n", fp);
 		return;
 	}
 
 	switch (buffer->type) {
 	case WESTON_BUFFER_SHM:
-		fprintf(fp, "\t\tSHM buffer\n");
+		fputs("\t\tSHM buffer\n", fp);
 		break;
 	case WESTON_BUFFER_DMABUF:
-		fprintf(fp, "\t\tdmabuf buffer\n");
+		fputs("\t\tdmabuf buffer\n", fp);
 		break;
 	case WESTON_BUFFER_SOLID:
-		fprintf(fp, "\t\tsolid-colour buffer\n");
+		fputs("\t\tsolid-colour buffer\n", fp);
 		fprintf(fp, "\t\t\t[R %f, G %f, B %f, A %f]\n",
 			buffer->solid.r, buffer->solid.g, buffer->solid.b,
 			buffer->solid.a);
 		break;
 	case WESTON_BUFFER_RENDERER_OPAQUE:
-		fprintf(fp, "\t\tEGL buffer:\n");
-		fprintf(fp, "\t\t\t[format may be inaccurate]\n");
+		fputs("\t\tEGL buffer:\n"
+		      "\t\t\t[format may be inaccurate]\n", fp);
 		break;
 	}
 
@@ -9525,7 +9525,7 @@ debug_scene_view_print_buffer(FILE *fp, struct weston_view *view)
 		fprintf(fp, "\t\t\t[%d references may use buffer content]\n",
 			buffer->busy_count);
 	} else {
-		fprintf(fp, "\t\t\t[buffer has been released to client]\n");
+		fputs("\t\t\t[buffer has been released to client]\n", fp);
 	}
 
 	if (buffer->pixel_format) {
@@ -9533,7 +9533,7 @@ debug_scene_view_print_buffer(FILE *fp, struct weston_view *view)
 			(unsigned long) buffer->pixel_format->format,
 			buffer->pixel_format->drm_format_name);
 	} else {
-		fprintf(fp, "\t\t\t[unknown format]\n");
+		fputs("\t\t\t[unknown format]\n", fp);
 	}
 
 	modifier_name = pixel_format_get_modifier(buffer->format_modifier);
@@ -9545,10 +9545,10 @@ debug_scene_view_print_buffer(FILE *fp, struct weston_view *view)
 	fprintf(fp, "\t\t\twidth: %d, height: %d\n",
 		buffer->width, buffer->height);
 	if (buffer->buffer_origin == ORIGIN_BOTTOM_LEFT)
-		fprintf(fp, "\t\t\tbottom-left origin\n");
+		fputs("\t\t\tbottom-left origin\n", fp);
 
 	if (buffer->direct_display)
-		fprintf(fp, "\t\t\tdirect-display buffer (no renderer access)\n");
+		fputs("\t\t\tdirect-display buffer (no renderer access)\n", fp);
 }
 
 static const struct weston_enum_map transforms[] = {
@@ -9626,7 +9626,7 @@ debug_scene_view_print_paint_node(FILE *fp,
 
 	pnode = weston_view_find_paint_node(view, output);
 	if (!pnode)
-		fprintf(fp, "\t\t\tpaint node [pending repaint]:\n");
+		fputs("\t\t\tpaint node [pending repaint]:\n", fp);
 	else
 		fprintf(fp, "\t\t\tpaint node %s:\n", pnode->internal_name);
 
@@ -9637,21 +9637,19 @@ debug_scene_view_print_paint_node(FILE *fp,
 	if (!pnode)
 		return;
 
-	fprintf(fp, "\t\t\t\tBuffer to output transform: ");
+	fputs("\t\t\t\tBuffer to output transform: ", fp);
 	if (!pnode->valid_transform)
-		fprintf(fp, "Free form\n");
+		fputs("Free form\n", fp);
 	else {
-		const char *tform;
-
-		tform = weston_transform_to_string(pnode->transform);
-		fprintf(fp, "%s\n", tform);
+		fputs(weston_transform_to_string(pnode->transform), fp);
+		fputs("\n", fp);
 	}
 
 	if (pnode->try_view_on_plane_failure_reasons) {
-		fprintf(fp, "\t\t\t\tPlane failure reasons: ");
+		fputs("\t\t\t\tPlane failure reasons: ", fp);
 		bits_to_str_stream(pnode->try_view_on_plane_failure_reasons,
 				   weston_plane_failure_reasons_to_str, fp);
-		fprintf(fp, "\n");
+		fputs("\n", fp);
 	}
 }
 
@@ -9675,14 +9673,14 @@ debug_scene_view_print(FILE *fp, struct weston_view *view)
 		pid, view->surface->label);
 
 	if (!weston_view_is_mapped(view))
-		fprintf(fp, "\t[view is not mapped!]\n");
+		fputs("\t[view is not mapped!]\n", fp);
 	if (!weston_surface_is_mapped(view->surface))
-		fprintf(fp, "\t[surface is not mapped!]\n");
+		fputs("\t[surface is not mapped!]\n", fp);
 	if (wl_list_empty(&view->layer_link.link)) {
 		if (!get_view_layer(view))
-			fprintf(fp, "\t[view is not part of any layer]\n");
+			fputs("\t[view is not part of any layer]\n", fp);
 		else
-			fprintf(fp, "\t[view is under parent view layer]\n");
+			fputs("\t[view is under parent view layer]\n", fp);
 	}
 
 	box = pixman_region32_extents(&view->transform.boundingbox);
@@ -9691,9 +9689,9 @@ debug_scene_view_print(FILE *fp, struct weston_view *view)
 	box = pixman_region32_extents(&view->transform.opaque);
 
 	if (weston_view_is_opaque(view, &view->transform.boundingbox)) {
-		fprintf(fp, "\t\t[fully opaque]\n");
+		fputs("\t\t[fully opaque]\n", fp);
 	} else if (!pixman_region32_not_empty(&view->transform.opaque)) {
-		fprintf(fp, "\t\t[not opaque]\n");
+		fputs("\t\t[not opaque]\n", fp);
 	} else {
 		fprintf(fp, "\t\t[opaque: (%d, %d) -> (%d, %d)]\n",
 			box->x1, box->y1, box->x2, box->y2);
@@ -9703,17 +9701,17 @@ debug_scene_view_print(FILE *fp, struct weston_view *view)
 		fprintf(fp, "\t\talpha: %f\n", view->alpha);
 
 	if (view->output_mask != 0) {
-		fprintf(fp, "\t\tpaint nodes:\n");
+		fputs("\t\tpaint nodes:\n", fp);
 		wl_list_for_each(output, &ec->output_list, link) {
 			if (!(view->output_mask & (1 << output->id)))
 				continue;
 			debug_scene_view_print_paint_node(fp, view, output);
 		}
 	} else {
-		fprintf(fp, "\t\t[no paint nodes]");
+		fputs("\t\t[no paint nodes]", fp);
 	}
 
-	fprintf(fp, "\n");
+	fputs("\n", fp);
 
 	debug_scene_view_print_buffer(fp, view);
 
@@ -9826,7 +9824,7 @@ weston_compositor_print_scene_graph(struct weston_compositor *ec, FILE *fp)
 		}
 	}
 
-	fprintf(fp, "\n");
+	fputs("\n", fp);
 
 	wl_list_for_each(layer, &ec->layer_list, link) {
 		struct weston_view *view;
@@ -9844,9 +9842,9 @@ weston_compositor_print_scene_graph(struct weston_compositor *ec, FILE *fp)
 			debug_scene_view_print_tree(view, fp);
 
 		if (wl_list_empty(&layer->view_list.link))
-			fprintf(fp, "\t[no views]\n");
+			fputs("\t[no views]\n", fp);
 
-		fprintf(fp, "\n");
+		fputs("\n", fp);
 	}
 }
 
