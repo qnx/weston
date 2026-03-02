@@ -1535,8 +1535,6 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
 		struct weston_head *head_base;
 		struct drm_head *head;
 		struct drm_crtc *crtc;
-		uint32_t connector_id;
-		int err;
 
 		drm_debug(b, "\t\t[atomic] previous state invalid; "
 			     "starting with fresh state\n");
@@ -1546,7 +1544,6 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
 		 * disable all the CRTCs and connectors we aren't using. */
 		wl_list_for_each(head_base,
 				 &b->compositor->head_list, compositor_link) {
-			struct drm_property_info *info;
 			head = to_drm_head(head_base);
 			if (!head)
 				continue;
@@ -1554,22 +1551,13 @@ drm_pending_state_apply_atomic(struct drm_pending_state *pending_state,
 			if (weston_head_is_enabled(head_base))
 				continue;
 
-			connector_id = head->connector.connector_id;
 			if (head->connector.device != device)
 				continue;
 
 			drm_debug(b, "\t\t[atomic] disabling inactive head %s\n",
 				  head_base->name);
-
-			info = &head->connector.props[WDRM_CONNECTOR_CRTC_ID];
-			err = drmModeAtomicAddProperty(req, connector_id,
-						       info->prop_id, 0);
-			drm_debug(b, "\t\t\t[CONN:%lu] %lu (%s) -> 0\n",
-				  (unsigned long) connector_id,
-				  (unsigned long) info->prop_id,
-				  info->name);
-			if (err <= 0)
-				ret = -1;
+			ret |= connector_add_prop(req, &head->connector,
+						  WDRM_CONNECTOR_CRTC_ID, 0);
 		}
 
 		wl_list_for_each(crtc, &device->crtc_list, link) {
