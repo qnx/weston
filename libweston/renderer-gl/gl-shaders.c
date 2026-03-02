@@ -762,8 +762,18 @@ gl_shader_load_config_representation(struct weston_compositor *compositor,
 
 	if (sconf->yuv_coefficients == WESTON_COLOR_MATRIX_COEF_UNSET ||
 	    sconf->yuv_coefficients == WESTON_COLOR_MATRIX_COEF_IDENTITY) {
-		assert(shader->yuv_coefficients_uniform == -1);
-		assert(shader->yuv_offsets_uniform == -1);
+		/*
+		 * In this case the yuv_coefficients and yuv_offsets uniforms
+		 * should never be used and thus get optimized away by the
+		 * shader compiler. Unfortunately on some drivers this is not
+		 * the case, so we can't assert on it.
+		 */
+		return;
+	}
+
+	if (shader->yuv_coefficients_uniform == -1 ||
+	    shader->yuv_offsets_uniform == -1) {
+		assert(shader->key.variant == SHADER_VARIANT_EXTERNAL);
 		return;
 	}
 
