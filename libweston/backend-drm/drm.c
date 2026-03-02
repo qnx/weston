@@ -1216,6 +1216,8 @@ drm_repaint_flush(struct weston_backend *backend)
 	struct drm_backend *b = container_of(backend, struct drm_backend, base);
 	struct drm_device *device;
 
+	WESTON_TRACE_FUNC();
+
 	wl_list_for_each(device, &b->kms_list, link)
 		drm_repaint_flush_device(device);
 
