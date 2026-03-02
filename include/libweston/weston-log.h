@@ -96,6 +96,11 @@ int
 weston_log_scope_printf(struct weston_log_scope *scope,
 			  const char *fmt, ...)
 			  __attribute__ ((format (printf, 2, 3)));
+
+void
+weston_log_subscription_write(struct weston_log_subscription *sub,
+			      const char *data, size_t len);
+
 void
 weston_log_subscription_printf(struct weston_log_subscription *sub,
 				const char *fmt, ...)

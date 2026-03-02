@@ -9891,8 +9891,9 @@ debug_scene_graph_cb(struct weston_log_subscription *sub, void *data)
 
 	str = weston_compositor_print_scene_graph(ec);
 
-	weston_log_subscription_printf(sub, "%s", str);
+	weston_log_subscription_write(sub, str, strlen(str));
 	free(str);
+
 	weston_log_subscription_complete(sub);
 }
 

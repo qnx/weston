@@ -186,14 +186,23 @@ weston_log_subscription_destroy_pending(struct weston_log_subscription *sub)
 	free(sub);
 }
 
-/** Write to the stream's subscription
+/** Write log data for a subscription
+ *
+ * \param sub The recipient.
+ * \param[in] data Pointer to the data to write.
+ * \param len Number of bytes to write.
+ *
+ * Writes the given data to the subscriber's stream.
  *
  * @memberof weston_log_subscription
  */
-static void
+WL_EXPORT void
 weston_log_subscription_write(struct weston_log_subscription *sub,
 			      const char *data, size_t len)
 {
+	if (!sub)
+		return;
+
 	if (sub->owner && sub->owner->write)
 		sub->owner->write(sub->owner, data, len);
 }
