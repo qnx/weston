@@ -64,7 +64,7 @@ static long backlight_get(struct backlight *backlight, char *node)
 		goto out;
 	}
 
-	ret = read(fd, &buffer, sizeof(buffer));
+	ret = read(fd, buffer, sizeof(buffer));
 	if (ret < 1) {
 		ret = -1;
 		goto out;
@@ -115,12 +115,6 @@ long backlight_set_brightness(struct backlight *backlight, long brightness)
 
 	fd = open(path, O_RDWR);
 	if (fd < 0) {
-		ret = -1;
-		goto out;
-	}
-
-	ret = read(fd, &buffer, sizeof(buffer));
-	if (ret < 1) {
 		ret = -1;
 		goto out;
 	}
@@ -240,7 +234,7 @@ struct backlight *backlight_init(struct udev_device *drm_device,
 		if (fd < 0)
 			goto out;
 
-		ret = read (fd, &buffer, sizeof(buffer));
+		ret = read (fd, buffer, sizeof(buffer));
 		close (fd);
 
 		if (ret < 1)
