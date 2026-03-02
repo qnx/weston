@@ -329,8 +329,8 @@ weston_compositor_dmabuf_can_scanout(struct weston_compositor *compositor,
 void
 weston_compositor_offscreen(struct weston_compositor *compositor);
 
-char *
-weston_compositor_print_scene_graph(struct weston_compositor *ec);
+void
+weston_compositor_print_scene_graph(struct weston_compositor *ec, FILE *fp);
 
 void
 weston_compositor_read_presentation_clock(

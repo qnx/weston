@@ -9759,24 +9759,24 @@ debug_scene_view_print_tree(struct weston_view *view, FILE *fp)
  * Output information on how libweston is currently composing the scene
  * graph.
  *
+ * \param ec The compositor has a single scene-graph.
+ * \param fp A writable stream where the scene-graph is printed.
+ * Can also be NULL to skip printing.
+ *
  * \ingroup compositor
  */
-WL_EXPORT char *
-weston_compositor_print_scene_graph(struct weston_compositor *ec)
+WL_EXPORT void
+weston_compositor_print_scene_graph(struct weston_compositor *ec, FILE *fp)
 {
 	struct weston_output *output;
 	struct weston_layer *layer;
 	struct timespec now;
 	int layer_idx = 0;
-	FILE *fp;
-	char *ret;
-	size_t len;
-	int err;
+
+	if (!fp)
+		return;
 
 	WESTON_TRACE_FUNC();
-
-	fp = open_memstream(&ret, &len);
-	assert(fp);
 
 	weston_compositor_read_presentation_clock(ec, &now);
 	fprintf(fp, "Weston scene graph at %" PRId64 ".%09ld:\n\n",
@@ -9849,11 +9849,6 @@ weston_compositor_print_scene_graph(struct weston_compositor *ec)
 
 		fprintf(fp, "\n");
 	}
-
-	err = fclose(fp);
-	assert(err == 0);
-
-	return ret;
 }
 
 static void
@@ -9891,6 +9886,7 @@ static void
 debug_scene_graph_cb(struct weston_log_subscription *sub, void *data)
 {
 	struct weston_compositor *ec = data;
+	FILE *fp;
 	char *str;
 
 	/* If the presentation_clock is CLOCK_REALTIME, then it is
@@ -9899,7 +9895,9 @@ debug_scene_graph_cb(struct weston_log_subscription *sub, void *data)
 	if (ec->presentation_clock == CLOCK_REALTIME)
 		return;
 
-	str = weston_compositor_print_scene_graph(ec);
+	fp = open_memstream(&str, NULL);
+	weston_compositor_print_scene_graph(ec, fp);
+	fclose(fp);
 
 	weston_log_subscription_write(sub, str, strlen(str));
 	free(str);
