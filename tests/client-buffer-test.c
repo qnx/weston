@@ -156,7 +156,7 @@ static const struct setup_args my_setup_args[] = {
 	{
 		.meta.name = "GL",
 		.renderer = WESTON_RENDERER_GL,
-		.logging_scopes = "log,gl-shader-generator",
+		.logging_scopes = "log,gl-renderer-paint-nodes,gl-shader-generator",
 		.dmabuf_format_must_pass = gl_dmabuf_format_must_pass,
 		.dmabuf_format_num = ARRAY_LENGTH(gl_dmabuf_format_must_pass),
 		.gl_force_import_yuv_fallback = false,
@@ -164,7 +164,7 @@ static const struct setup_args my_setup_args[] = {
 	{
 		.meta.name = "GL force-import-yuv-fallback",
 		.renderer = WESTON_RENDERER_GL,
-		.logging_scopes = "log,gl-shader-generator",
+		.logging_scopes = "log,gl-renderer-paint-nodes,gl-shader-generator",
 		.dmabuf_format_must_pass = gl_dmabuf_format_must_pass,
 		.dmabuf_format_num = ARRAY_LENGTH(gl_dmabuf_format_must_pass),
 		.gl_force_import_yuv_fallback = true,
