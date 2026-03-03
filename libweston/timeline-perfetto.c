@@ -63,15 +63,7 @@ build_track_name(struct weston_surface *surface, char *name, int size)
 	 * make multiple names for the same surface */
 	assert(surface->damage_track_id == 0);
 
-	if (surface->get_label)
-		surface->get_label(surface, surface_label, sizeof(surface_label));
-	else {
-		uint32_t res_id;
-
-		res_id = wl_resource_get_id(surface->resource);
-		snprintf(surface_label, sizeof(surface_label), "unlabelled surface %d", res_id);
-	}
-
+	surface->get_label(surface, surface_label, sizeof(surface_label));
 	snprintf(name, size, "%s #%d", surface_label, surface->s_id);
 }
 

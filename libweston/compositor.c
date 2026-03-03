@@ -973,6 +973,12 @@ weston_surface_update_preferred_color_profile(struct weston_surface *surface)
 	weston_surface_send_preferred_image_description_changed(surface);
 }
 
+static int
+get_label_member(struct weston_surface *surface, char *buf, size_t len)
+{
+	return snprintf(buf, len, "(no label)");
+}
+
 WL_EXPORT struct weston_surface *
 weston_surface_create(struct weston_compositor *compositor,
 		      struct weston_client *client)
@@ -997,6 +1003,8 @@ weston_surface_create(struct weston_compositor *compositor,
 	surface->internal_id = weston_client_new_internal_id(compositor, client);
 	str_printf(&surface->internal_name, "%s-%" PRIu64,
 		   weston_client_get_internal_name(client), surface->internal_id);
+
+	surface->get_label = get_label_member;
 
 	surface->buffer_viewport.buffer.transform = WL_OUTPUT_TRANSFORM_NORMAL;
 	surface->buffer_viewport.buffer.scale = 1;
@@ -4131,15 +4139,7 @@ surface_frame_rate_stats(void *data)
 		char p_counter_fc_counter[1024];
 		char p_counter_painted_counter[1024];
 
-		if (surf->get_label)
-			surf->get_label(surf, surface_desc, sizeof(surface_desc));
-		else {
-			uint32_t res_id;
-
-			res_id = wl_resource_get_id(surf->resource);
-			snprintf(surface_desc, sizeof(surface_desc),
-				 "unlabelled surface %d", res_id);
-		}
+		surf->get_label(surf, surface_desc, sizeof(surface_desc));
 
 		surf->frame_commit_fps_counter =
 			(float) (surf->frame_commit_counter / frame_counter_interval);
@@ -5443,7 +5443,11 @@ weston_surface_set_label_func(struct weston_surface *surface,
 			      int (*desc)(struct weston_surface *,
 					  char *, size_t))
 {
-	surface->get_label = desc;
+	if (desc)
+		surface->get_label = desc;
+	else
+		surface->get_label = get_label_member;
+
 	weston_timeline_refresh_subscription_objects(surface->compositor,
 						     surface);
 }
@@ -9658,8 +9662,7 @@ debug_scene_view_print(FILE *fp, struct weston_view *view)
 					  &pid, NULL, NULL);
 	}
 
-	if (!view->surface->get_label ||
-	    view->surface->get_label(view->surface, desc, sizeof(desc)) < 0) {
+	if (view->surface->get_label(view->surface, desc, sizeof(desc)) < 0) {
 		strcpy(desc, "[no description available]");
 	}
 	fprintf(fp, "\tView %s (role %s, PID %d, '%s'):\n",

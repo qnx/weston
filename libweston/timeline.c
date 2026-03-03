@@ -297,7 +297,7 @@ check_weston_surface_description(struct weston_log_subscription *sub,
 		mainstr[0] = '\0';
 	}
 
-	if (!s->get_label || s->get_label(s, d, sizeof(d)) < 0)
+	if (s->get_label(s, d, sizeof(d)) < 0)
 		d[0] = '\0';
 
 	weston_log_subscription_printf(sub, "{ \"id\":%u, "

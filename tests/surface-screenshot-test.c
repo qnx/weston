@@ -158,8 +158,7 @@ trigger_binding(struct weston_keyboard *keyboard, const struct timespec *time,
 
 	weston_surface_get_content_size(surface, &width, &height);
 
-	if (!surface->get_label ||
-	    surface->get_label(surface, desc, sizeof(desc)) < 0)
+	if (surface->get_label(surface, desc, sizeof(desc)) < 0)
 		snprintf(desc, sizeof(desc), "(unknown)");
 
 	weston_log("surface screenshot of %p: '%s', %dx%d\n",
