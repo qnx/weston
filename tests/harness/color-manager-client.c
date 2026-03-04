@@ -622,6 +622,7 @@ image_description_get_information(struct client *client,
 	while (!info->done)
 		if (!test_assert_int_ge(wl_display_dispatch(client->wl_display), 0))
 			break;
+	test_assert_true(info->done);
 
 	return info;
 }
