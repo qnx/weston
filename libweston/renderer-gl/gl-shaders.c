@@ -884,12 +884,20 @@ gl_shader_load_config(struct gl_renderer *gr,
 			gl_texture_parameters_flush(gr, &sconf->input_param[i]);
 	}
 
-	if (shader->cvd_correction_uniform != -1) {
+	switch (sconf->req.color_effect) {
+	case SHADER_COLOR_EFFECT_NONE:
+		break;
+	case SHADER_COLOR_EFFECT_INVERSION:
+		weston_log_scope_printf(gr->paint_node_scope, "\t\tcolor effect: inversion\n");
+		break;
+	case SHADER_COLOR_EFFECT_CVD_CORRECTION:
+		weston_assert_int_ne(gr->compositor, shader->cvd_correction_uniform, -1);
 		weston_log_scope_printf(gr->paint_node_scope, "\t\tcolor effect: cvd - %s\n",
-					 weston_output_cvd_type_to_str(sconf->color_effect.cvd));
+					weston_output_cvd_type_to_str(sconf->color_effect.cvd));
 		glUniformMatrix3fv(shader->cvd_correction_uniform,
 				   1, GL_FALSE,
 				   sconf->color_effect.cvd.correction.colmaj);
+		break;
 	}
 
 	/* Fixed texture unit for color_pre_curve LUT if it is available */
