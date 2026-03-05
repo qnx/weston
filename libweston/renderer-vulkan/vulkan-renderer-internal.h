@@ -35,17 +35,21 @@
 #include <stdbool.h>
 #include <time.h>
 
-#include <wayland-util.h>
 #include <vulkan/vulkan.h>
 #include "shared/helpers.h"
 #include "libweston/libweston.h"
 #include "libweston/libweston-internal.h"
-#include <xcb/xcb.h>
 
-#define VK_USE_PLATFORM_XCB_KHR
+#if defined(BUILD_WAYLAND_COMPOSITOR)
 #define VK_USE_PLATFORM_WAYLAND_KHR
 #include <vulkan/vulkan_wayland.h>
+#endif
+
+#if defined(BUILD_X11_COMPOSITOR)
+#define VK_USE_PLATFORM_XCB_KHR
+#include <xcb/xcb.h>
 #include <vulkan/vulkan_xcb.h>
+#endif
 
 #define MAX_NUM_IMAGES 5
 #define MAX_CONCURRENT_FRAMES 2
@@ -173,10 +177,15 @@ struct vulkan_renderer {
 	struct wl_list pipeline_list;
 	struct dmabuf_allocator *allocator;
 
+#if defined(BUILD_WAYLAND_COMPOSITOR)
 	PFN_vkCreateWaylandSurfaceKHR create_wayland_surface;
-	PFN_vkCreateXcbSurfaceKHR create_xcb_surface;
 	PFN_vkGetPhysicalDeviceWaylandPresentationSupportKHR get_wayland_presentation_support;
+#endif
+
+#if defined(BUILD_X11_COMPOSITOR)
+	PFN_vkCreateXcbSurfaceKHR create_xcb_surface;
 	PFN_vkGetPhysicalDeviceXcbPresentationSupportKHR get_xcb_presentation_support;
+#endif
 
 	PFN_vkGetImageMemoryRequirements2KHR get_image_memory_requirements2;
 	PFN_vkGetMemoryFdPropertiesKHR get_memory_fd_properties;

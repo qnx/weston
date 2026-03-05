@@ -303,16 +303,20 @@ static const struct vulkan_extension_table vulkan_inst_ext_table[] = {
 		.name = VK_KHR_SURFACE_EXTENSION_NAME,
 		.flag = EXTENSION_KHR_SURFACE,
 	},
+#if defined(BUILD_WAYLAND_COMPOSITOR)
 	{
 		.name = VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,
 		.flag = EXTENSION_KHR_WAYLAND_SURFACE,
 		.instance_dep = EXTENSION_KHR_SURFACE,
 	},
+#endif
+#if defined(BUILD_X11_COMPOSITOR)
 	{
 		.name = VK_KHR_XCB_SURFACE_EXTENSION_NAME,
 		.flag = EXTENSION_KHR_XCB_SURFACE,
 		.instance_dep = EXTENSION_KHR_SURFACE,
 	},
+#endif
 };
 
 /* Keep in sync with vulkan-renderer-internal.h. */
@@ -3455,9 +3459,12 @@ vulkan_renderer_output_window_create_swapchain(struct weston_output *output,
 	struct vulkan_renderer *vr = get_renderer(ec);
 	struct vulkan_output_state *vo = get_output_state(output);
 	VkResult result;
-	VkBool32 supported;
+	VkBool32 supported = 0;
 	assert(vulkan_instance_has(vr, EXTENSION_KHR_SURFACE));
 
+	vo->swapchain.surface = VK_NULL_HANDLE;
+
+#if defined(BUILD_WAYLAND_COMPOSITOR)
 	if (options->wayland_display && options->wayland_surface) {
 		assert(vulkan_instance_has(vr, EXTENSION_KHR_WAYLAND_SURFACE));
 
@@ -3472,7 +3479,10 @@ vulkan_renderer_output_window_create_swapchain(struct weston_output *output,
 		result = vr->create_wayland_surface(vr->inst, &wayland_surface_create_info, NULL,
 						    &vo->swapchain.surface);
 		check_vk_success(result, "vkCreateWaylandSurfaceKHR");
-	} else if (options->xcb_connection && options->xcb_window) {
+	}
+#endif
+#if defined(BUILD_X11_COMPOSITOR)
+	if (options->xcb_connection && options->xcb_window) {
 		assert(vulkan_instance_has(vr, EXTENSION_KHR_XCB_SURFACE));
 
 		supported = vr->get_xcb_presentation_support(vr->phys_dev, 0, options->xcb_connection, options->xcb_visualid);
@@ -3486,9 +3496,9 @@ vulkan_renderer_output_window_create_swapchain(struct weston_output *output,
 		result = vr->create_xcb_surface(vr->inst, &xcb_surface_create_info, NULL,
 						&vo->swapchain.surface);
 		check_vk_success(result, "vkCreateXcbSurfaceKHR");
-	} else {
-		assert(0);
 	}
+#endif
+	assert(vo->swapchain.surface != VK_NULL_HANDLE);
 
 	vkGetPhysicalDeviceSurfaceSupportKHR(vr->phys_dev, 0, vo->swapchain.surface, &supported);
 	assert(supported);
@@ -4190,15 +4200,19 @@ load_instance_proc(struct vulkan_renderer *vr, const char *func, void *proc_ptr)
 static void
 vulkan_renderer_setup_instance_extensions(struct vulkan_renderer *vr)
 {
+#if defined(BUILD_WAYLAND_COMPOSITOR)
 	if (vulkan_instance_has(vr, EXTENSION_KHR_WAYLAND_SURFACE)) {
 		load_instance_proc(vr, "vkCreateWaylandSurfaceKHR", &vr->create_wayland_surface);
 		load_instance_proc(vr, "vkGetPhysicalDeviceWaylandPresentationSupportKHR", &vr->get_wayland_presentation_support);
 	}
+#endif
 
+#if defined(BUILD_X11_COMPOSITOR)
 	if (vulkan_instance_has(vr, EXTENSION_KHR_XCB_SURFACE)) {
 		load_instance_proc(vr, "vkCreateXcbSurfaceKHR", &vr->create_xcb_surface);
 		load_instance_proc(vr, "vkGetPhysicalDeviceXcbPresentationSupportKHR", &vr->get_xcb_presentation_support);
 	}
+#endif
 }
 
 static void
