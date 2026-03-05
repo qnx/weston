@@ -2815,6 +2815,17 @@ destroy_surface(struct wl_resource *resource)
 	weston_surface_unref(surface);
 }
 
+static void
+weston_buffer_destroy(struct weston_buffer *buffer)
+{
+	assert(buffer->resource == NULL);
+	assert(buffer->busy_count == 0);
+	assert(buffer->passive_count == 0);
+
+	wl_signal_emit_mutable(&buffer->destroy_signal, buffer);
+	free(buffer);
+}
+
 static struct weston_solid_buffer_values *
 single_pixel_buffer_get(struct wl_resource *resource);
 
@@ -2844,8 +2855,7 @@ weston_buffer_destroy_handler(struct wl_listener *listener, void *data)
 	if (buffer->busy_count + buffer->passive_count > 0)
 		return;
 
-	wl_signal_emit_mutable(&buffer->destroy_signal, buffer);
-	free(buffer);
+	weston_buffer_destroy(buffer);
 }
 
 WL_EXPORT struct weston_buffer *
@@ -2993,9 +3003,7 @@ weston_buffer_reference(struct weston_buffer_reference *ref,
 	 * weston_buffer, since we'll never need it again */
 	if (old_ref.buffer->busy_count + old_ref.buffer->passive_count == 0 &&
 	    !old_ref.buffer->resource) {
-		wl_signal_emit_mutable(&old_ref.buffer->destroy_signal,
-					   old_ref.buffer);
-		free(old_ref.buffer);
+		weston_buffer_destroy(old_ref.buffer);
 	}
 }
 
