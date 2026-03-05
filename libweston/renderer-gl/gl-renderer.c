@@ -367,7 +367,6 @@ gl_log_paint_node_start(struct gl_renderer *gr, struct weston_paint_node *pnode)
 	struct weston_surface *surface;
 	struct weston_buffer *buffer;
 	pid_t pid = 0;
-	char *modifier_name;
 
 	if (!weston_log_scope_is_enabled(gr->paint_node_scope))
 		return;
@@ -398,11 +397,8 @@ gl_log_paint_node_start(struct gl_renderer *gr, struct weston_paint_node *pnode)
 	else
 		weston_log_scope_printf(gr->paint_node_scope, "\t\t[unknown buffer format]\n");
 
-	modifier_name = pixel_format_get_modifier(buffer->format_modifier);
 	weston_log_scope_printf(gr->paint_node_scope, "\t\tbuffer modifier: %s\n",
-				modifier_name ?  modifier_name :
-				"Failed to convert to a modifier name");
-	free(modifier_name);
+				buffer->format_modifier_name);
 }
 
 static void

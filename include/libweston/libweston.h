@@ -1596,6 +1596,7 @@ struct weston_buffer {
 
 	const struct pixel_format_info *pixel_format;
 	uint64_t format_modifier;
+	char *format_modifier_name;
 };
 
 enum weston_buffer_reference_type {

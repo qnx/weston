@@ -2823,6 +2823,7 @@ weston_buffer_destroy(struct weston_buffer *buffer)
 	assert(buffer->passive_count == 0);
 
 	wl_signal_emit_mutable(&buffer->destroy_signal, buffer);
+	free(buffer->format_modifier_name);
 	free(buffer);
 }
 
@@ -2936,6 +2937,8 @@ weston_buffer_from_resource(struct weston_compositor *ec,
 		}
 		buffer->type = WESTON_BUFFER_RENDERER_OPAQUE;
 	}
+
+	buffer->format_modifier_name = pixel_format_get_modifier(buffer->format_modifier);
 
 	if (ec->renderer->buffer_init)
 		ec->renderer->buffer_init(ec, buffer);
@@ -3103,6 +3106,7 @@ weston_buffer_create_solid_rgba(struct weston_compositor *compositor,
 			pixel_format_get_info_shm(WL_SHM_FORMAT_ARGB8888);
 	}
 	buffer->format_modifier = DRM_FORMAT_MOD_LINEAR;
+	buffer->format_modifier_name = pixel_format_get_modifier(buffer->format_modifier);
 
 	weston_buffer_reference(ret, buffer, BUFFER_MAY_BE_ACCESSED);
 
@@ -9503,7 +9507,6 @@ static void
 debug_scene_view_print_buffer(FILE *fp, struct weston_view *view)
 {
 	struct weston_buffer *buffer = view->surface->buffer_ref.buffer;
-	char *modifier_name;
 
 	if (!buffer) {
 		fputs("\t\t[buffer not available]\n", fp);
@@ -9543,12 +9546,7 @@ debug_scene_view_print_buffer(FILE *fp, struct weston_view *view)
 	} else {
 		fputs("\t\t\t[unknown format]\n", fp);
 	}
-
-	modifier_name = pixel_format_get_modifier(buffer->format_modifier);
-	fprintf(fp, "\t\t\tmodifier: %s\n",
-		modifier_name ?
-			modifier_name : "Failed to convert to a modifier name");
-	free(modifier_name);
+	fprintf(fp, "\t\t\tmodifier: %s\n", buffer->format_modifier_name);
 
 	fprintf(fp, "\t\t\twidth: %d, height: %d\n",
 		buffer->width, buffer->height);
