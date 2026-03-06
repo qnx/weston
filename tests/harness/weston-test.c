@@ -877,7 +877,7 @@ wet_module_init(struct weston_compositor *ec,
 		      &test->output_destroyed_listener);
 
 	test->log = weston_compositor_add_log_scope(ec, "test-harness-plugin",
-					"weston-test plugin's own actions",
+					"weston-test plugin's own actions\n",
 					NULL, NULL, NULL);
 
 	if (wl_global_create(ec->wl_display, &weston_test_interface, 1,
