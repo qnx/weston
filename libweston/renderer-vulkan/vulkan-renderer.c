@@ -3458,7 +3458,6 @@ vulkan_renderer_output_window_create_swapchain(struct weston_output *output,
 	struct weston_compositor *ec = output->compositor;
 	struct vulkan_renderer *vr = get_renderer(ec);
 	struct vulkan_output_state *vo = get_output_state(output);
-	VkResult result;
 	VkBool32 supported = 0;
 	assert(vulkan_instance_has(vr, EXTENSION_KHR_SURFACE));
 
@@ -3466,6 +3465,7 @@ vulkan_renderer_output_window_create_swapchain(struct weston_output *output,
 
 #if defined(BUILD_WAYLAND_COMPOSITOR)
 	if (options->wayland_display && options->wayland_surface) {
+		VkResult result;
 		assert(vulkan_instance_has(vr, EXTENSION_KHR_WAYLAND_SURFACE));
 
 		supported = vr->get_wayland_presentation_support(vr->phys_dev, 0, options->wayland_display);
@@ -3483,6 +3483,7 @@ vulkan_renderer_output_window_create_swapchain(struct weston_output *output,
 #endif
 #if defined(BUILD_X11_COMPOSITOR)
 	if (options->xcb_connection && options->xcb_window) {
+		VkResult result;
 		assert(vulkan_instance_has(vr, EXTENSION_KHR_XCB_SURFACE));
 
 		supported = vr->get_xcb_presentation_support(vr->phys_dev, 0, options->xcb_connection, options->xcb_visualid);
@@ -4182,6 +4183,7 @@ vulkan_extensions_add(const struct vulkan_extension_table *table,
 	*flags_out |= flags;
 }
 
+#if defined(BUILD_WAYLAND_COMPOSITOR) || defined(BUILD_X11_COMPOSITOR)
 static void
 load_instance_proc(struct vulkan_renderer *vr, const char *func, void *proc_ptr)
 {
@@ -4196,6 +4198,7 @@ load_instance_proc(struct vulkan_renderer *vr, const char *func, void *proc_ptr)
 
 	*(void **)proc_ptr = proc;
 }
+#endif
 
 static void
 vulkan_renderer_setup_instance_extensions(struct vulkan_renderer *vr)
