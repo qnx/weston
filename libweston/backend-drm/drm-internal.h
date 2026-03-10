@@ -514,6 +514,7 @@ struct drm_writeback_state {
 
 	enum writeback_screenshot_state state;
 	struct weston_capture_task *ct;
+	struct wl_listener buffer_destroy_listener;
 
 	struct drm_fb *fb;
 	int32_t out_fence_fd;
