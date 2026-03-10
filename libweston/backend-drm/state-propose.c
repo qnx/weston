@@ -633,11 +633,14 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 		if (fb) {
 			possible_plane_mask &= fb->plane_mask;
 		} else {
-			char *fr_str = bits_to_str(fb_failure_reasons,
-						   weston_plane_failure_reasons_to_str);
-			weston_assert_ptr_not_null(b->compositor, fr_str);
-			drm_debug(b, "\t\t\t[view] couldn't get FB for view: %s\n", fr_str);
-			free(fr_str);
+			FILE *dbg = weston_log_scope_stream(b->debug);
+
+			if (dbg) {
+				fputs("\t\t\t[view] couldn't get FB for view: ", dbg);
+				bits_to_str_stream(fb_failure_reasons,
+						   weston_plane_failure_reasons_to_str, dbg);
+				fputs("\n", dbg);
+			}
 			pnode->try_view_on_plane_failure_reasons |= fb_failure_reasons;
 		}
 	}
@@ -1207,12 +1210,15 @@ drm_output_propose_state(struct weston_output *output_base,
 				  ev->internal_name);
 			goto err_region;
 		} else if (!ps) {
-			char *fr_str = bits_to_str(pnode->try_view_on_plane_failure_reasons,
-						   weston_plane_failure_reasons_to_str);
-			weston_assert_ptr_not_null(b->compositor, fr_str);
-			drm_debug(b, "\t\t\t\t[view] view %s will be placed "
-				     "on the renderer: %s\n", ev->internal_name, fr_str);
-			free(fr_str);
+			FILE *dbg = weston_log_scope_stream(b->debug);
+
+			if (dbg) {
+				fprintf(dbg, "\t\t\t\t[view] view %s will be placed on the renderer: ",
+					ev->internal_name);
+				bits_to_str_stream(pnode->try_view_on_plane_failure_reasons,
+						   weston_plane_failure_reasons_to_str, dbg);
+				fputs("\n", dbg);
+			}
 		}
 
 		if (!ps || drm_mixed_mode_check_underlay(mode, scanout_state, ps->zpos)) {
