@@ -397,7 +397,7 @@ simple_im_key_handler(struct simple_im *keyboard,
 
 	if (keyboard->compose_state == state_compose) {
 		uint32_t i = 0;
-		struct compose_seq *cs;
+		const struct compose_seq *cs;
 
 		if (state == WL_KEYBOARD_KEY_STATE_PRESSED)
 			return;
