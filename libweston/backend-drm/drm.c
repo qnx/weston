@@ -3570,18 +3570,29 @@ drm_writeback_has_finished(struct drm_writeback_state *state)
 	return false;
 }
 
+/**
+ * Try to complete writeback screenshot
+ *
+ * After submitting a writeback task with an atomic commit, call this function
+ * to complete the screenshot. If the writeback result is already available, the
+ * screenshot is completed immediately. Otherwise, drm_writeback_save_callback()
+ * is scheduled to finish it later.
+ *
+ * @param state The writeback task state.
+ * @return true if the screenshot was completed immediately, false if deferred.
+ */
 bool
-drm_writeback_should_wait_completion(struct drm_writeback_state *state)
+drm_writeback_try_complete(struct drm_writeback_state *state)
 {
 	struct weston_compositor *ec = state->output->base.compositor;
 	struct wl_event_loop *event_loop;
 
 	if (state->state == DRM_OUTPUT_WB_SCREENSHOT_WAITING_SIGNAL)
-		return true;
+		return false;
 
 	if (state->state == DRM_OUTPUT_WB_SCREENSHOT_CHECK_FENCE) {
 		if (drm_writeback_has_finished(state))
-			return false;
+			return true;
 
 		/* The writeback has not finished yet. So add callback that gets
 		 * called when the sync fd of the writeback job gets signalled.
@@ -3593,15 +3604,15 @@ drm_writeback_should_wait_completion(struct drm_writeback_state *state)
 					     drm_writeback_save_callback, state);
 		if (!state->wb_source) {
 			drm_writeback_fail_screenshot(state, "drm: out of memory");
-			return false;
+			return true;
 		}
 
 		state->state = DRM_OUTPUT_WB_SCREENSHOT_WAITING_SIGNAL;
 
-		return true;
+		return false;
 	}
 
-	return false;
+	weston_assert_not_reached(ec, "drm_writeback_try_complete() called without a wb task submitted");
 }
 
 void

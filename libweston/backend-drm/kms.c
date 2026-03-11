@@ -1988,7 +1988,7 @@ on_drm_input(int fd, uint32_t mask, void *data)
 	 * uses the KMS objects (CRTC, planes, etc) in use by the writeback. */
 	wl_list_for_each(crtc, &device->crtc_list, link) {
 		state = crtc->output ? crtc->output->wb_state : NULL;
-		if (state && drm_writeback_should_wait_completion(state))
+		if (state && !drm_writeback_try_complete(state))
 			wait_wb_completion = true;
 	}
 	if (wait_wb_completion)

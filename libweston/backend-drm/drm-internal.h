@@ -685,7 +685,7 @@ void
 drm_writeback_reference_planes(struct drm_writeback_state *state,
 			       struct wl_list *plane_state_list);
 bool
-drm_writeback_should_wait_completion(struct drm_writeback_state *state);
+drm_writeback_try_complete(struct drm_writeback_state *state);
 void
 drm_writeback_fail_screenshot(struct drm_writeback_state *state,
 			      const char *err_msg);
