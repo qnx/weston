@@ -134,7 +134,9 @@ Enable/Disable cursor planes.
 .RE
 - KEY_V :
 .RS 4
-Enable/Disable overlay planes.
+Enable/Disable opportunistic use of direct scanout of client buffers in the
+DRM-backend. When disabled, all graphics goes through the renderer in use.
+Does not interfere with the cursor planes.
 .RE
 .RE
 - KEY_M :

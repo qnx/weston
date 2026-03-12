@@ -696,8 +696,8 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 			assert(mode != DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR);
 			if (use_scanout_plane)
 				continue;
-			/* for alpha views, avoid placing them on the HW planes that
-			 * are below the primary plane. */
+			/* for alpha views, avoid placing them on the hardware
+			 * planes that are below the primary plane. */
 			if (mm_underlay_only && !pnode->is_fully_opaque)
 				continue;
 			break;
@@ -1306,7 +1306,7 @@ drm_assign_planes(struct weston_output *output_base)
 							 mode);
 		}
 	} else {
-		drm_debug(b, "\t[state] no overlay plane support\n");
+		drm_debug(b, "\t[state] no hardware plane support\n");
 	}
 
 	/* We can enter this block in two situations:
