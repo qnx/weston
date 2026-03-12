@@ -778,6 +778,11 @@ drm_output_pick_writeback_capture_task(struct drm_output *output)
 	if (!ct)
 		return;
 
+	if (output->wb_state) {
+		str_printf(&msg, "drm: another writeback task already in progress");
+		goto err;
+	}
+
 	if (output->base.disable_planes > 0) {
 		str_printf(&msg, "drm: KMS planes usage is disabled for now, " \
 			   "so writeback capture tasks are rejected");
