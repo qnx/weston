@@ -585,6 +585,9 @@ struct drm_crtc {
 
 	/* CRTC prop WDRM_CRTC_BACKGROUND_COLOR */
 	uint64_t background_color;
+
+	/* Union of formats of all compatible writeback connectors */
+	struct weston_drm_format_array writeback_formats;
 };
 
 struct drm_output {

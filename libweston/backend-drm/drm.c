@@ -664,7 +664,8 @@ drm_connector_get_possible_crtcs_mask(struct drm_connector *connector)
 }
 
 static struct drm_writeback *
-drm_output_find_compatible_writeback(struct drm_output *output)
+drm_output_find_compatible_writeback(struct drm_output *output,
+				     const struct pixel_format_info *pixel_format)
 {
 	struct drm_crtc *crtc;
 	struct drm_writeback *wb;
@@ -688,6 +689,11 @@ drm_output_find_compatible_writeback(struct drm_output *output)
 		possible_crtcs =
 			drm_connector_get_possible_crtcs_mask(&wb->connector);
 		if (!(possible_crtcs & (1 << output->crtc->pipe)))
+			continue;
+
+		/* Does the wb supports the format? */
+		if (!weston_drm_format_array_find_format(&wb->formats,
+							 pixel_format->format))
 			continue;
 
 		return wb;
@@ -778,16 +784,16 @@ drm_output_pick_writeback_capture_task(struct drm_output *output)
 		goto err;
 	}
 
-	wb = drm_output_find_compatible_writeback(output);
+	buffer = weston_capture_task_get_buffer(ct);
+	assert(buffer->width == width);
+	assert(buffer->height == height);
+
+	wb = drm_output_find_compatible_writeback(output, buffer->pixel_format);
 	if (!wb) {
 		str_printf(&msg,
 			   "drm: could not find writeback connector for output");
 		goto err;
 	}
-
-	buffer = weston_capture_task_get_buffer(ct);
-	assert(buffer->width == width);
-	assert(buffer->height == height);
 
 	output->wb_state = drm_writeback_state_alloc();
 	if (!output->wb_state) {
@@ -2055,14 +2061,12 @@ drm_output_detach_head(struct weston_output *output_base,
 static const struct weston_drm_format_array *
 drm_output_get_writeback_formats(struct weston_output *output_base)
 {
+	struct weston_compositor *compositor = output_base->compositor;
 	struct drm_output *output = to_drm_output(output_base);
-	struct drm_writeback *writeback;
 
-	writeback = drm_output_find_compatible_writeback(output);
-	if (!writeback)
-		return NULL;
+	weston_assert_ptr_not_null(compositor, output->crtc);
 
-	return &writeback->formats;
+	return &output->crtc->writeback_formats;
 }
 
 int
@@ -2506,6 +2510,32 @@ drm_output_pick_crtc(struct drm_output *output)
 	return NULL;
 }
 
+static bool
+drm_crtc_populate_writeback_formats(struct drm_crtc *crtc)
+{
+	struct drm_writeback *wb;
+	uint32_t possible_crtcs;
+	int ret;
+
+	weston_drm_format_array_init(&crtc->writeback_formats);
+
+	wl_list_for_each(wb, &crtc->device->writeback_connector_list, link) {
+		/* Ignore wb's that are incompatible with the CRTC. */
+		possible_crtcs =
+			drm_connector_get_possible_crtcs_mask(&wb->connector);
+		if (!(possible_crtcs & (1 << crtc->pipe)))
+			continue;
+
+		ret = weston_drm_format_array_join(&crtc->writeback_formats, &wb->formats);
+		if (ret < 0) {
+			weston_drm_format_array_fini(&crtc->writeback_formats);
+			return false;
+		}
+	}
+
+	return true;
+}
+
 /** Create an "empty" drm_crtc. It will only set its ID, pipe and props. After
  * all, it adds the object to the DRM-backend CRTC list.
  */
@@ -2526,11 +2556,18 @@ drm_crtc_create(struct drm_device *device, uint32_t crtc_id, uint32_t pipe)
 	if (!crtc)
 		goto ret;
 
-	drm_property_info_populate(device, crtc_props, crtc->props_crtc,
-				   WDRM_CRTC__COUNT, props);
 	crtc->device = device;
 	crtc->crtc_id = crtc_id;
 	crtc->pipe = pipe;
+
+	if (!drm_crtc_populate_writeback_formats(crtc)) {
+		free(crtc);
+		crtc = NULL;
+		goto ret;
+	}
+
+	drm_property_info_populate(device, crtc_props, crtc->props_crtc,
+				   WDRM_CRTC__COUNT, props);
 
 	crtc->lut_size =
 		drm_property_get_value(&crtc->props_crtc[WDRM_CRTC_GAMMA_LUT_SIZE],
@@ -2558,6 +2595,7 @@ drm_crtc_destroy(struct drm_crtc *crtc)
 
 	wl_list_remove(&crtc->link);
 	drm_property_info_free(crtc->props_crtc, WDRM_CRTC__COUNT);
+	weston_drm_format_array_fini(&crtc->writeback_formats);
 	free(crtc);
 }
 
@@ -4469,12 +4507,6 @@ drm_device_create(struct drm_backend *backend,
 		goto err;
 	}
 
-	wl_list_init(&device->crtc_list);
-	if (drm_backend_create_crtc_list(device, res) == -1) {
-		weston_log("Failed to create CRTC list for DRM-backend\n");
-		goto err_res;
-	}
-
 	loop = wl_display_get_event_loop(compositor->wl_display);
 	device->drm_event_source =
 		wl_event_loop_add_fd(loop, device->kms_device->fd,
@@ -4488,6 +4520,12 @@ drm_device_create(struct drm_backend *backend,
 	wl_list_init(&device->writeback_connector_list);
 	if (drm_backend_discover_connectors(device, device->kms_device->udev_device, res) < 0) {
 		weston_log("Failed to create heads for %s\n", device->kms_device->filename);
+		goto err_res;
+	}
+
+	wl_list_init(&device->crtc_list);
+	if (drm_backend_create_crtc_list(device, res) == -1) {
+		weston_log("Failed to create CRTC list for DRM-backend\n");
 		goto err_res;
 	}
 
