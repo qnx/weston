@@ -222,7 +222,7 @@ struct drm_device {
 	int32_t cursor_height;
 
 	bool cursors_are_broken;
-	bool sprites_are_broken;
+	bool disable_client_buffer_scanout;
 
 	void *repaint_data;
 

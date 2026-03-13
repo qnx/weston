@@ -104,7 +104,7 @@ drm_output_try_paint_node_on_plane(struct drm_plane_handle *handle,
 	struct drm_plane *plane = handle->plane;
 	struct drm_plane_state *state = NULL;
 
-	assert(!device->sprites_are_broken);
+	assert(!device->disable_client_buffer_scanout);
 	assert(output == handle->output);
 	assert(device->atomic_modeset);
 	assert(fb);
@@ -1293,7 +1293,8 @@ drm_assign_planes(struct weston_output *output_base)
 	drm_debug(b, "\t[repaint] preparing state for output %s (%lu)\n",
 		  output_base->name, (unsigned long) output_base->id);
 
-	if (!device->sprites_are_broken && !output_base->disable_planes &&
+	if (!device->disable_client_buffer_scanout &&
+	    !output_base->disable_planes &&
 	    !output->is_virtual && b->gbm) {
 		drm_debug(b, "\t[repaint] trying planes-only build state\n");
 		state = drm_output_propose_state(output_base, pending_state, mode);

@@ -2080,7 +2080,7 @@ init_kms_caps(struct drm_device *device)
 	 * enabled.
 	 */
 	if (!device->atomic_modeset || getenv("WESTON_FORCE_RENDERER"))
-		device->sprites_are_broken = true;
+		device->disable_client_buffer_scanout = true;
 
 	ret = drmSetClientCap(device->kms_device->fd, DRM_CLIENT_CAP_ASPECT_RATIO, 1);
 	device->aspect_ratio_supported = (ret == 0);
