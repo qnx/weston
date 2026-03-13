@@ -107,12 +107,6 @@ option(
 	description: 'Weston shell UI: traditional desktop'
 )
 option(
-	'deprecated-shell-fullscreen',
-	type: 'boolean',
-	value: false,
-	description: 'DEPRECATED: Weston shell UI: fullscreen/kiosk. For a more modern alternative, use kiosk-shell instead'
-)
-option(
 	'shell-ivi',
 	type: 'boolean',
 	value: true,

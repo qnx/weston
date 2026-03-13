@@ -20,7 +20,6 @@ generated_protocols = [
 	[ 'color-representation', 'staging', 'v1' ],
 	[ 'commit-timing', 'staging', 'v1' ],
 	[ 'fifo', 'staging', 'v1' ],
-	[ 'fullscreen-shell', 'unstable', 'v1' ],
 	[ 'fractional-scale', 'staging', 'v1' ],
 	[ 'input-method', 'unstable', 'v1' ],
 	[ 'input-timestamps', 'unstable', 'v1' ],

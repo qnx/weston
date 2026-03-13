@@ -50,8 +50,6 @@ enum shell_type {
 	SHELL_DESKTOP,
 	/** The ivi-shell. */
 	SHELL_IVI,
-	/** The fullscreen-shell. */
-	SHELL_FULLSCREEN,
 	/** The kiosk shell */
 	SHELL_KIOSK,
 	/** The lua shell */

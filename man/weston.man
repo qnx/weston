@@ -20,7 +20,7 @@ industrial, kiosks, set-top boxes and TVs.
 
 Weston supports fundamentally different graphical user interface paradigms via
 shell plugins. Multiple plugins are provided: the desktop shell, the kiosk
-shell, the lua shell, the ivi shell and the (deprecated) fullscreen shell.
+shell, the lua shell, and the ivi shell.
 
 It also provides a library called libweston which allows
 users to build their own custom full-featured environments on top of
@@ -87,12 +87,6 @@ how such an environment can be built.
 The kiosk shell is intended for environments which want to run a single
 application at a time. Applications will be made full screen and
 activated as they are started.
-.TP
-.I fullscreen (deprecated)
-The fullscreen shell is a deprecated implementation of the ideas behind
-the kiosk shell. It requires specific client support for the
-.I zwp_fullscreen_shell_v1
-interface.
 .TP
 .I ivi
 The IVI shell is a special-purpose shell which exposes an API compatible

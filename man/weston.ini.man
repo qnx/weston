@@ -105,7 +105,6 @@ directory are:
 .RS 10
 .nf
 .BR desktop
-.BR fullscreen (deprecated)
 .BR ivi
 .BR kiosk
 .BR lua

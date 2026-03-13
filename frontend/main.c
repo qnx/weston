@@ -4956,7 +4956,7 @@ load_wayland_backend(struct weston_compositor *c,
 	if (api == NULL) {
 		/* We will just assume if load_backend() finished cleanly and
 		 * windowed_output_api is not present that wayland backend is
-		 * started with --sprawl or runs on fullscreen-shell.
+		 * started with --sprawl.
 		 * In this case, all values are hardcoded, so nothing can be
 		 * configured; simply create and enable an output. */
 		return 0;
