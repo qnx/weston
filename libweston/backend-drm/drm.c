@@ -862,11 +862,11 @@ err:
  * @param ev Source view for cursor
  */
 static void
-cursor_bo_update(struct drm_output *output, struct weston_view *ev)
+cursor_bo_update(struct drm_output *output, struct weston_paint_node *pnode)
 {
 	struct drm_device *device = output->device;
 	struct gbm_bo *bo = output->gbm_cursor_fb[output->current_cursor]->bo;
-	struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
+	struct weston_buffer *buffer = pnode->surface->buffer_ref.buffer;
 	uint32_t buf[device->cursor_width * device->cursor_height];
 	uint8_t *s;
 	int i;
@@ -896,7 +896,7 @@ cursor_bo_update(struct drm_output *output, struct weston_view *ev)
 }
 #else
 static void
-cursor_bo_update(struct drm_output *output, struct weston_view *ev)
+cursor_bo_update(struct drm_output *output, struct weston_paint_node *pnode)
 {
 }
 #endif
@@ -961,7 +961,7 @@ drm_output_repaint(struct weston_output *output_base)
 			output->current_cursor =
 				output->current_cursor %
 					ARRAY_LENGTH(output->gbm_cursor_fb);
-			cursor_bo_update(output, cursor_node->view);
+			cursor_bo_update(output, cursor_node);
 		}
 		pixman_region32_fini(&damage);
 
