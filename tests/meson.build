@@ -53,6 +53,7 @@ tests = [
 		'name': 'constraints',
 		'sources': [
 			'constraints-test.c',
+			pointer_constraints_unstable_v1_client_protocol_h,
 			pointer_constraints_unstable_v1_protocol_c,
 		],
 	},
