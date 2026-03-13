@@ -32,9 +32,8 @@
  * This is the internal (private) part of libweston. All symbols found here
  * are, and should be only (with a few exceptions) used within the internal
  * parts of libweston.  Notable exception(s) include a few files in tests/ that
- * need access to these functions, screen-share file from compositor/ and those
- * remoting/. Those will require some further fixing as to avoid including this
- * private header.
+ * need access to these functions, and those remoting/. Those will require some
+ * further fixing as to avoid including this private header.
  *
  * Eventually, these symbols should reside naturally into their own scope. New
  * features should either provide their own (internal) header or use this one.

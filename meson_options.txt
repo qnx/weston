@@ -27,12 +27,6 @@ option(
 	description: 'Weston backend: RDP remote screensharing'
 )
 option(
-	'deprecated-screenshare',
-	type: 'boolean',
-	value: false,
-	description: 'DEPRECATED: Compositor: RDP screen-sharing support. Requires fullscreen-shell support'
-)
-option(
 	'backend-vnc',
 	type: 'boolean',
 	value: true,

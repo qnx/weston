@@ -68,33 +68,6 @@ install_data(
 	install_dir: dir_data / 'wayland-sessions'
 )
 
-if get_option('deprecated-screenshare') and get_option('deprecated-shell-fullscreen')
-        warning('deprecated-screenshare. This will go away, see https://gitlab.freedesktop.org/wayland/weston/-/issues/848. Consider using mirroring (see man page) for same functionality and better performance.')
-	srcs_screenshare = [
-		'screen-share.c',
-		fullscreen_shell_unstable_v1_client_protocol_h,
-		fullscreen_shell_unstable_v1_protocol_c,
-	]
-	deps_screenshare = [
-		dep_libexec_weston,
-		dep_libshared,
-		dep_libweston_public,
-		dep_libweston_private_h, # XXX: https://gitlab.freedesktop.org/wayland/weston/issues/292
-		dep_wayland_client,
-	]
-	plugin_screenshare = shared_library(
-		'screen-share',
-		srcs_screenshare,
-		include_directories: common_inc,
-		dependencies: deps_screenshare,
-		name_prefix: '',
-		install: true,
-		install_dir: dir_module_weston,
-		install_rpath: '$ORIGIN'
-	)
-	env_modmap += 'screen-share.so=@0@;'.format(plugin_screenshare.full_path())
-endif
-
 if get_option('systemd')
 	dep_libsystemd = dependency('libsystemd', required: false)
 	if not dep_libsystemd.found()
