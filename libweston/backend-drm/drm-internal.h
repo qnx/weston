@@ -641,9 +641,6 @@ struct drm_output {
 	weston_renderbuffer_t renderbuffer[2];
 	int current_image;
 
-	struct vaapi_recorder *recorder;
-	struct wl_listener recorder_frame_listener;
-
 	struct wl_event_source *pageflip_timer;
 
 	/* how many page flips */

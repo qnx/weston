@@ -66,7 +66,6 @@
 #include "libbacklight.h"
 #include "libinput-seat.h"
 #include "launcher-util.h"
-#include "vaapi-recorder.h"
 #include "presentation-time-server-protocol.h"
 #include "linux-dmabuf.h"
 #include "linux-dmabuf-unstable-v1-server-protocol.h"
@@ -528,11 +527,6 @@ drm_output_update_complete(struct drm_output *output, uint32_t flags,
 	else
 		weston_output_finish_frame(&output->base, NULL,
 					   WP_PRESENTATION_FEEDBACK_INVALID);
-
-	/* We can't call this from frame_notify, because the output's
-	 * repaint needed flag is cleared just after that */
-	if (output->recorder)
-		weston_output_schedule_repaint(&output->base);
 }
 
 static struct drm_fb *
@@ -4378,123 +4372,6 @@ planes_binding(struct weston_keyboard *keyboard, const struct timespec *time,
 	}
 }
 
-#ifdef BUILD_VAAPI_RECORDER
-static void
-recorder_destroy(struct drm_output *output)
-{
-	vaapi_recorder_destroy(output->recorder);
-	output->recorder = NULL;
-
-	weston_output_disable_planes_decr(&output->base);
-
-	wl_list_remove(&output->recorder_frame_listener.link);
-	weston_log("[libva recorder] done\n");
-}
-
-static void
-recorder_frame_notify(struct wl_listener *listener, void *data)
-{
-	struct drm_output *output;
-	struct drm_device *device;
-	int fd, ret;
-
-	output = container_of(listener, struct drm_output,
-			      recorder_frame_listener);
-	device = output->device;
-
-	if (!output->recorder)
-		return;
-
-	ret = drmPrimeHandleToFD(device->kms_device->fd,
-				 output->scanout_plane->state_cur->fb->handles[0],
-				 DRM_CLOEXEC, &fd);
-	if (ret) {
-		weston_log("[libva recorder] "
-			   "failed to create prime fd for front buffer\n");
-		return;
-	}
-
-	ret = vaapi_recorder_frame(output->recorder, fd,
-				   output->scanout_plane->state_cur->fb->strides[0]);
-	if (ret < 0) {
-		weston_log("[libva recorder] aborted: %s\n", strerror(errno));
-		recorder_destroy(output);
-	}
-}
-
-static void *
-create_recorder(struct drm_backend *b, int width, int height,
-		const char *filename)
-{
-	struct drm_device *device = b->drm;
-	int fd;
-	drm_magic_t magic;
-
-	fd = open(device->kms_device->filename, O_RDWR | O_CLOEXEC);
-	if (fd < 0)
-		return NULL;
-
-	drmGetMagic(fd, &magic);
-	drmAuthMagic(device->kms_device->fd, magic);
-
-	return vaapi_recorder_create(fd, width, height, filename);
-}
-
-static void
-recorder_binding(struct weston_keyboard *keyboard, const struct timespec *time,
-		 uint32_t key, void *data)
-{
-	struct drm_backend *b = data;
-	struct weston_output *base_output;
-	struct drm_output *output;
-	int width, height;
-
-	wl_list_for_each(base_output, &b->compositor->output_list, link) {
-		output = to_drm_output(base_output);
-		if (output)
-			break;
-	}
-
-	if (!output->recorder) {
-		if (!output->format ||
-		    output->format->format != DRM_FORMAT_XRGB8888) {
-			weston_log("failed to start vaapi recorder: "
-				   "output format not supported\n");
-			return;
-		}
-
-		width = output->base.current_mode->width;
-		height = output->base.current_mode->height;
-
-		output->recorder =
-			create_recorder(b, width, height, "capture.h264");
-		if (!output->recorder) {
-			weston_log("failed to create vaapi recorder\n");
-			return;
-		}
-
-		weston_output_disable_planes_incr(&output->base);
-
-		output->recorder_frame_listener.notify = recorder_frame_notify;
-		wl_signal_add(&output->base.frame_signal,
-			      &output->recorder_frame_listener);
-
-		weston_output_schedule_repaint(&output->base);
-
-		weston_log("[libva recorder] initialized\n");
-	} else {
-		recorder_destroy(output);
-	}
-}
-#else
-static void
-recorder_binding(struct weston_keyboard *keyboard, const struct timespec *time,
-		 uint32_t key, void *data)
-{
-	weston_log("Compiled without libva support\n");
-}
-#endif
-
 /** Create a live DRM KMS device initialized for use
  *
  * \param backend The backend.
@@ -4781,8 +4658,6 @@ drm_backend_create(struct weston_compositor *compositor,
 					    planes_binding, b);
 	weston_compositor_add_debug_binding(compositor, KEY_V,
 					    planes_binding, b);
-	weston_compositor_add_debug_binding(compositor, KEY_Q,
-					    recorder_binding, b);
 
 	if (compositor->renderer->import_dmabuf) {
 		if (compositor->default_dmabuf_feedback) {

@@ -9,12 +9,6 @@ option(
 	description: 'Weston backend: DRM/KMS'
 )
 option(
-	'deprecated-backend-drm-screencast-vaapi',
-	type: 'boolean',
-	value: false,
-	description: 'DEPRECATED: DRM/KMS backend support for VA-API screencasting'
-)
-option(
 	'backend-headless',
 	type: 'boolean',
 	value: true,

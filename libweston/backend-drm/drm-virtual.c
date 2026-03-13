@@ -440,11 +440,6 @@ drm_virtual_output_finish_frame(struct weston_output *output_base,
 	output->state_last = NULL;
 
 	weston_output_finish_frame(&output->base, stamp, presented_flags);
-
-	/* We can't call this from frame_notify, because the output's
-	 * repaint needed flag is cleared just after that */
-	if (output->recorder)
-		weston_output_schedule_repaint(&output->base);
 }
 
 static const struct weston_drm_virtual_output_api virt_api = {
