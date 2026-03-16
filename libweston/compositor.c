@@ -279,6 +279,9 @@ paint_node_update_early(struct weston_paint_node *pnode)
 		pnode->on_cursor_layer =
 			pnode->view->layer_link.layer == &compositor->cursor_layer;
 
+	if (view_dirty)
+		pnode->view_alpha = pnode->view->alpha;
+
 	pnode->output->paint_node_changes |= pnode->status;
 	pnode->status &= ~(WESTON_PAINT_NODE_VIEW_DIRTY | \
 			   WESTON_PAINT_NODE_OUTPUT_DIRTY |

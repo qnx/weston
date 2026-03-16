@@ -315,9 +315,10 @@ drm_plane_state_coords_for_paint_node(struct drm_plane_state *state,
 
 	/* The alpha of the view is normalized to alpha value range
 	 * [min_alpha, max_alpha] that got from drm. The alpha value would
-	 * never exceed max_alpha if ev->alpha <= 1.0.
+	 * never exceed max_alpha if pnode->view_alpha <= 1.0.
 	 */
-	state->alpha = min_alpha + (uint16_t)round((max_alpha - min_alpha) * ev->alpha);
+	state->alpha = min_alpha +
+		       (uint16_t)round((max_alpha - min_alpha) * pnode->view_alpha);
 }
 
 /**
