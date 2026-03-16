@@ -375,7 +375,6 @@ gl_log_paint_node(struct gl_renderer *gr, const char *feat_str)
 static void
 gl_log_paint_node_start(struct gl_renderer *gr, struct weston_paint_node *pnode)
 {
-	struct weston_view *view;
 	struct weston_surface *surface;
 	struct weston_buffer *buffer;
 	pid_t pid = 0;
@@ -383,8 +382,7 @@ gl_log_paint_node_start(struct gl_renderer *gr, struct weston_paint_node *pnode)
 	if (!weston_log_scope_is_enabled(gr->paint_node_scope))
 		return;
 
-	view = pnode->view;
-	surface = view->surface;
+	surface = pnode->surface;
 
 	if (surface->resource) {
 		struct wl_resource *resource = surface->resource;
@@ -392,11 +390,11 @@ gl_log_paint_node_start(struct gl_renderer *gr, struct weston_paint_node *pnode)
 				&pid, NULL, NULL);
 	}
 
-	weston_log_scope_printf(gr->paint_node_scope, "\tView %s (role %s, PID %d"
-				", %s):\n", view->internal_name, surface->role_name ?: "none",
+	weston_log_scope_printf(gr->paint_node_scope, "\tPaint node %s (role %s, PID %d"
+				", %s):\n", pnode->internal_name, surface->role_name ?: "none",
 				pid, surface->label);
 
-	buffer = view->surface->buffer_ref.buffer;
+	buffer = pnode->surface->buffer_ref.buffer;
 	if (!buffer) {
 		weston_log_scope_printf(gr->paint_node_scope, "\t\t[buffer not available]\n");
 		return;
