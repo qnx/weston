@@ -106,12 +106,12 @@ drm_output_check_plane_has_view_assigned(struct drm_plane *plane,
 static struct drm_plane_state *
 drm_output_try_paint_node_on_plane(struct drm_plane_handle *handle,
 				   struct drm_output_state *output_state,
-				   struct weston_paint_node *node,
+				   struct weston_paint_node *pnode,
 				   enum drm_output_propose_state_mode mode,
 				   struct drm_fb *fb, uint64_t zpos)
 {
 	struct drm_output *output = output_state->output;
-	struct weston_view *ev = node->view;
+	struct weston_view *ev = pnode->view;
 	struct weston_surface *surface = ev->surface;
 	struct drm_device *device = output->device;
 	struct drm_backend *b = device->backend;
@@ -132,7 +132,7 @@ drm_output_try_paint_node_on_plane(struct drm_plane_handle *handle,
 	assert(handle->plane == state->plane);
 	state->handle = handle;
 
-	drm_plane_state_coords_for_paint_node(state, node, zpos);
+	drm_plane_state_coords_for_paint_node(state, pnode, zpos);
 
 	/* We hold one reference for the lifetime of this function; from
 	 * calling drm_fb_get_from_paint_node() in
