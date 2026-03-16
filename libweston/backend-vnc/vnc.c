@@ -588,7 +588,6 @@ vnc_output_assign_cursor_plane(struct vnc_output *output)
 {
 	struct weston_pointer *pointer;
 	struct weston_paint_node *pointer_pnode = NULL;
-	struct weston_view *view;
 	struct weston_buffer *buffer;
 	uint32_t format;
 
@@ -596,13 +595,12 @@ vnc_output_assign_cursor_plane(struct vnc_output *output)
 	if (!pointer)
 		return;
 
-	view = pointer->sprite;
 	assert(pointer_pnode);
 
 	if (!weston_paint_node_has_valid_buffer(pointer_pnode))
 		return;
 
-	buffer = view->surface->buffer_ref.buffer;
+	buffer = pointer_pnode->surface->buffer_ref.buffer;
 	if (buffer->type != WESTON_BUFFER_SHM)
 		return;
 
@@ -612,7 +610,7 @@ vnc_output_assign_cursor_plane(struct vnc_output *output)
 
 	weston_paint_node_move_to_plane(pointer_pnode, &output->cursor_plane);
 
-	output->cursor_surface = view->surface;
+	output->cursor_surface = pointer_pnode->surface;
 }
 
 static void
