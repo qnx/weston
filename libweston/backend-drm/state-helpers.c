@@ -216,8 +216,8 @@ drm_plane_state_put_back(struct drm_plane_state *state)
 }
 
 /**
- * Given a weston_view, fill the drm_plane_state's co-ordinates to display on
- * a given plane.
+ * Given a weston_paint_node, fill the drm_plane_state's co-ordinates to
+ * display on a given plane.
  */
 void
 drm_plane_state_coords_for_paint_node(struct drm_plane_state *state,
