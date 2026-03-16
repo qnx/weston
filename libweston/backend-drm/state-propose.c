@@ -598,14 +598,14 @@ pnode_can_use_plane(struct drm_output_state *output_state,
 }
 
 static struct drm_plane_state *
-drm_output_find_plane_for_view(struct drm_output_state *state,
-			       struct weston_paint_node *pnode,
-			       enum drm_output_propose_state_mode mode,
-			       struct drm_plane_state *scanout_state,
-			       const pixman_region32_t *background_region,
-			       uint64_t current_lowest_zpos_overlay,
-			       uint64_t current_lowest_zpos_underlay,
-			       bool need_underlay)
+drm_output_find_plane_for_paint_node(struct drm_output_state *state,
+				     struct weston_paint_node *pnode,
+				     enum drm_output_propose_state_mode mode,
+				     struct drm_plane_state *scanout_state,
+				     const pixman_region32_t *background_region,
+				     uint64_t current_lowest_zpos_overlay,
+				     uint64_t current_lowest_zpos_underlay,
+				     bool need_underlay)
 {
 	struct drm_output *output = state->output;
 	struct drm_device *device = output->device;
@@ -1433,12 +1433,12 @@ drm_output_propose_state(struct weston_output *output_base,
 					drm_debug(b, "\t\t\t[plane] adding background region\n");
 			}
 
-			ps = drm_output_find_plane_for_view(state, pnode, mode,
-							    scanout_state,
-							    &obscured_or_background_region,
-							    current_lowest_zpos_overlay,
-							    current_lowest_zpos_underlay,
-							    need_underlay);
+			ps = drm_output_find_plane_for_paint_node(state, pnode, mode,
+								  scanout_state,
+								  &obscured_or_background_region,
+								  current_lowest_zpos_overlay,
+								  current_lowest_zpos_underlay,
+								  need_underlay);
 
 			pixman_region32_fini(&obscured_or_background_region);
 		}
