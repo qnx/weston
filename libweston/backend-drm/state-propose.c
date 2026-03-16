@@ -1612,27 +1612,27 @@ drm_assign_planes(struct weston_output *output_base)
 
 	wl_list_for_each(pnode, &output->base.paint_node_z_order_list,
 			 z_order_link) {
-		struct weston_view *ev = pnode->view;
+		struct weston_surface *surface = pnode->surface;
 		struct drm_plane *target_plane = NULL;
 		struct drm_plane_handle *target_handle = NULL;
 
 		/* Update dmabuf-feedback if needed */
-		if (ev->surface->dmabuf_feedback)
+		if (surface->dmabuf_feedback)
 			dmabuf_feedback_maybe_update(device, pnode);
 
 		/* Test whether this buffer can ever go into a plane:
 		 * non-shm, or small enough to be a cursor.  */
-		ev->surface->keep_buffer = false;
+		surface->keep_buffer = false;
 		if (weston_paint_node_has_valid_buffer(pnode)) {
 			struct weston_buffer *buffer =
-				ev->surface->buffer_ref.buffer;
+				surface->buffer_ref.buffer;
 			if (buffer->type == WESTON_BUFFER_DMABUF ||
 			    buffer->type == WESTON_BUFFER_RENDERER_OPAQUE)
-				ev->surface->keep_buffer = true;
+				surface->keep_buffer = true;
 			else if (buffer->type == WESTON_BUFFER_SHM &&
-				 (ev->surface->width <= device->cursor_width &&
-		       		  ev->surface->height <= device->cursor_height))
-				ev->surface->keep_buffer = true;
+				 (surface->width <= device->cursor_width &&
+				  surface->height <= device->cursor_height))
+				surface->keep_buffer = true;
 		}
 
 		/* This is a bit unpleasant, but lacking a temporary place to
