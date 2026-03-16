@@ -1729,7 +1729,7 @@ prepare_solid_draw(struct gl_shader_config *sconf,
 			.input_is_premult = true,
 		},
 		.projection = pnode->view->transform.matrix,
-		.view_alpha = pnode->view->alpha,
+		.view_alpha = pnode->view_alpha,
 		.unicolor = { pnode->solid.r,
 			      pnode->solid.g,
 			      pnode->solid.b,
@@ -1920,7 +1920,7 @@ prepare_textured_draw(struct gl_shader_config *sconf,
 		.projection = pnode->view->transform.matrix,
 		.surface_to_buffer =
 			pnode->surface->surface_to_buffer_matrix,
-		.view_alpha = pnode->view->alpha,
+		.view_alpha = pnode->view_alpha,
 	};
 
 	weston_matrix_multiply(&sconf->projection, &go->output_matrix);
@@ -2373,7 +2373,7 @@ draw_mesh(struct gl_renderer *gr,
 
 	assert(nidx > 0);
 
-	set_blend_state(gr, (!opaque || pnode->view->alpha < 1.0) && !go->shader_blender);
+	set_blend_state(gr, (!opaque || pnode->view_alpha < 1.0) && !go->shader_blender);
 
 	/* Prevent translucent surfaces from punching holes through the
 	 * renderbuffer. */

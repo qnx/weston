@@ -1526,7 +1526,7 @@ vulkan_pipeline_config_init_for_paint_node(struct vulkan_pipeline_config *pconf,
 		.projection = pnode->view->transform.matrix,
 		.surface_to_buffer =
 			pnode->surface->surface_to_buffer_matrix,
-		.view_alpha = pnode->view->alpha,
+		.view_alpha = pnode->view_alpha,
 	};
 
 	weston_matrix_multiply(&pconf->projection, &vo->output_matrix);
@@ -1846,7 +1846,7 @@ draw_paint_node(struct weston_paint_node *pnode,
 		if (alt.req.variant == PIPELINE_VARIANT_RGBA)
 			alt.req.variant = PIPELINE_VARIANT_RGBX;
 
-		alt.req.blend = (pnode->view->alpha < 1.0);
+		alt.req.blend = (pnode->view_alpha < 1.0);
 
 		repaint_region(vr, pnode, &repaint, &surface_opaque, &alt, fr);
 		vs->used_in_output_repaint = true;
