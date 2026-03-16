@@ -138,7 +138,7 @@ drm_output_try_paint_node_on_plane(struct drm_plane_handle *handle,
 	 * calling drm_fb_get_from_paint_node() in
 	 * drm_output_prepare_plane_view(), so, we take another reference
 	 * here to live within the state. */
-	state->ev = ev;
+	state->paint_node = pnode;
 	state->fb = drm_fb_ref(fb);
 	state->in_fence_fd = ev->surface->acquire_fence_fd;
 
@@ -237,7 +237,6 @@ drm_output_prepare_cursor_paint_node(struct drm_output_state *output_state,
 	struct drm_backend *b = device->backend;
 	struct drm_plane_handle *handle = output->cursor_handle;
 	struct drm_plane *plane;
-	struct weston_view *ev = pnode->view;
 	struct drm_plane_state *plane_state;
 	const char *p_name;
 
@@ -275,7 +274,7 @@ drm_output_prepare_cursor_paint_node(struct drm_output_state *output_state,
 		goto err;
 	}
 
-	plane_state->ev = ev;
+	plane_state->paint_node = pnode;
 	/* We always test with cursor fb 0. There are two potential fbs, and
 	 * they are identically allocated for cursor use specifically, so if
 	 * one works the other almost certainly should as well.
@@ -1089,7 +1088,7 @@ drm_output_propose_state_try_reuse(struct weston_output *output_base,
 		plane = (struct drm_plane *) pnode->plane;
 		pstate = drm_output_state_get_existing_plane(state, plane);
 		weston_assert_ptr_not_null(compositor, pstate);
-		pstate->ev = pnode->view;
+		pstate->paint_node = pnode;
 
 		/* cursor is handled out of band */
 		if (plane->type == WDRM_PLANE_TYPE_CURSOR) {
@@ -1638,13 +1637,13 @@ drm_assign_planes(struct weston_output *output_base)
 		}
 
 		/* This is a bit unpleasant, but lacking a temporary place to
-		 * hang a plane off the view, we have to do a nested walk.
+		 * hang a plane off the paint node, we have to do a nested walk.
 		 * Our first-order iteration has to be planes rather than
-		 * views, because otherwise we won't reset views which were
+		 * nodes, because otherwise we won't reset nodes which were
 		 * previously on planes to being on the primary plane. */
 		wl_list_for_each(plane_state, &state->plane_list, link) {
-			if (plane_state->ev == ev) {
-				plane_state->ev = NULL;
+			if (plane_state->paint_node == pnode) {
+				plane_state->paint_node = NULL;
 				target_handle = plane_state->handle;
 				break;
 			}

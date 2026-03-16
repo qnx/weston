@@ -404,7 +404,7 @@ struct drm_plane_state {
 		struct weston_buffer_release_reference release;
 	} fb_ref;
 
-	struct weston_view *ev; /**< maintained for drm_assign_planes only */
+	struct weston_paint_node *paint_node; /**< maintained for drm_assign_planes only */
 
 	int32_t src_x, src_y;
 	uint32_t src_w, src_h;
