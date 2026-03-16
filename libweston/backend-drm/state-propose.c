@@ -482,7 +482,7 @@ try_pnode_on_cursor_plane(struct drm_output *output, struct weston_paint_node *p
 {
 	struct drm_device *device = output->device;
 	struct drm_backend *b = device->backend;
-	struct weston_buffer *buffer = pnode->view->surface->buffer_ref.buffer;
+	struct weston_buffer *buffer = pnode->surface->buffer_ref.buffer;
 	struct drm_plane *cursor_plane = NULL;
 
 	if (output->cursor_handle)
@@ -1411,8 +1411,8 @@ drm_output_propose_state(struct weston_output *output_base,
 			pnode->try_view_on_plane_failure_reasons |=
 				FAILURE_REASONS_INADEQUATE_CONTENT_PROTECTION;
 
-		if (pnode->view->surface->tear_control)
-			state->tear &= pnode->view->surface->tear_control->may_tear;
+		if (pnode->surface->tear_control)
+			state->tear &= pnode->surface->tear_control->may_tear;
 		else
 			state->tear = 0;
 

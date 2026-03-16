@@ -1919,7 +1919,7 @@ prepare_textured_draw(struct gl_shader_config *sconf,
 		.req.texcoord_input = SHADER_TEXCOORD_INPUT_SURFACE,
 		.projection = pnode->view->transform.matrix,
 		.surface_to_buffer =
-			pnode->view->surface->surface_to_buffer_matrix,
+			pnode->surface->surface_to_buffer_matrix,
 		.view_alpha = pnode->view->alpha,
 	};
 

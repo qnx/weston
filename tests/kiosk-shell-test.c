@@ -142,7 +142,7 @@ TEST(two_surface_switching)
 		/* the background should be under that */
 		pnode = next_pnode_from_z(output, pnode);
 		test_assert_ptr_not_null(pnode);
-		assert_surface_is_background(suite_data, pnode->view->surface);
+		assert_surface_is_background(suite_data, pnode->surface);
 	}
 
 	wl_display_roundtrip(xdg_client->client->wl_display);
@@ -197,7 +197,7 @@ TEST(two_surface_switching)
 		/* the background should be under that */
 		pnode = next_pnode_from_z(output, pnode);
 		test_assert_ptr_not_null(pnode);
-		assert_surface_is_background(suite_data, pnode->view->surface);
+		assert_surface_is_background(suite_data, pnode->surface);
 	}
 
 	wl_display_roundtrip(xdg_client->client->wl_display);

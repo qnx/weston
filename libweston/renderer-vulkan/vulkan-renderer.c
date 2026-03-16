@@ -1525,7 +1525,7 @@ vulkan_pipeline_config_init_for_paint_node(struct vulkan_pipeline_config *pconf,
 		},
 		.projection = pnode->view->transform.matrix,
 		.surface_to_buffer =
-			pnode->view->surface->surface_to_buffer_matrix,
+			pnode->surface->surface_to_buffer_matrix,
 		.view_alpha = pnode->view->alpha,
 	};
 
@@ -2443,7 +2443,7 @@ vulkan_renderer_repaint_output(struct weston_output *output,
 				 z_order_link) {
 		if (pnode->plane == &output->primary_plane) {
 			struct vulkan_surface_state *vs =
-				get_surface_state(pnode->view->surface);
+				get_surface_state(pnode->surface);
 			vs->used_in_output_repaint = false;
 		}
 	}
