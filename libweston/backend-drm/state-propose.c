@@ -163,30 +163,30 @@ drm_output_try_paint_node_on_plane(struct drm_plane_handle *handle,
 
 		if (plane->props[WDRM_PLANE_COLOR_ENCODING].prop_id == 0) {
 			if (matrix_coef_info->wdrm != WDRM_PLANE_COLOR_ENCODING_DEFAULT) {
-				drm_debug(b, "\t\t\t[view] not placing view %s on plane %lu: "
+				drm_debug(b, "\t\t\t[paint node] not placing paint node %s on plane %lu: "
 					  "non-default color encoding not supported\n",
-					  ev->internal_name, (unsigned long) plane->plane_id);
+					  pnode->internal_name, (unsigned long) plane->plane_id);
 				goto out;
 			}
 		} else if (!drm_plane_supports_color_encoding(plane,
 							      matrix_coef_info->wdrm)) {
-			drm_debug(b, "\t\t\t[view] not placing view %s on plane %lu: "
-				  "color encoding not supported\n", ev->internal_name,
+			drm_debug(b, "\t\t\t[paint node] not placing paint node %s on plane %lu: "
+				  "color encoding not supported\n", pnode->internal_name,
 				  (unsigned long) plane->plane_id);
 			goto out;
 		}
 
 		if (plane->props[WDRM_PLANE_COLOR_RANGE].prop_id == 0) {
 			if (quant_range_info->wdrm != WDRM_PLANE_COLOR_RANGE_DEFAULT) {
-				drm_debug(b, "\t\t\t[view] not placing view %s on plane %lu: "
+				drm_debug(b, "\t\t\t[paint node] not placing paint node %s on plane %lu: "
 					  "non-default color range not supported\n",
-					  ev->internal_name, (unsigned long) plane->plane_id);
+					  pnode->internal_name, (unsigned long) plane->plane_id);
 				goto out;
 			}
 		} else if (!drm_plane_supports_color_range(plane,
 							   quant_range_info->wdrm)) {
-			drm_debug(b, "\t\t\t[view] not placing view %s on plane %lu: "
-				  "color range not supported\n", ev->internal_name,
+			drm_debug(b, "\t\t\t[paint node] not placing paint node %s on plane %lu: "
+				  "color range not supported\n", pnode->internal_name,
 				  (unsigned long) plane->plane_id);
 			goto out;
 		}
@@ -199,14 +199,14 @@ drm_output_try_paint_node_on_plane(struct drm_plane_handle *handle,
 	 * test against, so we just hope it'll work. */
 	if (mode != DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY &&
 	    drm_pending_state_test(output_state->pending_state) != 0) {
-		drm_debug(b, "\t\t\t[view] not placing view %s on plane %lu: "
+		drm_debug(b, "\t\t\t[paint node] not placing paint node %s on plane %lu: "
 		             "atomic test failed\n",
-			  ev->internal_name, (unsigned long) plane->plane_id);
+			  pnode->internal_name, (unsigned long) plane->plane_id);
 		goto out;
 	}
 
-	drm_debug(b, "\t\t\t[view] provisionally placing view %s on plane %lu\n",
-		  ev->internal_name, (unsigned long) plane->plane_id);
+	drm_debug(b, "\t\t\t[paint node] provisionally placing paint node %s on plane %lu\n",
+		  pnode->internal_name, (unsigned long) plane->plane_id);
 
 	/* Take a reference on the buffer so that we don't release it
 	 * back to the client until we're done with it; cursor buffers
@@ -269,9 +269,9 @@ drm_output_prepare_cursor_paint_node(struct drm_output_state *output_state,
 	    plane_state->src_h > (unsigned) device->cursor_height << 16 ||
 	    plane_state->src_w != plane_state->dest_w << 16 ||
 	    plane_state->src_h != plane_state->dest_h << 16) {
-		drm_debug(b, "\t\t\t\t[%s] not assigning view %s to %s plane "
+		drm_debug(b, "\t\t\t\t[%s] not assigning paint node %s to %s plane "
 			     "(positioning requires cropping or scaling)\n",
-			     p_name, ev->internal_name, p_name);
+			     p_name, pnode->internal_name, p_name);
 		goto err;
 	}
 
@@ -294,8 +294,8 @@ drm_output_prepare_cursor_paint_node(struct drm_output_state *output_state,
 	plane_state->dest_w = device->cursor_width;
 	plane_state->dest_h = device->cursor_height;
 
-	drm_debug(b, "\t\t\t\t[%s] provisionally assigned view %s to cursor\n",
-		  p_name, ev->internal_name);
+	drm_debug(b, "\t\t\t\t[%s] provisionally assigned paint node %s to cursor\n",
+		  p_name, pnode->internal_name);
 
 	return plane_state;
 
@@ -380,7 +380,6 @@ dmabuf_feedback_maybe_update(struct drm_device *device,
 	struct timespec current_time, delta_time;
 	const time_t MAX_TIME_SECONDS = 2;
 	uint32_t try_view_on_plane_failure_reasons = pnode->try_view_on_plane_failure_reasons;
-	struct weston_view *ev = pnode->view;
 
 	/* Look for scanout tranche. If not found, add it but in disabled mode
 	 * (we still don't know if we'll have to send it to clients). This
@@ -470,8 +469,9 @@ dmabuf_feedback_maybe_update(struct drm_device *device,
 		assert(0);
 
 	drm_debug(b, "\t[repaint] Need to update and resend the "
-		     "dma-buf feedback for surface of view %s: %s\n",
-		     ev->internal_name, action_needed_to_str(action_needed));
+		     "dma-buf feedback for surface of paint node %s: %s\n",
+		     pnode->internal_name,
+		     action_needed_to_str(action_needed));
 	weston_dmabuf_feedback_send_all(b->compositor, dmabuf_feedback,
 					b->compositor->dmabuf_feedback_format_table);
 
@@ -485,7 +485,6 @@ try_pnode_on_cursor_plane(struct drm_output *output, struct weston_paint_node *p
 	struct drm_device *device = output->device;
 	struct drm_backend *b = device->backend;
 	struct weston_buffer *buffer = pnode->view->surface->buffer_ref.buffer;
-	struct weston_view *ev = pnode->view;
 	struct drm_plane *cursor_plane = NULL;
 
 	if (output->cursor_handle)
@@ -504,18 +503,18 @@ try_pnode_on_cursor_plane(struct drm_output *output, struct weston_paint_node *p
 	/* Even though this is a SHM buffer, pixel_format stores
 	 * the format code as DRM FourCC */
 	if (buffer->pixel_format->format != DRM_FORMAT_ARGB8888) {
-		drm_debug(b, "\t\t\t\t[view] not placing view %s on "
+		drm_debug(b, "\t\t\t\t[paint node] not placing paint node %s on "
 			     "plane; SHM buffers must be ARGB8888 for "
-			     "cursor view\n", ev->internal_name);
+			     "cursor\n", pnode->internal_name);
 		pnode->try_view_on_plane_failure_reasons |=
 			FAILURE_REASONS_FB_FORMAT_INCOMPATIBLE;
 	}
 
 	if (buffer->width > device->cursor_width ||
 	    buffer->height > device->cursor_height) {
-		drm_debug(b, "\t\t\t\t[view] not assigning view %s to plane "
+		drm_debug(b, "\t\t\t\t[paint node] not assigning paint node %s to plane "
 			     "(buffer (%dx%d) too large for cursor plane)\n",
-			     ev->internal_name, buffer->width, buffer->height);
+			     pnode->internal_name, buffer->width, buffer->height);
 		pnode->try_view_on_plane_failure_reasons |=
 			FAILURE_REASONS_BUFFER_TOO_BIG;
 	}
@@ -591,9 +590,9 @@ pnode_can_use_plane(struct drm_output_state *output_state,
 	 * support fences, we can't place the buffer on this plane. */
 	if (pnode->surface->acquire_fence_fd >= 0 &&
 	    plane->props[WDRM_PLANE_IN_FENCE_FD].prop_id == 0) {
-		drm_debug(b, "\t\t\t\t[%s] not placing view %s on %s: "
+		drm_debug(b, "\t\t\t\t[%s] not placing paint node %s on %s: "
 		          "no in-fence support\n",
-			  p_name, pnode->view->internal_name, p_name);
+			  p_name, pnode->internal_name, p_name);
 		return false;
 	}
 
@@ -685,9 +684,9 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 		struct drm_plane *scanout_plane = output->scanout_handle->plane;
 
 		if (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR) {
-			drm_debug(b, "\t\t\t\t[view] not assigning view %s "
+			drm_debug(b, "\t\t\t\t[paint node] not assigning paint node %s "
 				     "to plane: renderer-and-cursor mode\n",
-				     ev->internal_name);
+				     pnode->internal_name);
 			return NULL;
 		}
 
@@ -712,7 +711,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 			FILE *dbg = weston_log_scope_stream(b->debug);
 
 			if (dbg) {
-				fputs("\t\t\t[view] couldn't get FB for view: ", dbg);
+				fputs("\t\t\t[paint node] couldn't get FB for paint node: ", dbg);
 				bits_to_str_stream(fb_failure_reasons,
 						   weston_plane_failure_reasons_to_str, dbg);
 				fputs("\n", dbg);
@@ -856,10 +855,10 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 							      scanout_state,
 							      ps->zpos);
 
-			drm_debug(b, "\t\t\t\t[view] view %s has been placed to "
+			drm_debug(b, "\t\t\t\t[paint node] paint node %s has been placed to "
 				     "%s plane as an %s with computed zpos "
 				     "%"PRIu64"\n",
-				     ev->internal_name, p_name,
+				     pnode->internal_name, p_name,
 				     pnode->need_hole ? "underlay" : "overlay",
 				     zpos);
 			break;
@@ -903,12 +902,11 @@ lower_solid_views_to_background_region(struct drm_output *output,
 	wl_array_for_each(visible_pnode, visible_pnodes) {
 		struct weston_paint_node *pnode = *visible_pnode;
 		struct weston_paint_node **visible_pnode_new;
-		struct weston_view *ev = pnode->view;
 		pixman_region32_t tmp;
 
-		drm_debug(b, "\t\t\t[view] evaluating view %s for scene"
+		drm_debug(b, "\t\t\t[paint node] evaluating paint node %s for scene"
 			  "-graph optimization on output %s (%lu)\n",
-			  ev->internal_name, output->base.name,
+			  pnode->internal_name, output->base.name,
 			  (unsigned long) output->base.id);
 
 		if (!pnode->draw_solid) {
@@ -923,9 +921,9 @@ lower_solid_views_to_background_region(struct drm_output *output,
 						  &pnode->clipped_view,
 						  background_region);
 			if (pixman_region32_not_empty(&tmp)) {
-				drm_debug(b, "\t\t\t\t[view] not assigning view %s to "
+				drm_debug(b, "\t\t\t\t[paint node] not assigning paint node %s to "
 					  "a plane (occluded by solid buffer).\n",
-					  ev->internal_name);
+					  pnode->internal_name);
 				pixman_region32_fini(&tmp);
 				goto error;
 			}
@@ -939,20 +937,20 @@ lower_solid_views_to_background_region(struct drm_output *output,
 		}
 
 		if (!is_paint_node_solid_opaque_untransformed(pnode)) {
-			drm_debug(b, "\t\t\t\t[view] not assigning view %s to "
+			drm_debug(b, "\t\t\t\t[paint node] not assigning paint node %s to "
                                   "a plane (solid buffer not opaque or requiring "
 				  "a color transform).\n",
-				  ev->internal_name);
+				  pnode->internal_name);
 			goto error;
 		}
 
 		if (!drm_crtc_supports_background_color(output->crtc) &&
 		    (pnode->solid.r != 0.0f || pnode->solid.g != 0.0f ||
 		     pnode->solid.b != 0.0f)) {
-			drm_debug(b, "\t\t\t\t[view] not assigning view %s to "
+			drm_debug(b, "\t\t\t\t[paint node] not assigning paint node %s to "
                                   "a plane (non-opaque-black solid buffer not "
 				  "supported).\n",
-				  ev->internal_name);
+				  pnode->internal_name);
 			goto error;
 		}
 
@@ -960,17 +958,17 @@ lower_solid_views_to_background_region(struct drm_output *output,
 		    (background_region_color.r != pnode->solid.r ||
 		     background_region_color.g != pnode->solid.g ||
 		     background_region_color.b != pnode->solid.b)) {
-			drm_debug(b, "\t\t\t\t[view] not assigning view %s to "
+			drm_debug(b, "\t\t\t\t[paint node] not assigning paint node %s to "
 				  "a plane (multiple solid buffer buffers with "
 				  "different colors).\n",
-				  ev->internal_name);
+				  pnode->internal_name);
 			goto error;
 		}
 
-		drm_debug(b, "\t\t\t\t[view] lowering view %s to background " \
+		drm_debug(b, "\t\t\t\t[paint node] lowering paint node %s to background " \
 			  "(opaque solid buffer r %f g %f b %f " \
 			  "a %f).\n",
-			  ev->internal_name, pnode->solid.r, pnode->solid.g,
+			  pnode->internal_name, pnode->solid.r, pnode->solid.g,
 			  pnode->solid.b, pnode->solid.a);
 
 		pixman_region32_union(background_region,
@@ -1087,7 +1085,7 @@ drm_output_propose_state_try_reuse(struct weston_output *output_base,
 
 		/* we don't care about renderer views */
 		if (pnode->plane == &output_base->primary_plane) {
-			drm_debug(b, "\t\t[reuse] ignoring view %s on renderer plane\n", pnode->view->internal_name);
+			drm_debug(b, "\t\t[reuse] ignoring paint node %s on renderer plane\n", pnode->internal_name);
 			continue;
 		}
 		plane = (struct drm_plane *) pnode->plane;
@@ -1097,12 +1095,12 @@ drm_output_propose_state_try_reuse(struct weston_output *output_base,
 
 		/* cursor is handled out of band */
 		if (plane->type == WDRM_PLANE_TYPE_CURSOR) {
-			drm_debug(b, "\t\t[reuse] ignoring cursor plane for view %s\n", pnode->view->internal_name);
+			drm_debug(b, "\t\t[reuse] ignoring cursor plane for paint node %s\n", pnode->internal_name);
 			continue;
 		}
 
-		drm_debug(b, "\t\t[reuse] view %s has plane %d\n",
-			  pnode->view->internal_name, plane->plane_id);
+		drm_debug(b, "\t\t[reuse] paint node %s has plane %d\n",
+			  pnode->internal_name, plane->plane_id);
 
 		/* FIXME: If we get here, there should be a valid weston_buffer, and that's
 		 * all we should ever need at this point. If the buffer is deleted while
@@ -1113,8 +1111,8 @@ drm_output_propose_state_try_reuse(struct weston_output *output_base,
 		 * which point we replace this with a weston_assert() instead.
 		 */
 		if (!weston_paint_node_has_valid_buffer(pnode)) {
-			drm_debug(b, "\t\t[reuse] view %s no longer has a valid buffer\n",
-				  pnode->view->internal_name);
+			drm_debug(b, "\t\t[reuse] paint node %s no longer has a valid buffer\n",
+				  pnode->internal_name);
 			drm_output_state_free(state);
 			return NULL;
 		}
@@ -1285,24 +1283,24 @@ drm_output_propose_state(struct weston_output *output_base,
 
 		pnode->try_view_on_plane_failure_reasons = FAILURE_REASONS_NONE;
 
-		drm_debug(b, "\t\t\t[view] evaluating view %s for scene-graph "
+		drm_debug(b, "\t\t\t[paint node] evaluating paint node %s for scene-graph "
 		             "building on output %s (%lu)\n",
-		          ev->internal_name, output->base.name,
+		          pnode->internal_name, output->base.name,
 			  (unsigned long) output->base.id);
 
 		assert(ev->output_mask & (1u << output->base.id));
 
 		/* Cannot show anything without a color transform. */
 		if (!pnode->surf_xform_valid) {
-			drm_debug(b, "\t\t\t\t[view] ignoring view %s "
+			drm_debug(b, "\t\t\t\t[paint node] ignoring paint node %s "
 				     "(color transform failed)\n",
-				     ev->internal_name);
+				     pnode->internal_name);
 			continue;
 		}
 
 		if (pnode->is_fully_transparent) {
-			drm_debug(b, "\t\t\t\t[view] ignoring view %s " \
-				  "(fully transparent)\n", ev->internal_name);
+			drm_debug(b, "\t\t\t\t[paint node] ignoring paint node %s " \
+				  "(fully transparent)\n", pnode->internal_name);
 			continue;
 		}
 
@@ -1310,9 +1308,9 @@ drm_output_propose_state(struct weston_output *output_base,
 		 * view; includes the case where occluded_region covers
 		 * the entire output */
 		if (!pixman_region32_not_empty(&pnode->visible)) {
-			drm_debug(b, "\t\t\t\t[view] ignoring view %s "
+			drm_debug(b, "\t\t\t\t[paint node] ignoring paint node %s "
 				     "(occluded on our output)\n",
-				     ev->internal_name);
+				     pnode->internal_name);
 			continue;
 		}
 
@@ -1355,15 +1353,14 @@ drm_output_propose_state(struct weston_output *output_base,
 	/* Assign paint nodes to planes. */
 	wl_array_for_each(visible_pnode, &visible_pnodes) {
 		struct weston_paint_node *pnode = *visible_pnode;
-		struct weston_view *ev = pnode->view;
 		struct drm_plane_state *ps = NULL;
 		bool need_underlay = false;
 		pixman_region32_t tmp;
 		bool renderer_ok = (mode != DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY);
 
-		drm_debug(b, "\t\t\t[view] evaluating view %s for plane "
+		drm_debug(b, "\t\t\t[paint node] evaluating paint node %s for plane "
 		             "assignment on output %s (%lu)\n",
-			  ev->internal_name, output->base.name,
+			  pnode->internal_name, output->base.name,
 			  (unsigned long) output->base.id);
 
 		if (!b->gbm)
@@ -1400,9 +1397,9 @@ drm_output_propose_state(struct weston_output *output_base,
 			} else {
 				pnode->try_view_on_plane_failure_reasons |=
 					FAILURE_REASONS_OCCLUDED_BY_RENDERER;
-				drm_debug(b, "\t\t\t\t[view] not assigning view %s to a "
+				drm_debug(b, "\t\t\t\t[paint node] not assigning paint node %s to a "
 					     "plane (occluded by renderer views), current lowest "
-					     "zpos change to %"PRIu64"\n", ev->internal_name,
+					     "zpos change to %"PRIu64"\n", pnode->internal_name,
 					     current_lowest_zpos_underlay);
 			}
 		}
@@ -1471,16 +1468,16 @@ drm_output_propose_state(struct weston_output *output_base,
 			             current_lowest_zpos_overlay,
 			             current_lowest_zpos_underlay);
 		} else if (!ps && !renderer_ok) {
-			drm_debug(b, "\t\t[view] failing state generation: "
-				      "placing view %s to renderer not allowed\n",
-				  ev->internal_name);
+			drm_debug(b, "\t\t[paint node] failing state generation: "
+				      "placing paint node %s to renderer not allowed\n",
+				  pnode->internal_name);
 			goto err_region;
 		} else if (!ps) {
 			FILE *dbg = weston_log_scope_stream(b->debug);
 
 			if (dbg) {
-				fprintf(dbg, "\t\t\t\t[view] view %s will be placed on the renderer: ",
-					ev->internal_name);
+				fprintf(dbg, "\t\t\t\t[paint node] paint node %s will be placed on the renderer: ",
+					pnode->internal_name);
 				bits_to_str_stream(pnode->try_view_on_plane_failure_reasons,
 						   weston_plane_failure_reasons_to_str, dbg);
 				fputs("\n", dbg);
@@ -1665,14 +1662,14 @@ drm_assign_planes(struct weston_output *output_base)
 			target_plane = target_handle->plane;
 
 		if (target_plane) {
-			drm_debug(b, "\t[repaint] view %s on %s plane %lu\n",
-				  ev->internal_name,
+			drm_debug(b, "\t[repaint] paint node %s on %s plane %lu\n",
+				  pnode->internal_name,
 				  drm_output_get_handle_type_name(target_handle),
 				  (unsigned long) target_plane->plane_id);
 			weston_paint_node_move_to_plane(pnode, &target_plane->base);
 		} else {
-			drm_debug(b, "\t[repaint] view %s using renderer "
-				     "composition\n", ev->internal_name);
+			drm_debug(b, "\t[repaint] paint node %s using renderer "
+				     "composition\n", pnode->internal_name);
 			weston_paint_node_move_to_plane(pnode, primary);
 			pnode->need_hole = false;
 		}
