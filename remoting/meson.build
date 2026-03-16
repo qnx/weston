@@ -1,5 +1,5 @@
-if get_option('remoting')
-	user_hint = 'If you rather not build this, set \'-Dremoting=false\'.'
+if get_option('deprecated-remoting')
+	user_hint = 'If you rather not build this, set \'-Ddeprecated-remoting=false\'.'
 
 	if not get_option('backend-drm') or not get_option('renderer-gl')
 		error('Attempting to build the remoting plugin without the required DRM backend and GL renderer. ' + user_hint)

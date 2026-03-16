@@ -439,6 +439,8 @@ aarch64-debian-container_prep:
       -Dperfetto:werror=false
       -Dwerror=true
       -Dtest-skip-is-failure=true
+      -Ddeprecated-remoting=true
+      -Ddeprecated-pipewire=true
   after_script:
   - ninja -C "$BUILDDIR" coverage-html > "$BUILDDIR/meson-logs/ninja-coverage-html.txt"
   - ninja -C "$BUILDDIR" coverage-xml
@@ -521,8 +523,6 @@ docs-build:
       -Dsimple-clients=damage,im,shm,touch,dmabuf-v4l
       -Drenderer-gl=false
       -Drenderer-vulkan=false
-      -Dremoting=false
-      -Dpipewire=false
       -Dwerror=true
 
 .build-options-no-gl:
@@ -531,8 +531,6 @@ docs-build:
     MESON_OPTIONS: >
       -Dsimple-clients=damage,im,shm,touch,dmabuf-v4l
       -Drenderer-gl=false
-      -Dremoting=false
-      -Dpipewire=false
       -Dwerror=true
 
 .build-options-no-vulkan:
@@ -541,8 +539,6 @@ docs-build:
     MESON_OPTIONS: >
       -Dsimple-clients=damage,im,shm,touch,dmabuf-v4l
       -Drenderer-vulkan=false
-      -Dremoting=false
-      -Dpipewire=false
       -Dwerror=true
 
 x86_64-debian-lts-no-gl-no-vulkan-build:

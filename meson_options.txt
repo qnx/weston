@@ -87,17 +87,17 @@ option(
 )
 
 option(
-	'remoting',
+	'deprecated-remoting',
 	type: 'boolean',
-	value: true,
-	description: 'Virtual remote output with GStreamer on DRM backend'
+	value: false,
+	description: 'DEPRECATED: Virtual remote output with GStreamer on DRM backend - migrate to backend-pipewire instead'
 )
 
 option(
-	'pipewire',
+	'deprecated-pipewire',
 	type: 'boolean',
-	value: true,
-	description: 'Virtual remote output with Pipewire on DRM backend'
+	value: false,
+	description: 'DEPRECATED: Virtual remote output with Pipewire on DRM backend - migrate to backend-pipewire instead'
 )
 
 option(
