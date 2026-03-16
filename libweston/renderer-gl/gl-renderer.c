@@ -2157,7 +2157,7 @@ compress_bands(pixman_box32_t *inrects, int nrects, pixman_box32_t **outrects)
 }
 
 static void
-global_to_surface(pixman_box32_t *rect, struct weston_view *ev,
+global_to_surface(pixman_box32_t *rect, const struct weston_paint_node *pnode,
 		  struct clipper_vertex polygon[4])
 {
 	struct weston_coord_global rect_g[4] = {
@@ -2170,7 +2170,7 @@ global_to_surface(pixman_box32_t *rect, struct weston_view *ev,
 	int i;
 
 	for (i = 0; i < 4; i++) {
-		rect_s = weston_coord_global_to_surface(ev, rect_g[i]).c;
+		rect_s = weston_coord_global_to_surface_for_paint_node(pnode, rect_g[i]).c;
 		polygon[i].x = (float)rect_s.x;
 		polygon[i].y = (float)rect_s.y;
 	}
@@ -2192,7 +2192,6 @@ transform_damage(const struct weston_paint_node *pnode,
 	bool compress, axis_aligned;
 	struct clipper_quad *quads_alloc;
 	struct clipper_vertex polygon[4];
-	struct weston_view *view;
 
 	if (*quads)
 		return;
@@ -2213,10 +2212,9 @@ transform_damage(const struct weston_paint_node *pnode,
 	 * stores standard output transforms (translations, flips and rotations
 	 * by 90°), then all the transformed quads are axis-aligned in surface
 	 * space. */
-	view = pnode->view;
 	axis_aligned = pnode->valid_transform;
 	for (i = 0; i < nrects; i++) {
-		global_to_surface(&rects[i], view, polygon);
+		global_to_surface(&rects[i], pnode, polygon);
 		clipper_quad_init(&quads_alloc[i], polygon, axis_aligned);
 	}
 

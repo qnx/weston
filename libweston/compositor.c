@@ -1093,6 +1093,20 @@ weston_coord_global_to_surface(struct weston_view *view,
 	return out;
 }
 
+WL_EXPORT struct weston_coord_surface
+weston_coord_global_to_surface_for_paint_node(const struct weston_paint_node *pnode,
+					      struct weston_coord_global coord)
+{
+	struct weston_coord_surface out;
+	const struct weston_view *view = pnode->view;
+
+	assert(!view->transform.dirty);
+	out.c = weston_matrix_transform_coord(&view->transform.inverse,
+					      coord.c);
+	out.coordinate_space_id = view->surface;
+	return out;
+}
+
 WL_EXPORT struct weston_coord_buffer
 weston_coord_surface_to_buffer(const struct weston_surface *surface,
 			       struct weston_coord_surface coord)

@@ -895,4 +895,8 @@ void
 weston_backend_clear_deferred(struct weston_backend *backend,
                               struct weston_compositor *compositor);
 
+struct weston_coord_surface __attribute__ ((warn_unused_result))
+weston_coord_global_to_surface_for_paint_node(const struct weston_paint_node *pnode,
+					      struct weston_coord_global coord);
+
 #endif
