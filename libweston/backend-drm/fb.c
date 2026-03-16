@@ -746,8 +746,7 @@ drm_fb_get_from_paint_node(struct drm_output_state *state,
 	struct drm_backend *b = output->backend;
 	struct drm_device *device = output->device;
 	struct weston_surface *surface = pnode->surface;
-	struct weston_view *ev = pnode->view;
-	struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
+	struct weston_buffer *buffer = surface->buffer_ref.buffer;
 	struct drm_fb_private *private;
 	struct drm_buffer_fb *buf_fb;
 	bool is_opaque = pnode->is_fully_opaque;
