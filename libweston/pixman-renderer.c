@@ -282,10 +282,9 @@ repaint_region(struct weston_paint_node *pnode,
 	       pixman_op_t pixman_op)
 {
 	struct weston_output *output = pnode->output;
-	struct weston_view *ev = pnode->view;
 	struct pixman_renderer *pr =
 		(struct pixman_renderer *) output->compositor->renderer;
-	struct pixman_surface_state *ps = get_surface_state(ev->surface);
+	struct pixman_surface_state *ps = get_surface_state(pnode->surface);
 	struct pixman_output_state *po = get_output_state(output);
 	pixman_image_t *target_image;
 	pixman_transform_t transform;
@@ -312,8 +311,8 @@ repaint_region(struct weston_paint_node *pnode,
 	if (ps->buffer_ref.buffer)
 		wl_shm_buffer_begin_access(ps->buffer_ref.buffer->shm_buffer);
 
-	if (ev->alpha < 1.0) {
-		mask.alpha = 0xffff * ev->alpha;
+	if (pnode->view_alpha < 1.0) {
+		mask.alpha = 0xffff * pnode->view_alpha;
 		mask_image = pixman_image_create_solid_fill(&mask);
 	} else {
 		mask_image = NULL;
