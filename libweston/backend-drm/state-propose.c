@@ -641,7 +641,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 	}
 
 	/* check view for valid buffer, doesn't make sense to even try */
-	if (!weston_view_has_valid_buffer(ev)) {
+	if (!weston_paint_node_has_valid_buffer(pnode)) {
 		pnode->try_view_on_plane_failure_reasons |=
 			FAILURE_REASONS_NO_BUFFER;
 		return NULL;
@@ -1104,13 +1104,13 @@ drm_output_propose_state_try_reuse(struct weston_output *output_base,
 
 		/* FIXME: If we get here, there should be a valid weston_buffer, and that's
 		 * all we should ever need at this point. If the buffer is deleted while
-		 * attached to a surface right now weston_view_has_valid_buffer() sees the
+		 * attached to a surface right now weston_paint_node_has_valid_buffer() sees the
 		 * buffer as invalid. We don't want that to be the case, but we also don't
 		 * want paint node DIRTY bits to track that. This will be cleaned up in the
 		 * future by chasing down remaining bugs in buffer lifecycle management, at
 		 * which point we replace this with a weston_assert() instead.
 		 */
-		if (!weston_view_has_valid_buffer(pnode->view)) {
+		if (!weston_paint_node_has_valid_buffer(pnode)) {
 			drm_debug(b, "\t\t[reuse] view %s no longer has a valid buffer\n",
 				  pnode->view->internal_name);
 			drm_output_state_free(state);
@@ -1368,7 +1368,7 @@ drm_output_propose_state(struct weston_output *output_base,
 			pnode->try_view_on_plane_failure_reasons |=
 				FAILURE_REASONS_NO_GBM;
 
-		if (!weston_view_has_valid_buffer(ev))
+		if (!weston_paint_node_has_valid_buffer(pnode))
 			pnode->try_view_on_plane_failure_reasons |=
 				FAILURE_REASONS_NO_BUFFER;
 
@@ -1635,7 +1635,7 @@ drm_assign_planes(struct weston_output *output_base)
 		/* Test whether this buffer can ever go into a plane:
 		 * non-shm, or small enough to be a cursor.  */
 		ev->surface->keep_buffer = false;
-		if (weston_view_has_valid_buffer(ev)) {
+		if (weston_paint_node_has_valid_buffer(pnode)) {
 			struct weston_buffer *buffer =
 				ev->surface->buffer_ref.buffer;
 			if (buffer->type == WESTON_BUFFER_DMABUF ||

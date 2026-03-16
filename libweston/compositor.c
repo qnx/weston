@@ -2357,18 +2357,18 @@ weston_view_is_fully_blended(struct weston_view *ev, pixman_region32_t *region)
 	return !pixman_region32_not_empty(&ev->transform.opaque);
 }
 
-/** Check if the view has a valid buffer available
+/** Check if the paint node has a valid buffer available
  *
- * @param ev The view to check if it has a valid buffer.
+ * @param pnode The view to check if it has a valid buffer.
  *
  * Returns true if the view has a valid buffer or false otherwise.
  */
 WL_EXPORT bool
-weston_view_has_valid_buffer(struct weston_view *ev)
+weston_paint_node_has_valid_buffer(struct weston_paint_node *pnode)
 {
-	if (!ev->surface->buffer_ref.buffer)
+	if (!pnode->surface->buffer_ref.buffer)
 		return false;
-	if (!ev->surface->buffer_ref.buffer->resource)
+	if (!pnode->surface->buffer_ref.buffer->resource)
 		return false;
 	return true;
 }

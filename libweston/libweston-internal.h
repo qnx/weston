@@ -545,7 +545,7 @@ bool
 weston_view_is_opaque(struct weston_view *ev, pixman_region32_t *region);
 
 bool
-weston_view_has_valid_buffer(struct weston_view *ev);
+weston_paint_node_has_valid_buffer(struct weston_paint_node *pnode);
 
 bool
 weston_view_takes_input_at_point(struct weston_view *view,

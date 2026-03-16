@@ -597,7 +597,9 @@ vnc_output_assign_cursor_plane(struct vnc_output *output)
 		return;
 
 	view = pointer->sprite;
-	if (!weston_view_has_valid_buffer(view))
+	assert(pointer_pnode);
+
+	if (!weston_paint_node_has_valid_buffer(pointer_pnode))
 		return;
 
 	buffer = view->surface->buffer_ref.buffer;
@@ -607,8 +609,6 @@ vnc_output_assign_cursor_plane(struct vnc_output *output)
 	format = wl_shm_buffer_get_format(buffer->shm_buffer);
 	if (format != WL_SHM_FORMAT_ARGB8888)
 		return;
-
-	assert(pointer_pnode);
 
 	weston_paint_node_move_to_plane(pointer_pnode, &output->cursor_plane);
 
