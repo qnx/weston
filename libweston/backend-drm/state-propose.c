@@ -368,10 +368,10 @@ action_needed_to_str(enum actions_needed_dmabuf_feedback action_needed)
 }
 
 static void
-dmabuf_feedback_maybe_update(struct drm_device *device, struct weston_view *ev,
-			     uint32_t try_view_on_plane_failure_reasons)
+dmabuf_feedback_maybe_update(struct drm_device *device,
+			     struct weston_paint_node *pnode)
 {
-	struct weston_dmabuf_feedback *dmabuf_feedback = ev->surface->dmabuf_feedback;
+	struct weston_dmabuf_feedback *dmabuf_feedback = pnode->surface->dmabuf_feedback;
 	struct weston_dmabuf_feedback_tranche *scanout_tranche;
 	struct drm_backend *b = device->backend;
 	dev_t scanout_dev = device->kms_device->devnum;
@@ -379,6 +379,8 @@ dmabuf_feedback_maybe_update(struct drm_device *device, struct weston_view *ev,
 	enum actions_needed_dmabuf_feedback action_needed = ACTION_NEEDED_NONE;
 	struct timespec current_time, delta_time;
 	const time_t MAX_TIME_SECONDS = 2;
+	uint32_t try_view_on_plane_failure_reasons = pnode->try_view_on_plane_failure_reasons;
+	struct weston_view *ev = pnode->view;
 
 	/* Look for scanout tranche. If not found, add it but in disabled mode
 	 * (we still don't know if we'll have to send it to clients). This
@@ -1629,8 +1631,7 @@ drm_assign_planes(struct weston_output *output_base)
 
 		/* Update dmabuf-feedback if needed */
 		if (ev->surface->dmabuf_feedback)
-			dmabuf_feedback_maybe_update(device, ev,
-						     pnode->try_view_on_plane_failure_reasons);
+			dmabuf_feedback_maybe_update(device, pnode);
 
 		/* Test whether this buffer can ever go into a plane:
 		 * non-shm, or small enough to be a cursor.  */
