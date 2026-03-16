@@ -750,7 +750,7 @@ drm_fb_get_from_paint_node(struct drm_output_state *state,
 	struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
 	struct drm_fb_private *private;
 	struct drm_buffer_fb *buf_fb;
-	bool is_opaque = weston_view_is_opaque(ev, &ev->transform.boundingbox);
+	bool is_opaque = pnode->is_fully_opaque;
 	struct drm_fb *fb;
 	struct drm_plane *plane;
 
