@@ -221,11 +221,11 @@ drm_plane_state_put_back(struct drm_plane_state *state)
  */
 void
 drm_plane_state_coords_for_paint_node(struct drm_plane_state *state,
-				      struct weston_paint_node *node,
+				      struct weston_paint_node *pnode,
 				      uint64_t zpos)
 {
 	struct drm_output *output = state->handle->output;
-	struct weston_view *ev = node->view;
+	struct weston_view *ev = pnode->view;
 	struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
 	pixman_region32_t dest_rect;
 	pixman_box32_t *box;
@@ -238,10 +238,10 @@ drm_plane_state_coords_for_paint_node(struct drm_plane_state *state,
 	 * a list of candidate planes, so we should only ever get here with
 	 * a supported transform.
 	 */
-	assert(drm_paint_node_transform_supported(node, state->plane));
+	assert(drm_paint_node_transform_supported(pnode, state->plane));
 
-	assert(node->valid_transform);
-	state->rotation = drm_rotation_from_output_transform(state->plane, node->transform);
+	assert(pnode->valid_transform);
+	state->rotation = drm_rotation_from_output_transform(state->plane, pnode->transform);
 
 	box = pixman_region32_extents(&ev->transform.boundingbox);
 
@@ -263,10 +263,10 @@ drm_plane_state_coords_for_paint_node(struct drm_plane_state *state,
 	/* Now calculate the source rectangle, by transforming the destination
 	 * rectangle by the output to buffer matrix. */
 	corners[0] = weston_matrix_transform_coord(
-		&node->output_to_buffer_matrix,
+		&pnode->output_to_buffer_matrix,
 		weston_coord(box->x1, box->y1));
 	corners[1] = weston_matrix_transform_coord(
-		&node->output_to_buffer_matrix,
+		&pnode->output_to_buffer_matrix,
 		weston_coord(box->x2, box->y2));
 	sxf1 = corners[0].x;
 	syf1 = corners[0].y;
