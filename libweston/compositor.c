@@ -208,6 +208,7 @@ paint_node_update_early(struct weston_paint_node *pnode)
 	struct weston_matrix *mat = &pnode->buffer_to_output_matrix;
 	struct weston_output *output = pnode->output;
 	struct weston_surface *surface = pnode->surface;
+	struct weston_compositor *compositor = surface->compositor;
 	bool view_dirty = pnode->status & WESTON_PAINT_NODE_VIEW_DIRTY;
 	bool output_dirty = pnode->status & WESTON_PAINT_NODE_OUTPUT_DIRTY;
 	bool buffer_dirty = pnode->status & WESTON_PAINT_NODE_BUFFER_DIRTY;
@@ -273,6 +274,10 @@ paint_node_update_early(struct weston_paint_node *pnode)
 
 	if (buffer_dirty)
 		surface->compositor->renderer->attach(pnode);
+
+	if (view_dirty)
+		pnode->on_cursor_layer =
+			pnode->view->layer_link.layer == &compositor->cursor_layer;
 
 	pnode->output->paint_node_changes |= pnode->status;
 	pnode->status &= ~(WESTON_PAINT_NODE_VIEW_DIRTY | \

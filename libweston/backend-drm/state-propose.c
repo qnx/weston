@@ -614,8 +614,6 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 	struct drm_backend *b = device->backend;
 	struct drm_plane_state *ps = NULL;
 	struct drm_plane_handle *handle;
-
-	struct weston_view *ev = pnode->view;
 	struct weston_buffer *buffer;
 	struct drm_fb *fb = NULL;
 	uint64_t current_lowest_zpos = need_underlay ?
@@ -635,7 +633,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 
 	/* filter out non-cursor views in renderer-and-cursor mode */
 	if (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR &&
-	    ev->layer_link.layer != &b->compositor->cursor_layer) {
+	    !pnode->on_cursor_layer) {
 		pnode->try_view_on_plane_failure_reasons |=
 			FAILURE_REASONS_FORCE_RENDERER;
 		return NULL;

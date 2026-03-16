@@ -720,6 +720,7 @@ struct weston_paint_node {
 	uint32_t try_view_on_plane_failure_reasons;
 	bool is_fully_opaque;
 	bool is_fully_blended;
+	bool on_cursor_layer;
 
 	/* This node's contents are solid, either from a solid buffer or a
 	 * placeholder.
