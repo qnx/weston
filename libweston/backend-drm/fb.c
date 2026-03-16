@@ -745,6 +745,7 @@ drm_fb_get_from_paint_node(struct drm_output_state *state,
 	struct drm_output *output = state->output;
 	struct drm_backend *b = output->backend;
 	struct drm_device *device = output->device;
+	struct weston_surface *surface = pnode->surface;
 	struct weston_view *ev = pnode->view;
 	struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
 	struct drm_fb_private *private;
@@ -753,8 +754,8 @@ drm_fb_get_from_paint_node(struct drm_output_state *state,
 	struct drm_fb *fb;
 	struct drm_plane *plane;
 
-	if (ev->surface->protection_mode == WESTON_SURFACE_PROTECTION_MODE_ENFORCED &&
-	    ev->surface->desired_protection > output->base.current_protection) {
+	if (surface->protection_mode == WESTON_SURFACE_PROTECTION_MODE_ENFORCED &&
+	    surface->desired_protection > output->base.current_protection) {
 		*try_view_on_plane_failure_reasons |=
 			FAILURE_REASONS_INADEQUATE_CONTENT_PROTECTION;
 		return NULL;
