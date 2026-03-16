@@ -229,7 +229,7 @@ out:
 #ifdef BUILD_DRM_GBM
 static struct drm_plane_state *
 drm_output_prepare_cursor_paint_node(struct drm_output_state *output_state,
-				     struct weston_paint_node *node,
+				     struct weston_paint_node *pnode,
 				     uint64_t zpos)
 {
 	struct drm_output *output = output_state->output;
@@ -237,7 +237,7 @@ drm_output_prepare_cursor_paint_node(struct drm_output_state *output_state,
 	struct drm_backend *b = device->backend;
 	struct drm_plane_handle *handle = output->cursor_handle;
 	struct drm_plane *plane;
-	struct weston_view *ev = node->view;
+	struct weston_view *ev = pnode->view;
 	struct drm_plane_state *plane_state;
 	const char *p_name;
 
@@ -262,7 +262,7 @@ drm_output_prepare_cursor_paint_node(struct drm_output_state *output_state,
 	/* We can't scale with the legacy API, and we don't try to account for
 	 * simple cropping/translation in cursor_bo_update. */
 	plane_state->handle = handle;
-	drm_plane_state_coords_for_paint_node(plane_state, node, zpos);
+	drm_plane_state_coords_for_paint_node(plane_state, pnode, zpos);
 
 	if (plane_state->src_x != 0 || plane_state->src_y != 0 ||
 	    plane_state->src_w > (unsigned) device->cursor_width << 16 ||
