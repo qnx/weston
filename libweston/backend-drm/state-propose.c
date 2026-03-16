@@ -1279,16 +1279,12 @@ drm_output_propose_state(struct weston_output *output_base,
 	wl_array_init(&visible_pnodes);
 	wl_list_for_each(pnode, &output->base.paint_node_z_order_list,
 			 z_order_link) {
-		struct weston_view *ev = pnode->view;
-
 		pnode->try_view_on_plane_failure_reasons = FAILURE_REASONS_NONE;
 
 		drm_debug(b, "\t\t\t[paint node] evaluating paint node %s for scene-graph "
 		             "building on output %s (%lu)\n",
 		          pnode->internal_name, output->base.name,
 			  (unsigned long) output->base.id);
-
-		assert(ev->output_mask & (1u << output->base.id));
 
 		/* Cannot show anything without a color transform. */
 		if (!pnode->surf_xform_valid) {
@@ -1623,8 +1619,6 @@ drm_assign_planes(struct weston_output *output_base)
 		struct weston_view *ev = pnode->view;
 		struct drm_plane *target_plane = NULL;
 		struct drm_plane_handle *target_handle = NULL;
-
-		assert(ev->output_mask & (1u << output->base.id));
 
 		/* Update dmabuf-feedback if needed */
 		if (ev->surface->dmabuf_feedback)
