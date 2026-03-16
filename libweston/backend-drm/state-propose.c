@@ -648,7 +648,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 		return NULL;
 	}
 
-	buffer = ev->surface->buffer_ref.buffer;
+	buffer = pnode->surface->buffer_ref.buffer;
 	if (pnode->draw_solid) {
 		pnode->try_view_on_plane_failure_reasons |=
 			FAILURE_REASONS_SOLID_SURFACE;
