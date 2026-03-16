@@ -111,8 +111,7 @@ drm_output_try_paint_node_on_plane(struct drm_plane_handle *handle,
 				   struct drm_fb *fb, uint64_t zpos)
 {
 	struct drm_output *output = output_state->output;
-	struct weston_view *ev = pnode->view;
-	struct weston_surface *surface = ev->surface;
+	struct weston_surface *surface = pnode->surface;
 	struct drm_device *device = output->device;
 	struct drm_backend *b = device->backend;
 	struct drm_plane *plane = handle->plane;
@@ -140,7 +139,7 @@ drm_output_try_paint_node_on_plane(struct drm_plane_handle *handle,
 	 * here to live within the state. */
 	state->paint_node = pnode;
 	state->fb = drm_fb_ref(fb);
-	state->in_fence_fd = ev->surface->acquire_fence_fd;
+	state->in_fence_fd = surface->acquire_fence_fd;
 
 	if (fb->format && fb->format->color_model == COLOR_MODEL_YUV) {
 		struct weston_color_representation color_rep;
