@@ -36,15 +36,6 @@ struct noop_renderer {
 	unsigned char seed; /* see comment in attach() */
 };
 
-static int
-noop_renderer_read_pixels(struct weston_output *output,
-			  const struct pixel_format_info *format, void *pixels,
-			  uint32_t x, uint32_t y,
-			  uint32_t width, uint32_t height)
-{
-	return 0;
-}
-
 static void
 noop_renderer_repaint_output(struct weston_output *output,
 			     pixman_region32_t *output_damage,
@@ -139,7 +130,6 @@ noop_renderer_init(struct weston_compositor *ec)
 	if (renderer == NULL)
 		return -1;
 
-	renderer->base.read_pixels = noop_renderer_read_pixels;
 	renderer->base.repaint_output = noop_renderer_repaint_output;
 	renderer->base.resize_output = noop_renderer_resize_output;
 	renderer->base.flush_damage = noop_renderer_flush_damage;

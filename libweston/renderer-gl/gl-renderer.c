@@ -3118,31 +3118,6 @@ gl_renderer_repaint_output(struct weston_output *output,
 	gl_renderer_garbage_collect_programs(gr);
 }
 
-static int
-gl_renderer_read_pixels(struct weston_output *output,
-			const struct pixel_format_info *format, void *pixels,
-			uint32_t x, uint32_t y,
-			uint32_t width, uint32_t height)
-{
-	struct gl_output_state *go = get_output_state(output);
-
-	x += go->area.x;
-	y += go->fb_size.height - go->area.y - go->area.height;
-
-	if (format->gl_format == 0 || format->gl_type == 0)
-		return -1;
-
-	if (use_output(output) < 0)
-		return -1;
-
-	glPixelStorei(GL_PACK_ALIGNMENT, 1);
-	glReadPixels(x, y, width, height, format->gl_format,
-		     format->gl_type, pixels);
-	glPixelStorei(GL_PACK_ALIGNMENT, 4);
-
-	return 0;
-}
-
 static void
 gl_renderer_flush_damage(struct weston_paint_node *pnode)
 {
@@ -5020,7 +4995,6 @@ gl_renderer_display_create(struct weston_compositor *ec,
 	if (gl_renderer_setup_egl_client_extensions(gr) < 0)
 		goto fail;
 
-	gr->base.read_pixels = gl_renderer_read_pixels;
 	gr->base.repaint_output = gl_renderer_repaint_output;
 	gr->base.resize_output = gl_renderer_resize_output;
 	gr->base.create_renderbuffer = gl_renderer_create_renderbuffer;

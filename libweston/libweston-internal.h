@@ -83,10 +83,6 @@ enum weston_renderer_border_side {
 };
 
 struct weston_renderer {
-	int (*read_pixels)(struct weston_output *output,
-			   const struct pixel_format_info *format, void *pixels,
-			   uint32_t x, uint32_t y,
-			   uint32_t width, uint32_t height);
 	void (*repaint_output)(struct weston_output *output,
 			       pixman_region32_t *output_damage,
 			       weston_renderbuffer_t renderbuffer);

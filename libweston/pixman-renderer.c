@@ -109,41 +109,6 @@ get_renderer(struct weston_compositor *ec)
 	return (struct pixman_renderer *)ec->renderer;
 }
 
-static int
-pixman_renderer_read_pixels(struct weston_output *output,
-			    const struct pixel_format_info *format, void *pixels,
-			    uint32_t x, uint32_t y,
-			    uint32_t width, uint32_t height)
-{
-	struct pixman_output_state *po = get_output_state(output);
-	pixman_image_t *out_buf;
-
-	if (!po->hw_buffer) {
-		errno = ENODEV;
-		return -1;
-	}
-
-	out_buf = pixman_image_create_bits(format->pixman_format,
-		width,
-		height,
-		pixels,
-		(PIXMAN_FORMAT_BPP(format->pixman_format) / 8) * width);
-
-	pixman_image_composite32(PIXMAN_OP_SRC,
-				 po->hw_buffer, /* src */
-				 NULL /* mask */,
-				 out_buf, /* dest */
-				 x, y, /* src_x, src_y */
-				 0, 0, /* mask_x, mask_y */
-				 0, 0, /* dest_x, dest_y */
-				 po->fb_size.width, /* width */
-				 po->fb_size.height /* height */);
-
-	pixman_image_unref(out_buf);
-
-	return 0;
-}
-
 #define D2F(v) pixman_double_to_fixed((double)v)
 
 static void
@@ -1104,7 +1069,6 @@ pixman_renderer_init(struct weston_compositor *ec)
 
 	renderer->repaint_debug = 0;
 	renderer->debug_color = NULL;
-	renderer->base.read_pixels = pixman_renderer_read_pixels;
 	renderer->base.repaint_output = pixman_renderer_repaint_output;
 	renderer->base.resize_output = pixman_renderer_resize_output;
 	renderer->base.flush_damage = pixman_renderer_flush_damage;
