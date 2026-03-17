@@ -231,7 +231,8 @@ paint_node_update_early(struct weston_paint_node *pnode)
 	if (buffer->type == WESTON_BUFFER_SOLID) {
 		pnode->draw_solid = true;
 		pnode->is_fully_opaque = (pnode->view->alpha == 1.0f &&
-					  buffer->solid.a == 1.0f);
+					  buffer->solid.a == 1.0f &&
+					  pnode->valid_transform);
 		pnode->is_fully_blended = !pnode->is_fully_opaque;
 		pnode->solid = buffer->solid;
 		if (pnode->solid.a == 0.0f)
@@ -255,14 +256,16 @@ paint_node_update_early(struct weston_paint_node *pnode)
 	    (recording_censor || unprotected_censor)) {
 		pnode->draw_solid = true;
 		pnode->censored = true;
-		pnode->is_fully_opaque = (pnode->view->alpha == 1.0f);
+		pnode->is_fully_opaque = (pnode->view->alpha == 1.0f) &&
+					 pnode->valid_transform;
 		pnode->is_fully_blended = !pnode->is_fully_opaque;
 		get_placeholder_color(pnode, &pnode->solid);
 	}
 
 	if (!pnode->draw_solid && (was_solid || view_dirty)) {
 		pnode->is_fully_opaque = weston_view_is_opaque(pnode->view,
-							       &pnode->view->transform.boundingbox);
+							       &pnode->view->transform.boundingbox) &&
+							       pnode->valid_transform;
 		pnode->is_fully_blended = weston_view_is_fully_blended(pnode->view,
 								       &pnode->view->transform.boundingbox);
 	}
@@ -369,7 +372,8 @@ paint_node_update_late(struct weston_paint_node *pnode)
 		               };
 	} else if (buffer->direct_display && !pnode->censored) {
 		pnode->draw_solid = true;
-		pnode->is_fully_opaque = (pnode->view->alpha == 1.0f);
+		pnode->is_fully_opaque = (pnode->view->alpha == 1.0f) &&
+					 pnode->valid_transform;
 		pnode->is_fully_blended = !pnode->is_fully_opaque;
 		get_placeholder_color(pnode, &pnode->solid);
 	}
