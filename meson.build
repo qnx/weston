@@ -235,7 +235,6 @@ subdir('lua-shell')
 subdir('remoting')
 subdir('pipewire')
 subdir('clients')
-subdir('wcap')
 if get_option('tests')
 	subdir('tests')
 endif

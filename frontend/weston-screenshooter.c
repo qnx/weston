@@ -38,7 +38,6 @@ struct screenshooter {
 	struct wl_client *client;
 	struct wl_listener client_destroy_listener;
 	struct wl_listener compositor_destroy_listener;
-	struct weston_recorder *recorder;
 	struct wl_listener authorization;
 };
 
@@ -81,30 +80,6 @@ screenshooter_binding(struct weston_keyboard *keyboard,
 }
 
 static void
-recorder_binding(struct weston_keyboard *keyboard, const struct timespec *time,
-		 uint32_t key, void *data)
-{
-	struct weston_compositor *ec = keyboard->seat->compositor;
-	struct weston_output *output;
-	struct screenshooter *shooter = data;
-	struct weston_recorder *recorder = shooter->recorder;;
-	static const char filename[] = "capture.wcap";
-
-	if (recorder) {
-		weston_recorder_stop(recorder);
-		shooter->recorder = NULL;
-	} else {
-		if (keyboard->focus && keyboard->focus->output)
-			output = keyboard->focus->output;
-		else
-			output = container_of(ec->output_list.next,
-					      struct weston_output, link);
-
-		shooter->recorder = weston_recorder_start(output, filename);
-	}
-}
-
-static void
 authorize_screenshooter(struct wl_listener *l,
 			struct weston_output_capture_attempt *att)
 {
@@ -141,8 +116,6 @@ screenshooter_create(struct weston_compositor *ec)
 
 	weston_compositor_add_key_binding(ec, KEY_S, MODIFIER_SUPER,
 					  screenshooter_binding, shooter);
-	weston_compositor_add_key_binding(ec, KEY_R, MODIFIER_SUPER,
-					  recorder_binding, shooter);
 
 	shooter->compositor_destroy_listener.notify = screenshooter_destroy;
 	wl_signal_add(&ec->destroy_signal,

@@ -39,7 +39,6 @@ srcs_libweston = [
 	'pixel-formats.c',
 	'pixman-renderer.c',
 	'plugin-registry.c',
-	'screenshooter.c',
 	'surface-state.c',
 	'timeline.c',
 	'touch-calibration.c',

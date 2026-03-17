@@ -178,12 +178,6 @@ option(
 	value: true,
 	description: 'Sample clients: optimize window resize performance'
 )
-option(
-	'wcap-decode',
-	type: 'boolean',
-	value: true,
-	description: 'Tools: screen recording decoder tool'
-)
 
 option(
 	'tests',
