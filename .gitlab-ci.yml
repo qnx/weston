@@ -292,8 +292,11 @@ aarch64-debian-container_prep:
 .build-and-test:
   extends:
   - .default-rules
+  variables:
+    SANITIZE: "-Db_sanitize=address"
   script:
-    "${CI_PROJECT_DIR}/.gitlab-ci/build-and-test.sh"
+    - "${CI_PROJECT_DIR}/.gitlab-ci/build.sh"
+    - "${CI_PROJECT_DIR}/.gitlab-ci/test.sh"
 
   artifacts:
     name: weston-$CI_COMMIT_SHA
@@ -312,11 +315,7 @@ aarch64-debian-container_prep:
   extends:
   - .default-rules
   script:
-  - cd "$BUILDDIR"
-  - meson --prefix="$PREFIX" --wrap-mode=nofallback ${MESON_OPTIONS} ${MESON_DIST_OPTIONS} ..
-  - ninja -k0 -j${FDO_CI_CONCURRENT:-4}
-  - ninja install
-  - ninja clean
+    - "${CI_PROJECT_DIR}/.gitlab-ci/build.sh"
   artifacts:
     name: weston-$CI_COMMIT_SHA
     when: always
