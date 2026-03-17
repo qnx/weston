@@ -24,6 +24,6 @@ run_target(
 		'--html-theme', 'github.green',
 		'--html-title', 'Weston test suite coverage',
 		'--print-summary',
-		meson.build_root(),
+		meson.project_build_root(),
 	],
 )
