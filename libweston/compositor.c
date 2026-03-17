@@ -2317,14 +2317,13 @@ weston_view_is_opaque(struct weston_view *ev, pixman_region32_t *region)
 	pixman_region32_t r;
 	bool ret = false;
 
+	weston_view_update_transform(ev);
+
 	if (ev->alpha < 1.0)
 		return false;
 
 	if (ev->surface->is_opaque)
 		return true;
-
-	if (ev->transform.dirty)
-		return false;
 
 	pixman_region32_init(&r);
 	pixman_region32_subtract(&r, region, &ev->transform.opaque);
@@ -2340,13 +2339,12 @@ weston_view_is_opaque(struct weston_view *ev, pixman_region32_t *region)
 static bool
 weston_view_is_fully_blended(struct weston_view *ev, pixman_region32_t *region)
 {
+	weston_view_update_transform(ev);
+
 	if (ev->alpha < 1.0)
 		return true;
 
 	if (ev->surface->is_opaque)
-		return false;
-
-	if (ev->transform.dirty)
 		return false;
 
 	return !pixman_region32_not_empty(&ev->transform.opaque);
