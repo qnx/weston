@@ -2512,11 +2512,6 @@ enum weston_screenshooter_outcome {
 	WESTON_SCREENSHOOTER_BAD_BUFFER
 };
 
-typedef void (*weston_screenshooter_done_func_t)(void *data,
-				enum weston_screenshooter_outcome outcome);
-int
-weston_screenshooter_shoot(struct weston_output *output, struct weston_buffer *buffer,
-			   weston_screenshooter_done_func_t done, void *data) WL_DEPRECATED;
 struct weston_recorder *
 weston_recorder_start(struct weston_output *output, const char *filename);
 void
