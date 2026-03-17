@@ -1,4 +1,5 @@
 #!/bin/bash
+set -xe
 
 source "${FDO_CI_BASH_HELPERS}"
 
