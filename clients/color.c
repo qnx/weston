@@ -60,6 +60,8 @@ struct color {
 
 	struct pixel_color pixel_color;
 
+	bool unmanaged;
+
 	enum wp_color_manager_v1_primaries primaries;
 	enum wp_color_manager_v1_transfer_function transfer_function;
 	float min_lum;
@@ -84,6 +86,7 @@ static const char *opt_r = NULL;
 static const char *opt_g = NULL;
 static const char *opt_b = NULL;
 static const char *opt_a = NULL;
+static bool opt_unmanaged = false;
 static const char *opt_primaries = NULL;
 static const char *opt_transfer_function = NULL;
 static const char *opt_min_lum = NULL;
@@ -97,6 +100,7 @@ static const struct weston_option cli_options[] = {
 	{ WESTON_OPTION_STRING, 0, 'G', &opt_g },
 	{ WESTON_OPTION_STRING, 0, 'B', &opt_b },
 	{ WESTON_OPTION_STRING, 0, 'A', &opt_a },
+	{ WESTON_OPTION_BOOLEAN, "unmanaged", 'u', &opt_unmanaged },
 	{ WESTON_OPTION_STRING, "primaries", 'p', &opt_primaries },
 	{ WESTON_OPTION_STRING, "transfer-function", 't', &opt_transfer_function },
 	{ WESTON_OPTION_STRING, "min-lum", 'm', &opt_min_lum },
@@ -138,11 +142,17 @@ validate_color(const char *c, uint32_t *dest, uint32_t fallback)
 }
 
 static bool
-validate_option(const char *option, uint32_t *dest,
+validate_option(const struct color *color,
+		const char *option, uint32_t *dest,
 		const struct valid_enum *valid_options,
 		int count, uint32_t fallback)
 {
 	int i;
+
+	if (color->unmanaged && option) {
+		fprintf(stderr, "Option '%s' not valid in unmanaged mode\n", option);
+		return false;
+	}
 
 	if (!option) {
 		*dest = fallback;
@@ -165,10 +175,16 @@ validate_option(const char *option, uint32_t *dest,
 }
 
 static bool
-validate_luminance(const char *c, float *dest, float fallback)
+validate_luminance(const struct color *color,
+		   const char *c, float *dest, float fallback)
 {
 	char *end;
 	float value;
+
+	if (color->unmanaged && c) {
+		fprintf(stderr, "Luminance not valid in unmanaged mode.\n");
+		return false;
+	}
 
 	if (!c) {
 		*dest = fallback;
@@ -189,21 +205,23 @@ validate_luminance(const char *c, float *dest, float fallback)
 static bool
 validate_options(struct color *color)
 {
+	color->unmanaged = opt_unmanaged;
+
 	return validate_color(opt_r, &color->pixel_color.r, 0) &&
 	       validate_color(opt_g, &color->pixel_color.g, 0) &&
 	       validate_color(opt_b, &color->pixel_color.b, 0) &&
 	       validate_color(opt_a, &color->pixel_color.a, UINT32_MAX) &&
-	       validate_option(opt_primaries, &color->primaries,
+	       validate_option(color, opt_primaries, &color->primaries,
 			       valid_primaries,
 			       ARRAY_LENGTH(valid_primaries),
 			       WP_COLOR_MANAGER_V1_PRIMARIES_SRGB) &&
-	       validate_option(opt_transfer_function, &color->transfer_function,
+	       validate_option(color, opt_transfer_function, &color->transfer_function,
 			       valid_transfer_functions,
 			       ARRAY_LENGTH(valid_transfer_functions),
 			       WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB) &&
-	       validate_luminance(opt_min_lum, &color->min_lum, -1.f) &&
-	       validate_luminance(opt_max_lum, &color->max_lum, -1.f) &&
-	       validate_luminance(opt_ref_lum, &color->ref_lum, -1.f);
+	       validate_luminance(color, opt_min_lum, &color->min_lum, -1.f) &&
+	       validate_luminance(color, opt_max_lum, &color->max_lum, -1.f) &&
+	       validate_luminance(color, opt_ref_lum, &color->ref_lum, -1.f);
 }
 
 static void
@@ -219,6 +237,9 @@ usage(const char *program_name, int exit_code)
 	fprintf(stderr, "  -G (0.0 to 1.0)\n");
 	fprintf(stderr, "  -B (0.0 to 1.0)\n");
 	fprintf(stderr, "  -A (0.0 to 1.0)\n");
+	fprintf(stderr, " Mode of operation may be:\n");
+	fprintf(stderr, "  --unmanaged or -u: do not use color-management\n");
+	fprintf(stderr, " Or use the following:\n");
 	fprintf(stderr, "  --primaries or -p:");
 	fprintf(stderr, "\n     ");
 	for (i = 0; i < ARRAY_LENGTH(valid_primaries); i++)
@@ -293,14 +314,7 @@ global_handler(struct display *display, uint32_t name,
 	struct color *color = data;
 	struct wl_surface *surface = widget_get_wl_surface(color->widget);
 
-	if (strcmp(interface, wp_color_manager_v1_interface.name) == 0) {
-		color->color_manager = display_bind(display, name,
-						    &wp_color_manager_v1_interface, 1);
-		color->color_surface = wp_color_manager_v1_get_surface(color->color_manager,
-								       surface);
-		wp_color_manager_v1_add_listener(color->color_manager,
-						 &color_manager_listener, color);
-	} else if (strcmp(interface, wp_single_pixel_buffer_manager_v1_interface.name) == 0) {
+	if (strcmp(interface, wp_single_pixel_buffer_manager_v1_interface.name) == 0) {
 		color->single_pixel_manager =
 			display_bind(display, name,
 				     &wp_single_pixel_buffer_manager_v1_interface, 1);
@@ -308,6 +322,18 @@ global_handler(struct display *display, uint32_t name,
 		color->viewporter = display_bind(display, name,
 				                 &wp_viewporter_interface, 1);
 		color->viewport = wp_viewporter_get_viewport(color->viewporter, surface);
+	}
+
+	if (color->unmanaged)
+		return;
+
+	if (strcmp(interface, wp_color_manager_v1_interface.name) == 0) {
+		color->color_manager = display_bind(display, name,
+						    &wp_color_manager_v1_interface, 1);
+		color->color_surface = wp_color_manager_v1_get_surface(color->color_manager,
+								       surface);
+		wp_color_manager_v1_add_listener(color->color_manager,
+						 &color_manager_listener, color);
 	}
 }
 
@@ -556,7 +582,7 @@ main(int argc, char *argv[])
 	display_set_global_handler(color->display, global_handler);
 	wl_display_roundtrip(display_get_display(color->display));
 
-	if (!check_color_requirements(color)) {
+	if (!color->unmanaged && !check_color_requirements(color)) {
 		color_destroy(color);
 		exit(EXIT_SUCCESS);
 	}
@@ -575,7 +601,7 @@ main(int argc, char *argv[])
 	set_empty_input_region(color, color->widget);
 	set_single_pixel(color, color->widget);
 
-	if (set_image_description(color, color->widget))
+	if (color->unmanaged || set_image_description(color, color->widget))
 		display_run(color->display);
 
 	color_destroy(color);
