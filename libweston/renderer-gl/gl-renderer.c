@@ -3831,6 +3831,7 @@ choose_texture_target(struct gl_renderer *gr,
 		      struct dmabuf_attributes *attributes)
 {
 	struct dmabuf_format *tmp, *format = NULL;
+	const struct pixel_format_info *info;
 
 	wl_list_for_each(tmp, &gr->dmabuf_formats, link) {
 		if (tmp->format == attributes->format) {
@@ -3855,17 +3856,13 @@ choose_texture_target(struct gl_renderer *gr,
 		}
 	}
 
-	switch (attributes->format & ~DRM_FORMAT_BIG_ENDIAN) {
-	case DRM_FORMAT_YUYV:
-	case DRM_FORMAT_YVYU:
-	case DRM_FORMAT_UYVY:
-	case DRM_FORMAT_VYUY:
-	case DRM_FORMAT_AYUV:
-	case DRM_FORMAT_XYUV8888:
+	info = pixel_format_get_info(attributes->format);
+	assert(info);
+
+	if (info->color_model == COLOR_MODEL_YUV)
 		return GL_TEXTURE_EXTERNAL_OES;
-	default:
-		return GL_TEXTURE_2D;
-	}
+
+	return GL_TEXTURE_2D;
 }
 
 static struct gl_buffer_state *
