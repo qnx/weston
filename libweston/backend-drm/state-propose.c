@@ -723,6 +723,16 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 			continue;
 		}
 
+		/* If the surface buffer has an in-fence fd, but the plane doesn't
+		 * support fences, we can't place the buffer on this plane. */
+		if (ev->surface->acquire_fence_fd >= 0 &&
+		    plane->props[WDRM_PLANE_IN_FENCE_FD].prop_id == 0) {
+			drm_debug(b, "\t\t\t\t[%s] not placing view %s on %s: "
+			          "no in-fence support\n",
+				  p_name, ev->internal_name, p_name);
+			continue;
+		}
+
 		/* The paint node isn't occluded by the renderer, so it doesn't
 		 * unconditionally need an underlay plane. However, we may
 		 * only have underlay planes available, so it could use one
@@ -747,16 +757,6 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 				     "current lowest zpos (%"PRIu64")\n",
 				     plane->plane_id, plane->zpos_min,
 				     current_lowest_zpos);
-			continue;
-		}
-
-		/* If the surface buffer has an in-fence fd, but the plane doesn't
-		 * support fences, we can't place the buffer on this plane. */
-		if (ev->surface->acquire_fence_fd >= 0 &&
-		    plane->props[WDRM_PLANE_IN_FENCE_FD].prop_id == 0) {
-			drm_debug(b, "\t\t\t\t[%s] not placing view %s on %s: "
-			          "no in-fence support\n",
-				  p_name, ev->internal_name, p_name);
 			continue;
 		}
 
