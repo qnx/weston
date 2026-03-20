@@ -597,7 +597,6 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 	struct drm_output *output = state->output;
 	struct drm_device *device = output->device;
 	struct drm_backend *b = device->backend;
-	struct weston_compositor *compositor = b->compositor;
 	struct drm_plane_state *ps = NULL;
 	struct drm_plane_handle *handle;
 
@@ -757,6 +756,9 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 		uint64_t zpos;
 		bool mm_underlay_only = false;
 
+		weston_assert_enum(b->compositor,
+				   plane->type, WDRM_PLANE_TYPE_OVERLAY);
+
 		if (possible_plane_mask == 0)
 			break;
 
@@ -767,24 +769,13 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 		mm_underlay_only =
 			drm_mixed_mode_check_underlay(mode, scanout_state, plane->zpos_max);
 
-		switch (plane->type) {
-		case WDRM_PLANE_TYPE_CURSOR:
-			weston_assert_not_reached(compositor,
-						  "Illegal use of cursor plane");
+		weston_assert_false(b->compositor,
+				    mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR);
+
+		/* for alpha views, avoid placing them on the hardware
+		 * planes that are below the primary plane. */
+		if (mm_underlay_only && !pnode->is_fully_opaque)
 			continue;
-		case WDRM_PLANE_TYPE_PRIMARY:
-			/* We've already tested the primary plane independently */
-			continue;
-		case WDRM_PLANE_TYPE_OVERLAY:
-			assert(mode != DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR);
-			/* for alpha views, avoid placing them on the hardware
-			 * planes that are below the primary plane. */
-			if (mm_underlay_only && !pnode->is_fully_opaque)
-				continue;
-			break;
-		default:
-			assert(false && "unknown plane type");
-		}
 
 		if (!pnode_can_use_plane(state, handle, pnode))
 			continue;
@@ -835,9 +826,6 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 		drm_debug(b, "\t\t\t\t[plane] plane %d picked "
 			     "from candidate list, type: %s\n",
 			     plane->plane_id, p_name);
-
-		weston_assert_false(compositor,
-				    plane->type == WDRM_PLANE_TYPE_CURSOR);
 
 		if (fb)
 			ps = drm_output_try_paint_node_on_plane(handle, state,
