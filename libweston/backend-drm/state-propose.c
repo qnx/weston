@@ -728,7 +728,7 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 		 * only have underlay planes available, so it could use one
 		 * anyway.
 		 */
-		if (!need_underlay) {
+		if (!need_underlay && output->has_underlay) {
 			uint64_t tmp_next_lowest_zpos;
 			if (current_lowest_zpos == DRM_PLANE_ZPOS_INVALID_PLANE)
 				tmp_next_lowest_zpos = plane->zpos_max;
