@@ -606,7 +606,8 @@ struct drm_output {
 	bool dpms_off_pending;
 	bool mode_switch_pending;
 
-	/* List of hardware planes this output can use */
+	/* List of hardware planes this output can use, excluding the special
+	 * cursor and scanout planes. */
 	struct wl_list plane_handle_list;
 
 	/* True, if underlay planes exist. */

@@ -1588,7 +1588,7 @@ drm_plane_create_handle(struct drm_plane *plane, struct drm_output *output)
 	handle->output = output;
 	handle->plane = plane;
 
-	wl_list_insert(&output->plane_handle_list, &handle->link);
+	wl_list_init(&handle->link);
 
 	return handle;
 }
@@ -2670,10 +2670,16 @@ drm_output_init_planes(struct drm_output *output)
 
 		handle = drm_plane_create_handle(plane, output);
 
-		if (plane == scanout_plane)
+		if (plane == scanout_plane) {
 			output->scanout_handle = handle;
-		if (plane == cursor_plane)
+			continue;
+		}
+
+		if (plane == cursor_plane) {
 			output->cursor_handle = handle;
+			continue;
+		}
+		wl_list_insert(&output->plane_handle_list, &handle->link);
 	}
 
 	assert(output->scanout_handle);
@@ -2719,13 +2725,17 @@ drm_output_deinit_planes(struct drm_output *output)
 	 * We want the planes to  continue to exist and be freed up
 	 * for other outputs.
 	 */
-	if (output->cursor_handle)
+	if (output->cursor_handle) {
 		drm_plane_reset_state(output->cursor_handle->plane);
-	if (output->scanout_handle)
-		drm_plane_reset_state(output->scanout_handle->plane);
+		drm_plane_destroy_handle(output->cursor_handle);
+		output->cursor_handle = NULL;
+	}
 
-	output->cursor_handle = NULL;
-	output->scanout_handle = NULL;
+	if (output->scanout_handle) {
+		drm_plane_reset_state(output->scanout_handle->plane);
+		drm_plane_destroy_handle(output->scanout_handle);
+		output->scanout_handle = NULL;
+	}
 
 	wl_list_for_each_safe(handle, next_handle,
 			      &output->plane_handle_list, link)

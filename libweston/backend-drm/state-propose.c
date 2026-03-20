@@ -667,6 +667,8 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 				FAILURE_REASONS_PLANES_REJECTED;
 		return ps;
 	} else {
+		struct drm_plane *scanout_plane = output->scanout_handle->plane;
+
 		if (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR) {
 			drm_debug(b, "\t\t\t\t[view] not assigning view %s "
 				     "to plane: renderer-and-cursor mode\n",
@@ -674,11 +676,11 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 			return NULL;
 		}
 
+		if (drm_paint_node_transform_supported(pnode, scanout_plane))
+			possible_plane_mask |= 1 << scanout_plane->plane_idx;
+
 		wl_list_for_each(handle, &output->plane_handle_list, link) {
 			struct drm_plane *plane = handle->plane;
-
-			if (plane->type == WDRM_PLANE_TYPE_CURSOR)
-				continue;
 
 			if (drm_paint_node_transform_supported(pnode, plane))
 				possible_plane_mask |= 1 << plane->plane_idx;
