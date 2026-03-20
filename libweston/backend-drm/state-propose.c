@@ -723,8 +723,11 @@ drm_output_find_plane_for_view(struct drm_output_state *state,
 			continue;
 		}
 
-		/* Pre-judge whether the plane will be set as underlay plane. If so, start
-		 * trying to find underlay plane based on 'current_lowest_zpos_underlay'. */
+		/* The paint node isn't occluded by the renderer, so it doesn't
+		 * unconditionally need an underlay plane. However, we may
+		 * only have underlay planes available, so it could use one
+		 * anyway.
+		 */
 		if (!need_underlay) {
 			uint64_t tmp_next_lowest_zpos;
 			if (current_lowest_zpos == DRM_PLANE_ZPOS_INVALID_PLANE)
