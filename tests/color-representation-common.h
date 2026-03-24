@@ -62,5 +62,7 @@ enum feedback_result {
 
 enum test_result_code
 test_color_representation(const struct color_state *color_state,
-			  enum client_buffer_type buffer_type,
+			  enum client_buffer_type client_buffer_type,
+			  enum client_buffer_type src_buffer_type,
+			  enum weston_capture_v1_source src_type,
 			  enum feedback_result expected_result);

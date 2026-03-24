@@ -251,7 +251,9 @@ create_and_fill_nv12_buffer_with_cake(struct client *client,
  */
 enum test_result_code
 test_color_representation(const struct color_state *color_state,
-			  enum client_buffer_type buffer_type,
+			  enum client_buffer_type client_buffer_type,
+			  enum client_buffer_type src_buffer_type,
+			  enum weston_capture_v1_source src_type,
 			  enum feedback_result expected_result)
 {
 	struct xdg_client *xdg_client;
@@ -265,7 +267,7 @@ test_color_representation(const struct color_state *color_state,
 	struct buffer *screenshot;
 	bool match;
 
-	if (buffer_type == CLIENT_BUFFER_TYPE_DMABUF &&
+	if (client_buffer_type == CLIENT_BUFFER_TYPE_DMABUF &&
 	    !client_buffer_util_is_dmabuf_supported()) {
 		testlog("%s: Skipped: udmabuf not supported\n", get_test_name());
 		return RESULT_SKIP;
@@ -281,7 +283,8 @@ test_color_representation(const struct color_state *color_state,
 	xdg_toplevel_set_fullscreen(xdg_surface->xdg_toplevel, NULL);
 	xdg_surface_wait_configure(xdg_surface);
 
-	buffer = create_and_fill_nv12_buffer_with_cake(client, buffer_type,
+	buffer = create_and_fill_nv12_buffer_with_cake(client,
+						       client_buffer_type,
 						       color_state);
 
 	wl_surface_attach(surface, buffer->wl_buffer, 0, 0);
@@ -309,9 +312,8 @@ test_color_representation(const struct color_state *color_state,
 
 	test_assert_enum(result, expected_result);
 
-	screenshot = client_capture_output(client, client->output,
-					   WESTON_CAPTURE_V1_SOURCE_FRAMEBUFFER,
-					   CLIENT_BUFFER_TYPE_SHM);
+	screenshot = client_capture_output(client, client->output, src_type,
+					   src_buffer_type);
 	test_assert_ptr_not_null(screenshot);
 
 	client_buffer_util_maybe_sync_dmabuf_start(screenshot->buf);

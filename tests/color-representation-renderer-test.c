@@ -78,6 +78,8 @@ TEST_P(color_representation_renderer, color_state_cases) {
 	const struct setup_args *args = &my_setup_args[get_test_fixture_index()];
 
 	return test_color_representation(color_state, args->buffer_type,
+					 CLIENT_BUFFER_TYPE_SHM,
+					 WESTON_CAPTURE_V1_SOURCE_FRAMEBUFFER,
 					 FB_PRESENTED);
 }
 
