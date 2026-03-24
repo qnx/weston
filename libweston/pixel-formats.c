@@ -811,6 +811,22 @@ static const struct pixel_format_info pixel_format_table[] = {
 		.vsub = 2,
 	},
 	{
+		DRM_FORMAT(YUV420_8BIT),
+		COLOR_MODEL(YUV),
+		.num_planes = 1,
+		/* this format is 2x2 subsampled, but we don't declare that as
+		 * it's represented by a single plane; it's there to support
+		 * compression */
+	},
+	{
+		DRM_FORMAT(YUV420_10BIT),
+		COLOR_MODEL(YUV),
+		.num_planes = 1,
+		/* this format is 2x2 subsampled, but we don't declare that as
+		 * it's represented by a single plane; it's there to support
+		 * compression */
+	},
+	{
 		DRM_FORMAT(YUV410),
 		COLOR_MODEL(YUV),
 		.num_planes = 3,
