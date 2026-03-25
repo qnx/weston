@@ -559,11 +559,8 @@ drm_output_render(struct drm_output_state *state)
 	pixman_box32_t *rects;
 	int n_rects;
 
-	/* If we already have a client buffer promoted to scanout, then we don't
-	 * want to render. */
 	scanout_state = drm_output_state_get_plane(state, scanout_plane);
-	if (scanout_state->fb)
-		return;
+	weston_assert_ptr_null(c, scanout_state->fb);
 
 	pixman_region32_init(&damage);
 
@@ -984,6 +981,10 @@ drm_output_repaint(struct weston_output *output_base)
 
 	if (device->atomic_modeset)
 		drm_output_pick_writeback_capture_task(output);
+
+	/* Skip the renderer if our mode allows it */
+	if (state->mode == DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY)
+		return 0;
 
 	drm_output_render(state);
 	scanout_state = drm_output_state_get_plane(state,
