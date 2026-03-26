@@ -203,6 +203,7 @@ weston_surface_attach(struct weston_surface *surface,
 	WESTON_TRACE_FUNC_FLOW(&surface->flow_id);
 	struct weston_buffer *buffer = state->buffer_ref.buffer;
 	struct weston_buffer *old_buffer = surface->buffer_ref.buffer;
+	enum weston_paint_node_status pnode_changes = WESTON_PAINT_NODE_CLEAN;
 
 	if (!buffer) {
 		if (weston_surface_is_mapped(surface)) {
@@ -222,6 +223,8 @@ weston_surface_attach(struct weston_surface *surface,
 
 		return status;
 	}
+
+	pnode_changes |= WESTON_PAINT_NODE_BUFFER_DIRTY;
 
 	/* Recalculate the surface size if the buffer dimensions or the
 	 * surface transforms (viewport, rotation/mirror, scale) have
@@ -251,14 +254,12 @@ weston_surface_attach(struct weston_surface *surface,
 	    buffer->format_modifier != old_buffer->format_modifier) {
 		surface->is_opaque = pixel_format_is_opaque(buffer->pixel_format);
 		status |= WESTON_SURFACE_DIRTY_BUFFER_PARAMS;
-		weston_surface_dirty_paint_nodes(surface,
-						 WESTON_PAINT_NODE_BUFFER_PARAMS_DIRTY);
+		pnode_changes |= WESTON_PAINT_NODE_BUFFER_PARAMS_DIRTY;
 	}
 
 	status |= WESTON_SURFACE_DIRTY_BUFFER;
-	weston_surface_dirty_paint_nodes(surface,
-					 WESTON_PAINT_NODE_BUFFER_DIRTY);
-	old_buffer = NULL;
+	weston_surface_dirty_paint_nodes(surface, pnode_changes);
+
 	weston_buffer_reference(&surface->buffer_ref, buffer,
 				BUFFER_MAY_BE_ACCESSED);
 
