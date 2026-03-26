@@ -249,6 +249,16 @@ weston_surface_attach(struct weston_surface *surface,
 		}
 	}
 
+	/* The buffer was destroyed (!old_buffer->resource), so set the
+	 * BUFFER_PARAMS_DIRTY bit.
+	 *
+	 * This is because backends can opportunistically reuse plane state
+	 * if only the buffer has changed, but a buffer changing from invalid
+	 * to valid needs action.
+	 */
+	if (old_buffer && !old_buffer->resource)
+		pnode_changes |= WESTON_PAINT_NODE_BUFFER_PARAMS_DIRTY;
+
 	if (!old_buffer ||
 	    buffer->pixel_format != old_buffer->pixel_format ||
 	    buffer->format_modifier != old_buffer->format_modifier) {
