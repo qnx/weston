@@ -1564,7 +1564,6 @@ redraw(struct window *window)
 
 	assert(window->vk.frame_index < ARRAY_LENGTH(window->vk.frames));
 	vkWaitForFences(window->vk.dev, 1, &frame->fence, VK_TRUE, UINT64_MAX);
-	vkResetFences(window->vk.dev, 1, &frame->fence);
 
 	uint32_t image_index;
 	result = vkAcquireNextImageKHR(window->vk.dev, window->vk.swapchain, UINT64_MAX,
@@ -1574,6 +1573,8 @@ redraw(struct window *window)
 		return;
 	}
 	assert(result == VK_SUCCESS);
+
+	vkResetFences(window->vk.dev, 1, &frame->fence);
 
 	assert(image_index < ARRAY_LENGTH(window->vk.images));
 
