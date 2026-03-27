@@ -476,8 +476,6 @@ default_grab_pointer_focus(struct weston_pointer_grab *grab)
 	if (view && view == pointer->focus) {
 		struct weston_coord_surface surf_pos;
 
-		weston_view_update_transform(view);
-
 		surf_pos = weston_coord_global_to_surface(view, pointer->pos);
 		if (pointer->sx != wl_fixed_from_double(surf_pos.c.x) ||
 		    pointer->sy != wl_fixed_from_double(surf_pos.c.y))
@@ -631,7 +629,6 @@ weston_pointer_send_motion(struct weston_pointer *pointer,
 
 		old_sx = pointer->sx;
 		old_sy = pointer->sy;
-		weston_view_update_transform(pointer->focus);
 
 		surf_pos = weston_coord_global_to_surface(pointer->focus, pos);
 		pointer->sx = wl_fixed_from_double(surf_pos.c.x);
@@ -920,8 +917,6 @@ weston_touch_send_down(struct weston_touch *touch, const struct timespec *time,
 	if (!weston_touch_has_focus_resource(touch))
 		return;
 
-	weston_view_update_transform(touch->focus);
-
 	surf_pos = weston_coord_global_to_surface(touch->focus, pos);
 
 	resource_list = &touch->focus_resource_list;
@@ -1011,8 +1006,6 @@ weston_touch_send_motion(struct weston_touch *touch,
 
 	if (!weston_touch_has_focus_resource(touch))
 		return;
-
-	weston_view_update_transform(touch->focus);
 
 	surf_pos = weston_coord_global_to_surface(touch->focus, pos);
 
@@ -1988,7 +1981,6 @@ weston_pointer_set_focus(struct weston_pointer *pointer,
 	if (view) {
 		struct weston_coord_surface surf_pos;
 
-		weston_view_update_transform(view);
 		surf_pos = weston_coord_global_to_surface(view, pointer->pos);
 		sx = wl_fixed_from_double(surf_pos.c.x);
 		sy = wl_fixed_from_double(surf_pos.c.y);
@@ -3656,8 +3648,6 @@ seat_get_pointer(struct wl_client *client, struct wl_resource *resource,
 	    wl_resource_get_client(pointer->focus->surface->resource) == client) {
 		struct weston_coord_surface surf_pos;
 
-		weston_view_update_transform(pointer->focus);
-
 		surf_pos = weston_coord_global_to_surface(pointer->focus,
 							  pointer->pos);
 
@@ -4726,7 +4716,6 @@ maybe_enable_pointer_constraint(struct weston_pointer_constraint *constraint)
 	if (!keyboard || keyboard->focus != surface)
 		return;
 
-	weston_view_update_transform(view);
 	/* Postpone constraint if the pointer is not within the
 	 * constraint region.
 	 */
@@ -4833,7 +4822,6 @@ pointer_constraint_surface_activate(struct wl_listener *listener, void *data)
 	if (is_constraint_surface &&
 	    !is_pointer_constraint_enabled(constraint)) {
 		if (activation->flags & WESTON_ACTIVATE_FLAG_FULLSCREEN) {
-			weston_view_update_transform(activation->view);
 			weston_pointer_set_focus(pointer, activation->view);
 			enable_pointer_constraint(constraint, activation->view);
 			maybe_warp_confined_pointer(constraint);
@@ -4873,9 +4861,6 @@ pointer_constraint_surface_committed(struct wl_listener *listener, void *data)
 	struct weston_pointer_constraint *constraint =
 		container_of(listener, struct weston_pointer_constraint,
 			     surface_commit_listener);
-
-	if (is_pointer_constraint_enabled(constraint))
-		weston_view_update_transform(constraint->view);
 
 	if (constraint->region_is_pending) {
 		constraint->region_is_pending = false;
@@ -5000,7 +4985,6 @@ init_pointer_constraint(struct wl_resource *pointer_constraints_resource,
 			is_fullscreen =  weston_desktop_surface_get_fullscreen(desktop_surface);
 		}
 		if (is_fullscreen && !is_pointer_constraint_enabled(constraint)) {
-			weston_view_update_transform(pointer->focus);
 			weston_pointer_set_focus(pointer, pointer->focus);
 			enable_pointer_constraint(constraint, pointer->focus);
 			maybe_warp_confined_pointer(constraint);
@@ -5737,8 +5721,6 @@ confined_pointer_grab_pointer_motion(struct weston_pointer_grab *grab,
 	assert(pointer->focus->surface == constraint->surface);
 
 	surface = pointer->focus->surface;
-
-	weston_view_update_transform(pointer->focus);
 
 	pixman_region32_init(&confine_region);
 	pixman_region32_intersect(&confine_region,
