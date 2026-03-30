@@ -1562,17 +1562,19 @@ struct weston_solid_buffer_values {
 	float r, g, b, a;
 };
 
+enum weston_buffer_type {
+	WESTON_BUFFER_SHM,
+	WESTON_BUFFER_DMABUF,
+	WESTON_BUFFER_RENDERER_OPAQUE,
+	WESTON_BUFFER_SOLID,
+};
+
 struct weston_buffer {
 	struct wl_resource *resource;
 	struct wl_signal destroy_signal;
 	struct wl_listener destroy_listener;
 
-	enum {
-		WESTON_BUFFER_SHM,
-		WESTON_BUFFER_DMABUF,
-		WESTON_BUFFER_RENDERER_OPAQUE,
-		WESTON_BUFFER_SOLID,
-	} type;
+	enum weston_buffer_type type;
 
 	union {
 		struct wl_shm_buffer *shm_buffer;
