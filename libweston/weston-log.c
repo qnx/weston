@@ -981,6 +981,28 @@ weston_log_scope_printf(struct weston_log_scope *scope,
 	return len;
 }
 
+/** Write an unformatted string for a scope
+ *
+ * \param scope The log scope to write for; may be NULL, in which case
+ *              nothing will be written.
+ * \param str The string to write
+ *
+ * Writes an unformatted string to all subscribed clients' streams.
+ *
+ * The behavioral details for each stream are the same as for
+ * weston_log_scope_write().
+ *
+ * \memberof weston_log_scope
+ */
+WL_EXPORT void
+weston_log_scope_puts(struct weston_log_scope *scope, const char *str)
+{
+	if (!weston_log_scope_is_enabled(scope))
+		return;
+
+	fputs(str, scope->input_stream);
+}
+
 /** Write a formatted string for a subscription
  *
  * \param sub The subscription to write for; may be NULL, in which case
