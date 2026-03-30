@@ -1222,33 +1222,6 @@ create_capture_task_shm_state(struct gl_renderer *gr,
 	return shm_state;
 }
 
-static struct gl_capture_task*
-create_capture_task(struct weston_capture_task *task,
-		    struct gl_renderer *gr,
-		    enum weston_buffer_type buffer_type,
-		    const struct gl_capture_task_shm_state *shm_state)
-{
-	struct gl_capture_task *gl_task = xzalloc(sizeof *gl_task);
-
-	gl_task->task = task;
-	gl_task->gr = gr;
-	gl_task->buffer_type = buffer_type;
-	gl_task->sync = EGL_NO_SYNC_KHR;
-	gl_task->fd = EGL_NO_NATIVE_FENCE_FD_ANDROID;
-
-	if (buffer_type == WESTON_BUFFER_SHM) {
-		gl_task->shm_state = *shm_state;
-	} else {
-		/* other types are not supported so far */
-		weston_assert_enum(gr->compositor, buffer_type, WESTON_BUFFER_DMABUF);
-	}
-
-	gl_task->destroy_listener.notify = capture_task_parent_destroy_handler;
-	weston_capture_task_add_destroy_listener(task, &gl_task->destroy_listener);
-
-	return gl_task;
-}
-
 static void
 copy_capture_shm(struct gl_capture_task *gl_task)
 {
@@ -1305,6 +1278,47 @@ async_capture_handler(void *data)
 	return 0;
 }
 
+/**
+ * Create a capture task that gets triggered after a timeout.
+ *
+ * This should be used as a fallback when we fail to create a capture task based
+ * on a fence sync object, see create_capture_task_fence(). The timeout should
+ * be long enough to ensure the GPU tasks are done, but short enough to avoid a
+ * noticeable delay in the capture result.
+ */
+static void
+create_capture_task_timer(struct weston_capture_task *task,
+			  struct gl_renderer *gr,
+			  enum weston_buffer_type buffer_type,
+			  const struct gl_capture_task_shm_state *shm_state,
+			  uint32_t time_ms)
+{
+	struct wl_event_loop *loop =
+		wl_display_get_event_loop(gr->compositor->wl_display);
+	struct gl_capture_task *gl_task;
+
+	gl_task = xzalloc(sizeof *gl_task);
+
+	gl_task->task = task;
+	gl_task->gr = gr;
+	gl_task->buffer_type = buffer_type;
+	if (buffer_type == WESTON_BUFFER_SHM)
+		gl_task->shm_state = *shm_state;
+
+	gl_task->sync = EGL_NO_SYNC_KHR;
+	gl_task->fd = EGL_NO_NATIVE_FENCE_FD_ANDROID;
+
+	gl_task->source = wl_event_loop_add_timer(loop,
+						  async_capture_handler,
+						  gl_task);
+	wl_event_source_timer_update(gl_task->source, time_ms);
+
+	gl_task->destroy_listener.notify = capture_task_parent_destroy_handler;
+	weston_capture_task_add_destroy_listener(task, &gl_task->destroy_listener);
+
+	wl_list_insert(&gr->pending_capture_list, &gl_task->link);
+}
+
 static int
 async_capture_handler_fd(int fd, uint32_t mask, void *data)
 {
@@ -1330,6 +1344,65 @@ async_capture_handler_fd(int fd, uint32_t mask, void *data)
 	return 0;
 }
 
+/**
+ * Create a capture task that gets triggered using a fence sync object.
+ *
+ * This is the preferred way to create capture tasks, as it is based on explicit
+ * synchronization. The alternative is to create a timeout based capture task,
+ * see create_capture_task_timer().
+ */
+static bool
+create_capture_task_fence(struct weston_capture_task *task,
+			  struct gl_renderer *gr,
+			  enum weston_buffer_type buffer_type,
+			  const struct gl_capture_task_shm_state *shm_state)
+{
+	struct wl_event_loop *loop =
+		wl_display_get_event_loop(gr->compositor->wl_display);
+	struct gl_capture_task *gl_task;
+
+	gl_task = xzalloc(sizeof *gl_task);
+
+	gl_task->task = task;
+	gl_task->gr = gr;
+	gl_task->buffer_type = buffer_type;
+	if (buffer_type == WESTON_BUFFER_SHM)
+		gl_task->shm_state = *shm_state;
+
+	gl_task->sync = create_render_sync(gr);
+	if (gl_task->sync == EGL_NO_SYNC_KHR) {
+		free(gl_task);
+		return false;
+	}
+
+	/* Make sure GPU requests are flushed. Doing so right between fence sync
+	 * object creation and native fence fd duplication ensures the fd is
+	 * created as stated by EGL_ANDROID_native_fence_sync: "the next Flush()
+	 * operation performed by the current client API causes a new native
+	 * fence object to be created". */
+	glFlush();
+
+	gl_task->fd = gr->dup_native_fence_fd(gr->egl_display,
+					      gl_task->sync);
+	if (gl_task->fd == EGL_NO_NATIVE_FENCE_FD_ANDROID) {
+		gr->destroy_sync(gr->egl_display, gl_task->sync);
+		free(gl_task);
+		return false;
+	}
+
+	gl_task->source = wl_event_loop_add_fd(loop, gl_task->fd,
+					       WL_EVENT_READABLE,
+					       async_capture_handler_fd,
+					       gl_task);
+
+	gl_task->destroy_listener.notify = capture_task_parent_destroy_handler;
+	weston_capture_task_add_destroy_listener(task, &gl_task->destroy_listener);
+
+	wl_list_insert(&gr->pending_capture_list, &gl_task->link);
+
+	return true;
+}
+
 static void
 gl_renderer_do_read_pixels_async(struct gl_renderer *gr,
 				 struct gl_output_state *go,
@@ -1339,9 +1412,7 @@ gl_renderer_do_read_pixels_async(struct gl_renderer *gr,
 {
 	struct weston_buffer *buffer = weston_capture_task_get_buffer(task);
 	const struct pixel_format_info *fmt = buffer->pixel_format;
-	struct gl_capture_task *gl_task;
 	struct gl_capture_task_shm_state shm_state;
-	struct wl_event_loop *loop;
 	int refresh_mhz, refresh_msec;
 
 	assert(gl_features_has(gr, FEATURE_ASYNC_READBACK));
@@ -1363,42 +1434,20 @@ gl_renderer_do_read_pixels_async(struct gl_renderer *gr,
 		     fmt->gl_format, fmt->gl_type, 0);
 	glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 
-	loop = wl_display_get_event_loop(gr->compositor->wl_display);
-	gl_task = create_capture_task(task, gr, buffer->type, &shm_state);
-	gl_task->sync = create_render_sync(gr);
-
-	/* Make sure the read back request is flushed. Doing so right between
-	 * fence sync object creation and native fence fd duplication ensures
-	 * the fd is created as stated by EGL_ANDROID_native_fence_sync: "the
-	 * next Flush() operation performed by the current client API causes a
-	 * new native fence object to be created". */
-	glFlush();
-
-	if (gl_task->sync != EGL_NO_SYNC_KHR)
-		gl_task->fd = gr->dup_native_fence_fd(gr->egl_display,
-						      gl_task->sync);
-
-	if (gl_task->fd != EGL_NO_NATIVE_FENCE_FD_ANDROID) {
-		gl_task->source = wl_event_loop_add_fd(loop, gl_task->fd,
-						       WL_EVENT_READABLE,
-						       async_capture_handler_fd,
-						       gl_task);
-	} else {
-		/* We guess here an async read back doesn't take more than 5
-		 * frames on most platforms. */
-		gl_task->source = wl_event_loop_add_timer(loop,
-							  async_capture_handler,
-							  gl_task);
-		refresh_mhz = output->current_mode->refresh;
-		refresh_msec = millihz_to_nsec(refresh_mhz) / 1000000;
-		wl_event_source_timer_update(gl_task->source, 5 * refresh_msec);
-	}
-
-	wl_list_insert(&gr->pending_capture_list, &gl_task->link);
-
 	if (gl_extensions_has(gr, EXTENSION_ANGLE_PACK_REVERSE_ROW_ORDER) &&
 	    is_y_flipped(go))
 		glPixelStorei(GL_PACK_REVERSE_ROW_ORDER_ANGLE, GL_FALSE);
+
+	/* Create capture task that gets triggered once the GPU tasks are done. */
+	if (create_capture_task_fence(task, gr, buffer->type, &shm_state))
+		return;
+
+	/* Failed to get sync fence or fd to poll. For SHM capture tasks we use
+	 * async read back. We guess it doesn't take more than 5 frames on most
+	 * platforms, so let's complete the capture task in such time. */
+	refresh_mhz = output->current_mode->refresh;
+	refresh_msec = millihz_to_nsec(refresh_mhz) / 1000000;
+	create_capture_task_timer(task, gr, buffer->type, &shm_state, 5 * refresh_msec);
 }
 
 static void
