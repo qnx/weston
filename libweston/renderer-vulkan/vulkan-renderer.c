@@ -1554,9 +1554,10 @@ vulkan_pipeline_config_init_for_paint_node(struct vulkan_pipeline_config *pconf,
 
 static void
 rect_to_quad(pixman_box32_t *rect,
-	     struct weston_view *ev,
+	     struct weston_paint_node *pnode,
 	     struct clipper_quad *quad)
 {
+	struct clipper_vertex polygon[4];
 	struct weston_coord_global rect_g[4] = {
 		{ .c = weston_coord(rect->x1, rect->y1) },
 		{ .c = weston_coord(rect->x2, rect->y1) },
@@ -1567,16 +1568,12 @@ rect_to_quad(pixman_box32_t *rect,
 
 	/* Transform rect to surface space. */
 	for (int i = 0; i < 4; i++) {
-		rect_s = weston_coord_global_to_surface(ev, rect_g[i]).c;
-		quad->polygon[i].x = (float)rect_s.x;
-		quad->polygon[i].y = (float)rect_s.y;
+		rect_s = weston_coord_global_to_surface(pnode->view, rect_g[i]).c;
+		polygon[i].x = (float)rect_s.x;
+		polygon[i].y = (float)rect_s.y;
 	}
 
-	quad->axis_aligned = !ev->transform.enabled ||
-		(ev->transform.matrix.type < WESTON_MATRIX_TRANSFORM_ROTATE);
-
-	// TODO handle !axis_aligned ?
-	assert(quad->axis_aligned);
+	clipper_quad_init(quad, polygon, pnode->valid_transform);
 }
 
 static uint32_t
@@ -1586,7 +1583,6 @@ generate_fans(struct weston_paint_node *pnode,
 	      struct wl_array *vertices,
 	      struct wl_array *vtxcnt)
 {
-	struct weston_view *ev = pnode->view;
 	struct clipper_vertex *v;
 	uint32_t *cnt;
 	uint32_t nvtx = 0;
@@ -1605,7 +1601,7 @@ generate_fans(struct weston_paint_node *pnode,
 	cnt = wl_array_add(vtxcnt, nrects * nsurf * sizeof(uint32_t));
 
 	for (int i = 0; i < nrects; i++) {
-		rect_to_quad(&rects[i], ev, &quad);
+		rect_to_quad(&rects[i], pnode, &quad);
 		for (int j = 0; j < nsurf; j++) {
 			uint32_t n;
 
