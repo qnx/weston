@@ -191,7 +191,7 @@ fixture_setup(struct weston_test_harness *harness, const struct setup_args *arg)
 	setup.height = 264;
 	setup.shell = SHELL_TEST_DESKTOP;
 	setup.logging_scopes = arg->logging_scopes;
-	setup.refresh = HIGHEST_OUTPUT_REFRESH;
+	setup.refresh = 0;
 	setup.test_quirks.gl_force_import_yuv_fallback =
 		arg->gl_force_import_yuv_fallback;
 
@@ -1546,16 +1546,13 @@ static void
 show_window_with_client_buffer(struct client *client, struct client_buffer *buf)
 {
 	struct surface *surface = client->surface;
-	int done;
 
 	weston_test_move_surface(client->test->weston_test, surface->wl_surface,
 				 4, 4);
 	wl_surface_attach(surface->wl_surface, buf->wl_buffer, 0, 0);
 	wl_surface_damage(surface->wl_surface, 0, 0, buf->width,
 			  buf->height);
-	frame_callback_set(surface->wl_surface, &done);
 	wl_surface_commit(surface->wl_surface);
-	frame_callback_wait(client, &done);
 }
 
 static const struct client_buffer_case client_buffer_cases[] = {
