@@ -117,8 +117,15 @@
  * system. To avoid confusing side effects, we explicitly cast to the widest
  * possible type and use a matching format specifier.
  */
-#define drm_debug(b, ...) \
-	weston_log_scope_printf((b)->debug, __VA_ARGS__)
+#define DO_DRM_DEBUG_COMPLEX(scope, ...) \
+	weston_log_scope_printf(scope, __VA_ARGS__)
+
+#define DO_DRM_DEBUG(scope, string) \
+	weston_log_scope_puts(scope, string)
+
+#define drm_debug(b, format, ...)				\
+	DO_DRM_DEBUG ## __VA_OPT__(_COMPLEX)			\
+	((b)->debug, format __VA_OPT__(,) __VA_ARGS__)
 
 #define MAX_CLONED_CONNECTORS 4
 
