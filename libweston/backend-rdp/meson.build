@@ -9,12 +9,13 @@ dep_frdp2 = dependency('freerdp2', version: '>= 2.3.0', required: false)
 
 if dep_frdp3.found()
 	config_h.set('USE_FREERDP_VERSION', '3')
+	config_h.set('USE_FREERDP_VERSION_MINOR', dep_frdp3.version().split('.')[1])
 	config_h.set('WITHOUT_FREERDP_3x_DEPRECATED', '1')
 	dep_frdp = dep_frdp3
 	dep_frdp_server = dependency('freerdp-server3', version: '>= 3.0.0', required: false)
-		if not dep_frdp_server.found()
-			error('RDP-backend v3 requires freerdp-server3 >= 3.0.0 which was not found. Or, you can use \'-Dbackend-rdp=false\'.')
-		endif
+	if not dep_frdp_server.found()
+		error('RDP-backend v3 requires freerdp-server3 >= 3.0.0 which was not found. Or, you can use \'-Dbackend-rdp=false\'.')
+	endif
 
 	dep_wpr = dependency('winpr3', version: '>= 3.0.0', required: false)
 	if not dep_wpr.found()
@@ -23,6 +24,7 @@ if dep_frdp3.found()
 	message('Using FreeRDP 3.x for RDP backend')
 elif dep_frdp2.found()
 	config_h.set('USE_FREERDP_VERSION', '2')
+	config_h.set('USE_FREERDP_VERSION_MINOR', dep_frdp2.version().split('.')[1])
 	dep_frdp = dep_frdp2
 	dep_frdp_server = dependency('freerdp-server2', version: '>= 2.3.0', required: false)
 		if not dep_frdp_server.found()

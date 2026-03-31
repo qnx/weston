@@ -1791,14 +1791,19 @@ rdp_peer_init(freerdp_peer *client, struct rdp_backend *b)
 	settings = client->context->settings;
 #if USE_FREERDP_VERSION >= 3
 	/* configure security settings */
-	if (b->rdp_key) {
+	if (b->vmconnect) {
+		/* Special Hyper-V mode */
+		if (!freerdp_settings_set_bool(settings, FreeRDP_VmConnectMode, TRUE))
+			rdp_debug(b, "Error setting FreeRDP_VmConnectMode to 'TRUE'.\n");
+	} else if (b->rdp_key) {
+		/* Legacy RDP security */
 		rdpPrivateKey* key = freerdp_key_new_from_file(b->rdp_key);
 		if (!key)
 			goto error_initialize;
 		if (!freerdp_settings_set_pointer_len(settings, FreeRDP_RdpServerRsaKey, key, 1))
 			goto error_initialize;
-	}
-	if (b->tls_enabled) {
+	} else if (b->tls_enabled) {
+		/* TLS RDP security */
 		rdpCertificate* cert = freerdp_certificate_new_from_file(b->server_cert);
 		if (!cert)
 			goto error_initialize;
@@ -2012,6 +2017,7 @@ rdp_backend_create(struct weston_compositor *compositor,
 	b->base.create_output = rdp_output_create;
 	b->rdp_key = config->rdp_key ? strdup(config->rdp_key) : NULL;
 	b->resizeable = config->resizeable;
+	b->vmconnect = config->vmconnect;
 	b->force_no_compression = config->force_no_compression;
 	b->remotefx_codec = config->remotefx_codec;
 	b->audio_in_setup = config->audio_in_setup;
@@ -2056,7 +2062,7 @@ rdp_backend_create(struct weston_compositor *compositor,
 	 * fd, we don't need to enforce TLS or RDP security, since FreeRDP
 	 * will consider it to be a local connection */
 	fd = config->external_listener_fd;
-	if (fd < 0) {
+	if (fd < 0 && !b->vmconnect) {
 		if (!b->rdp_key && (!b->server_cert || !b->server_key)) {
 			weston_log("the RDP compositor requires keys and an optional certificate for RDP or TLS security ("
 				   "--rdp4-key or --rdp-tls-cert/--rdp-tls-key)\n");

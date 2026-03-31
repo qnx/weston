@@ -83,6 +83,7 @@ struct weston_rdp_backend_config {
 	char *rdp_key;
 	char *server_cert;
 	char *server_key;
+	int vmconnect;
 	int env_socket;
 	bool resizeable;
 	int force_no_compression;

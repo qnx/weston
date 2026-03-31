@@ -796,6 +796,9 @@ usage(int error_code)
 		"  --rdp4-key=FILE\tThe file containing the key for RDP4 encryption\n"
 		"  --rdp-tls-cert=FILE\tThe file containing the certificate for TLS encryption\n"
 		"  --rdp-tls-key=FILE\tThe file containing the private key for TLS encryption\n"
+#if USE_FREERDP_VERSION >= 3 && USE_FREERDP_VERSION_MINOR >= 16
+		"  --vmconnect\tWhen bound on 'vsock://1', to use in a Hyper-V VM with vmconnect.exe\n"
+#endif
 		"\n");
 #endif
 
@@ -4498,6 +4501,7 @@ weston_rdp_backend_config_init(struct weston_rdp_backend_config *config)
 	config->rdp_key = NULL;
 	config->server_cert = NULL;
 	config->server_key = NULL;
+	config->vmconnect = false;
 	config->env_socket = 0;
 	config->external_listener_fd = -1;
 	config->resizeable = true;
@@ -4595,6 +4599,11 @@ load_rdp_backend(struct weston_compositor *c,
 		{ WESTON_OPTION_STRING,  "rdp4-key", 0, &config.rdp_key },
 		{ WESTON_OPTION_STRING,  "rdp-tls-cert", 0, &config.server_cert },
 		{ WESTON_OPTION_STRING,  "rdp-tls-key", 0, &config.server_key },
+#if defined(BUILD_RDP_COMPOSITOR)
+#if USE_FREERDP_VERSION >= 3 && USE_FREERDP_VERSION_MINOR >= 16
+		{ WESTON_OPTION_BOOLEAN, "vmconnect", 0, &config.vmconnect },
+#endif
+#endif
 		{ WESTON_OPTION_INTEGER, "scale", 0, &parsed_options->scale },
 		{ WESTON_OPTION_BOOLEAN, "force-no-compression", 0, &config.force_no_compression },
 		{ WESTON_OPTION_BOOLEAN, "no-remotefx-codec", 0, &no_remotefx_codec },
