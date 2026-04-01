@@ -168,9 +168,7 @@ ninja ${NINJAFLAGS} -C build install
 cd ..
 rm -rf glslang
 
-# The 25.3 was the first stable release where the Vulkan backend works with
-# vkms+lavapipe.
-git clone --branch mesa-25.3.2 --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
+git clone --branch mesa-26.0.4 --depth=1 https://gitlab.freedesktop.org/mesa/mesa.git
 cd mesa
 meson setup build --wrap-mode=nofallback -Dauto_features=disabled \
 	-Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast -Dvideo-codecs= \
