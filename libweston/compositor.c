@@ -100,6 +100,7 @@
  * \defgroup head Head
  * \defgroup output Output
  * \defgroup compositor Compositor
+ * \defgroup client Wayland Clients
  */
 
 #define DEFAULT_REPAINT_WINDOW 7 /* milliseconds */
