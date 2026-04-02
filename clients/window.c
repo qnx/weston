@@ -5946,6 +5946,19 @@ display_destroy_output(struct display *d, uint32_t id)
 
 	wl_list_for_each(output, &d->output_list, link) {
 		if (output->server_output_id == id) {
+			struct window *window;
+
+			/* If a window was on a destroyed output, we need to
+			 * make sure the output doesn't linger on the window's
+			 * output list.
+			 * surface_leave does nothing if the output isn't on
+			 * the list, so we can call it for all windows to remove
+			 * this output.
+			 */
+			wl_list_for_each(window, &d->window_list, link) {
+				surface_leave(window, NULL, output->output);
+			}
+
 			output_destroy(output);
 			break;
 		}
