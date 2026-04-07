@@ -10312,7 +10312,18 @@ weston_compositor_shutdown(struct weston_compositor *ec)
 		weston_log("BUG: layer_list is not empty after shutdown. Calls to weston_layer_fini() are missing somwhere.\n");
 }
 
-/** weston_compositor_exit_with_code
+/** Instruct the compositor to exit with an error code
+ *
+ * \param compositor The compositor to tear down.
+ * \param exit_code The exit code to save until the frontend chooses to exit
+ * and maybe forward it.
+ *
+ * Only the first error code (value other than EXIT_SUCCESS) will be saved.
+ * It cannot later be overwritten with EXIT_SUCCESS.
+ *
+ * Otherwise this function is identical to \c weston_compositor_exit() .
+ *
+ * \sa weston_compositor_exit
  * \ingroup compositor
  */
 WL_EXPORT void
@@ -10750,8 +10761,11 @@ weston_compositor_destroy(struct weston_compositor *compositor)
 /** Instruct the compositor to exit.
  *
  * This functions does not directly destroy the compositor object, it merely
- * command it to start the tear down process. It is not guaranteed that the
- * tear down will happen immediately.
+ * forwards the call to the frontend to start the tear down process.
+ * It is not guaranteed that the tear down will happen immediately.
+ *
+ * If the frontend is not yet listening to exit calls, this function does
+ * nothing.
  *
  * \param compositor The compositor to tear down.
  *
@@ -10760,7 +10774,8 @@ weston_compositor_destroy(struct weston_compositor *compositor)
 WL_EXPORT void
 weston_compositor_exit(struct weston_compositor *compositor)
 {
-	compositor->exit(compositor);
+	if (compositor->exit)
+		compositor->exit(compositor);
 }
 
 /** Return the user data stored in the compositor.
