@@ -225,6 +225,16 @@ struct weston_testsuite_quirks {
 	bool gl_force_full_redraw_of_shadow_fb;
 	/** Force GL-renderer to use the internal YUV->RGB shader */
 	bool gl_force_import_yuv_fallback;
+
+	enum weston_blending_impl {
+		/** Use in-shader blending if possible */
+		WESTON_BLENDING_IMPL_AUTO = 0,
+		/** Force fixed-function blending */
+		WESTON_BLENDING_IMPL_FF = 1,
+		/** Force in-shader blending */
+		WESTON_BLENDING_IMPL_SHADER = 2,
+	} blending_impl;
+
 	/** Required enum weston_capability bit mask, otherwise skip run. */
 	uint32_t required_capabilities;
 };

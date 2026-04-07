@@ -4841,7 +4841,24 @@ gl_renderer_output_create(struct weston_output *output,
 		weston_assert_true(gr->compositor, gl_features_has(gr, FEATURE_COLOR_TRANSFORMS));
 
 	if (!needs_shadow && needs_fb_curves) {
-		go->shader_blender = gl_shader_blender_create(gr, output);
+		switch (quirks->blending_impl) {
+		case WESTON_BLENDING_IMPL_AUTO:
+			go->shader_blender = gl_shader_blender_create(gr, output);
+			break;
+		case WESTON_BLENDING_IMPL_FF:
+			go->shader_blender = NULL;
+			break;
+		case WESTON_BLENDING_IMPL_SHADER:
+			go->shader_blender = gl_shader_blender_create(gr, output);
+			if (!go->shader_blender) {
+				weston_log("Error: quirks were used to force in-shader blending, "
+					   "but it's not supported by the GLES implementation.\n"
+					   "Quitting...\n");
+				weston_compositor_exit_with_code(gr->compositor, EXIT_FAILURE);
+			}
+			break;
+		}
+
 		if (go->shader_blender)
 			weston_log("Output %s uses in-shader blending.\n", output->name);
 		else

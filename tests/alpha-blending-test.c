@@ -39,6 +39,7 @@ struct setup_args {
 	struct fixture_metadata meta;
 	enum weston_renderer_type renderer;
 	bool color_management;
+	enum weston_blending_impl blend;
 };
 
 static const int ALPHA_STEPS = 256;
@@ -53,12 +54,20 @@ static const struct setup_args my_setup_args[] = {
 	{
 		.renderer = WESTON_RENDERER_GL,
 		.color_management = false,
+		.blend = WESTON_BLENDING_IMPL_AUTO,
 		.meta.name = "GL"
 	},
 	{
 		.renderer = WESTON_RENDERER_GL,
 		.color_management = true,
-		.meta.name = "GL sRGB EOTF"
+		.blend = WESTON_BLENDING_IMPL_FF,
+		.meta.name = "GL sRGB EOTF, shadow FB"
+	},
+	{
+		.renderer = WESTON_RENDERER_GL,
+		.color_management = true,
+		.blend = WESTON_BLENDING_IMPL_SHADER,
+		.meta.name = "GL sRGB EOTF, in-shader blending"
 	},
 	{
 		.renderer = WESTON_RENDERER_VULKAN,
@@ -77,6 +86,7 @@ fixture_setup(struct weston_test_harness *harness, const struct setup_args *arg)
 	setup.width = BLOCK_WIDTH * ALPHA_STEPS;
 	setup.height = 16;
 	setup.shell = SHELL_TEST_DESKTOP;
+	setup.test_quirks.blending_impl = arg->blend;
 
 	if (arg->color_management) {
 #if !BUILD_COLOR_LCMS
