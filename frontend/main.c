@@ -5680,7 +5680,8 @@ wet_main(int argc, char *argv[], const struct weston_testsuite_data *test_data)
 			goto out;
 	}
 
-	wl_display_run(display);
+	if (wet.compositor->exit_code == EXIT_SUCCESS)
+		wl_display_run(display);
 
 	/* Allow for setting return exit code after
 	* wl_display_run returns normally. This is
