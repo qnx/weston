@@ -69,6 +69,8 @@ struct weston_test {
 	struct wl_list output_list;
 	struct wl_listener output_created_listener;
 	struct wl_listener output_destroyed_listener;
+
+	struct wl_event_source *launch_source;
 };
 
 struct weston_test_surface {
@@ -776,6 +778,8 @@ idle_launch_testsuite(void *test_)
 	struct weston_test *test = test_;
 	struct wet_testsuite_data *data = weston_compositor_get_test_data(test->compositor);
 
+	test->launch_source = NULL;
+
 	if (!data)
 		return;
 
@@ -830,6 +834,13 @@ handle_compositor_destroy(struct wl_listener *listener,
 		weston_log_scope_printf(test->log, "Cancelling client thread...\n");
 		pthread_cancel(test->client_thread);
 		client_thread_join(test);
+	}
+
+	if (test->launch_source) {
+		weston_log_scope_printf(test->log,
+					"Test cancelled during initialization\n");
+		wl_event_source_remove(test->launch_source);
+		test->launch_source = NULL;
 	}
 
 	if (test->is_seat_initialized)
@@ -888,7 +899,8 @@ wet_module_init(struct weston_compositor *ec,
 		goto out_free;
 
 	loop = wl_display_get_event_loop(ec->wl_display);
-	wl_event_loop_add_idle(loop, idle_launch_testsuite, test);
+	test->launch_source =
+		wl_event_loop_add_idle(loop, idle_launch_testsuite, test);
 
 	return 0;
 
