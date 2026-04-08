@@ -104,6 +104,7 @@ struct qnx_screen_backend {
 
 	const struct pixel_format_info **formats;
 	unsigned int formats_count;
+	int scroll_speed;
 };
 
 struct qnx_screen_head {
@@ -1017,10 +1018,12 @@ qnx_screen_backend_deliver_scroll_event(struct qnx_screen_backend *b,
 	struct weston_pointer_axis_event weston_event;
 
 	weston_event.axis = WL_POINTER_AXIS_VERTICAL_SCROLL;
-	weston_event.value = -(scroll_delta);
-	weston_event.has_discrete = false;
+	weston_event.has_discrete = true;
+	weston_event.discrete = scroll_delta > 0 ? 1 : -1;
+	weston_event.value = weston_event.discrete * b->scroll_speed;
 	weston_compositor_get_time(&time);
 
+	notify_axis_source(&b->core_seat, WL_POINTER_AXIS_SOURCE_WHEEL);
 	notify_axis(&b->core_seat, &time, &weston_event);
 	notify_pointer_frame(&b->core_seat);
 }
@@ -1439,6 +1442,8 @@ qnx_screen_backend_create(struct weston_compositor *compositor,
 		weston_log("Failed to register QNX Screen output API.\n");
 		goto err_event_monitor;
 	}
+
+	b->scroll_speed = config->scroll_speed;
 
 	return b;
 

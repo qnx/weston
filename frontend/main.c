@@ -4367,6 +4367,10 @@ load_qnx_screen_backend(struct weston_compositor *c,
 	       { WESTON_OPTION_INTEGER, "egl-display", 0, &config.egl_display },
 	};
 
+	section = weston_config_get_section(wc, "qnx-input", NULL, NULL);
+	weston_config_section_get_int(section, "scroll-speed", &config.scroll_speed,
+				       WESTON_QNX_DEFAULT_SCROLL_SPEED);
+
 	parse_options(options, ARRAY_LENGTH(options), argc, argv);
 
 	config.base.struct_version = WESTON_QNX_SCREEN_BACKEND_CONFIG_VERSION;

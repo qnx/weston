@@ -36,6 +36,7 @@ extern "C" {
 #include <libweston/plugin-registry.h>
 
 #define WESTON_QNX_SCREEN_BACKEND_CONFIG_VERSION 1
+#define WESTON_QNX_DEFAULT_SCROLL_SPEED 10
 
 #define WESTON_QNX_SCREEN_OUTPUT_API_NAME "weston_qnx_screen_output_api_v1"
 
@@ -87,6 +88,7 @@ struct weston_qnx_screen_backend_config {
 	bool no_input;
 	int renderer;
 	int egl_display;
+        int scroll_speed;
 };
 
 #ifdef  __cplusplus
