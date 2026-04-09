@@ -105,6 +105,7 @@ struct qnx_screen_backend {
 	const struct pixel_format_info **formats;
 	unsigned int formats_count;
 	int scroll_speed;
+	bool invert_scroll;
 };
 
 struct qnx_screen_head {
@@ -1021,6 +1022,9 @@ qnx_screen_backend_deliver_scroll_event(struct qnx_screen_backend *b,
 	weston_event.has_discrete = true;
 	weston_event.discrete = scroll_delta > 0 ? 1 : -1;
 	weston_event.value = weston_event.discrete * b->scroll_speed;
+	if (b->invert_scroll) {
+		weston_event.value = -weston_event.value;
+	}
 	weston_compositor_get_time(&time);
 
 	notify_axis_source(&b->core_seat, WL_POINTER_AXIS_SOURCE_WHEEL);
@@ -1444,6 +1448,7 @@ qnx_screen_backend_create(struct weston_compositor *compositor,
 	}
 
 	b->scroll_speed = config->scroll_speed;
+	b->invert_scroll = config->invert_scroll;
 
 	return b;
 

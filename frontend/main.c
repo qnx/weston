@@ -4370,6 +4370,8 @@ load_qnx_screen_backend(struct weston_compositor *c,
 	section = weston_config_get_section(wc, "qnx-input", NULL, NULL);
 	weston_config_section_get_int(section, "scroll-speed", &config.scroll_speed,
 				       WESTON_QNX_DEFAULT_SCROLL_SPEED);
+	weston_config_section_get_bool(section, "invert-scroll", &config.invert_scroll,
+				       false);
 
 	parse_options(options, ARRAY_LENGTH(options), argc, argv);
 

@@ -89,6 +89,7 @@ struct weston_qnx_screen_backend_config {
 	int renderer;
 	int egl_display;
         int scroll_speed;
+        bool invert_scroll;
 };
 
 #ifdef  __cplusplus
