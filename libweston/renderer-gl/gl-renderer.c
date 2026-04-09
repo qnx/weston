@@ -68,6 +68,7 @@
 #include "shared/weston-drm-fourcc.h"
 #include "shared/weston-egl-ext.h"
 #include "shared/xalloc.h"
+#include "tests/harness/weston-testsuite-data.h"
 
 #define BUFFER_DAMAGE_COUNT 2
 
@@ -4854,7 +4855,7 @@ gl_renderer_output_create(struct weston_output *output,
 				weston_log("Error: quirks were used to force in-shader blending, "
 					   "but it's not supported by the GLES implementation.\n"
 					   "Quitting...\n");
-				weston_compositor_exit_with_code(gr->compositor, EXIT_FAILURE);
+				weston_compositor_exit_with_code(gr->compositor, RESULT_SKIP);
 			}
 			break;
 		}
