@@ -161,7 +161,12 @@ TEST_P(buffer_transform, my_buffer_args)
 	return RESULT_OK;
 }
 
-TEST_P(buffer_transform_split, my_buffer_args)
+static const struct buffer_args my_split_args[] = {
+	{ 1, TRANSFORM(90) },
+	{ 2, TRANSFORM(NORMAL) },
+};
+
+TEST_P(buffer_transform_split, my_split_args)
 {
 	const struct buffer_args *bargs = data;
 	const struct setup_args *oargs;
@@ -197,9 +202,14 @@ TEST_P(buffer_transform_split, my_buffer_args)
          * Commit scale and transform separately. Otherwise identical to the
          * 'buffer_transform' test so the same validation images can be used.
          */
-        wl_surface_set_buffer_scale(client->surface->wl_surface, bargs->scale);
-	wl_surface_set_buffer_transform(client->surface->wl_surface,
-					bargs->transform);
+	if (bargs->scale != 1)
+		wl_surface_set_buffer_scale(client->surface->wl_surface, bargs->scale);
+
+	if (bargs->transform != WL_OUTPUT_TRANSFORM_NORMAL) {
+		wl_surface_set_buffer_transform(client->surface->wl_surface,
+						bargs->transform);
+	}
+
 	wl_surface_commit(client->surface->wl_surface);
 
 	match = verify_screen_content(client, refname, 0, NULL, 0, NULL,
