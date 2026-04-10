@@ -169,6 +169,8 @@ commit_buffer_with_damage(struct surface *surface,
 
 /*
  * Test that Weston repaints exactly the damage a client sends to it.
+ * Also ensure that damage regions are correctly transformed through the output
+ * transform and scale all way to the framebuffer coordinates by the renderers.
  *
  * NOTE: This relies on the Weston implementation detail that Weston actually
  * will repaint exactly the client's damage and nothing more. This is not
