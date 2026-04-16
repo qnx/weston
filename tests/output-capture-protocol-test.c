@@ -252,6 +252,8 @@ TEST(simple_shot)
 	struct capturer *capt;
 	struct buffer *buf;
 
+	SKIP_NO_UDMABUF(fix->buffer_type);
+
 	client = create_client();
 	capt = capturer_create(client, client->output,
 			       WESTON_CAPTURE_V1_SOURCE_FRAMEBUFFER);
@@ -266,7 +268,6 @@ TEST(simple_shot)
 	test_assert_int_gt(capt->height, 0);
 	test_assert_false(capt->events.reply);
 
-	SKIP_NO_UDMABUF(fix->buffer_type);
 	buf = create_buffer(client, capt->width, capt->height,
 			    fix->expected_drm_format, fix->buffer_type);
 
@@ -296,6 +297,8 @@ TEST(retry_on_wrong_format)
 	struct capturer *capt;
 	struct buffer *buf;
 
+	SKIP_NO_UDMABUF(fix->buffer_type);
+
 	client = create_client();
 	capt = capturer_create(client, client->output,
 			       WESTON_CAPTURE_V1_SOURCE_FRAMEBUFFER);
@@ -313,7 +316,6 @@ TEST(retry_on_wrong_format)
 	test_assert_int_gt(capt->height, 0);
 	test_assert_false(capt->events.reply);
 
-	SKIP_NO_UDMABUF(fix->buffer_type);
 	buf = create_buffer(client, capt->width, capt->height,
 			    drm_format, fix->buffer_type);
 
@@ -342,6 +344,8 @@ TEST(retry_on_wrong_size)
 	struct capturer *capt;
 	struct buffer *buf;
 
+	SKIP_NO_UDMABUF(fix->buffer_type);
+
 	client = create_client();
 	capt = capturer_create(client, client->output,
 			       WESTON_CAPTURE_V1_SOURCE_FRAMEBUFFER);
@@ -355,7 +359,6 @@ TEST(retry_on_wrong_size)
 	test_assert_int_gt(capt->height, 5);
 	test_assert_false(capt->events.reply);
 
-	SKIP_NO_UDMABUF(fix->buffer_type);
 	buf = create_buffer(client, capt->width - 3, capt->height - 3,
 			    fix->expected_drm_format, fix->buffer_type);
 
