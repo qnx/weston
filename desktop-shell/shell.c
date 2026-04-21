@@ -3851,6 +3851,12 @@ wake_handler(struct wl_listener *listener, void *data)
 }
 
 static void
+sleep_handler(struct wl_listener *listener, void *data)
+{
+	weston_log("entering sleep mode: DPMS off\n");
+}
+
+static void
 transform_handler(struct wl_listener *listener, void *data)
 {
 	struct weston_surface *surface = data;
@@ -4621,6 +4627,7 @@ shell_destroy(struct wl_listener *listener, void *data)
 	wl_list_remove(&shell->destroy_listener.link);
 	wl_list_remove(&shell->idle_listener.link);
 	wl_list_remove(&shell->wake_listener.link);
+	wl_list_remove(&shell->sleep_listener.link);
 	wl_list_remove(&shell->transform_listener.link);
 
 	text_backend_destroy(shell->text_backend);
@@ -4802,6 +4809,8 @@ wet_shell_init(struct weston_compositor *ec,
 	wl_signal_add(&ec->idle_signal, &shell->idle_listener);
 	shell->wake_listener.notify = wake_handler;
 	wl_signal_add(&ec->wake_signal, &shell->wake_listener);
+	shell->sleep_listener.notify = sleep_handler;
+	wl_signal_add(&ec->sleep_signal, &shell->sleep_listener);
 	shell->transform_listener.notify = transform_handler;
 	wl_signal_add(&ec->transform_signal, &shell->transform_listener);
 

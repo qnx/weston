@@ -6151,6 +6151,7 @@ weston_compositor_sleep(struct weston_compositor *compositor)
 	wl_event_source_timer_update(compositor->idle_source, 0);
 	compositor->state = WESTON_COMPOSITOR_SLEEPING;
 	weston_compositor_dpms(compositor, WESTON_DPMS_OFF);
+	wl_signal_emit(&compositor->sleep_signal, compositor);
 }
 
 /** Sets compositor to idle mode
@@ -10102,6 +10103,7 @@ weston_compositor_create(struct wl_display *display,
 	wl_signal_init(&ec->kill_signal);
 	wl_signal_init(&ec->idle_signal);
 	wl_signal_init(&ec->wake_signal);
+	wl_signal_init(&ec->sleep_signal);
 	wl_signal_init(&ec->show_input_panel_signal);
 	wl_signal_init(&ec->hide_input_panel_signal);
 	wl_signal_init(&ec->update_input_panel_signal);
